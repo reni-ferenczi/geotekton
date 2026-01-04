@@ -209,6 +209,7 @@ __marimo__/
 # Godot 4+ specific ignores
 .godot/
 .nomedia
+/android/
 
 # Godot-specific ignores
 .import/
