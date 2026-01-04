@@ -20,6 +20,11 @@ config/icon="res://icon.svg"
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 
+[gui]
+
+theme/default_theme_scale=1.5
+theme/custom="uid://bbafhmnkglx3i"
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"

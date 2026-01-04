@@ -1,16 +1,26 @@
 [gd_scene format=3 uid="uid://j7iecxbro18"]
 
-[node name="Timeline" type="HBoxContainer"]
-anchors_preset = 15
+[node name="Timeline" type="PanelContainer"]
+anchors_preset = 10
 anchor_right = 1.0
-anchor_bottom = 1.0
+offset_bottom = 96.0
 grow_horizontal = 2
-grow_vertical = 2
 
-[node name="HSlider" type="HSlider" parent="."]
-custom_minimum_size = Vector2(0, 64)
+[node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 2
 size_flags_horizontal = 3
-min_value = -2000.0
-max_value = 0.0
+size_flags_vertical = 4
+
+[node name="HSlider" type="HSlider" parent="Margin"]
+custom_minimum_size = Vector2(150, 64)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 2000.0
+step = 10.0
+page = 100.0
+value = 2000.0
+rounded = true
+allow_greater = true
+allow_lesser = true
 tick_count = 20
+ticks_on_borders = true

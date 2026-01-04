@@ -1,11 +1,12 @@
-[gd_scene load_steps=5 format=3 uid="uid://c5ur4nn07xtr1"]
+[gd_scene load_steps=6 format=3 uid="uid://c5ur4nn07xtr1"]
 
 [ext_resource type="PackedScene" uid="uid://ddsy7ljlp8o3g" path="res://Scenes/Planet/planet.tscn" id="1_dftp8"]
+[ext_resource type="PackedScene" uid="uid://r6wwyg6x5hvf" path="res://Scenes/Editor/tree.tscn" id="1_ub1o7"]
 [ext_resource type="PackedScene" uid="uid://j7iecxbro18" path="res://Scenes/Timeline/timeline.tscn" id="2_3ysjy"]
+[ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Editor/properties.tscn" id="4_6172c"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wl3go"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_s7bqi"]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
+bg_color = Color(0.4, 0.4, 0.4, 1)
 
 [node name="Editor" type="CanvasLayer"]
 
@@ -18,11 +19,14 @@ grow_vertical = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 
-[node name="MenuBar" type="MenuBar" parent="VBoxContainer"]
-custom_minimum_size = Vector2(0, 32)
+[node name="Menu" type="PanelContainer" parent="VBoxContainer"]
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 
-[node name="MenuButton" type="MenuButton" parent="VBoxContainer/MenuBar"]
+[node name="MenuBar" type="MenuBar" parent="VBoxContainer/Menu"]
+layout_mode = 2
+
+[node name="MenuButton" type="MenuButton" parent="VBoxContainer/Menu/MenuBar"]
 layout_mode = 1
 offset_right = 35.0
 offset_bottom = 31.0
@@ -35,53 +39,56 @@ popup/item_1/id = 1
 popup/item_2/text = "Save"
 popup/item_2/id = 2
 
-[node name="HSplitContainer" type="HSplitContainer" parent="VBoxContainer"]
+[node name="LeftSplitter" type="HSplitContainer" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_styles/split_bar_background = SubResource("StyleBoxFlat_wl3go")
+split_offset = 320
 
-[node name="Tree" type="Tree" parent="VBoxContainer/HSplitContainer"]
-custom_minimum_size = Vector2(100, 0)
+[node name="Tree" parent="VBoxContainer/LeftSplitter" instance=ExtResource("1_ub1o7")]
 layout_mode = 2
-columns = 2
 
-[node name="HSplitContainer" type="HSplitContainer" parent="VBoxContainer/HSplitContainer"]
+[node name="RightSplitter" type="HSplitContainer" parent="VBoxContainer/LeftSplitter"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-theme_override_styles/split_bar_background = SubResource("StyleBoxFlat_s7bqi")
+split_offset = -320
 
-[node name="CenterPanel" type="VBoxContainer" parent="VBoxContainer/HSplitContainer/HSplitContainer"]
+[node name="Center" type="VBoxContainer" parent="VBoxContainer/LeftSplitter/RightSplitter"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Tools" type="MenuBar" parent="VBoxContainer/HSplitContainer/HSplitContainer/CenterPanel"]
-custom_minimum_size = Vector2(0, 32)
+[node name="PanelContainer" type="PanelContainer" parent="VBoxContainer/LeftSplitter/RightSplitter/Center"]
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
-size_flags_horizontal = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
+
+[node name="Tools" type="MenuBar" parent="VBoxContainer/LeftSplitter/RightSplitter/Center/PanelContainer"]
+layout_mode = 2
 size_flags_vertical = 0
+flat = true
 
-[node name="Button" type="Button" parent="VBoxContainer/HSplitContainer/HSplitContainer/CenterPanel/Tools"]
+[node name="Button" type="Button" parent="VBoxContainer/LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 layout_mode = 0
 offset_right = 8.0
 offset_bottom = 8.0
 text = "Move"
 
-[node name="View" type="SubViewportContainer" parent="VBoxContainer/HSplitContainer/HSplitContainer/CenterPanel"]
+[node name="View" type="SubViewportContainer" parent="VBoxContainer/LeftSplitter/RightSplitter/Center"]
 self_modulate = Color(1, 1, 1, 0)
 layout_mode = 2
 size_flags_vertical = 3
+stretch = true
 
-[node name="SubViewport" type="SubViewport" parent="VBoxContainer/HSplitContainer/HSplitContainer/CenterPanel/View"]
+[node name="SubViewport" type="SubViewport" parent="VBoxContainer/LeftSplitter/RightSplitter/Center/View"]
 handle_input_locally = false
-size = Vector2i(1696, 940)
+size = Vector2i(1264, 880)
 render_target_update_mode = 4
 
-[node name="Planet" parent="VBoxContainer/HSplitContainer/HSplitContainer/CenterPanel/View/SubViewport" instance=ExtResource("1_dftp8")]
+[node name="Planet" parent="VBoxContainer/LeftSplitter/RightSplitter/Center/View/SubViewport" instance=ExtResource("1_dftp8")]
 
-[node name="Timeline" parent="VBoxContainer/HSplitContainer/HSplitContainer/CenterPanel" instance=ExtResource("2_3ysjy")]
+[node name="Timeline" parent="VBoxContainer/LeftSplitter/RightSplitter/Center" instance=ExtResource("2_3ysjy")]
 layout_mode = 2
+size_flags_horizontal = 3
 
-[node name="Properties" type="VBoxContainer" parent="VBoxContainer/HSplitContainer/HSplitContainer"]
-custom_minimum_size = Vector2(100, 0)
+[node name="Properties" parent="VBoxContainer/LeftSplitter/RightSplitter" instance=ExtResource("4_6172c")]
 layout_mode = 2
