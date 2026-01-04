@@ -1,0 +1,1 @@
+Read and internalize `AGENTS.md` in the project folder before working on anything else.
