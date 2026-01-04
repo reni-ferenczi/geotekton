@@ -74,7 +74,7 @@ size_flags_vertical = 3
 
 [node name="SubViewport" type="SubViewport" parent="VBoxContainer/HSplitContainer/HSplitContainer/CenterPanel/View"]
 handle_input_locally = false
-size = Vector2i(1280, 800)
+size = Vector2i(1696, 940)
 render_target_update_mode = 4
 
 [node name="Planet" parent="VBoxContainer/HSplitContainer/HSplitContainer/CenterPanel/View/SubViewport" instance=ExtResource("1_dftp8")]

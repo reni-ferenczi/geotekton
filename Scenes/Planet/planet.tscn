@@ -2,18 +2,27 @@
 
 [ext_resource type="Material" uid="uid://bysebjdg37f6l" path="res://Scenes/Planet/planet.tres" id="1_510pn"]
 
-[sub_resource type="SphereMesh" id="SphereMesh_rhkkk"]
+[sub_resource type="SphereMesh" id="SphereMesh_510pn"]
+radial_segments = 128
+rings = 64
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_510pn"]
 
 [node name="Planet" type="Node3D"]
 
-[node name="Sphere" type="MeshInstance3D" parent="."]
-mesh = SubResource("SphereMesh_rhkkk")
+[node name="Globe" type="MeshInstance3D" parent="."]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 0)
+mesh = SubResource("SphereMesh_510pn")
 surface_material_override/0 = ExtResource("1_510pn")
 
 [node name="Map" type="MeshInstance3D" parent="."]
-transform = Transform3D(-1, 1.509958e-07, -3.300118e-15, 0, -4.371139e-08, -0.5, -1.509958e-07, -1, 2.1855694e-08, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -0.5, 0, 1, -2.1855694e-08, 0, 0, 0)
 visible = false
 mesh = SubResource("PlaneMesh_510pn")
 surface_material_override/0 = ExtResource("1_510pn")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 2)
