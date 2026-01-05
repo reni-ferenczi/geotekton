@@ -92,8 +92,9 @@ render_target_update_mode = 4
 unique_name_in_owner = true
 
 [node name="Camera3D" type="Camera3D" parent="LeftSplitter/RightSplitter/Center/View/SubViewport"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.05)
 current = true
+fov = 60.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="LeftSplitter/RightSplitter/Center/View/SubViewport"]
 environment = SubResource("Environment_ub1o7")
