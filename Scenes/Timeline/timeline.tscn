@@ -1,24 +1,28 @@
-[gd_scene format=3 uid="uid://j7iecxbro18"]
+[gd_scene load_steps=2 format=3 uid="uid://j7iecxbro18"]
+
+[ext_resource type="Script" uid="uid://b8ja2srjq2hvs" path="res://Scenes/Timeline/timeline.gd" id="1_acle0"]
 
 [node name="Timeline" type="PanelContainer"]
 anchors_preset = 10
 anchor_right = 1.0
 offset_bottom = 96.0
 grow_horizontal = 2
+script = ExtResource("1_acle0")
 
 [node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
 
-[node name="HSlider" type="HSlider" parent="Margin"]
+[node name="TimestampSlider" type="HSlider" parent="Margin"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(150, 64)
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 2000.1
 step = 10.0
 page = 100.0
-value = 2000.0
+value = 1900.1
 rounded = true
 allow_greater = true
 allow_lesser = true

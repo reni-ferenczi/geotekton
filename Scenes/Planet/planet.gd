@@ -12,7 +12,7 @@ class_name Planet
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	globe.visible = not show_map
 	map.visible = show_map
 	

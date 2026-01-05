@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://c5ur4nn07xtr1"]
+[gd_scene load_steps=9 format=3 uid="uid://c5ur4nn07xtr1"]
 
 [ext_resource type="PackedScene" uid="uid://ddsy7ljlp8o3g" path="res://Scenes/Planet/planet.tscn" id="1_dftp8"]
 [ext_resource type="PackedScene" uid="uid://r6wwyg6x5hvf" path="res://Scenes/Editor/tree.tscn" id="1_ub1o7"]
@@ -8,25 +8,30 @@
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
 
-[node name="Editor" type="CanvasLayer"]
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_ub1o7"]
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[sub_resource type="Sky" id="Sky_ub1o7"]
+sky_material = SubResource("ProceduralSkyMaterial_ub1o7")
+
+[sub_resource type="Environment" id="Environment_ub1o7"]
+background_mode = 2
+sky = SubResource("Sky_ub1o7")
+
+[node name="Editor" type="VBoxContainer"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-size_flags_horizontal = 4
-size_flags_vertical = 4
 
-[node name="Menu" type="PanelContainer" parent="VBoxContainer"]
+[node name="Menu" type="PanelContainer" parent="."]
 custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
 
-[node name="MenuBar" type="MenuBar" parent="VBoxContainer/Menu"]
+[node name="MenuBar" type="MenuBar" parent="Menu"]
 layout_mode = 2
 
-[node name="MenuButton" type="MenuButton" parent="VBoxContainer/Menu/MenuBar"]
+[node name="MenuButton" type="MenuButton" parent="Menu/MenuBar"]
 layout_mode = 1
 offset_right = 35.0
 offset_bottom = 31.0
@@ -39,56 +44,63 @@ popup/item_1/id = 1
 popup/item_2/text = "Save"
 popup/item_2/id = 2
 
-[node name="LeftSplitter" type="HSplitContainer" parent="VBoxContainer"]
+[node name="LeftSplitter" type="HSplitContainer" parent="."]
 layout_mode = 2
 size_flags_vertical = 3
 split_offset = 320
 
-[node name="Tree" parent="VBoxContainer/LeftSplitter" instance=ExtResource("1_ub1o7")]
+[node name="Tree" parent="LeftSplitter" instance=ExtResource("1_ub1o7")]
 layout_mode = 2
 
-[node name="RightSplitter" type="HSplitContainer" parent="VBoxContainer/LeftSplitter"]
+[node name="RightSplitter" type="HSplitContainer" parent="LeftSplitter"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 split_offset = -320
 
-[node name="Center" type="VBoxContainer" parent="VBoxContainer/LeftSplitter/RightSplitter"]
+[node name="Center" type="VBoxContainer" parent="LeftSplitter/RightSplitter"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="PanelContainer" type="PanelContainer" parent="VBoxContainer/LeftSplitter/RightSplitter/Center"]
+[node name="PanelContainer" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
 custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 
-[node name="Tools" type="MenuBar" parent="VBoxContainer/LeftSplitter/RightSplitter/Center/PanelContainer"]
+[node name="Tools" type="MenuBar" parent="LeftSplitter/RightSplitter/Center/PanelContainer"]
 layout_mode = 2
 size_flags_vertical = 0
 flat = true
 
-[node name="Button" type="Button" parent="VBoxContainer/LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Button" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 layout_mode = 0
 offset_right = 8.0
 offset_bottom = 8.0
 text = "Move"
 
-[node name="View" type="SubViewportContainer" parent="VBoxContainer/LeftSplitter/RightSplitter/Center"]
-self_modulate = Color(1, 1, 1, 0)
+[node name="View" type="SubViewportContainer" parent="LeftSplitter/RightSplitter/Center"]
 layout_mode = 2
 size_flags_vertical = 3
 stretch = true
 
-[node name="SubViewport" type="SubViewport" parent="VBoxContainer/LeftSplitter/RightSplitter/Center/View"]
+[node name="SubViewport" type="SubViewport" parent="LeftSplitter/RightSplitter/Center/View"]
 handle_input_locally = false
 size = Vector2i(1264, 910)
 render_target_update_mode = 4
 
-[node name="Planet" parent="VBoxContainer/LeftSplitter/RightSplitter/Center/View/SubViewport" instance=ExtResource("1_dftp8")]
+[node name="Planet" parent="LeftSplitter/RightSplitter/Center/View/SubViewport" instance=ExtResource("1_dftp8")]
+unique_name_in_owner = true
 
-[node name="Timeline" parent="VBoxContainer/LeftSplitter/RightSplitter/Center" instance=ExtResource("2_3ysjy")]
+[node name="Camera3D" type="Camera3D" parent="LeftSplitter/RightSplitter/Center/View/SubViewport"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1)
+current = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="LeftSplitter/RightSplitter/Center/View/SubViewport"]
+environment = SubResource("Environment_ub1o7")
+
+[node name="Timeline" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("2_3ysjy")]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Properties" parent="VBoxContainer/LeftSplitter/RightSplitter" instance=ExtResource("4_6172c")]
+[node name="Properties" parent="LeftSplitter/RightSplitter" instance=ExtResource("4_6172c")]
 layout_mode = 2
