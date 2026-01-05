@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://ddsy7ljlp8o3g"]
+[gd_scene load_steps=11 format=3 uid="uid://ddsy7ljlp8o3g"]
 
 [ext_resource type="Shader" uid="uid://diyn5fhv3xlpq" path="res://Scenes/Planet/planet.gdshader" id="1_4ilve"]
 [ext_resource type="Script" uid="uid://dvlkwdhf7so0a" path="res://Scenes/Planet/planet.gd" id="1_wwls2"]
@@ -33,6 +33,9 @@ shader_parameter/split = Vector2(24, 12)
 [sub_resource type="BoxShape3D" id="BoxShape3D_4ilve"]
 size = Vector3(2, 0.01, 2)
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_wwls2"]
+size = Vector3(6, 3, 0.01)
+
 [node name="Planet" type="Node3D"]
 script = ExtResource("1_wwls2")
 metadata/_edit_lock_ = true
@@ -64,6 +67,12 @@ metadata/_edit_lock_ = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005, 0)
 shape = SubResource("BoxShape3D_4ilve")
 
+[node name="Background" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Background"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1)
+shape = SubResource("BoxShape3D_wwls2")
+
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.05)
 fov = 60.0
@@ -75,3 +84,4 @@ metadata/_edit_lock_ = true
 
 [connection signal="input_event" from="Globe/GlobePhysicsBody" to="." method="_on_globe_physics_body_input_event"]
 [connection signal="input_event" from="Map/MapPhysicsBody" to="." method="_on_map_physics_body_input_event"]
+[connection signal="input_event" from="Background" to="." method="_on_background_input_event"]

@@ -1,6 +1,7 @@
 extends Node3D
 class_name Planet
 
+signal input_event_outside(event: InputEvent)
 signal input_event_globe(lat: float, lon: float, event: InputEvent)
 signal input_event_map(lat: float, lon: float, event: InputEvent)
 
@@ -20,6 +21,10 @@ func _process(_delta: float) -> void:
 	
 	if globe:
 		globe.rotation = Vector3(deg_to_rad(lat), deg_to_rad(180 - lon), deg_to_rad(angle))
+
+
+func _on_background_input_event(camera: Node, event: InputEvent, event_position: Vector3, normal: Vector3, shape_idx: int) -> void:
+	input_event_outside.emit(event)
 
 
 func _on_globe_physics_body_input_event(camera: Node, event: InputEvent, event_position: Vector3, normal: Vector3, shape_idx: int) -> void:

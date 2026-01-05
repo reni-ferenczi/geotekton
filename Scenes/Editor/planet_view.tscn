@@ -38,3 +38,4 @@ environment = SubResource("Environment_ub1o7")
 
 [connection signal="input_event_globe" from="SubViewport/Planet" to="." method="_on_planet_input_event_globe"]
 [connection signal="input_event_map" from="SubViewport/Planet" to="." method="_on_planet_input_event_map"]
+[connection signal="input_event_outside" from="SubViewport/Planet" to="." method="_on_planet_input_event_outside"]
