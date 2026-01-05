@@ -19,13 +19,17 @@ config/icon="res://icon.svg"
 
 window/size/viewport_width=1920
 window/size/viewport_height=1080
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/stretch/scale=1.5
 
 [gui]
 
-theme/default_theme_scale=1.5
 theme/custom="uid://bbafhmnkglx3i"
 
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+anti_aliasing/quality/msaa_2d=1
+anti_aliasing/quality/msaa_3d=1

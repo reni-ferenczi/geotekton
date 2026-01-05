@@ -1,12 +1,31 @@
-[gd_scene load_steps=4 format=3 uid="uid://ddsy7ljlp8o3g"]
+[gd_scene load_steps=7 format=3 uid="uid://ddsy7ljlp8o3g"]
 
-[ext_resource type="Material" uid="uid://bysebjdg37f6l" path="res://Scenes/Planet/planet.tres" id="1_510pn"]
+[ext_resource type="Shader" uid="uid://diyn5fhv3xlpq" path="res://Scenes/Planet/planet.gdshader" id="1_4ilve"]
+[ext_resource type="Texture2D" uid="uid://b5wu0grjetgpn" path="res://Assets/Textures/Earth.jpg" id="2_wwls2"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_510pn"]
 radial_segments = 128
 rings = 64
 
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ip3qi"]
+render_priority = 0
+shader = ExtResource("1_4ilve")
+shader_parameter/is_globe = true
+shader_parameter/earth_tex = ExtResource("2_wwls2")
+shader_parameter/color = Vector4(1, 1, 1, 0.3333)
+shader_parameter/width = Vector2(0.015, 0.015)
+shader_parameter/split = Vector2(24, 12)
+
 [sub_resource type="PlaneMesh" id="PlaneMesh_510pn"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_elfkv"]
+render_priority = 0
+shader = ExtResource("1_4ilve")
+shader_parameter/is_globe = false
+shader_parameter/earth_tex = ExtResource("2_wwls2")
+shader_parameter/color = Vector4(1, 1, 1, 0.3333)
+shader_parameter/width = Vector2(0.015, 0.015)
+shader_parameter/split = Vector2(24, 12)
 
 [node name="Planet" type="Node3D"]
 metadata/_edit_lock_ = true
@@ -14,14 +33,13 @@ metadata/_edit_lock_ = true
 [node name="Globe" type="MeshInstance3D" parent="."]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 0)
 mesh = SubResource("SphereMesh_510pn")
-surface_material_override/0 = ExtResource("1_510pn")
+surface_material_override/0 = SubResource("ShaderMaterial_ip3qi")
 metadata/_edit_lock_ = true
 
 [node name="Map" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -0.5, 0, 1, -2.1855694e-08, 0, 0, 0)
-visible = false
 mesh = SubResource("PlaneMesh_510pn")
-surface_material_override/0 = ExtResource("1_510pn")
+surface_material_override/0 = SubResource("ShaderMaterial_elfkv")
 metadata/_edit_lock_ = true
 
 [node name="Camera3D" type="Camera3D" parent="."]

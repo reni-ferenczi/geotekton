@@ -20,7 +20,7 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 
 [node name="Menu" type="PanelContainer" parent="VBoxContainer"]
-custom_minimum_size = Vector2(0, 46)
+custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
 
 [node name="MenuBar" type="MenuBar" parent="VBoxContainer/Menu"]
@@ -58,7 +58,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="PanelContainer" type="PanelContainer" parent="VBoxContainer/LeftSplitter/RightSplitter/Center"]
-custom_minimum_size = Vector2(0, 46)
+custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 
@@ -81,7 +81,7 @@ stretch = true
 
 [node name="SubViewport" type="SubViewport" parent="VBoxContainer/LeftSplitter/RightSplitter/Center/View"]
 handle_input_locally = false
-size = Vector2i(1264, 880)
+size = Vector2i(1264, 910)
 render_target_update_mode = 4
 
 [node name="Planet" parent="VBoxContainer/LeftSplitter/RightSplitter/Center/View/SubViewport" instance=ExtResource("1_dftp8")]
