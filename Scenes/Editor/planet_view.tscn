@@ -1,0 +1,40 @@
+[gd_scene load_steps=6 format=3 uid="uid://c4pfguihgimj3"]
+
+[ext_resource type="PackedScene" uid="uid://ddsy7ljlp8o3g" path="res://Scenes/Planet/planet.tscn" id="1_g1eqg"]
+[ext_resource type="Script" uid="uid://tfk6s1r5k3be" path="res://Scenes/Editor/planet_view.gd" id="1_im7ge"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_ub1o7"]
+
+[sub_resource type="Sky" id="Sky_ub1o7"]
+sky_material = SubResource("ProceduralSkyMaterial_ub1o7")
+
+[sub_resource type="Environment" id="Environment_ub1o7"]
+background_mode = 2
+sky = SubResource("Sky_ub1o7")
+
+[node name="PlanetView" type="SubViewportContainer"]
+size_flags_vertical = 3
+stretch = true
+script = ExtResource("1_im7ge")
+
+[node name="SubViewport" type="SubViewport" parent="."]
+unique_name_in_owner = true
+handle_input_locally = false
+physics_object_picking = true
+physics_object_picking_first_only = true
+size = Vector2i(2, 2)
+render_target_update_mode = 4
+
+[node name="Planet" parent="SubViewport" instance=ExtResource("1_g1eqg")]
+unique_name_in_owner = true
+
+[node name="Camera3D" type="Camera3D" parent="SubViewport"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.05)
+current = true
+fov = 60.0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="SubViewport"]
+environment = SubResource("Environment_ub1o7")
+
+[connection signal="input_event_globe" from="SubViewport/Planet" to="." method="_on_planet_input_event_globe"]
+[connection signal="input_event_map" from="SubViewport/Planet" to="." method="_on_planet_input_event_map"]

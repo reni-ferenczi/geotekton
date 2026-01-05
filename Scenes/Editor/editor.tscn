@@ -1,21 +1,13 @@
-[gd_scene load_steps=9 format=3 uid="uid://c5ur4nn07xtr1"]
+[gd_scene load_steps=7 format=3 uid="uid://c5ur4nn07xtr1"]
 
-[ext_resource type="PackedScene" uid="uid://ddsy7ljlp8o3g" path="res://Scenes/Planet/planet.tscn" id="1_dftp8"]
+[ext_resource type="Script" uid="uid://tgvfv7tx2ehw" path="res://Scenes/Editor/editor.gd" id="1_6172c"]
 [ext_resource type="PackedScene" uid="uid://r6wwyg6x5hvf" path="res://Scenes/Editor/tree.tscn" id="1_ub1o7"]
 [ext_resource type="PackedScene" uid="uid://j7iecxbro18" path="res://Scenes/Timeline/timeline.tscn" id="2_3ysjy"]
+[ext_resource type="PackedScene" uid="uid://c4pfguihgimj3" path="res://Scenes/Editor/planet_view.tscn" id="2_ub1o7"]
 [ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Editor/properties.tscn" id="4_6172c"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
-
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_ub1o7"]
-
-[sub_resource type="Sky" id="Sky_ub1o7"]
-sky_material = SubResource("ProceduralSkyMaterial_ub1o7")
-
-[sub_resource type="Environment" id="Environment_ub1o7"]
-background_mode = 2
-sky = SubResource("Sky_ub1o7")
 
 [node name="Editor" type="VBoxContainer"]
 anchors_preset = 15
@@ -23,6 +15,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("1_6172c")
 
 [node name="Menu" type="PanelContainer" parent="."]
 custom_minimum_size = Vector2(0, 31)
@@ -78,26 +71,8 @@ offset_right = 8.0
 offset_bottom = 8.0
 text = "Move"
 
-[node name="View" type="SubViewportContainer" parent="LeftSplitter/RightSplitter/Center"]
+[node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("2_ub1o7")]
 layout_mode = 2
-size_flags_vertical = 3
-stretch = true
-
-[node name="SubViewport" type="SubViewport" parent="LeftSplitter/RightSplitter/Center/View"]
-handle_input_locally = false
-size = Vector2i(1264, 910)
-render_target_update_mode = 4
-
-[node name="Planet" parent="LeftSplitter/RightSplitter/Center/View/SubViewport" instance=ExtResource("1_dftp8")]
-unique_name_in_owner = true
-
-[node name="Camera3D" type="Camera3D" parent="LeftSplitter/RightSplitter/Center/View/SubViewport"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.05)
-current = true
-fov = 60.0
-
-[node name="WorldEnvironment" type="WorldEnvironment" parent="LeftSplitter/RightSplitter/Center/View/SubViewport"]
-environment = SubResource("Environment_ub1o7")
 
 [node name="Timeline" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("2_3ysjy")]
 layout_mode = 2
