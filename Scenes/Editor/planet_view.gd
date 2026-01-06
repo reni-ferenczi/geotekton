@@ -1,7 +1,8 @@
 extends SubViewportContainer
 class_name PlanetView
 
-const PlanetViewRotation = preload("res://Scenes/Editor/planet_view_rotation.gd")
+#const PlanetViewRotation = preload("res://Scenes/Editor/planet_view_rotation.gd")
+#const PlanetViewFeature = preload("res://Scenes/Editor/planet_view_rotation.gd")
 
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet

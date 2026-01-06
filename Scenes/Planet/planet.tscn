@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://ddsy7ljlp8o3g"]
+[gd_scene load_steps=12 format=3 uid="uid://ddsy7ljlp8o3g"]
 
 [ext_resource type="Shader" uid="uid://diyn5fhv3xlpq" path="res://Scenes/Planet/planet.gdshader" id="1_4ilve"]
 [ext_resource type="Script" uid="uid://dvlkwdhf7so0a" path="res://Scenes/Planet/planet.gd" id="1_wwls2"]
@@ -23,13 +23,11 @@ radius = 0.499
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_510pn"]
 
-[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_elfkv"]
-
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_elfkv"]
 render_priority = 0
 shader = ExtResource("1_4ilve")
 shader_parameter/is_globe = false
-shader_parameter/earth_tex = SubResource("CompressedTexture2D_elfkv")
+shader_parameter/earth_tex = ExtResource("2_wwls2")
 shader_parameter/color = Vector4(1, 1, 1, 0.3333)
 shader_parameter/width = Vector2(0.015, 0.015)
 shader_parameter/split = Vector2(24, 12)

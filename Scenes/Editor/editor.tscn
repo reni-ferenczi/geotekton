@@ -1,8 +1,8 @@
 [gd_scene load_steps=7 format=3 uid="uid://c5ur4nn07xtr1"]
 
 [ext_resource type="Script" uid="uid://tgvfv7tx2ehw" path="res://Scenes/Editor/editor.gd" id="1_6172c"]
-[ext_resource type="PackedScene" uid="uid://r6wwyg6x5hvf" path="res://Scenes/Editor/tree.tscn" id="1_ub1o7"]
 [ext_resource type="PackedScene" uid="uid://j7iecxbro18" path="res://Scenes/Timeline/timeline.tscn" id="2_3ysjy"]
+[ext_resource type="PackedScene" uid="uid://bticsgj2lii4y" path="res://Scenes/Features/features.tscn" id="2_6172c"]
 [ext_resource type="PackedScene" uid="uid://c4pfguihgimj3" path="res://Scenes/Editor/planet_view.tscn" id="2_ub1o7"]
 [ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Editor/properties.tscn" id="4_6172c"]
 
@@ -42,7 +42,7 @@ layout_mode = 2
 size_flags_vertical = 3
 split_offset = 320
 
-[node name="Tree" parent="LeftSplitter" instance=ExtResource("1_ub1o7")]
+[node name="Features" parent="LeftSplitter" instance=ExtResource("2_6172c")]
 layout_mode = 2
 
 [node name="RightSplitter" type="HSplitContainer" parent="LeftSplitter"]

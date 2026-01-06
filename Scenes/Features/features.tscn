@@ -1,0 +1,33 @@
+[gd_scene load_steps=3 format=3 uid="uid://bticsgj2lii4y"]
+
+[ext_resource type="PackedScene" uid="uid://r6wwyg6x5hvf" path="res://Scenes/Editor/tree.tscn" id="1_4lkpf"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
+bg_color = Color(0.4, 0.4, 0.4, 1)
+
+[node name="Features" type="VBoxContainer"]
+custom_minimum_size = Vector2(320, 0)
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 16.0
+grow_vertical = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="."]
+custom_minimum_size = Vector2(0, 31)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
+
+[node name="Tools" type="MenuBar" parent="PanelContainer"]
+layout_mode = 2
+size_flags_vertical = 0
+flat = true
+
+[node name="Button" type="Button" parent="PanelContainer/Tools"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Move"
+
+[node name="Tree" parent="." instance=ExtResource("1_4lkpf")]
+layout_mode = 2
+size_flags_vertical = 3
