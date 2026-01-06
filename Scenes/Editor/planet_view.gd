@@ -3,6 +3,7 @@ class_name PlanetView
 
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet
+@onready var camera: Camera3D = %Camera3D
 
 var is_dragging: bool
 var is_rotating: bool
@@ -14,7 +15,9 @@ var previous_lon: float
 var rotation_sensitivity: Vector2 = Vector2(0.5, 0.5)
 
 const ENABLE_ANGLE: bool = false
-
+const MIN_FOV: float = 15.0
+const MAX_FOV: float = 90.0
+const FOV_STEP: float = 3.0
 
 func start_dragging(lat: float, lon: float):
 	print('Start dragging from: ', lat, ', ', lon)
@@ -92,6 +95,11 @@ func _on_planet_input_event_map(lat: float, lon: float, event: InputEvent) -> vo
 
 
 func _on_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.is_pressed():
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			camera.fov = clamp(camera.fov - FOV_STEP, MIN_FOV, MAX_FOV)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			camera.fov = clamp(camera.fov + FOV_STEP, MIN_FOV, MAX_FOV)
 	if event is InputEventMouseMotion and is_rotating:
 		if ENABLE_ANGLE and Input.is_key_pressed(KEY_SHIFT):
 			handle_rotating_angle(event.relative)
