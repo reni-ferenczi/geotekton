@@ -35,6 +35,7 @@ fov = 60.0
 [node name="WorldEnvironment" type="WorldEnvironment" parent="SubViewport"]
 environment = SubResource("Environment_ub1o7")
 
+[connection signal="gui_input" from="." to="." method="_on_gui_input"]
 [connection signal="input_event_globe" from="SubViewport/Planet" to="." method="_on_planet_input_event_globe"]
 [connection signal="input_event_map" from="SubViewport/Planet" to="." method="_on_planet_input_event_map"]
 [connection signal="input_event_outside" from="SubViewport/Planet" to="." method="_on_planet_input_event_outside"]
