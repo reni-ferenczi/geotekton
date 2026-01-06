@@ -13,7 +13,7 @@ func _on_planet_input_event_outside(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var p = event.position
 		print("Outside click: x=%+d, y=%+d" % [roundi(p.x), roundi(p.y)])
-		
+
 
 func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> void:
 	if event is InputEventMouseButton:
