@@ -6,13 +6,7 @@ const PlanetViewRotation = preload("res://Scenes/Editor/planet_view_rotation.gd"
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet
 @onready var camera: Camera3D = %Camera3D
-
-var rotation_handler: PlanetViewRotation
-
-func _ready():
-	rotation_handler = PlanetViewRotation.new(planet, camera)
-
-
+@onready var rotation_handler: PlanetViewRotation = PlanetViewRotation.new(planet, camera)
 
 
 func _on_planet_input_event_outside(event: InputEvent) -> void:
