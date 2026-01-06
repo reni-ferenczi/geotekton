@@ -1,9 +1,9 @@
-[gd_scene load_steps=12 format=3 uid="uid://ddsy7ljlp8o3g"]
+[gd_scene load_steps=13 format=3 uid="uid://ddsy7ljlp8o3g"]
 
 [ext_resource type="Shader" uid="uid://diyn5fhv3xlpq" path="res://Scenes/Planet/planet.gdshader" id="1_4ilve"]
 [ext_resource type="Script" uid="uid://dvlkwdhf7so0a" path="res://Scenes/Planet/planet.gd" id="1_wwls2"]
 [ext_resource type="Texture2D" uid="uid://b5wu0grjetgpn" path="res://Assets/Textures/Earth.jpg" id="2_wwls2"]
-[ext_resource type="Texture2D" uid="uid://4164mgo0iyst" path="res://Assets/Textures/sky-from-space.png" id="4_wwls2"]
+[ext_resource type="Texture2D" uid="uid://bi7ak16g3vioi" path="res://Assets/Textures/Starfield.png" id="3_4ilve"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_510pn"]
 radial_segments = 128
@@ -19,23 +19,27 @@ shader_parameter/width = Vector2(0.015, 0.015)
 shader_parameter/split = Vector2(24, 12)
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_4ilve"]
+radius = 0.499
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_510pn"]
+
+[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_elfkv"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_elfkv"]
 render_priority = 0
 shader = ExtResource("1_4ilve")
 shader_parameter/is_globe = false
-shader_parameter/earth_tex = ExtResource("2_wwls2")
+shader_parameter/earth_tex = SubResource("CompressedTexture2D_elfkv")
 shader_parameter/color = Vector4(1, 1, 1, 0.3333)
 shader_parameter/width = Vector2(0.015, 0.015)
 shader_parameter/split = Vector2(24, 12)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_4ilve"]
-size = Vector3(2, 0.01, 2)
+size = Vector3(2, 0.009, 2)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ip3qi"]
-albedo_texture = ExtResource("4_wwls2")
+albedo_texture = ExtResource("3_4ilve")
+metallic_specular = 0.0
 
 [node name="Planet" type="Node3D"]
 script = ExtResource("1_wwls2")
@@ -70,7 +74,7 @@ shape = SubResource("BoxShape3D_4ilve")
 
 [node name="Background" type="MeshInstance3D" parent="."]
 unique_name_in_owner = true
-transform = Transform3D(3, 0, 0, 0, -4.371139e-08, -1.5, 0, 1, -6.556708e-08, 0, 0, -1)
+transform = Transform3D(4.2, 0, 0, 0, -4.371139e-08, -2.1, 0, 1, -9.1793915e-08, 0, 0, -1)
 mesh = SubResource("PlaneMesh_510pn")
 surface_material_override/0 = SubResource("StandardMaterial3D_ip3qi")
 metadata/_edit_lock_ = true

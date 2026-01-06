@@ -1,0 +1,9 @@
+[project]
+name = "middle-earth"
+version = "1.0.0"
+description = "Utility scripts for the Middle Earth project"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pillow",
+]
