@@ -11,10 +11,14 @@ bg_color = Color(0.4, 0.4, 0.4, 1)
 [resource]
 HSplitContainer/constants/separation = 8
 HSplitContainer/styles/split_bar_background = SubResource("StyleBoxFlat_4rowt")
+HBoxContainer/constants/separation = 16
 MarginContainer/constants/margin_bottom = 16
 MarginContainer/constants/margin_left = 16
 MarginContainer/constants/margin_right = 16
 MarginContainer/constants/margin_top = 16
+Tree/styles/hovered = SubResource("StyleBoxFlat_6yau5")
+Tree/styles/hovered_dimmed = SubResource("StyleBoxFlat_yt1tq")
+VBoxContainer/constants/separation = 16
 Tree/styles/focus = SubResource("StyleBoxEmpty_4rowt")
 VSplitContainer/constants/separation = 8
 VSplitContainer/styles/split_bar_background = SubResource("StyleBoxFlat_5xvpe")

@@ -1,21 +1,21 @@
 [gd_scene load_steps=7 format=3 uid="uid://c5ur4nn07xtr1"]
 
-[ext_resource type="Script" uid="uid://tgvfv7tx2ehw" path="res://Scenes/Editor/editor.gd" id="1_6172c"]
-[ext_resource type="PackedScene" uid="uid://j7iecxbro18" path="res://Scenes/Timeline/timeline.tscn" id="2_3ysjy"]
-[ext_resource type="PackedScene" uid="uid://bticsgj2lii4y" path="res://Scenes/Features/features.tscn" id="2_6172c"]
-[ext_resource type="PackedScene" uid="uid://c4pfguihgimj3" path="res://Scenes/Editor/planet_view.tscn" id="2_ub1o7"]
-[ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Editor/properties.tscn" id="4_6172c"]
+[ext_resource type="Script" uid="uid://tgvfv7tx2ehw" path="res://Scenes/Editor/application.gd" id="1_nny64"]
+[ext_resource type="PackedScene" uid="uid://bticsgj2lii4y" path="res://Scenes/Features/features.tscn" id="2_jkixm"]
+[ext_resource type="PackedScene" uid="uid://c4pfguihgimj3" path="res://Scenes/Editor/planet_view.tscn" id="3_hn1gi"]
+[ext_resource type="PackedScene" uid="uid://j7iecxbro18" path="res://Scenes/Timeline/timeline.tscn" id="4_ew82s"]
+[ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Editor/properties.tscn" id="5_83lrd"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
 
-[node name="Editor" type="VBoxContainer"]
+[node name="Application" type="VBoxContainer"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_6172c")
+script = ExtResource("1_nny64")
 
 [node name="Menu" type="PanelContainer" parent="."]
 custom_minimum_size = Vector2(0, 31)
@@ -42,7 +42,7 @@ layout_mode = 2
 size_flags_vertical = 3
 split_offset = 320
 
-[node name="Features" parent="LeftSplitter" instance=ExtResource("2_6172c")]
+[node name="Features" parent="LeftSplitter" instance=ExtResource("2_jkixm")]
 layout_mode = 2
 
 [node name="RightSplitter" type="HSplitContainer" parent="LeftSplitter"]
@@ -71,12 +71,12 @@ offset_right = 8.0
 offset_bottom = 8.0
 text = "Move"
 
-[node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("2_ub1o7")]
+[node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("3_hn1gi")]
 layout_mode = 2
 
-[node name="Timeline" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("2_3ysjy")]
+[node name="Timeline" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("4_ew82s")]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Properties" parent="LeftSplitter/RightSplitter" instance=ExtResource("4_6172c")]
+[node name="Properties" parent="LeftSplitter/RightSplitter" instance=ExtResource("5_83lrd")]
 layout_mode = 2

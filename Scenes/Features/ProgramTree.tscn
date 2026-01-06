@@ -1,0 +1,36 @@
+[gd_scene load_steps=5 format=3 uid="uid://bccbc3x60w8vw"]
+
+[ext_resource type="Script" path="res://Scenes/Features/program_tree.gd" id="1_7167g"]
+[ext_resource type="Texture2D" uid="uid://csr41d5lskr7d" path="res://Assets/Icons/NodeCollapsedMirrored.png" id="1_eb6dw"]
+[ext_resource type="Texture2D" uid="uid://cnmnfmfmfhesb" path="res://Assets/Icons/NodeCollapsed.png" id="2_cknj4"]
+[ext_resource type="Texture2D" uid="uid://df71f1mecbvyk" path="res://Assets/Icons/Node.png" id="3_hv41i"]
+
+[node name="ProgramTree" type="Tree"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_vertical = 3
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
+theme_override_constants/item_margin = 32
+theme_override_constants/draw_guides = 1
+theme_override_constants/draw_relationship_lines = 1
+theme_override_constants/relationship_line_width = 2
+theme_override_constants/parent_hl_line_width = 4
+theme_override_constants/children_hl_line_width = 4
+theme_override_constants/parent_hl_line_margin = 4
+theme_override_icons/arrow = ExtResource("3_hv41i")
+theme_override_icons/arrow_collapsed = ExtResource("2_cknj4")
+theme_override_icons/arrow_collapsed_mirrored = ExtResource("1_eb6dw")
+select_mode = 1
+script = ExtResource("1_7167g")
+
+[connection signal="button_clicked" from="." to="." method="_on_button_clicked"]
+[connection signal="empty_clicked" from="." to="." method="_on_empty_clicked"]
+[connection signal="item_activated" from="." to="." method="_on_item_activated"]
+[connection signal="item_collapsed" from="." to="." method="_on_item_collapsed"]
+[connection signal="item_edited" from="." to="." method="_on_item_edited"]
+[connection signal="item_icon_double_clicked" from="." to="." method="_on_item_icon_double_clicked"]
+[connection signal="item_selected" from="." to="." method="_on_item_selected"]
