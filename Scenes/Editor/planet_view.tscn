@@ -1,18 +1,17 @@
-[gd_scene load_steps=6 format=3 uid="uid://c4pfguihgimj3"]
+[gd_scene load_steps=4 format=3 uid="uid://c4pfguihgimj3"]
 
 [ext_resource type="PackedScene" uid="uid://ddsy7ljlp8o3g" path="res://Scenes/Planet/planet.tscn" id="1_g1eqg"]
 [ext_resource type="Script" uid="uid://tfk6s1r5k3be" path="res://Scenes/Editor/planet_view.gd" id="1_im7ge"]
 
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_ub1o7"]
-
-[sub_resource type="Sky" id="Sky_ub1o7"]
-sky_material = SubResource("ProceduralSkyMaterial_ub1o7")
-
 [sub_resource type="Environment" id="Environment_ub1o7"]
 background_mode = 2
-sky = SubResource("Sky_ub1o7")
 
 [node name="PlanetView" type="SubViewportContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 size_flags_vertical = 3
 stretch = true
 script = ExtResource("1_im7ge")
@@ -22,7 +21,7 @@ unique_name_in_owner = true
 handle_input_locally = false
 physics_object_picking = true
 physics_object_picking_first_only = true
-size = Vector2i(2, 2)
+size = Vector2i(1920, 1080)
 render_target_update_mode = 4
 
 [node name="Planet" parent="SubViewport" instance=ExtResource("1_g1eqg")]
