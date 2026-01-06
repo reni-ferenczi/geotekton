@@ -1,74 +1,18 @@
 extends SubViewportContainer
 class_name PlanetView
 
+const PlanetViewRotation = preload("res://Scenes/Editor/planet_view_rotation.gd")
+
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet
 @onready var camera: Camera3D = %Camera3D
 
-var is_dragging: bool
-var is_rotating: bool
-var drag_start_lat: float
-var drag_start_lon: float
-var drag_start_pos: Vector2
-var previous_lat: float
-var previous_lon: float
-var rotation_sensitivity: Vector2 = Vector2(0.5, 0.5)
+var rotation_handler: PlanetViewRotation
 
-const ENABLE_ANGLE: bool = false
-const MIN_FOV: float = 15.0
-const MAX_FOV: float = 90.0
-const FOV_STEP: float = 3.0
-
-func start_dragging(lat: float, lon: float):
-	print('Start dragging from: ', lat, ', ', lon)
-	is_dragging = true
-	drag_start_lat = lat
-	drag_start_lon = lon
-	previous_lat = lat
-	previous_lon = lon
-	
-	
-func handle_dragging(lat: float, lon: float):
-	planet.lat = drag_start_lat + planet.lat - lat
-	planet.lon = drag_start_lon + planet.lon - lon
-	previous_lat = lat
-	previous_lon = lon
-	
-	
-func start_rotating(lat: float, lon: float, pos: Vector2):
-	print('Start rotating from: ', lat, ', ', lon)
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	is_rotating = true
+func _ready():
+	rotation_handler = PlanetViewRotation.new(planet, camera)
 
 
-func handle_rotating(rel: Vector2):
-	var delta = rel * rotation_sensitivity
-	planet.lat += delta.y
-	planet.lon -= delta.x
-
-	# Clamp latitude to -90..90 degrees
-	planet.lat = clamp(planet.lat, -90.0, 90.0)
-
-	# Wrap longitude to -180..180 degrees
-	planet.lon = fmod(planet.lon + 180.0, 360.0) - 180.0
-
-
-func handle_rotating_angle(rel: Vector2):
-	var delta = rel * rotation_sensitivity
-	planet.angle += delta.x
-
-	# Wrap angle to -180..180 degrees
-	planet.angle = fmod(planet.angle + 180.0, 360.0) - 180.0
-
-
-func cancel():
-	if is_dragging:
-		print('Stopped dragging')
-		is_dragging = false
-	if is_rotating:
-		print('Stopped rotating')
-		is_rotating = false
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _on_planet_input_event_outside(event: InputEvent) -> void:
@@ -81,12 +25,12 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 	if event is InputEventMouseButton:
 		print("Globe click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
 		if event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and Input.is_key_pressed(KEY_CTRL):
-			start_dragging(lat, lon)
+			rotation_handler.start_dragging(lat, lon)
 		elif event.is_pressed() and event.button_index == MOUSE_BUTTON_MIDDLE:
-			start_rotating(lat, lon, event.position)
+			rotation_handler.start_rotating(lat, lon, event.position)
 	if event is InputEventMouseMotion:
-		if is_dragging:
-			handle_dragging(lat, lon)
+		if rotation_handler.is_dragging:
+			rotation_handler.handle_dragging(lat, lon)
 
 
 func _on_planet_input_event_map(lat: float, lon: float, event: InputEvent) -> void:
@@ -96,14 +40,8 @@ func _on_planet_input_event_map(lat: float, lon: float, event: InputEvent) -> vo
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.is_pressed():
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			camera.fov = clamp(camera.fov - FOV_STEP, MIN_FOV, MAX_FOV)
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			camera.fov = clamp(camera.fov + FOV_STEP, MIN_FOV, MAX_FOV)
-	if event is InputEventMouseMotion and is_rotating:
-		if ENABLE_ANGLE and Input.is_key_pressed(KEY_SHIFT):
-			handle_rotating_angle(event.relative)
-		else:
-			handle_rotating(event.relative)
+		rotation_handler.handle_mouse_wheel(event.button_index)
+	if event is InputEventMouseMotion:
+		rotation_handler.handle_mouse_motion(event.relative)
 	if event is InputEventMouseButton and event.is_released():
-		cancel()
+		rotation_handler.handle_mouse_button_released()
