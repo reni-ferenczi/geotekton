@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://c5ur4nn07xtr1"]
+[gd_scene format=3 uid="uid://c5ur4nn07xtr1"]
 
 [ext_resource type="Script" uid="uid://tgvfv7tx2ehw" path="res://Scenes/Application/application.gd" id="1_nny64"]
 [ext_resource type="PackedScene" uid="uid://bticsgj2lii4y" path="res://Scenes/Features/features.tscn" id="2_jkixm"]
@@ -9,7 +9,7 @@
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
 
-[node name="Application" type="VBoxContainer"]
+[node name="Application" type="VBoxContainer" unique_id=1916170556]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -17,14 +17,14 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_nny64")
 
-[node name="Menu" type="PanelContainer" parent="."]
+[node name="Menu" type="PanelContainer" parent="." unique_id=839908147]
 custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
 
-[node name="MenuBar" type="MenuBar" parent="Menu"]
+[node name="MenuBar" type="MenuBar" parent="Menu" unique_id=447829068]
 layout_mode = 2
 
-[node name="MenuButton" type="MenuButton" parent="Menu/MenuBar"]
+[node name="MenuButton" type="MenuButton" parent="Menu/MenuBar" unique_id=1077436379]
 layout_mode = 1
 offset_right = 35.0
 offset_bottom = 31.0
@@ -37,46 +37,48 @@ popup/item_1/id = 1
 popup/item_2/text = "Save"
 popup/item_2/id = 2
 
-[node name="LeftSplitter" type="HSplitContainer" parent="."]
+[node name="LeftSplitter" type="HSplitContainer" parent="." unique_id=2051836296]
 layout_mode = 2
 size_flags_vertical = 3
+split_offsets = PackedInt32Array(320)
 split_offset = 320
 
-[node name="Features" parent="LeftSplitter" instance=ExtResource("2_jkixm")]
+[node name="Features" parent="LeftSplitter" unique_id=190302260 instance=ExtResource("2_jkixm")]
 layout_mode = 2
 
-[node name="RightSplitter" type="HSplitContainer" parent="LeftSplitter"]
+[node name="RightSplitter" type="HSplitContainer" parent="LeftSplitter" unique_id=2106835190]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+split_offsets = PackedInt32Array(-320)
 split_offset = -320
 
-[node name="Center" type="VBoxContainer" parent="LeftSplitter/RightSplitter"]
+[node name="Center" type="VBoxContainer" parent="LeftSplitter/RightSplitter" unique_id=1982138804]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="PanelContainer" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
+[node name="PanelContainer" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center" unique_id=523198116]
 custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 
-[node name="Tools" type="MenuBar" parent="LeftSplitter/RightSplitter/Center/PanelContainer"]
+[node name="Tools" type="MenuBar" parent="LeftSplitter/RightSplitter/Center/PanelContainer" unique_id=759912846]
 layout_mode = 2
 size_flags_vertical = 0
 flat = true
 
-[node name="Button" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Button" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1030834308]
 layout_mode = 0
 offset_right = 8.0
 offset_bottom = 8.0
 text = "Move"
 
-[node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("3_hn1gi")]
+[node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" unique_id=1571975947 instance=ExtResource("3_hn1gi")]
 layout_mode = 2
 
-[node name="Timeline" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("4_ew82s")]
+[node name="Timeline" parent="LeftSplitter/RightSplitter/Center" unique_id=555961110 instance=ExtResource("4_ew82s")]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Properties" parent="LeftSplitter/RightSplitter" instance=ExtResource("5_83lrd")]
+[node name="Properties" parent="LeftSplitter/RightSplitter" unique_id=1769907112 instance=ExtResource("5_83lrd")]
 layout_mode = 2
