@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://c4pfguihgimj3" path="res://Scenes/Application/planet_view.tscn" id="3_hn1gi"]
 [ext_resource type="PackedScene" uid="uid://j7iecxbro18" path="res://Scenes/Timeline/timeline.tscn" id="4_ew82s"]
 [ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Application/properties.tscn" id="5_83lrd"]
+[ext_resource type="Texture2D" uid="uid://ckeyhv2ygt3k4" path="res://Assets/GodotIcons/ToolMove.svg" id="6_toolmove"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
@@ -58,7 +59,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="PanelContainer" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center" unique_id=523198116]
-custom_minimum_size = Vector2(0, 31)
+custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 
@@ -68,10 +69,13 @@ size_flags_vertical = 0
 flat = true
 
 [node name="Button" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1030834308]
+custom_minimum_size = Vector2(40, 40)
 layout_mode = 0
-offset_right = 8.0
-offset_bottom = 8.0
-text = "Move"
+offset_right = 24.0
+offset_bottom = 24.0
+tooltip_text = "Move"
+icon = ExtResource("6_toolmove")
+expand_icon = true
 
 [node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" unique_id=1571975947 instance=ExtResource("3_hn1gi")]
 layout_mode = 2
