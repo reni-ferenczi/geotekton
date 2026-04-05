@@ -225,4 +225,7 @@ export_credentials.cfg
 data_*/
 mono_crash.*.json
 
+# Coding agents
+.claude
+
 # Project
