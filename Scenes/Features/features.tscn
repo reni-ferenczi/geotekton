@@ -2,6 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://bccbc3x60w8vw" path="res://Scenes/Features/feature_tree.tscn" id="1_4lkpf"]
 [ext_resource type="PackedScene" uid="uid://crxenmj8yvnva" path="res://Scenes/Features/feature_tree_toolbar.tscn" id="1_8fxa8"]
+[ext_resource type="Script" path="res://Scenes/Features/features.gd" id="3_features"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
@@ -11,6 +12,7 @@ anchors_preset = 9
 anchor_bottom = 1.0
 offset_right = 16.0
 grow_vertical = 2
+script = ExtResource("3_features")
 
 [node name="PanelContainer" type="PanelContainer" parent="."]
 custom_minimum_size = Vector2(0, 31)
@@ -22,3 +24,15 @@ layout_mode = 2
 
 [node name="FeatureTree" parent="." instance=ExtResource("1_4lkpf")]
 layout_mode = 2
+
+[connection signal="pressed" from="PanelContainer/Buttons/AddGroup" to="." method="_on_add_group_pressed"]
+[connection signal="pressed" from="PanelContainer/Buttons/AddFeature" to="." method="_on_add_feature_pressed"]
+[connection signal="pressed" from="PanelContainer/Buttons/Copy" to="." method="_on_copy_pressed"]
+[connection signal="pressed" from="PanelContainer/Buttons/Cut" to="." method="_on_cut_pressed"]
+[connection signal="pressed" from="PanelContainer/Buttons/Paste" to="." method="_on_paste_pressed"]
+[connection signal="pressed" from="PanelContainer/Buttons/Duplicate" to="." method="_on_duplicate_pressed"]
+[connection signal="pressed" from="PanelContainer/Buttons/Collapse" to="." method="_on_collapse_pressed"]
+[connection signal="pressed" from="PanelContainer/Buttons/Expand" to="." method="_on_expand_pressed"]
+[connection signal="feature_selected" from="FeatureTree" to="." method="_on_feature_tree_feature_selected"]
+[connection signal="program_changed" from="FeatureTree" to="." method="_on_feature_tree_program_changed"]
+[connection signal="unhandled_key_input" from="FeatureTree" to="." method="_on_feature_tree_unhandled_key_input"]
