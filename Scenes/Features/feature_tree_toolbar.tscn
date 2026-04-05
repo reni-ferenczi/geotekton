@@ -35,10 +35,12 @@ layout_mode = 2
 
 [node name="Undo" type="Button" parent="."]
 layout_mode = 2
+tooltip_text = "Undo (Ctrl+Z)"
 icon = ExtResource("3_tmb3n")
 
 [node name="Redo" type="Button" parent="."]
 layout_mode = 2
+tooltip_text = "Redo (Ctrl+Y)"
 icon = ExtResource("4_jhuml")
 
 [node name="VSeparator2" type="VSeparator" parent="."]

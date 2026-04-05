@@ -1,10 +1,13 @@
 extends VBoxContainer
 
 const CLIPBOARD_MARKER := "middle-earth"
+const MAX_UNDO_BUFFER_SIZE := 100
 
 @onready var feature_tree: FeatureTree = $FeatureTree
 @onready var add_group_button: Button = $PanelContainer/Buttons/AddGroup
 @onready var add_feature_button: Button = $PanelContainer/Buttons/AddFeature
+@onready var undo_button: Button = $PanelContainer/Buttons/Undo
+@onready var redo_button: Button = $PanelContainer/Buttons/Redo
 @onready var copy_button: Button = $PanelContainer/Buttons/Copy
 @onready var cut_button: Button = $PanelContainer/Buttons/Cut
 @onready var paste_button: Button = $PanelContainer/Buttons/Paste
@@ -13,14 +16,55 @@ const CLIPBOARD_MARKER := "middle-earth"
 @onready var expand_button: Button = $PanelContainer/Buttons/Expand
 
 var root: Feature
+var versions: Array[Feature] = []
+var next_version: int = 0
 
 
 func _ready() -> void:
 	root = Feature.create_group("Planet")
 	root.is_root = true
+	save_version()
 	feature_tree.load_root_group(root)
 	feature_tree.select_root()
 	update_button_availability()
+
+
+### Undo/Redo
+
+
+func save_version() -> void:
+	# Remove any redo versions
+	while len(versions) > next_version:
+		versions.pop_back()
+	# Record the current version
+	versions.append(root.clone())
+	next_version += 1
+	# Remove the oldest version if the buffer is full
+	while next_version > MAX_UNDO_BUFFER_SIZE:
+		versions.pop_front()
+		next_version -= 1
+
+
+func undo() -> void:
+	if next_version > 1:
+		next_version -= 1
+		root = versions[next_version - 1].clone()
+		reload()
+
+
+func redo() -> void:
+	if next_version < len(versions):
+		next_version += 1
+		root = versions[next_version - 1].clone()
+		reload()
+
+
+func _on_undo_pressed() -> void:
+	undo()
+
+
+func _on_redo_pressed() -> void:
+	redo()
 
 
 ### Reload
@@ -36,6 +80,8 @@ func reload() -> void:
 func update_button_availability() -> void:
 	var selected := feature_tree.get_selected_node()
 	var is_root_selected := selected == null or selected.is_root
+	undo_button.disabled = next_version < 2
+	redo_button.disabled = next_version >= len(versions)
 	cut_button.disabled = is_root_selected
 	duplicate_button.disabled = is_root_selected
 	detect_clipboard_content()
@@ -76,6 +122,7 @@ func _on_add_feature_pressed() -> void:
 
 
 func add_new_group(parent: Feature) -> void:
+	save_version()
 	var group := Feature.create_group()
 	parent.children.append(group)
 	reload()
@@ -84,6 +131,7 @@ func add_new_group(parent: Feature) -> void:
 
 
 func add_new_group_at(parent: Feature, index: int) -> void:
+	save_version()
 	var group := Feature.create_group()
 	parent.children.insert(index, group)
 	reload()
@@ -92,6 +140,7 @@ func add_new_group_at(parent: Feature, index: int) -> void:
 
 
 func add_new_feature(parent: Feature) -> void:
+	save_version()
 	var feature := Feature.create_feature()
 	parent.children.append(feature)
 	reload()
@@ -100,6 +149,7 @@ func add_new_feature(parent: Feature) -> void:
 
 
 func add_new_feature_at(parent: Feature, index: int) -> void:
+	save_version()
 	var feature := Feature.create_feature()
 	parent.children.insert(index, feature)
 	reload()
@@ -118,6 +168,7 @@ func delete_node(node: Feature) -> void:
 	if parent == null:
 		return
 
+	save_version()
 	var index := parent.find_child(node)
 	parent.children.remove_at(index)
 
@@ -149,6 +200,7 @@ func duplicate_node(node: Feature) -> void:
 	if parent == null:
 		return
 
+	save_version()
 	var index := parent.find_child(node)
 	var duplicated := node.duplicate()
 	parent.children.insert(index + 1, duplicated)
@@ -211,6 +263,7 @@ func paste(parent: Feature, index: int = -1) -> void:
 	if data.get("application", "") != CLIPBOARD_MARKER:
 		return
 
+	save_version()
 	var node := Feature.from_json(data)
 	if index < 0:
 		parent.children.append(node)
@@ -249,6 +302,12 @@ func _on_feature_tree_unhandled_key_input(event: InputEvent) -> void:
 
 	elif key_event.ctrl_pressed:
 		match key_event.keycode:
+			KEY_Z:
+				undo()
+				get_viewport().set_input_as_handled()
+			KEY_Y:
+				redo()
+				get_viewport().set_input_as_handled()
 			KEY_C:
 				_on_copy_pressed()
 				get_viewport().set_input_as_handled()
@@ -267,6 +326,7 @@ func _on_feature_tree_unhandled_key_input(event: InputEvent) -> void:
 
 
 func _on_feature_tree_program_changed() -> void:
+	save_version()
 	reload()
 
 
