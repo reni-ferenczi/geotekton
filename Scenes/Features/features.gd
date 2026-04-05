@@ -122,36 +122,36 @@ func _on_add_feature_pressed() -> void:
 
 
 func add_new_group(parent: Feature) -> void:
-	save_version()
 	var group := Feature.create_group()
 	parent.children.append(group)
+	save_version()
 	reload()
 	feature_tree.select_node(group)
 	feature_tree.collapse(parent, false)
 
 
 func add_new_group_at(parent: Feature, index: int) -> void:
-	save_version()
 	var group := Feature.create_group()
 	parent.children.insert(index, group)
+	save_version()
 	reload()
 	feature_tree.select_node(group)
 	feature_tree.collapse(parent, false)
 
 
 func add_new_feature(parent: Feature) -> void:
-	save_version()
 	var feature := Feature.create_feature()
 	parent.children.append(feature)
+	save_version()
 	reload()
 	feature_tree.select_node(feature)
 	feature_tree.collapse(parent, false)
 
 
 func add_new_feature_at(parent: Feature, index: int) -> void:
-	save_version()
 	var feature := Feature.create_feature()
 	parent.children.insert(index, feature)
+	save_version()
 	reload()
 	feature_tree.select_node(feature)
 	feature_tree.collapse(parent, false)
@@ -168,9 +168,9 @@ func delete_node(node: Feature) -> void:
 	if parent == null:
 		return
 
-	save_version()
 	var index := parent.find_child(node)
 	parent.children.remove_at(index)
+	save_version()
 
 	# Select next sibling, previous sibling, or parent
 	if index < parent.child_count():
@@ -200,10 +200,10 @@ func duplicate_node(node: Feature) -> void:
 	if parent == null:
 		return
 
-	save_version()
 	var index := parent.find_child(node)
 	var duplicated := node.duplicate()
 	parent.children.insert(index + 1, duplicated)
+	save_version()
 	reload()
 	feature_tree.select_node(duplicated)
 
@@ -263,12 +263,12 @@ func paste(parent: Feature, index: int = -1) -> void:
 	if data.get("application", "") != CLIPBOARD_MARKER:
 		return
 
-	save_version()
 	var node := Feature.from_json(data)
 	if index < 0:
 		parent.children.append(node)
 	else:
 		parent.children.insert(index, node)
+	save_version()
 
 	reload()
 	feature_tree.select_node(node)
