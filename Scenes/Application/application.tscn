@@ -1,10 +1,10 @@
 [gd_scene load_steps=7 format=3 uid="uid://c5ur4nn07xtr1"]
 
-[ext_resource type="Script" uid="uid://tgvfv7tx2ehw" path="res://Scenes/Editor/application.gd" id="1_nny64"]
+[ext_resource type="Script" uid="uid://tgvfv7tx2ehw" path="res://Scenes/Application/application.gd" id="1_nny64"]
 [ext_resource type="PackedScene" uid="uid://bticsgj2lii4y" path="res://Scenes/Features/features.tscn" id="2_jkixm"]
-[ext_resource type="PackedScene" uid="uid://c4pfguihgimj3" path="res://Scenes/Editor/planet_view.tscn" id="3_hn1gi"]
+[ext_resource type="PackedScene" uid="uid://c4pfguihgimj3" path="res://Scenes/Application/planet_view.tscn" id="3_hn1gi"]
 [ext_resource type="PackedScene" uid="uid://j7iecxbro18" path="res://Scenes/Timeline/timeline.tscn" id="4_ew82s"]
-[ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Editor/properties.tscn" id="5_83lrd"]
+[ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Application/properties.tscn" id="5_83lrd"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)

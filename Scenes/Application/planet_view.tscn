@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://c4pfguihgimj3"]
 
 [ext_resource type="PackedScene" uid="uid://ddsy7ljlp8o3g" path="res://Scenes/Planet/planet.tscn" id="1_g1eqg"]
-[ext_resource type="Script" uid="uid://tfk6s1r5k3be" path="res://Scenes/Editor/planet_view.gd" id="1_im7ge"]
+[ext_resource type="Script" uid="uid://tfk6s1r5k3be" path="res://Scenes/Application/planet_view.gd" id="1_im7ge"]
 
 [sub_resource type="Environment" id="Environment_ub1o7"]
 background_mode = 2

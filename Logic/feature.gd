@@ -3,6 +3,7 @@ class_name Feature
 
 var id: String
 var name: String
+var enabled: bool = true
 var color: Color = Color.CHOCOLATE
 var vertices: Array[Vector2] = []
 var parent: String = ""

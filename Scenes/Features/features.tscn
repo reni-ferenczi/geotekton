@@ -1,12 +1,12 @@
-[gd_scene load_steps=3 format=3 uid="uid://bticsgj2lii4y"]
+[gd_scene load_steps=4 format=3 uid="uid://bticsgj2lii4y"]
 
-[ext_resource type="PackedScene" uid="uid://r6wwyg6x5hvf" path="res://Scenes/Editor/tree.tscn" id="1_4lkpf"]
+[ext_resource type="PackedScene" uid="uid://bccbc3x60w8vw" path="res://Scenes/Features/feature_tree.tscn" id="1_4lkpf"]
+[ext_resource type="PackedScene" uid="uid://crxenmj8yvnva" path="res://Scenes/Features/feature_tree_toolbar.tscn" id="1_8fxa8"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
 
 [node name="Features" type="VBoxContainer"]
-custom_minimum_size = Vector2(320, 0)
 anchors_preset = 9
 anchor_bottom = 1.0
 offset_right = 16.0
@@ -17,17 +17,8 @@ custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 
-[node name="Tools" type="MenuBar" parent="PanelContainer"]
+[node name="Buttons" parent="PanelContainer" instance=ExtResource("1_8fxa8")]
 layout_mode = 2
-size_flags_vertical = 0
-flat = true
 
-[node name="Button" type="Button" parent="PanelContainer/Tools"]
-layout_mode = 0
-offset_right = 8.0
-offset_bottom = 8.0
-text = "Move"
-
-[node name="Tree" parent="." instance=ExtResource("1_4lkpf")]
+[node name="FeatureTree" parent="." instance=ExtResource("1_4lkpf")]
 layout_mode = 2
-size_flags_vertical = 3
