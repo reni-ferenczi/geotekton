@@ -15,7 +15,7 @@ uniform vec2 split = vec2(24.0, 12.0);
 //   Row 2: (r, g, b, a) color
 uniform sampler2D craton_data : filter_nearest, repeat_disable;
 uniform int craton_count = 0;
-uniform float craton_edge_width = 0.002;
+uniform float craton_edge_width = 0.001;
 
 // Outline data texture (filter_nearest for exact texel reads)
 // Layout: width = vertex count, height = 1
@@ -23,8 +23,8 @@ uniform float craton_edge_width = 0.002;
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
 uniform bool outline_closed = false;
-uniform float outline_line_width = 0.004;
-uniform float outline_dot_radius = 0.012;
+uniform float outline_line_width = 0.002;
+uniform float outline_dot_radius = 0.006;
 uniform float outline_closing_opacity = 0.25;
 uniform bool outline_triangles_mode = false;
 
