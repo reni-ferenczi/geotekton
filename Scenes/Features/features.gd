@@ -295,7 +295,7 @@ func _on_expand_pressed() -> void:
 func _on_save_pressed() -> void:
 	DisplayServer.file_dialog_show(
 		"Save",
-		"",
+		Config.get_last_directory(),
 		"",
 		false,
 		DisplayServer.FILE_DIALOG_MODE_SAVE_FILE,
@@ -310,6 +310,7 @@ func _on_save_dialog_callback(status: bool, selected_paths: PackedStringArray, _
 	var path := selected_paths[0]
 	if not path.ends_with(".middle-earth"):
 		path += ".middle-earth"
+	Config.set_last_directory_from_file(path)
 	_save_to_file(path)
 
 
@@ -330,7 +331,7 @@ func _save_to_file(path: String) -> void:
 func _on_load_pressed() -> void:
 	DisplayServer.file_dialog_show(
 		"Open",
-		"",
+		Config.get_last_directory(),
 		"",
 		false,
 		DisplayServer.FILE_DIALOG_MODE_OPEN_FILE,
@@ -342,6 +343,7 @@ func _on_load_pressed() -> void:
 func _on_load_dialog_callback(status: bool, selected_paths: PackedStringArray, _selected_filter: int) -> void:
 	if not status or selected_paths.is_empty():
 		return
+	Config.set_last_directory_from_file(selected_paths[0])
 	_load_from_file(selected_paths[0])
 
 
