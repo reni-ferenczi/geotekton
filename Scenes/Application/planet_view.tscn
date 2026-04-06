@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://c4pfguihgimj3"]
+[gd_scene format=3 uid="uid://c4pfguihgimj3"]
 
 [ext_resource type="PackedScene" uid="uid://ddsy7ljlp8o3g" path="res://Scenes/Planet/planet.tscn" id="1_g1eqg"]
 [ext_resource type="Script" uid="uid://tfk6s1r5k3be" path="res://Scenes/Application/planet_view.gd" id="1_im7ge"]
@@ -6,7 +6,7 @@
 [sub_resource type="Environment" id="Environment_ub1o7"]
 background_mode = 2
 
-[node name="PlanetView" type="SubViewportContainer"]
+[node name="PlanetView" type="SubViewportContainer" unique_id=1414785221]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -16,24 +16,26 @@ size_flags_vertical = 3
 stretch = true
 script = ExtResource("1_im7ge")
 
-[node name="SubViewport" type="SubViewport" parent="."]
+[node name="SubViewport" type="SubViewport" parent="." unique_id=1415136825]
 unique_name_in_owner = true
 handle_input_locally = false
+screen_space_aa = 2
+mesh_lod_threshold = 0.0
 physics_object_picking = true
 physics_object_picking_first_only = true
-size = Vector2i(1920, 1080)
+size = Vector2i(1800, 900)
 render_target_update_mode = 4
 
-[node name="Planet" parent="SubViewport" instance=ExtResource("1_g1eqg")]
+[node name="Planet" parent="SubViewport" unique_id=911172937 instance=ExtResource("1_g1eqg")]
 unique_name_in_owner = true
 
-[node name="Camera3D" type="Camera3D" parent="SubViewport"]
+[node name="Camera3D" type="Camera3D" parent="SubViewport" unique_id=1277395140]
 unique_name_in_owner = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.05)
 current = true
 fov = 60.0
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="SubViewport"]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="SubViewport" unique_id=782277508]
 environment = SubResource("Environment_ub1o7")
 
 [connection signal="gui_input" from="." to="." method="_on_gui_input"]

@@ -15,7 +15,7 @@ uniform vec2 split = vec2(24.0, 12.0);
 //   Row 2: (r, g, b, a) color
 uniform sampler2D craton_data : filter_nearest, repeat_disable;
 uniform int craton_count = 0;
-uniform float craton_edge_width = 0.005;
+uniform float craton_edge_width = 0.002;
 
 // Outline data texture (filter_nearest for exact texel reads)
 // Layout: width = vertex count, height = 1
