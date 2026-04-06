@@ -84,12 +84,12 @@ layout_mode = 2
 
 [node name="Load" type="Button" parent="."]
 layout_mode = 2
-tooltip_text = "Load a group from file (JSON)"
+tooltip_text = "Load from file (Ctrl+O)"
 icon = ExtResource("11_phrkv")
 
 [node name="Save" type="Button" parent="."]
 layout_mode = 2
-tooltip_text = "Save the selected group to file (JSON)"
+tooltip_text = "Save to file (Ctrl+S)"
 icon = ExtResource("12_qnfi0")
 
 [node name="VSeparator5" type="VSeparator" parent="."]

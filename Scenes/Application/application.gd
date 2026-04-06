@@ -3,6 +3,7 @@ class_name Application
 
 
 static var DEBUG: bool = true
+static var VERSION: String = ProjectSettings.get_setting("application/config/version")
 const ui_scale: float = 1.0
 
 enum Tool { MOVE, DRAW }
@@ -34,9 +35,23 @@ func _ready() -> void:
 	# Connect program changes to refresh cratons
 	features.feature_tree.program_changed.connect(_on_program_changed)
 
+	# Connect File menu
+	var file_menu: MenuButton = %MenuButton
+	file_menu.get_popup().id_pressed.connect(_on_file_menu_id_pressed)
+
 	# Connect move tool signals
 	planet_view.move_delta.connect(_on_move_delta)
 	planet_view.move_ended.connect(_on_move_ended)
+
+
+### File menu
+
+
+func _on_file_menu_id_pressed(id: int) -> void:
+	match id:
+		0: features._on_load_pressed()   # Open...
+		1: features._on_save_pressed()   # Save As..
+		2: features._on_save_pressed()   # Save (same as Save As for now)
 
 
 ### Tool button group

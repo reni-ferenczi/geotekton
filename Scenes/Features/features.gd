@@ -15,6 +15,8 @@ const MAX_UNDO_BUFFER_SIZE := 100
 @onready var duplicate_button: Button = $PanelContainer/Buttons/Duplicate
 @onready var collapse_button: Button = $PanelContainer/Buttons/Collapse
 @onready var expand_button: Button = $PanelContainer/Buttons/Expand
+@onready var save_button: Button = $PanelContainer/Buttons/Save
+@onready var load_button: Button = $PanelContainer/Buttons/Load
 
 var root: Feature
 var versions: Array[Feature] = []
@@ -287,6 +289,103 @@ func _on_expand_pressed() -> void:
 	feature_tree.collapse_all(false)
 
 
+### Save / Load
+
+
+func _on_save_pressed() -> void:
+	DisplayServer.file_dialog_show(
+		"Save",
+		"",
+		"",
+		false,
+		DisplayServer.FILE_DIALOG_MODE_SAVE_FILE,
+		PackedStringArray(["*.middle-earth ; Middle-Earth Files"]),
+		_on_save_dialog_callback,
+	)
+
+
+func _on_save_dialog_callback(status: bool, selected_paths: PackedStringArray, _selected_filter: int) -> void:
+	if not status or selected_paths.is_empty():
+		return
+	var path := selected_paths[0]
+	if not path.ends_with(".middle-earth"):
+		path += ".middle-earth"
+	_save_to_file(path)
+
+
+func _save_to_file(path: String) -> void:
+	var data := {
+		"application": CLIPBOARD_MARKER,
+		"version": Application.VERSION,
+		"features": root.to_json(),
+	}
+	var json := JSON.stringify(data, "\t")
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		push_error("Failed to open file for writing: %s" % path)
+		return
+	file.store_string(json)
+
+
+func _on_load_pressed() -> void:
+	DisplayServer.file_dialog_show(
+		"Open",
+		"",
+		"",
+		false,
+		DisplayServer.FILE_DIALOG_MODE_OPEN_FILE,
+		PackedStringArray(["*.middle-earth ; Middle-Earth Files"]),
+		_on_load_dialog_callback,
+	)
+
+
+func _on_load_dialog_callback(status: bool, selected_paths: PackedStringArray, _selected_filter: int) -> void:
+	if not status or selected_paths.is_empty():
+		return
+	_load_from_file(selected_paths[0])
+
+
+func _load_from_file(path: String) -> void:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		push_error("Failed to open file for reading: %s" % path)
+		return
+
+	var text := file.get_as_text()
+	var json := JSON.new()
+	if json.parse(text) != OK:
+		push_error("Failed to parse JSON: %s" % json.get_error_message())
+		return
+
+	var data: Variant = json.data
+	if data is not Dictionary:
+		push_error("Invalid file format: root is not a dictionary")
+		return
+	if data.get("application", "") != CLIPBOARD_MARKER:
+		push_error("Invalid file format: not a Middle-Earth file")
+		return
+
+	data = migrate(data)
+
+	var loaded_root := Feature.from_json(data["features"])
+	loaded_root.is_root = true
+	root = loaded_root
+
+	# Reset the undo buffer
+	versions.clear()
+	next_version = 0
+	save_version()
+
+	reload()
+	feature_tree.select_root()
+
+
+static func migrate(data: Dictionary) -> Dictionary:
+	# No format migrations while the major version is 0.
+	# Once version 1.0.0 is reached, add migrations here for each file format change.
+	return data
+
+
 ### Keyboard shortcuts
 
 
@@ -320,6 +419,12 @@ func _on_feature_tree_unhandled_key_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 			KEY_D:
 				_on_duplicate_pressed()
+				get_viewport().set_input_as_handled()
+			KEY_S:
+				_on_save_pressed()
+				get_viewport().set_input_as_handled()
+			KEY_O:
+				_on_load_pressed()
 				get_viewport().set_input_as_handled()
 
 
