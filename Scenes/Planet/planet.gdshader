@@ -25,6 +25,7 @@ uniform int outline_vertex_count = 0;
 uniform bool outline_closed = false;
 uniform float outline_line_width = 0.004;
 uniform float outline_dot_radius = 0.012;
+uniform float outline_closing_opacity = 0.25;
 
 // Convert lat/lon (radians) to unit sphere position
 vec3 latlon_to_unit(vec2 ll) {
@@ -89,12 +90,13 @@ void fragment() {
 		}
 
 		// Line segment rendering: great-circle capsule distance
-		int seg_count = outline_closed ? outline_vertex_count : outline_vertex_count - 1;
+		// Track solid segments and the closing (incomplete) segment separately
+		int solid_seg_count = outline_vertex_count - 1;
 		float min_line_dist = 1e10;
-		for (int i = 0; i < seg_count; i++) {
+		float closing_line_dist = 1e10;
+		for (int i = 0; i < solid_seg_count; i++) {
 			vec4 va = texelFetch(outline_data, ivec2(i, 0), 0);
-			int j = (i + 1) % outline_vertex_count;
-			vec4 vb = texelFetch(outline_data, ivec2(j, 0), 0);
+			vec4 vb = texelFetch(outline_data, ivec2(i + 1, 0), 0);
 
 			vec3 a = latlon_to_unit(va.xy);
 			vec3 b = latlon_to_unit(vb.xy);
@@ -102,7 +104,6 @@ void fragment() {
 			vec3 n = normalize(cross(a, b));
 			float d_plane = abs(dot(n, p));
 
-			// Check if p projects within the arc between a and b
 			vec3 perp_a = cross(n, a);
 			vec3 perp_b = cross(b, n);
 
@@ -117,10 +118,34 @@ void fragment() {
 			min_line_dist = min(min_line_dist, dist);
 		}
 
+		// Closing segment (last vertex back to first) at reduced opacity
+		if (outline_closed) {
+			vec4 va = texelFetch(outline_data, ivec2(outline_vertex_count - 1, 0), 0);
+			vec4 vb = texelFetch(outline_data, ivec2(0, 0), 0);
+
+			vec3 a = latlon_to_unit(va.xy);
+			vec3 b = latlon_to_unit(vb.xy);
+
+			vec3 n = normalize(cross(a, b));
+			float d_plane = abs(dot(n, p));
+
+			vec3 perp_a = cross(n, a);
+			vec3 perp_b = cross(b, n);
+
+			if (dot(perp_a, p) >= 0.0 && dot(perp_b, p) >= 0.0) {
+				closing_line_dist = d_plane;
+			} else {
+				float da = sqrt(2.0 * max(0.0, 1.0 - dot(a, p)));
+				float db = sqrt(2.0 * max(0.0, 1.0 - dot(b, p)));
+				closing_line_dist = min(da, db);
+			}
+		}
+
 		// Composite: dots are larger circles at vertices, lines between them
 		float dot_alpha = 1.0 - smoothstep(outline_dot_radius * 0.7, outline_dot_radius, min_dot_dist);
 		float line_alpha = 1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, min_line_dist);
-		float outline_alpha = max(dot_alpha, line_alpha);
+		float closing_alpha = (1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, closing_line_dist)) * outline_closing_opacity;
+		float outline_alpha = max(dot_alpha, max(line_alpha, closing_alpha));
 		base = mix(base, vec3(1.0, 1.0, 0.0), outline_alpha);
 	}
 
