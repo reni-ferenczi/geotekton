@@ -34,6 +34,10 @@ func _ready() -> void:
 	# Connect program changes to refresh cratons
 	features.feature_tree.program_changed.connect(_on_program_changed)
 
+	# Connect move tool signals
+	planet_view.move_delta.connect(_on_move_delta)
+	planet_view.move_ended.connect(_on_move_ended)
+
 
 ### Tool button group
 
@@ -53,6 +57,7 @@ func set_active_tool(tool: Tool) -> void:
 	move_button.button_pressed = (tool == Tool.MOVE)
 	draw_button.button_pressed = (tool == Tool.DRAW)
 	planet_view.drawing_mode = (tool == Tool.DRAW)
+	_update_move_enabled()
 
 
 ### Feature selection
@@ -75,6 +80,32 @@ func _on_feature_selected(node: Feature) -> void:
 		if active_tool == Tool.DRAW:
 			set_active_tool(Tool.MOVE)
 
+	_update_move_enabled()
+	refresh_cratons()
+
+
+### Move tool
+
+
+func _update_move_enabled() -> void:
+	var selected := features.feature_tree.get_selected_node()
+	var can_move := active_tool == Tool.MOVE and selected != null and not selected.is_group and not selected.vertices.is_empty()
+	planet_view.move_enabled = can_move
+
+
+func _on_move_delta(delta_lat: float, delta_lon: float) -> void:
+	var selected := features.feature_tree.get_selected_node()
+	if selected == null or selected.is_group:
+		return
+	for i in range(selected.vertices.size()):
+		selected.vertices[i].x += delta_lat
+		selected.vertices[i].y += delta_lon
+	refresh_cratons()
+
+
+func _on_move_ended() -> void:
+	features.save_version()
+	features.reload()
 	refresh_cratons()
 
 
@@ -137,6 +168,7 @@ func _outline_commit() -> void:
 	features.save_version()
 	features.reload()
 	refresh_cratons()
+	set_active_tool(Tool.MOVE)
 
 
 func _outline_cancel() -> void:

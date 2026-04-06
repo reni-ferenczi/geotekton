@@ -4,12 +4,33 @@ class_name PlanetView
 #const PlanetViewRotation = preload("res://Scenes/Editor/planet_view_rotation.gd")
 #const PlanetViewFeature = preload("res://Scenes/Editor/planet_view_rotation.gd")
 
+signal move_delta(delta_lat: float, delta_lon: float)
+signal move_ended()
+
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet
 @onready var camera: Camera3D = %Camera3D
 @onready var rotation_handler: PlanetViewRotation = PlanetViewRotation.new(planet, camera)
 
 var drawing_mode: bool = false
+var move_enabled: bool = false
+var is_moving: bool = false
+var move_rotating: bool = false
+
+const MOVE_SENSITIVITY: Vector2 = Vector2(0.5, 0.5)
+
+
+func start_moving() -> void:
+	is_moving = true
+	move_rotating = false
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func stop_moving() -> void:
+	is_moving = false
+	move_rotating = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	move_ended.emit()
 
 
 func _on_planet_input_event_outside(event: InputEvent) -> void:
@@ -22,6 +43,9 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 	if event is InputEventMouseButton:
 		print("Globe click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
 		if drawing_mode and event.button_index != MOUSE_BUTTON_MIDDLE:
+			return
+		if not drawing_mode and move_enabled and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
+			start_moving()
 			return
 		if event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and Input.is_key_pressed(KEY_CTRL):
 			rotation_handler.start_dragging(lat, lon)
@@ -38,8 +62,24 @@ func _on_planet_input_event_map(lat: float, lon: float, event: InputEvent) -> vo
 
 
 func _on_gui_input(event: InputEvent) -> void:
+	# Mouse wheel always works (zoom)
 	if event is InputEventMouseButton and event.is_pressed():
 		rotation_handler.handle_mouse_wheel(event.button_index)
+
+	if is_moving:
+		if event is InputEventMouseButton:
+			if event.button_index == MOUSE_BUTTON_MIDDLE:
+				move_rotating = event.is_pressed()
+			elif event.button_index == MOUSE_BUTTON_LEFT and event.is_released():
+				stop_moving()
+		elif event is InputEventMouseMotion:
+			if move_rotating:
+				rotation_handler.handle_rotating(event.relative)
+			else:
+				var delta: Vector2 = event.relative * MOVE_SENSITIVITY
+				move_delta.emit(-delta.y, delta.x)
+		return
+
 	if event is InputEventMouseMotion:
 		rotation_handler.handle_mouse_motion(event.relative)
 	if event is InputEventMouseButton and event.is_released():
