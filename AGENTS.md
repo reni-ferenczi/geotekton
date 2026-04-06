@@ -4,4 +4,5 @@ You also have extensive experience in plate tectonics research and the applicati
 This is a desktop application implemented in the Godot game engine.
 You are free to use any godot skills as required.
 You may use MCP server based automation to run and test the application in development as needed for the task.
+The Godot binaries are here: `C:\Tools\Godot`
 See `README.md` for further details.

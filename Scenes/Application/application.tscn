@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://j7iecxbro18" path="res://Scenes/Timeline/timeline.tscn" id="4_ew82s"]
 [ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Application/properties.tscn" id="5_83lrd"]
 [ext_resource type="Texture2D" uid="uid://ckeyhv2ygt3k4" path="res://Assets/GodotIcons/ToolMove.svg" id="6_toolmove"]
+[ext_resource type="Texture2D" uid="uid://drgl1h6nlsu3l" path="res://Assets/GodotIcons/Edit.svg" id="7_tooldraw"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
@@ -45,6 +46,7 @@ split_offsets = PackedInt32Array(320)
 split_offset = 320
 
 [node name="Features" parent="LeftSplitter" unique_id=190302260 instance=ExtResource("2_jkixm")]
+unique_name_in_owner = true
 layout_mode = 2
 
 [node name="RightSplitter" type="HSplitContainer" parent="LeftSplitter" unique_id=2106835190]
@@ -63,21 +65,32 @@ custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 
-[node name="Tools" type="MenuBar" parent="LeftSplitter/RightSplitter/Center/PanelContainer" unique_id=759912846]
+[node name="Tools" type="HBoxContainer" parent="LeftSplitter/RightSplitter/Center/PanelContainer" unique_id=395434646]
 layout_mode = 2
 size_flags_vertical = 0
-flat = true
 
-[node name="Button" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1030834308]
+[node name="Move" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1030834308]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
-layout_mode = 0
-offset_right = 24.0
-offset_bottom = 24.0
+layout_mode = 2
 tooltip_text = "Move"
+toggle_mode = true
+button_pressed = true
 icon = ExtResource("6_toolmove")
 expand_icon = true
 
+[node name="Draw" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=769603313]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Draw"
+disabled = true
+toggle_mode = true
+icon = ExtResource("7_tooldraw")
+expand_icon = true
+
 [node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" unique_id=1571975947 instance=ExtResource("3_hn1gi")]
+unique_name_in_owner = true
 layout_mode = 2
 
 [node name="Timeline" parent="LeftSplitter/RightSplitter/Center" unique_id=555961110 instance=ExtResource("4_ew82s")]

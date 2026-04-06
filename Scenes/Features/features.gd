@@ -1,4 +1,5 @@
 extends VBoxContainer
+class_name Features
 
 const CLIPBOARD_MARKER := "middle-earth"
 const MAX_UNDO_BUFFER_SIZE := 100

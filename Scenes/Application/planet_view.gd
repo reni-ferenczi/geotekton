@@ -9,6 +9,8 @@ class_name PlanetView
 @onready var camera: Camera3D = %Camera3D
 @onready var rotation_handler: PlanetViewRotation = PlanetViewRotation.new(planet, camera)
 
+var drawing_mode: bool = false
+
 
 func _on_planet_input_event_outside(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -19,6 +21,8 @@ func _on_planet_input_event_outside(event: InputEvent) -> void:
 func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		print("Globe click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
+		if drawing_mode and event.button_index != MOUSE_BUTTON_MIDDLE:
+			return
 		if event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and Input.is_key_pressed(KEY_CTRL):
 			rotation_handler.start_dragging(lat, lon)
 		elif event.is_pressed() and event.button_index == MOUSE_BUTTON_MIDDLE:

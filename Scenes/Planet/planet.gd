@@ -103,3 +103,34 @@ static func collect_triangles(root: Feature) -> Array:
 					"color": node.color,
 				})
 	return triangles
+
+
+## Outline rendering (drawing preview)
+
+# Set outline vertices for the polygon drawing preview.
+# vertices: ordered Array[Vector2] of (lat_deg, lon_deg).
+# closed: if true, draws a closing line from last vertex back to first.
+func set_outline(vertices: Array[Vector2], closed: bool = false) -> void:
+	var count := vertices.size()
+	var globe_mat: ShaderMaterial = globe.get_surface_override_material(0)
+	var map_mat: ShaderMaterial = map.get_surface_override_material(0)
+
+	if count == 0:
+		globe_mat.set_shader_parameter("outline_vertex_count", 0)
+		map_mat.set_shader_parameter("outline_vertex_count", 0)
+		return
+
+	var img := Image.create(count, 1, false, Image.FORMAT_RGBAF)
+	for i in range(count):
+		img.set_pixel(i, 0, Color(
+			deg_to_rad(vertices[i].x), deg_to_rad(vertices[i].y),
+			0.0, 0.0
+		))
+
+	var tex := ImageTexture.create_from_image(img)
+	globe_mat.set_shader_parameter("outline_data", tex)
+	globe_mat.set_shader_parameter("outline_vertex_count", count)
+	globe_mat.set_shader_parameter("outline_closed", closed)
+	map_mat.set_shader_parameter("outline_data", tex)
+	map_mat.set_shader_parameter("outline_vertex_count", count)
+	map_mat.set_shader_parameter("outline_closed", closed)

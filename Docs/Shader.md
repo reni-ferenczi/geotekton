@@ -83,6 +83,45 @@ var triangles = Planet.collect_triangles(feature_root)
 planet.set_cratons(triangles)
 ```
 
+## Outline Rendering (Drawing Preview)
+
+The shader also renders a polygon outline preview used during the Draw tool's vertex placement phase. This is separate from committed craton triangles.
+
+### Outline Uniforms
+
+| Uniform | Type | Default | Description |
+|---|---|---|---|
+| `outline_data` | `sampler2D` | — | Vertex data texture: each texel `(lat_rad, lon_rad, 0, 0)` |
+| `outline_vertex_count` | `int` | `0` | Number of outline vertices |
+| `outline_closed` | `bool` | `false` | Draw closing segment from last to first vertex |
+| `outline_line_width` | `float` | `0.004` | Width of outline line segments |
+| `outline_dot_radius` | `float` | `0.012` | Radius of vertex dot markers |
+
+### Outline Data Texture Layout
+
+Width = vertex count, height = 1, format `RGBAF`:
+
+| Row | R | G | B | A |
+|---|---|---|---|---|
+| 0 | lat (rad) | lon (rad) | unused | unused |
+
+### Outline Math
+
+**Vertex dots**: Angular distance from fragment to vertex approximated as `sqrt(2 * (1 - dot(V, P)))` where V and P are unit sphere positions. This equals the chord distance, which approximates the arc distance for small angles. Dots are antialiased via `smoothstep`.
+
+**Line segments**: Each segment between vertices A and B is rendered as a great-circle capsule:
+
+1. Compute great-circle plane normal: `N = normalize(cross(A, B))`
+2. Distance to the plane: `d = |dot(N, P)|`
+3. Check if P projects within the arc: `dot(cross(N, A), P) >= 0` and `dot(cross(B, N), P) >= 0`
+4. If within arc, use plane distance. Otherwise, use chord distance to nearest endpoint.
+
+This produces rounded-cap line segments (capsule shapes) that follow great circles on the sphere.
+
+**Closing segment**: When `outline_closed` is true, an additional segment from the last vertex to the first is included in the loop by using `seg_count = outline_vertex_count` instead of `outline_vertex_count - 1`.
+
+The outline is composited on top of everything else using yellow color (`vec3(1, 1, 0)`) at the computed alpha.
+
 ## Notes
 
 - The UV-to-latlon conversion is the same for both globe (SphereMesh) and map (PlaneMesh) views, so cratons render correctly in both modes.
