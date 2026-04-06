@@ -5,6 +5,8 @@ signal move_started(anchor_lat: float, anchor_lon: float)
 signal move_to(lat: float, lon: float)
 signal move_ended()
 signal move_cancelled()
+signal craton_clicked(lat: float, lon: float)
+signal craton_hovered(lat: float, lon: float)
 
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet
@@ -42,6 +44,8 @@ func _on_planet_input_event_outside(event: InputEvent) -> void:
 		if event is InputEventMouseMotion:
 			move_on_globe = false
 		return
+	if event is InputEventMouseMotion:
+		craton_hovered.emit(NAN, NAN)
 	if event is InputEventMouseButton:
 		var p = event.position
 		print("Outside click: x=%+d, y=%+d" % [roundi(p.x), roundi(p.y)])
@@ -57,8 +61,8 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 		print("Globe click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
 		if drawing_mode and event.button_index != MOUSE_BUTTON_MIDDLE:
 			return
-		if not drawing_mode and move_enabled and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
-			start_moving(lat, lon)
+		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
+			craton_clicked.emit(lat, lon)
 			return
 		if event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and Input.is_key_pressed(KEY_CTRL):
 			rotation_handler.start_dragging(lat, lon)
@@ -67,11 +71,19 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 	if event is InputEventMouseMotion:
 		if rotation_handler.is_dragging:
 			rotation_handler.handle_dragging(lat, lon)
+		elif not drawing_mode:
+			craton_hovered.emit(lat, lon)
 
 
 func _on_planet_input_event_map(lat: float, lon: float, event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		print("Map click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
+		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
+			craton_clicked.emit(lat, lon)
+			return
+	if event is InputEventMouseMotion:
+		if not drawing_mode:
+			craton_hovered.emit(lat, lon)
 
 
 func _on_gui_input(event: InputEvent) -> void:

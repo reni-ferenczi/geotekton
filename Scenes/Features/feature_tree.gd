@@ -106,11 +106,18 @@ func select_node(node: Feature) -> void:
 	if node == null or not items.has(node.pnid):
 		return
 	var item := items[node.pnid]
-	set_selected(item, 0)
 
-	var parent := item.get_parent()
-	if parent != null and parent.collapsed:
-		parent.collapsed = false
+	# Expand all ancestor groups before selecting
+	var ancestor := item.get_parent()
+	while ancestor != null:
+		if ancestor.collapsed:
+			ancestor.collapsed = false
+		ancestor = ancestor.get_parent()
+
+	# Deselect current item first to force the Tree to update visually
+	deselect_all()
+	item.select(0)
+	scroll_to_item(item, true)
 
 
 func notify_feature_selected():

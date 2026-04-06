@@ -47,7 +47,7 @@ func _on_map_physics_body_input_event(camera: Node, event: InputEvent, event_pos
 # Set craton triangles on the planet shader.
 # Each entry: { "verts": [Vector2, Vector2, Vector2], "color": Color }
 # Vertices are Vector2(latitude_deg, longitude_deg).
-func set_cratons(triangles: Array) -> void:
+func set_cratons(triangles: Array, hovered_feature: Feature = null) -> void:
 	var count := triangles.size()
 	var globe_mat: ShaderMaterial = globe.get_surface_override_material(0)
 	var map_mat: ShaderMaterial = map.get_surface_override_material(0)
@@ -70,10 +70,11 @@ func set_cratons(triangles: Array) -> void:
 			deg_to_rad(v[0].x), deg_to_rad(v[0].y),
 			deg_to_rad(v[1].x), deg_to_rad(v[1].y)
 		))
-		# Row 1: (lat_c, lon_c, 0, 0)
+		# Row 1: (lat_c, lon_c, hovered, 0)
+		var hovered := 1.0 if (hovered_feature != null and tri.get("feature") == hovered_feature) else 0.0
 		img.set_pixel(i, 1, Color(
 			deg_to_rad(v[2].x), deg_to_rad(v[2].y),
-			0.0, 0.0
+			hovered, 0.0
 		))
 		# Row 2: color (r, g, b, a)
 		img.set_pixel(i, 2, c)
@@ -102,8 +103,36 @@ static func collect_triangles(root: Feature) -> Array:
 				triangles.append({
 					"verts": [verts[j], verts[j + 1], verts[j + 2]],
 					"color": node.color,
+					"feature": node,
 				})
 	return triangles
+
+
+## Hit-test: find which feature's craton contains the given lat/lon point.
+## Uses the same great-circle half-plane test as the shader.
+## Returns null if no craton is hit.
+static func hit_test_craton(lat: float, lon: float, triangles: Array) -> Feature:
+	var p := _latlon_to_unit(deg_to_rad(lat), deg_to_rad(lon))
+	# Iterate in reverse so topmost (last-drawn) triangle wins
+	for i in range(triangles.size() - 1, -1, -1):
+		var tri: Dictionary = triangles[i]
+		var v: Array = tri["verts"]
+		var a := _latlon_to_unit(deg_to_rad(v[0].x), deg_to_rad(v[0].y))
+		var b := _latlon_to_unit(deg_to_rad(v[1].x), deg_to_rad(v[1].y))
+		var c := _latlon_to_unit(deg_to_rad(v[2].x), deg_to_rad(v[2].y))
+
+		var d_ab := a.cross(b).normalized().dot(p)
+		var d_bc := b.cross(c).normalized().dot(p)
+		var d_ca := c.cross(a).normalized().dot(p)
+
+		if d_ab > 0.0 and d_bc > 0.0 and d_ca > 0.0:
+			return tri["feature"] as Feature
+	return null
+
+
+static func _latlon_to_unit(lat_rad: float, lon_rad: float) -> Vector3:
+	var cos_lat := cos(lat_rad)
+	return Vector3(cos_lat * cos(lon_rad), sin(lat_rad), cos_lat * sin(lon_rad))
 
 
 ## Outline rendering (drawing preview)
@@ -111,7 +140,7 @@ static func collect_triangles(root: Feature) -> Array:
 # Set outline vertices for the polygon drawing preview.
 # vertices: ordered Array[Vector2] of (lat_deg, lon_deg).
 # closed: if true, draws a closing line from last vertex back to first.
-func set_outline(vertices: Array[Vector2], closed: bool = false) -> void:
+func set_outline(vertices: Array[Vector2], closed: bool = false, triangles_mode: bool = false) -> void:
 	var count := vertices.size()
 	var globe_mat: ShaderMaterial = globe.get_surface_override_material(0)
 	var map_mat: ShaderMaterial = map.get_surface_override_material(0)
@@ -132,6 +161,8 @@ func set_outline(vertices: Array[Vector2], closed: bool = false) -> void:
 	globe_mat.set_shader_parameter("outline_data", tex)
 	globe_mat.set_shader_parameter("outline_vertex_count", count)
 	globe_mat.set_shader_parameter("outline_closed", closed)
+	globe_mat.set_shader_parameter("outline_triangles_mode", triangles_mode)
 	map_mat.set_shader_parameter("outline_data", tex)
 	map_mat.set_shader_parameter("outline_vertex_count", count)
 	map_mat.set_shader_parameter("outline_closed", closed)
+	map_mat.set_shader_parameter("outline_triangles_mode", triangles_mode)

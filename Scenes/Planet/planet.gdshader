@@ -26,6 +26,7 @@ uniform bool outline_closed = false;
 uniform float outline_line_width = 0.004;
 uniform float outline_dot_radius = 0.012;
 uniform float outline_closing_opacity = 0.25;
+uniform bool outline_triangles_mode = false;
 
 // Convert lat/lon (radians) to unit sphere position
 vec3 latlon_to_unit(vec2 ll) {
@@ -74,6 +75,11 @@ void fragment() {
 			float min_dist = min(abs(d_ab), min(abs(d_bc), abs(d_ca)));
 			float edge = smoothstep(craton_edge_width * 0.5, craton_edge_width, min_dist);
 			vec3 fill = mix(tri_color.rgb, base, 1.0 - tri_color.a);
+			// Hover highlight: brighten slightly when row1.z is set
+			float hovered = row1.z;
+			if (hovered > 0.5) {
+				fill = mix(fill, vec3(1.0), 0.15);
+			}
 			base = mix(vec3(1.0), fill, edge);
 		}
 	}
@@ -90,54 +96,84 @@ void fragment() {
 		}
 
 		// Line segment rendering: great-circle capsule distance
-		// Track solid segments and the closing (incomplete) segment separately
-		int solid_seg_count = outline_vertex_count - 1;
 		float min_line_dist = 1e10;
 		float closing_line_dist = 1e10;
-		for (int i = 0; i < solid_seg_count; i++) {
-			vec4 va = texelFetch(outline_data, ivec2(i, 0), 0);
-			vec4 vb = texelFetch(outline_data, ivec2(i + 1, 0), 0);
 
-			vec3 a = latlon_to_unit(va.xy);
-			vec3 b = latlon_to_unit(vb.xy);
+		if (outline_triangles_mode) {
+			// Triangles mode: every 3 vertices form a closed triangle
+			int tri_count = outline_vertex_count / 3;
+			for (int t = 0; t < tri_count; t++) {
+				int base_idx = t * 3;
+				// 3 edges per triangle: (0,1), (1,2), (2,0)
+				for (int e = 0; e < 3; e++) {
+					vec4 va = texelFetch(outline_data, ivec2(base_idx + e, 0), 0);
+					vec4 vb = texelFetch(outline_data, ivec2(base_idx + (e + 1) % 3, 0), 0);
 
-			vec3 n = normalize(cross(a, b));
-			float d_plane = abs(dot(n, p));
+					vec3 a = latlon_to_unit(va.xy);
+					vec3 b = latlon_to_unit(vb.xy);
 
-			vec3 perp_a = cross(n, a);
-			vec3 perp_b = cross(b, n);
+					vec3 n = normalize(cross(a, b));
+					float d_plane = abs(dot(n, p));
+					vec3 perp_a = cross(n, a);
+					vec3 perp_b = cross(b, n);
 
-			float dist;
-			if (dot(perp_a, p) >= 0.0 && dot(perp_b, p) >= 0.0) {
-				dist = d_plane;
-			} else {
-				float da = sqrt(2.0 * max(0.0, 1.0 - dot(a, p)));
-				float db = sqrt(2.0 * max(0.0, 1.0 - dot(b, p)));
-				dist = min(da, db);
+					float dist;
+					if (dot(perp_a, p) >= 0.0 && dot(perp_b, p) >= 0.0) {
+						dist = d_plane;
+					} else {
+						float da = sqrt(2.0 * max(0.0, 1.0 - dot(a, p)));
+						float db = sqrt(2.0 * max(0.0, 1.0 - dot(b, p)));
+						dist = min(da, db);
+					}
+					min_line_dist = min(min_line_dist, dist);
+				}
 			}
-			min_line_dist = min(min_line_dist, dist);
-		}
+		} else {
+			// Polyline mode: sequential segments
+			int solid_seg_count = outline_vertex_count - 1;
+			for (int i = 0; i < solid_seg_count; i++) {
+				vec4 va = texelFetch(outline_data, ivec2(i, 0), 0);
+				vec4 vb = texelFetch(outline_data, ivec2(i + 1, 0), 0);
 
-		// Closing segment (last vertex back to first) at reduced opacity
-		if (outline_closed) {
-			vec4 va = texelFetch(outline_data, ivec2(outline_vertex_count - 1, 0), 0);
-			vec4 vb = texelFetch(outline_data, ivec2(0, 0), 0);
+				vec3 a = latlon_to_unit(va.xy);
+				vec3 b = latlon_to_unit(vb.xy);
 
-			vec3 a = latlon_to_unit(va.xy);
-			vec3 b = latlon_to_unit(vb.xy);
+				vec3 n = normalize(cross(a, b));
+				float d_plane = abs(dot(n, p));
+				vec3 perp_a = cross(n, a);
+				vec3 perp_b = cross(b, n);
 
-			vec3 n = normalize(cross(a, b));
-			float d_plane = abs(dot(n, p));
+				float dist;
+				if (dot(perp_a, p) >= 0.0 && dot(perp_b, p) >= 0.0) {
+					dist = d_plane;
+				} else {
+					float da = sqrt(2.0 * max(0.0, 1.0 - dot(a, p)));
+					float db = sqrt(2.0 * max(0.0, 1.0 - dot(b, p)));
+					dist = min(da, db);
+				}
+				min_line_dist = min(min_line_dist, dist);
+			}
 
-			vec3 perp_a = cross(n, a);
-			vec3 perp_b = cross(b, n);
+			// Closing segment (last vertex back to first) at reduced opacity
+			if (outline_closed) {
+				vec4 va = texelFetch(outline_data, ivec2(outline_vertex_count - 1, 0), 0);
+				vec4 vb = texelFetch(outline_data, ivec2(0, 0), 0);
 
-			if (dot(perp_a, p) >= 0.0 && dot(perp_b, p) >= 0.0) {
-				closing_line_dist = d_plane;
-			} else {
-				float da = sqrt(2.0 * max(0.0, 1.0 - dot(a, p)));
-				float db = sqrt(2.0 * max(0.0, 1.0 - dot(b, p)));
-				closing_line_dist = min(da, db);
+				vec3 a = latlon_to_unit(va.xy);
+				vec3 b = latlon_to_unit(vb.xy);
+
+				vec3 n = normalize(cross(a, b));
+				float d_plane = abs(dot(n, p));
+				vec3 perp_a = cross(n, a);
+				vec3 perp_b = cross(b, n);
+
+				if (dot(perp_a, p) >= 0.0 && dot(perp_b, p) >= 0.0) {
+					closing_line_dist = d_plane;
+				} else {
+					float da = sqrt(2.0 * max(0.0, 1.0 - dot(a, p)));
+					float db = sqrt(2.0 * max(0.0, 1.0 - dot(b, p)));
+					closing_line_dist = min(da, db);
+				}
 			}
 		}
 

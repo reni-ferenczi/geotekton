@@ -14,6 +14,8 @@ enum Tool { MOVE, DRAW }
 @onready var draw_button: Button = %Draw
 
 var active_tool: Tool = Tool.MOVE
+var last_triangles: Array = []
+var hovered_feature: Feature = null
 
 
 # Called when the node enters the scene tree for the first time.
@@ -44,6 +46,10 @@ func _ready() -> void:
 	planet_view.move_to.connect(_on_move_to)
 	planet_view.move_ended.connect(_on_move_ended)
 	planet_view.move_cancelled.connect(_on_move_cancelled)
+
+	# Connect craton interaction signals
+	planet_view.craton_clicked.connect(_on_craton_clicked)
+	planet_view.craton_hovered.connect(_on_craton_hovered)
 
 
 ### File menu
@@ -214,7 +220,7 @@ func _outline_commit() -> void:
 
 func _outline_cancel() -> void:
 	outline_vertices.clear()
-	_refresh_outline()
+	_refresh_selection_outline()
 
 
 func _refresh_outline() -> void:
@@ -328,12 +334,52 @@ func _latlon_to_xyz(v: Vector2) -> Vector3:
 	)
 
 
+### Craton interaction
+
+
+func _on_craton_clicked(lat: float, lon: float) -> void:
+	var hit := Planet.hit_test_craton(lat, lon, last_triangles)
+	var selected := features.feature_tree.get_selected_node()
+	print("Craton click: hit=%s (pnid=%d), selected=%s (pnid=%d)" % [
+		hit.title if hit else "null", hit.pnid if hit else -1,
+		selected.title if selected else "null", selected.pnid if selected else -1])
+	if hit != null and hit != selected:
+		# Clicked a different craton — select it (deferred to avoid Tree UI update issues)
+		features.feature_tree.select_node.call_deferred(hit)
+	elif planet_view.move_enabled:
+		# Clicked on the same craton or empty space — start moving
+		planet_view.start_moving(lat, lon)
+
+
+func _on_craton_hovered(lat: float, lon: float) -> void:
+	var new_hovered: Feature = null
+	if not is_nan(lat):
+		new_hovered = Planet.hit_test_craton(lat, lon, last_triangles)
+	if new_hovered != hovered_feature:
+		hovered_feature = new_hovered
+		planet_view.planet.set_cratons(last_triangles, hovered_feature)
+
+
 ### Craton rendering
 
 
 func refresh_cratons() -> void:
-	var triangles := Planet.collect_triangles(features.root)
-	planet_view.planet.set_cratons(triangles)
+	last_triangles = Planet.collect_triangles(features.root)
+	planet_view.planet.set_cratons(last_triangles, hovered_feature)
+	_refresh_selection_outline()
+
+
+func _refresh_selection_outline() -> void:
+	# Don't overwrite the drawing outline
+	if not outline_vertices.is_empty():
+		return
+	var selected := features.feature_tree.get_selected_node()
+	if selected != null and not selected.is_group and not selected.vertices.is_empty():
+		var verts := Feature.apply_rotation(selected.vertices, selected.rotation_angles)
+		planet_view.planet.set_outline(verts, false, true)
+	else:
+		var empty: Array[Vector2] = []
+		planet_view.planet.set_outline(empty)
 
 
 func _on_program_changed() -> void:
