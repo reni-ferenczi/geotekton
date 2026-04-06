@@ -28,7 +28,7 @@ var resize: int
 
 # Geographic data
 var vertices: Array[Vector2] = []
-var position: Vector3 = Vector3()
+var rotation_angles: Vector3 = Vector3.ZERO
 var time_range: Vector2i = Vector2i(0, 2000)
 
 # Numbering
@@ -79,7 +79,7 @@ func clone() -> Feature:
 	node.wrap_ = wrap_
 	node.resize = resize
 	node.vertices = vertices.duplicate()
-	node.position = position
+	node.rotation_angles = rotation_angles
 	node.time_range = time_range
 	for child in children:
 		node.children.append(child.clone())
@@ -173,7 +173,7 @@ func to_json() -> Variant:
 		data["wrap"] = wrap_
 		data["resize"] = resize
 		data["vertices"] = _vertices_to_json()
-		data["position"] = [position.x, position.y, position.z]
+		data["rotation"] = [rotation_angles.x, rotation_angles.y, rotation_angles.z]
 		data["time_range"] = [time_range.x, time_range.y]
 	return data
 
@@ -197,8 +197,8 @@ static func from_json(data: Variant) -> Feature:
 		node.wrap_ = data.get("wrap", false)
 		node.resize = data.get("resize", 0)
 		node._vertices_from_json(data.get("vertices", []))
-		var p: Array = data.get("position", [0, 0, 0])
-		node.position = Vector3(p[0], p[1], p[2])
+		var r: Array = data.get("rotation", data.get("position", [0, 0, 0]))
+		node.rotation_angles = Vector3(r[0], r[1], r[2])
 		var tr: Array = data.get("time_range", [0, 2000])
 		node.time_range = Vector2i(tr[0], tr[1])
 	return node
@@ -215,3 +215,82 @@ func _vertices_from_json(data: Array) -> void:
 	vertices.clear()
 	for v in data:
 		vertices.append(Vector2(v[0], v[1]))
+
+
+### Rotation helpers
+
+
+# Build rotation Basis from angles (degrees): R = Ry(rot.x) * Rx(rot.y) * Rz(rot.z)
+static func _build_rotation_basis(rot: Vector3) -> Basis:
+	return Basis(Vector3.UP, deg_to_rad(rot.x)) \
+		* Basis(Vector3.RIGHT, deg_to_rad(rot.y)) \
+		* Basis(Vector3.BACK, deg_to_rad(rot.z))
+
+
+# Extract (α, β, γ) in degrees from M = Ry(α) * Rx(β) * Rz(γ)
+# Note: Godot Basis uses m[column][row], so standard M[row][col] = m[col][row]
+static func _decompose_rotation_degrees(m: Basis) -> Vector3:
+	var sin_beta := clampf(-m[2][1], -1.0, 1.0)
+	var beta := asin(sin_beta)
+	var cos_beta := cos(beta)
+
+	var alpha: float
+	var gamma: float
+	if cos_beta > 0.0001:
+		alpha = atan2(m[2][0], m[2][2])
+		gamma = atan2(m[0][1], m[1][1])
+	else:
+		# Gimbal lock (β ≈ ±90°): set γ = 0, solve α
+		gamma = 0.0
+		alpha = atan2(-m[0][2], m[0][0])
+
+	return Vector3(rad_to_deg(alpha), rad_to_deg(beta), rad_to_deg(gamma))
+
+
+static func apply_rotation(verts: Array[Vector2], rot: Vector3) -> Array[Vector2]:
+	if rot.is_zero_approx():
+		return verts
+	var m := _build_rotation_basis(rot)
+	var result: Array[Vector2] = []
+	result.resize(verts.size())
+	for i in range(verts.size()):
+		result[i] = _xyz_to_latlon_s(m * _latlon_to_xyz_s(verts[i]))
+	return result
+
+
+static func unapply_rotation(verts: Array[Vector2], rot: Vector3) -> Array[Vector2]:
+	if rot.is_zero_approx():
+		return verts
+	var m_inv := _build_rotation_basis(rot).transposed()
+	var result: Array[Vector2] = []
+	result.resize(verts.size())
+	for i in range(verts.size()):
+		result[i] = _xyz_to_latlon_s(m_inv * _latlon_to_xyz_s(verts[i]))
+	return result
+
+
+# Compute rotation angles that move anchor_world to target_world, composing with base_rot.
+# Uses great-circle delta rotation + YXZ Euler decomposition for full sphere coverage.
+# Returns Vector3 of degrees or null if the points are antipodal.
+static func compute_move_rotation(anchor_world: Vector3, target_world: Vector3, base_rot: Vector3) -> Variant:
+	var dot_val := anchor_world.dot(target_world)
+	if dot_val > 0.9999:
+		return base_rot
+	if dot_val < -0.9999:
+		return null
+
+	var axis := anchor_world.cross(target_world).normalized()
+	var angle := acos(clampf(dot_val, -1.0, 1.0))
+	var m_new := Basis(axis, angle) * _build_rotation_basis(base_rot)
+	return _decompose_rotation_degrees(m_new)
+
+
+static func _latlon_to_xyz_s(v: Vector2) -> Vector3:
+	var lat_rad := deg_to_rad(v.x)
+	var lon_rad := deg_to_rad(v.y)
+	var cos_lat := cos(lat_rad)
+	return Vector3(cos_lat * cos(lon_rad), sin(lat_rad), cos_lat * sin(lon_rad))
+
+
+static func _xyz_to_latlon_s(p: Vector3) -> Vector2:
+	return Vector2(rad_to_deg(asin(clampf(p.y, -1.0, 1.0))), rad_to_deg(atan2(p.z, p.x)))

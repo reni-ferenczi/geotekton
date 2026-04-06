@@ -40,8 +40,10 @@ func _ready() -> void:
 	file_menu.get_popup().id_pressed.connect(_on_file_menu_id_pressed)
 
 	# Connect move tool signals
-	planet_view.move_delta.connect(_on_move_delta)
+	planet_view.move_started.connect(_on_move_started)
+	planet_view.move_to.connect(_on_move_to)
 	planet_view.move_ended.connect(_on_move_ended)
+	planet_view.move_cancelled.connect(_on_move_cancelled)
 
 
 ### File menu
@@ -108,19 +110,39 @@ func _update_move_enabled() -> void:
 	planet_view.move_enabled = can_move
 
 
-func _on_move_delta(delta_lat: float, delta_lon: float) -> void:
+var move_anchor_world: Vector3
+var move_base_rot: Vector3
+
+
+func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group:
 		return
-	for i in range(selected.vertices.size()):
-		selected.vertices[i].x += delta_lat
-		selected.vertices[i].y += delta_lon
-	refresh_cratons()
+	move_base_rot = selected.rotation_angles
+	move_anchor_world = Feature._latlon_to_xyz_s(Vector2(anchor_lat, anchor_lon))
+
+
+func _on_move_to(lat: float, lon: float) -> void:
+	var selected := features.feature_tree.get_selected_node()
+	if selected == null or selected.is_group:
+		return
+	var target_world := Feature._latlon_to_xyz_s(Vector2(lat, lon))
+	var new_rot: Variant = Feature.compute_move_rotation(move_anchor_world, target_world, move_base_rot)
+	if new_rot != null:
+		selected.rotation_angles = new_rot
+		refresh_cratons()
 
 
 func _on_move_ended() -> void:
 	features.save_version()
 	features.reload()
+	refresh_cratons()
+
+
+func _on_move_cancelled() -> void:
+	var selected := features.feature_tree.get_selected_node()
+	if selected != null and not selected.is_group:
+		selected.rotation_angles = move_base_rot
 	refresh_cratons()
 
 
@@ -171,12 +193,16 @@ func _outline_commit() -> void:
 		return
 
 	var triangles := _ear_clip(outline_vertices)
-	var start := selected.vertices.size()
-	selected.vertices.append_array(triangles)
 
-	# Ensure front-facing winding for each new triangle
-	for i in range(start, selected.vertices.size(), 3):
-		_ensure_front_winding(selected.vertices, i)
+	# Ensure front-facing winding on world-space triangles before storing
+	for i in range(0, triangles.size() - 2, 3):
+		_ensure_front_winding(triangles, i)
+
+	# Convert from world space to local (unrotated) space
+	if not selected.rotation_angles.is_zero_approx():
+		triangles = Feature.unapply_rotation(triangles, selected.rotation_angles)
+
+	selected.vertices.append_array(triangles)
 
 	outline_vertices.clear()
 	_refresh_outline()

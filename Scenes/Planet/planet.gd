@@ -97,9 +97,10 @@ static func collect_triangles(root: Feature) -> Array:
 		if node.is_group:
 			stack.append_array(node.children)
 		else:
-			for j in range(0, node.vertices.size() - 2, 3):
+			var verts := Feature.apply_rotation(node.vertices, node.rotation_angles)
+			for j in range(0, verts.size() - 2, 3):
 				triangles.append({
-					"verts": [node.vertices[j], node.vertices[j + 1], node.vertices[j + 2]],
+					"verts": [verts[j], verts[j + 1], verts[j + 2]],
 					"color": node.color,
 				})
 	return triangles
