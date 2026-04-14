@@ -47,6 +47,11 @@ func _ready() -> void:
 	planet_view.move_ended.connect(_on_move_ended)
 	planet_view.move_cancelled.connect(_on_move_cancelled)
 
+	# Connect rotate tool signals
+	planet_view.rotate_started.connect(_on_rotate_started)
+	planet_view.rotate_by.connect(_on_rotate_by)
+	planet_view.rotate_ended.connect(_on_rotate_ended)
+
 	# Connect craton interaction signals
 	planet_view.craton_clicked.connect(_on_craton_clicked)
 	planet_view.craton_hovered.connect(_on_craton_hovered)
@@ -149,6 +154,43 @@ func _on_move_cancelled() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	if selected != null and not selected.is_group:
 		selected.rotation_angles = move_base_rot
+	refresh_cratons()
+
+
+### Rotate craton with right mouse button
+
+
+const ROTATE_SENSITIVITY: float = 0.3
+
+var rotate_base_rot: Vector3
+
+
+func _on_rotate_started() -> void:
+	var selected := features.feature_tree.get_selected_node()
+	if selected == null or selected.is_group:
+		return
+	rotate_base_rot = selected.rotation_angles
+
+
+func _on_rotate_by(delta: Vector2) -> void:
+	var selected := features.feature_tree.get_selected_node()
+	if selected == null or selected.is_group or selected.vertices.is_empty():
+		return
+	var spin_deg := (delta.x + delta.y) * ROTATE_SENSITIVITY
+	var base := Feature._build_rotation_basis(selected.rotation_angles)
+	# Compute craton center as centroid of world-space vertices
+	var centroid := Vector3.ZERO
+	for v in selected.vertices:
+		centroid += base * Feature._latlon_to_xyz_s(v)
+	var center_axis := centroid.normalized()
+	var m_new := Basis(center_axis, deg_to_rad(spin_deg)) * base
+	selected.rotation_angles = Feature._decompose_rotation_degrees(m_new)
+	refresh_cratons()
+
+
+func _on_rotate_ended() -> void:
+	features.save_version()
+	features.reload()
 	refresh_cratons()
 
 

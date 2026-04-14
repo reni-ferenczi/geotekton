@@ -7,6 +7,9 @@ signal move_ended()
 signal move_cancelled()
 signal craton_clicked(lat: float, lon: float)
 signal craton_hovered(lat: float, lon: float)
+signal rotate_started()
+signal rotate_by(delta: Vector2)
+signal rotate_ended()
 
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet
@@ -18,6 +21,7 @@ var move_enabled: bool = false
 var is_moving: bool = false
 var move_rotating: bool = false
 var move_on_globe: bool = false
+var is_rotating_craton: bool = false
 
 
 func start_moving(anchor_lat: float, anchor_lon: float) -> void:
@@ -91,6 +95,15 @@ func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.is_pressed():
 		rotation_handler.handle_mouse_wheel(event.button_index)
 
+	if is_rotating_craton:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.is_released():
+			is_rotating_craton = false
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+			rotate_ended.emit()
+		elif event is InputEventMouseMotion:
+			rotate_by.emit(event.relative)
+		return
+
 	if is_moving:
 		if event is InputEventMouseButton:
 			if event.button_index == MOUSE_BUTTON_MIDDLE:
@@ -108,6 +121,12 @@ func _on_gui_input(event: InputEvent) -> void:
 		elif event is InputEventMouseMotion:
 			if move_rotating:
 				rotation_handler.handle_rotating(event.relative)
+		return
+
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed() and move_enabled:
+		is_rotating_craton = true
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		rotate_started.emit()
 		return
 
 	if event is InputEventMouseMotion:
