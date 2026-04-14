@@ -15,7 +15,7 @@ const ENABLE_ANGLE: bool = false
 const MIN_FOV: float = 15.0
 const MAX_FOV: float = 90.0
 const FOV_STEP: float = 3.0
-const ROTATION_SENSITIVITY: Vector2 = Vector2(0.5, 0.5)
+const ROTATION_SENSITIVITY: Vector2 = Vector2(0.25, 0.25)
 
 
 func _init(planet: Planet, camera: Camera3D):
