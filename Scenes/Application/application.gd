@@ -11,11 +11,19 @@ enum Tool { MOVE, DRAW }
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
 @onready var move_button: Button = %Move
+@onready var axis_button: Button = %Axis
 @onready var draw_button: Button = %Draw
 
 var active_tool: Tool = Tool.MOVE
 var last_triangles: Array = []
 var hovered_feature: Feature = null
+
+# Axis toggle (independent of the active tool). When enabled, the Move tool
+# rotates the selected craton around this axis instead of moving it freely.
+var axis_enabled: bool = false
+var axis_point: Vector2 = Vector2(0.0, 0.0)
+# On-sphere distance threshold (chord length) for grabbing the axis handle.
+const AXIS_GRAB_RADIUS: float = 0.06
 
 
 # Called when the node enters the scene tree for the first time.
@@ -25,6 +33,7 @@ func _ready() -> void:
 
 	# Connect tool buttons
 	move_button.pressed.connect(_on_move_pressed)
+	axis_button.pressed.connect(_on_axis_pressed)
 	draw_button.pressed.connect(_on_draw_pressed)
 
 	# Connect feature selection from the features panel
@@ -52,6 +61,7 @@ func _ready() -> void:
 	planet_view.rotate_by.connect(_on_rotate_by)
 	planet_view.rotate_ended.connect(_on_rotate_ended)
 
+
 	# Connect craton interaction signals
 	planet_view.craton_clicked.connect(_on_craton_clicked)
 	planet_view.craton_hovered.connect(_on_craton_hovered)
@@ -74,6 +84,17 @@ func _on_move_pressed() -> void:
 	set_active_tool(Tool.MOVE)
 
 
+func _on_axis_pressed() -> void:
+	axis_enabled = axis_button.button_pressed
+	if axis_enabled and axis_point == Vector2.ZERO:
+		# First activation: seed axis position at the selected craton's centroid if possible.
+		var selected := features.feature_tree.get_selected_node()
+		if selected != null and not selected.is_group and not selected.vertices.is_empty():
+			axis_point = _compute_craton_centroid_latlon(selected)
+	planet_view.planet.set_axis(axis_point.x, axis_point.y, axis_enabled)
+	_update_move_enabled()
+
+
 func _on_draw_pressed() -> void:
 	set_active_tool(Tool.DRAW)
 
@@ -86,6 +107,16 @@ func set_active_tool(tool: Tool) -> void:
 	draw_button.button_pressed = (tool == Tool.DRAW)
 	planet_view.drawing_mode = (tool == Tool.DRAW)
 	_update_move_enabled()
+
+
+func _compute_craton_centroid_latlon(f: Feature) -> Vector2:
+	var base := Feature._build_rotation_basis(f.rotation_angles)
+	var c := Vector3.ZERO
+	for v in f.vertices:
+		c += base * Feature._latlon_to_xyz_s(v)
+	if c.length() < 1e-6:
+		return Vector2.ZERO
+	return Feature._xyz_to_latlon_s(c.normalized())
 
 
 ### Feature selection
@@ -117,15 +148,29 @@ func _on_feature_selected(node: Feature) -> void:
 
 func _update_move_enabled() -> void:
 	var selected := features.feature_tree.get_selected_node()
-	var can_move := active_tool == Tool.MOVE and selected != null and not selected.is_group and not selected.vertices.is_empty()
-	planet_view.move_enabled = can_move
+	var has_craton := selected != null and not selected.is_group and not selected.vertices.is_empty()
+	# Allow starting a "move" gesture whenever a craton is selected OR the axis is enabled
+	# (so the axis handle is draggable even without a craton).
+	planet_view.move_enabled = active_tool == Tool.MOVE and (has_craton or axis_enabled)
 
 
 var move_anchor_world: Vector3
 var move_base_rot: Vector3
+var move_dragging_axis: bool = false
 
 
 func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
+	move_dragging_axis = false
+	# Axis handle drag takes priority when the axis is visible and the click is near it.
+	if axis_enabled:
+		var click_vec := Feature._latlon_to_xyz_s(Vector2(anchor_lat, anchor_lon))
+		var axis_vec := Feature._latlon_to_xyz_s(axis_point)
+		var d_near := (click_vec - axis_vec).length()
+		var d_far := (click_vec + axis_vec).length()
+		if min(d_near, d_far) < AXIS_GRAB_RADIUS:
+			move_dragging_axis = true
+			return
+
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group:
 		return
@@ -134,23 +179,39 @@ func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 
 
 func _on_move_to(lat: float, lon: float) -> void:
+	if move_dragging_axis:
+		axis_point = Vector2(lat, lon)
+		planet_view.planet.set_axis(axis_point.x, axis_point.y, true)
+		return
+
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group:
 		return
 	var target_world := Feature._latlon_to_xyz_s(Vector2(lat, lon))
-	var new_rot: Variant = Feature.compute_move_rotation(move_anchor_world, target_world, move_base_rot)
+	var new_rot: Variant
+	if axis_enabled:
+		var axis_world := Feature._latlon_to_xyz_s(axis_point)
+		new_rot = Feature.compute_axis_rotation(axis_world, move_anchor_world, target_world, move_base_rot)
+	else:
+		new_rot = Feature.compute_move_rotation(move_anchor_world, target_world, move_base_rot)
 	if new_rot != null:
 		selected.rotation_angles = new_rot
 		refresh_cratons()
 
 
 func _on_move_ended() -> void:
+	if move_dragging_axis:
+		move_dragging_axis = false
+		return
 	features.save_version()
 	features.reload()
 	refresh_cratons()
 
 
 func _on_move_cancelled() -> void:
+	if move_dragging_axis:
+		move_dragging_axis = false
+		return
 	var selected := features.feature_tree.get_selected_node()
 	if selected != null and not selected.is_group:
 		selected.rotation_angles = move_base_rot

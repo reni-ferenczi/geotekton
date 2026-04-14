@@ -285,6 +285,24 @@ static func compute_move_rotation(anchor_world: Vector3, target_world: Vector3, 
 	return _decompose_rotation_degrees(m_new)
 
 
+# Compute rotation angles that rotate anchor_world toward target_world around a fixed axis.
+# Only the rotation component around `axis_world` is applied to base_rot.
+# Returns Vector3 of degrees or null if anchor or target lies on the axis (undefined angle).
+static func compute_axis_rotation(axis_world: Vector3, anchor_world: Vector3, target_world: Vector3, base_rot: Vector3) -> Variant:
+	var axis := axis_world.normalized()
+	var a_perp := anchor_world - axis * axis.dot(anchor_world)
+	var t_perp := target_world - axis * axis.dot(target_world)
+	if a_perp.length() < 1e-4 or t_perp.length() < 1e-4:
+		return null
+	a_perp = a_perp.normalized()
+	t_perp = t_perp.normalized()
+	var cos_a := clampf(a_perp.dot(t_perp), -1.0, 1.0)
+	var sin_a := axis.dot(a_perp.cross(t_perp))
+	var angle := atan2(sin_a, cos_a)
+	var m_new := Basis(axis, angle) * _build_rotation_basis(base_rot)
+	return _decompose_rotation_degrees(m_new)
+
+
 static func _latlon_to_xyz_s(v: Vector2) -> Vector3:
 	var lat_rad := deg_to_rad(v.x)
 	var lon_rad := deg_to_rad(v.y)

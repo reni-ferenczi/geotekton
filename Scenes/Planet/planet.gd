@@ -135,6 +135,20 @@ static func _latlon_to_unit(lat_rad: float, lon_rad: float) -> Vector3:
 	return Vector3(cos_lat * cos(lon_rad), sin(lat_rad), cos_lat * sin(lon_rad))
 
 
+## Axis marker rendering
+
+# Show or hide the rotation axis marker at the given lat/lon.
+func set_axis(lat: float, lon: float, enabled: bool) -> void:
+	var globe_mat: ShaderMaterial = globe.get_surface_override_material(0)
+	var map_mat: ShaderMaterial = map.get_surface_override_material(0)
+	globe_mat.set_shader_parameter("axis_enabled", enabled)
+	map_mat.set_shader_parameter("axis_enabled", enabled)
+	if enabled:
+		var p := Vector2(deg_to_rad(lat), deg_to_rad(lon))
+		globe_mat.set_shader_parameter("axis_latlon", p)
+		map_mat.set_shader_parameter("axis_latlon", p)
+
+
 ## Outline rendering (drawing preview)
 
 # Set outline vertices for the polygon drawing preview.

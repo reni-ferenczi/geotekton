@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Application/properties.tscn" id="5_83lrd"]
 [ext_resource type="Texture2D" uid="uid://ckeyhv2ygt3k4" path="res://Assets/GodotIcons/ToolMove.svg" id="6_toolmove"]
 [ext_resource type="Texture2D" uid="uid://drgl1h6nlsu3l" path="res://Assets/GodotIcons/Edit.svg" id="7_tooldraw"]
+[ext_resource type="Texture2D" uid="uid://csahgmxw80sow" path="res://Assets/GodotIcons/ToolRotate.svg" id="8_toolaxis"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
@@ -69,6 +70,15 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 [node name="Tools" type="HBoxContainer" parent="LeftSplitter/RightSplitter/Center/PanelContainer" unique_id=395434646]
 layout_mode = 2
 size_flags_vertical = 0
+
+[node name="Axis" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=769603400]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Axis"
+toggle_mode = true
+icon = ExtResource("8_toolaxis")
+expand_icon = true
 
 [node name="Move" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1030834308]
 unique_name_in_owner = true

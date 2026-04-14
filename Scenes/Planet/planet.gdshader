@@ -28,6 +28,12 @@ uniform float outline_dot_radius = 0.006;
 uniform float outline_closing_opacity = 0.25;
 uniform bool outline_triangles_mode = false;
 
+// Axis marker (rotation/move axis handle)
+uniform bool axis_enabled = false;
+uniform vec2 axis_latlon = vec2(0.0, 0.0); // radians
+uniform float axis_dot_radius = 0.02;
+uniform float axis_line_width = 0.003;
+
 // Convert lat/lon (radians) to unit sphere position
 vec3 latlon_to_unit(vec2 ll) {
 	float cos_lat = cos(ll.x);
@@ -183,6 +189,21 @@ void fragment() {
 		float closing_alpha = (1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, closing_line_dist)) * outline_closing_opacity;
 		float outline_alpha = max(dot_alpha, max(line_alpha, closing_alpha));
 		base = mix(base, vec3(1.0, 1.0, 0.0), outline_alpha);
+	}
+
+	// Axis marker rendering
+	if (axis_enabled) {
+		vec3 ap = latlon_to_unit(axis_latlon);
+		// Distance to axis point and its antipode on the surface
+		float d_near = sqrt(2.0 * max(0.0, 1.0 - dot(ap, p)));
+		float d_far  = sqrt(2.0 * max(0.0, 1.0 + dot(ap, p)));
+		float d_dot = min(d_near, d_far);
+		float dot_alpha = 1.0 - smoothstep(axis_dot_radius * 0.7, axis_dot_radius, d_dot);
+		// Great circle perpendicular to the axis (the "equator" of the axis)
+		float d_plane = abs(dot(ap, p));
+		float line_alpha = 1.0 - smoothstep(axis_line_width * 0.5, axis_line_width, d_plane);
+		float axis_alpha = max(dot_alpha, line_alpha * 0.6);
+		base = mix(base, vec3(1.0, 0.3, 0.3), axis_alpha);
 	}
 
 	ALBEDO = base;
