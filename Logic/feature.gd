@@ -27,7 +27,14 @@ var wrap_: bool
 var resize: int
 
 # Geographic data
-var vertices: Array[Vector2] = []
+#
+# Source of truth: user-drawn polygon outlines, stored as ordered vertex loops
+# in local (unrotated) space. Each loop is a PackedVector2Array of (lat_deg, lon_deg).
+var outlines: Array[PackedVector2Array] = []
+# Derived triangle soup: every 3 consecutive vertices form one front-facing
+# triangle. Rebuilt from `outlines` via ear clipping whenever outlines change.
+# Rendering reads this field directly.
+var triangles: Array[Vector2] = []
 var rotation_angles: Vector3 = Vector3.ZERO
 var time_range: Vector2i = Vector2i(0, 2000)
 
@@ -78,7 +85,10 @@ func clone() -> Feature:
 	node.single = single
 	node.wrap_ = wrap_
 	node.resize = resize
-	node.vertices = vertices.duplicate()
+	node.outlines.clear()
+	for loop in outlines:
+		node.outlines.append(loop.duplicate())
+	node.triangles = triangles.duplicate()
 	node.rotation_angles = rotation_angles
 	node.time_range = time_range
 	for child in children:
@@ -149,6 +159,49 @@ func get_node_by_pnid(pnid_: int) -> Feature:
 	return null
 
 
+### Outline mutation
+
+
+func has_craton() -> bool:
+	return not outlines.is_empty()
+
+
+func set_outlines(new_outlines: Array[PackedVector2Array]) -> void:
+	outlines = new_outlines
+	_rebuild_triangles()
+
+
+func add_outline(loop: PackedVector2Array) -> void:
+	outlines.append(loop)
+	_rebuild_triangles()
+
+
+func clear_outlines() -> void:
+	outlines.clear()
+	triangles.clear()
+
+
+# Flat list of all vertices across every outline loop (useful for centroid).
+func all_outline_points() -> Array[Vector2]:
+	var result: Array[Vector2] = []
+	for loop in outlines:
+		for v in loop:
+			result.append(v)
+	return result
+
+
+func _rebuild_triangles() -> void:
+	triangles.clear()
+	for loop in outlines:
+		var loop_arr: Array[Vector2] = []
+		for v in loop:
+			loop_arr.append(v)
+		var tris := _ear_clip(loop_arr)
+		for i in range(0, tris.size() - 2, 3):
+			_ensure_front_winding(tris, i)
+		triangles.append_array(tris)
+
+
 ### JSON serialization
 
 
@@ -172,7 +225,7 @@ func to_json() -> Variant:
 		data["single"] = single
 		data["wrap"] = wrap_
 		data["resize"] = resize
-		data["vertices"] = _vertices_to_json()
+		data["outlines"] = _outlines_to_json()
 		data["rotation"] = [rotation_angles.x, rotation_angles.y, rotation_angles.z]
 		data["time_range"] = [time_range.x, time_range.y]
 	return data
@@ -196,7 +249,15 @@ static func from_json(data: Variant) -> Feature:
 		node.single = data.get("single", false)
 		node.wrap_ = data.get("wrap", false)
 		node.resize = data.get("resize", 0)
-		node._vertices_from_json(data.get("vertices", []))
+		if data.has("outlines"):
+			node._outlines_from_json(data["outlines"])
+		else:
+			# Legacy format (pre-outlines): a flat triangle soup stored under
+			# "vertices". The original polygons are gone, so each triangle
+			# becomes its own 3-vertex outline loop — re-triangulation then
+			# yields the same triangles back.
+			node._outlines_from_legacy_vertices(data.get("vertices", []))
+		node._rebuild_triangles()
 		var r: Array = data.get("rotation", data.get("position", [0, 0, 0]))
 		node.rotation_angles = Vector3(r[0], r[1], r[2])
 		var tr: Array = data.get("time_range", [0, 2000])
@@ -204,17 +265,38 @@ static func from_json(data: Variant) -> Feature:
 	return node
 
 
-func _vertices_to_json() -> Array:
+func _outlines_to_json() -> Array:
 	var result: Array = []
-	for v in vertices:
-		result.append([v.x, v.y])
+	for loop in outlines:
+		var loop_data: Array = []
+		for v in loop:
+			loop_data.append([v.x, v.y])
+		result.append(loop_data)
 	return result
 
 
-func _vertices_from_json(data: Array) -> void:
-	vertices.clear()
-	for v in data:
-		vertices.append(Vector2(v[0], v[1]))
+func _outlines_from_json(data: Array) -> void:
+	outlines.clear()
+	for loop_data in data:
+		var loop := PackedVector2Array()
+		for v in loop_data:
+			loop.append(Vector2(v[0], v[1]))
+		outlines.append(loop)
+
+
+func _outlines_from_legacy_vertices(data: Array) -> void:
+	outlines.clear()
+	var i := 0
+	while i + 2 < data.size():
+		var a: Array = data[i]
+		var b: Array = data[i + 1]
+		var c: Array = data[i + 2]
+		var loop := PackedVector2Array()
+		loop.append(Vector2(a[0], a[1]))
+		loop.append(Vector2(b[0], b[1]))
+		loop.append(Vector2(c[0], c[1]))
+		outlines.append(loop)
+		i += 3
 
 
 ### Rotation helpers
@@ -301,6 +383,95 @@ static func compute_axis_rotation(axis_world: Vector3, anchor_world: Vector3, ta
 	var angle := atan2(sin_a, cos_a)
 	var m_new := Basis(axis, angle) * _build_rotation_basis(base_rot)
 	return _decompose_rotation_degrees(m_new)
+
+
+### Ear-clipping triangulation
+
+
+static func _ear_clip(polygon: Array[Vector2]) -> Array[Vector2]:
+	var n := polygon.size()
+	if n < 3:
+		return []
+
+	var result: Array[Vector2] = []
+
+	var idx: Array[int] = []
+	for i in range(n):
+		idx.append(i)
+
+	# Determine winding direction using signed area (shoelace formula)
+	var area := 0.0
+	for i in range(n):
+		var j := (i + 1) % n
+		area += polygon[i].x * polygon[j].y - polygon[j].x * polygon[i].y
+	var winding_sign := 1.0 if area > 0.0 else -1.0
+
+	var max_iterations := n * n
+	var iter := 0
+	var i := 0
+
+	while idx.size() > 3 and iter < max_iterations:
+		iter += 1
+		var sz := idx.size()
+		var prev := (i - 1 + sz) % sz
+		var next := (i + 1) % sz
+
+		var a := polygon[idx[prev]]
+		var b := polygon[idx[i]]
+		var c := polygon[idx[next]]
+
+		var cross_val := (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+		if cross_val * winding_sign <= 0.0:
+			i = (i + 1) % sz
+			continue
+
+		var is_ear := true
+		for k in range(sz):
+			if k == prev or k == i or k == next:
+				continue
+			if _point_in_triangle(polygon[idx[k]], a, b, c):
+				is_ear = false
+				break
+
+		if is_ear:
+			result.append(a)
+			result.append(b)
+			result.append(c)
+			idx.remove_at(i)
+			if i >= idx.size():
+				i = 0
+		else:
+			i = (i + 1) % idx.size()
+
+	if idx.size() == 3:
+		result.append(polygon[idx[0]])
+		result.append(polygon[idx[1]])
+		result.append(polygon[idx[2]])
+
+	return result
+
+
+static func _point_in_triangle(p: Vector2, a: Vector2, b: Vector2, c: Vector2) -> bool:
+	var d1 := (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y)
+	var d2 := (p.x - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y)
+	var d3 := (p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y)
+	var has_neg := (d1 < 0) or (d2 < 0) or (d3 < 0)
+	var has_pos := (d1 > 0) or (d2 > 0) or (d3 > 0)
+	return not (has_neg and has_pos)
+
+
+static func _ensure_front_winding(verts: Array[Vector2], start: int) -> void:
+	var a := _latlon_to_xyz_s(verts[start])
+	var b := _latlon_to_xyz_s(verts[start + 1])
+	var c := _latlon_to_xyz_s(verts[start + 2])
+
+	var normal := (b - a).cross(c - a)
+	var center := (a + b + c) / 3.0
+
+	if normal.dot(center) < 0:
+		var tmp := verts[start + 1]
+		verts[start + 1] = verts[start + 2]
+		verts[start + 2] = tmp
 
 
 static func _latlon_to_xyz_s(v: Vector2) -> Vector3:

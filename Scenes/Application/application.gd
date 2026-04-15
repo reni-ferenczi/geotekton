@@ -89,7 +89,7 @@ func _on_axis_pressed() -> void:
 	if axis_enabled and axis_point == Vector2.ZERO:
 		# First activation: seed axis position at the selected craton's centroid if possible.
 		var selected := features.feature_tree.get_selected_node()
-		if selected != null and not selected.is_group and not selected.vertices.is_empty():
+		if selected != null and not selected.is_group and selected.has_craton():
 			axis_point = _compute_craton_centroid_latlon(selected)
 	planet_view.planet.set_axis(axis_point.x, axis_point.y, axis_enabled)
 	_update_move_enabled()
@@ -112,7 +112,7 @@ func set_active_tool(tool: Tool) -> void:
 func _compute_craton_centroid_latlon(f: Feature) -> Vector2:
 	var base := Feature._build_rotation_basis(f.rotation_angles)
 	var c := Vector3.ZERO
-	for v in f.vertices:
+	for v in f.all_outline_points():
 		c += base * Feature._latlon_to_xyz_s(v)
 	if c.length() < 1e-6:
 		return Vector2.ZERO
@@ -132,7 +132,7 @@ func _on_feature_selected(node: Feature) -> void:
 
 	if is_leaf:
 		# Auto-select Draw if the feature has no craton (no vertices)
-		if node.vertices.is_empty():
+		if not node.has_craton():
 			set_active_tool(Tool.DRAW)
 	else:
 		# Can't draw on groups or nothing — force Move
@@ -148,7 +148,7 @@ func _on_feature_selected(node: Feature) -> void:
 
 func _update_move_enabled() -> void:
 	var selected := features.feature_tree.get_selected_node()
-	var has_craton := selected != null and not selected.is_group and not selected.vertices.is_empty()
+	var has_craton := selected != null and not selected.is_group and selected.has_craton()
 	# Allow starting a "move" gesture whenever a craton is selected OR the axis is enabled
 	# (so the axis handle is draggable even without a craton).
 	planet_view.move_enabled = active_tool == Tool.MOVE and (has_craton or axis_enabled)
@@ -235,13 +235,13 @@ func _on_rotate_started() -> void:
 
 func _on_rotate_by(delta: Vector2) -> void:
 	var selected := features.feature_tree.get_selected_node()
-	if selected == null or selected.is_group or selected.vertices.is_empty():
+	if selected == null or selected.is_group or not selected.has_craton():
 		return
 	var spin_deg := (delta.x + delta.y) * ROTATE_SENSITIVITY
 	var base := Feature._build_rotation_basis(selected.rotation_angles)
-	# Compute craton center as centroid of world-space vertices
+	# Compute craton center as centroid of world-space outline vertices
 	var centroid := Vector3.ZERO
-	for v in selected.vertices:
+	for v in selected.all_outline_points():
 		centroid += base * Feature._latlon_to_xyz_s(v)
 	var center_axis := centroid.normalized()
 	var m_new := Basis(center_axis, deg_to_rad(spin_deg)) * base
@@ -301,17 +301,15 @@ func _outline_commit() -> void:
 	if selected == null or selected.is_group:
 		return
 
-	var triangles := _ear_clip(outline_vertices)
+	# The user draws in world space. Convert the loop to local (unrotated)
+	# space before storing — triangulation happens inside Feature.
+	var loop_world: Array[Vector2] = outline_vertices.duplicate()
+	var loop_local: Array[Vector2] = Feature.unapply_rotation(loop_world, selected.rotation_angles)
 
-	# Ensure front-facing winding on world-space triangles before storing
-	for i in range(0, triangles.size() - 2, 3):
-		_ensure_front_winding(triangles, i)
-
-	# Convert from world space to local (unrotated) space
-	if not selected.rotation_angles.is_zero_approx():
-		triangles = Feature.unapply_rotation(triangles, selected.rotation_angles)
-
-	selected.vertices.append_array(triangles)
+	var packed := PackedVector2Array()
+	for v in loop_local:
+		packed.append(v)
+	selected.add_outline(packed)
 
 	outline_vertices.clear()
 	_refresh_outline()
@@ -328,113 +326,6 @@ func _outline_cancel() -> void:
 
 func _refresh_outline() -> void:
 	planet_view.planet.set_outline(outline_vertices, outline_vertices.size() >= 3)
-
-
-### Ear-clipping triangulation
-
-
-static func _ear_clip(polygon: Array[Vector2]) -> Array[Vector2]:
-	var n := polygon.size()
-	if n < 3:
-		return []
-
-	var result: Array[Vector2] = []
-
-	# Build mutable index list
-	var idx: Array[int] = []
-	for i in range(n):
-		idx.append(i)
-
-	# Determine winding direction using signed area (shoelace formula)
-	var area := 0.0
-	for i in range(n):
-		var j := (i + 1) % n
-		area += polygon[i].x * polygon[j].y - polygon[j].x * polygon[i].y
-	var winding_sign := 1.0 if area > 0.0 else -1.0
-
-	var max_iterations := n * n
-	var iter := 0
-	var i := 0
-
-	while idx.size() > 3 and iter < max_iterations:
-		iter += 1
-		var sz := idx.size()
-		var prev := (i - 1 + sz) % sz
-		var next := (i + 1) % sz
-
-		var a := polygon[idx[prev]]
-		var b := polygon[idx[i]]
-		var c := polygon[idx[next]]
-
-		# Check if this vertex forms a convex ear (matches polygon winding)
-		var cross_val := (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
-		if cross_val * winding_sign <= 0.0:
-			i = (i + 1) % sz
-			continue
-
-		# Check no other polygon vertex falls inside this triangle
-		var is_ear := true
-		for k in range(sz):
-			if k == prev or k == i or k == next:
-				continue
-			if _point_in_triangle(polygon[idx[k]], a, b, c):
-				is_ear = false
-				break
-
-		if is_ear:
-			result.append(a)
-			result.append(b)
-			result.append(c)
-			idx.remove_at(i)
-			if i >= idx.size():
-				i = 0
-		else:
-			i = (i + 1) % idx.size()
-
-	# Output the final remaining triangle
-	if idx.size() == 3:
-		result.append(polygon[idx[0]])
-		result.append(polygon[idx[1]])
-		result.append(polygon[idx[2]])
-
-	return result
-
-
-static func _point_in_triangle(p: Vector2, a: Vector2, b: Vector2, c: Vector2) -> bool:
-	var d1 := (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y)
-	var d2 := (p.x - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y)
-	var d3 := (p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y)
-	var has_neg := (d1 < 0) or (d2 < 0) or (d3 < 0)
-	var has_pos := (d1 > 0) or (d2 > 0) or (d3 > 0)
-	return not (has_neg and has_pos)
-
-
-### Winding and coordinate helpers
-
-
-func _ensure_front_winding(verts: Array[Vector2], start: int) -> void:
-	var a := _latlon_to_xyz(verts[start])
-	var b := _latlon_to_xyz(verts[start + 1])
-	var c := _latlon_to_xyz(verts[start + 2])
-
-	var normal := (b - a).cross(c - a)
-	var center := (a + b + c) / 3.0
-
-	if normal.dot(center) < 0:
-		var tmp := verts[start + 1]
-		verts[start + 1] = verts[start + 2]
-		verts[start + 2] = tmp
-
-
-func _latlon_to_xyz(v: Vector2) -> Vector3:
-	var lat_rad := deg_to_rad(v.x)
-	var lon_rad := deg_to_rad(v.y)
-	var cos_lat := cos(lat_rad)
-	return Vector3(
-		cos_lat * cos(lon_rad),
-		sin(lat_rad),
-		cos_lat * sin(lon_rad)
-	)
 
 
 ### Craton interaction
@@ -477,8 +368,8 @@ func _refresh_selection_outline() -> void:
 	if not outline_vertices.is_empty():
 		return
 	var selected := features.feature_tree.get_selected_node()
-	if selected != null and not selected.is_group and not selected.vertices.is_empty():
-		var verts := Feature.apply_rotation(selected.vertices, selected.rotation_angles)
+	if selected != null and not selected.is_group and selected.has_craton():
+		var verts := Feature.apply_rotation(selected.triangles, selected.rotation_angles)
 		planet_view.planet.set_outline(verts, false, true)
 	else:
 		var empty: Array[Vector2] = []

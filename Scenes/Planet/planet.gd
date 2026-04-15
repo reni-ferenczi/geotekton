@@ -87,7 +87,8 @@ func set_cratons(triangles: Array, hovered_feature: Feature = null) -> void:
 
 
 # Extract craton triangles from a feature tree.
-# Every 3 consecutive vertices in a leaf feature form one triangle.
+# Every 3 consecutive vertices in a leaf feature's derived triangle soup form
+# one triangle. The soup is rebuilt from outlines whenever outlines change.
 static func collect_triangles(root: Feature) -> Array:
 	var triangles: Array = []
 	var stack: Array[Feature] = [root]
@@ -98,7 +99,7 @@ static func collect_triangles(root: Feature) -> Array:
 		if node.is_group:
 			stack.append_array(node.children)
 		else:
-			var verts := Feature.apply_rotation(node.vertices, node.rotation_angles)
+			var verts := Feature.apply_rotation(node.triangles, node.rotation_angles)
 			for j in range(0, verts.size() - 2, 3):
 				triangles.append({
 					"verts": [verts[j], verts[j + 1], verts[j + 2]],
