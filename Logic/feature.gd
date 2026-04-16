@@ -474,6 +474,77 @@ static func _ensure_front_winding(verts: Array[Vector2], start: int) -> void:
 		verts[start + 2] = tmp
 
 
+### Great-circle segment helpers (for EDIT tool hit-testing)
+
+
+# Returns chord distance from point p to the great-circle arc a→b, plus the
+# projected world-space point on the arc (or the nearest endpoint if p is
+# outside the arc's perpendicular slab).
+# All arguments are unit-length xyz vectors. Result keys: "dist", "proj", "on_arc".
+static func great_circle_edge_distance(p: Vector3, a: Vector3, b: Vector3) -> Dictionary:
+	var n := a.cross(b)
+	if n.length() < 1e-9:
+		return {"dist": (p - a).length(), "proj": a, "on_arc": false}
+	n = n.normalized()
+	var perp_a := n.cross(a)
+	var perp_b := b.cross(n)
+	var on_arc := perp_a.dot(p) >= 0.0 and perp_b.dot(p) >= 0.0
+	if on_arc:
+		var proj := (p - n * n.dot(p))
+		if proj.length() < 1e-9:
+			return {"dist": 1.0, "proj": a, "on_arc": false}
+		proj = proj.normalized()
+		var dist := sqrt(2.0 * max(0.0, 1.0 - proj.dot(p)))
+		return {"dist": dist, "proj": proj, "on_arc": true}
+	var da := sqrt(2.0 * max(0.0, 1.0 - a.dot(p)))
+	var db := sqrt(2.0 * max(0.0, 1.0 - b.dot(p)))
+	if da < db:
+		return {"dist": da, "proj": a, "on_arc": false}
+	return {"dist": db, "proj": b, "on_arc": false}
+
+
+# Test whether two great-circle arcs (a→b and c→d) cross on the sphere.
+# Endpoints are not treated as intersections.
+static func great_circle_arcs_intersect(a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> bool:
+	var n1 := a.cross(b)
+	var n2 := c.cross(d)
+	if n1.length() < 1e-9 or n2.length() < 1e-9:
+		return false
+	var dir := n1.cross(n2)
+	if dir.length() < 1e-9:
+		return false
+	dir = dir.normalized()
+	return _arc_contains(dir, a, b, n1) and _arc_contains(dir, c, d, n2) \
+		or _arc_contains(-dir, a, b, n1) and _arc_contains(-dir, c, d, n2)
+
+
+static func _arc_contains(p: Vector3, a: Vector3, b: Vector3, n: Vector3) -> bool:
+	# Strictly inside: reject endpoints to avoid flagging shared corners.
+	var perp_a := n.cross(a)
+	var perp_b := b.cross(n)
+	return perp_a.dot(p) > 1e-6 and perp_b.dot(p) > 1e-6
+
+
+# Test whether a closed polygon (array of world-space xyz unit vectors) has any
+# pair of non-adjacent great-circle edges that cross.
+static func polygon_self_intersects(verts_world: Array) -> bool:
+	var n := verts_world.size()
+	if n < 4:
+		return false
+	for i in range(n):
+		var a: Vector3 = verts_world[i]
+		var b: Vector3 = verts_world[(i + 1) % n]
+		for j in range(i + 2, n):
+			# Skip adjacency (edges sharing a vertex)
+			if i == 0 and j == n - 1:
+				continue
+			var c: Vector3 = verts_world[j]
+			var d: Vector3 = verts_world[(j + 1) % n]
+			if great_circle_arcs_intersect(a, b, c, d):
+				return true
+	return false
+
+
 static func _latlon_to_xyz_s(v: Vector2) -> Vector3:
 	var lat_rad := deg_to_rad(v.x)
 	var lon_rad := deg_to_rad(v.y)
