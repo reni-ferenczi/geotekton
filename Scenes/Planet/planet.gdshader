@@ -27,6 +27,11 @@ uniform float outline_line_width = 0.002;
 uniform float outline_dot_radius = 0.006;
 uniform float outline_closing_opacity = 0.25;
 uniform bool outline_triangles_mode = false;
+// Loops mode: each texel's .z channel stores the index of the next vertex in
+// the same closed loop (wrapping within that loop). Supports arbitrarily many
+// loops packed in a single outline_data texture.
+uniform bool outline_loops_mode = false;
+uniform int outline_highlight_index = -1;
 
 // Axis marker (rotation/move axis handle)
 uniform bool axis_enabled = false;
@@ -105,7 +110,32 @@ void fragment() {
 		float min_line_dist = 1e10;
 		float closing_line_dist = 1e10;
 
-		if (outline_triangles_mode) {
+		if (outline_loops_mode) {
+			// Each vertex stores the index of its next neighbour in .z.
+			for (int i = 0; i < outline_vertex_count; i++) {
+				vec4 va = texelFetch(outline_data, ivec2(i, 0), 0);
+				int next_idx = int(va.z);
+				vec4 vb = texelFetch(outline_data, ivec2(next_idx, 0), 0);
+
+				vec3 a = latlon_to_unit(va.xy);
+				vec3 b = latlon_to_unit(vb.xy);
+
+				vec3 n = normalize(cross(a, b));
+				float d_plane = abs(dot(n, p));
+				vec3 perp_a = cross(n, a);
+				vec3 perp_b = cross(b, n);
+
+				float dist;
+				if (dot(perp_a, p) >= 0.0 && dot(perp_b, p) >= 0.0) {
+					dist = d_plane;
+				} else {
+					float da = sqrt(2.0 * max(0.0, 1.0 - dot(a, p)));
+					float db = sqrt(2.0 * max(0.0, 1.0 - dot(b, p)));
+					dist = min(da, db);
+				}
+				min_line_dist = min(min_line_dist, dist);
+			}
+		} else if (outline_triangles_mode) {
 			// Triangles mode: every 3 vertices form a closed triangle
 			int tri_count = outline_vertex_count / 3;
 			for (int t = 0; t < tri_count; t++) {
@@ -189,6 +219,16 @@ void fragment() {
 		float closing_alpha = (1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, closing_line_dist)) * outline_closing_opacity;
 		float outline_alpha = max(dot_alpha, max(line_alpha, closing_alpha));
 		base = mix(base, vec3(1.0, 1.0, 0.0), outline_alpha);
+
+		// Highlighted vertex (edit mode hover) — larger orange dot on top
+		if (outline_highlight_index >= 0 && outline_highlight_index < outline_vertex_count) {
+			vec4 hv = texelFetch(outline_data, ivec2(outline_highlight_index, 0), 0);
+			vec3 hvp = latlon_to_unit(hv.xy);
+			float d = sqrt(2.0 * max(0.0, 1.0 - dot(hvp, p)));
+			float r = outline_dot_radius * 1.8;
+			float hi_alpha = 1.0 - smoothstep(r * 0.7, r, d);
+			base = mix(base, vec3(1.0, 0.55, 0.0), hi_alpha);
+		}
 	}
 
 	// Axis marker rendering

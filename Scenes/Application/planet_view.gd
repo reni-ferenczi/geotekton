@@ -17,6 +17,7 @@ signal rotate_ended()
 @onready var rotation_handler: PlanetViewRotation = PlanetViewRotation.new(planet, camera)
 
 var drawing_mode: bool = false
+var editing_mode: bool = false
 var move_enabled: bool = false
 var is_moving: bool = false
 var move_rotating: bool = false
@@ -63,9 +64,9 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 		return
 	if event is InputEventMouseButton:
 		print("Globe click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
-		if drawing_mode and event.button_index != MOUSE_BUTTON_MIDDLE:
+		if (drawing_mode or editing_mode) and event.button_index != MOUSE_BUTTON_MIDDLE:
 			return
-		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
+		if not drawing_mode and not editing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
 			craton_clicked.emit(lat, lon)
 			return
 		if event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and Input.is_key_pressed(KEY_CTRL):
@@ -75,18 +76,18 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 	if event is InputEventMouseMotion:
 		if rotation_handler.is_dragging:
 			rotation_handler.handle_dragging(lat, lon)
-		elif not drawing_mode:
+		elif not drawing_mode and not editing_mode:
 			craton_hovered.emit(lat, lon)
 
 
 func _on_planet_input_event_map(lat: float, lon: float, event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		print("Map click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
-		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
+		if not drawing_mode and not editing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
 			craton_clicked.emit(lat, lon)
 			return
 	if event is InputEventMouseMotion:
-		if not drawing_mode:
+		if not drawing_mode and not editing_mode:
 			craton_hovered.emit(lat, lon)
 
 

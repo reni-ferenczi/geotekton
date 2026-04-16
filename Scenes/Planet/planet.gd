@@ -155,7 +155,7 @@ func set_axis(lat: float, lon: float, enabled: bool) -> void:
 # Set outline vertices for the polygon drawing preview.
 # vertices: ordered Array[Vector2] of (lat_deg, lon_deg).
 # closed: if true, draws a closing line from last vertex back to first.
-func set_outline(vertices: Array[Vector2], closed: bool = false, triangles_mode: bool = false) -> void:
+func set_outline(vertices: Array[Vector2], closed: bool = false, triangles_mode: bool = false, highlight_index: int = -1) -> void:
 	var count := vertices.size()
 	var globe_mat: ShaderMaterial = globe.get_surface_override_material(0)
 	var map_mat: ShaderMaterial = map.get_surface_override_material(0)
@@ -163,6 +163,8 @@ func set_outline(vertices: Array[Vector2], closed: bool = false, triangles_mode:
 	if count == 0:
 		globe_mat.set_shader_parameter("outline_vertex_count", 0)
 		map_mat.set_shader_parameter("outline_vertex_count", 0)
+		globe_mat.set_shader_parameter("outline_highlight_index", -1)
+		map_mat.set_shader_parameter("outline_highlight_index", -1)
 		return
 
 	var img := Image.create(count, 1, false, Image.FORMAT_RGBAF)
@@ -181,3 +183,57 @@ func set_outline(vertices: Array[Vector2], closed: bool = false, triangles_mode:
 	map_mat.set_shader_parameter("outline_vertex_count", count)
 	map_mat.set_shader_parameter("outline_closed", closed)
 	map_mat.set_shader_parameter("outline_triangles_mode", triangles_mode)
+	globe_mat.set_shader_parameter("outline_highlight_index", highlight_index)
+	map_mat.set_shader_parameter("outline_highlight_index", highlight_index)
+	globe_mat.set_shader_parameter("outline_loops_mode", false)
+	map_mat.set_shader_parameter("outline_loops_mode", false)
+
+
+# Set multiple closed outline loops (for selection/edit highlight).
+# `loops` is an Array of Array[Vector2] (each an ordered ring of lat/lon verts).
+# The shader is put in loops_mode: each vertex carries the index of its next
+# neighbour so arbitrarily many loops can share one texture.
+# `highlight_index` indexes into the flattened vertex list (loops concatenated
+# in order). -1 disables the highlight.
+func set_outline_loops(loops: Array, highlight_index: int = -1) -> void:
+	var globe_mat: ShaderMaterial = globe.get_surface_override_material(0)
+	var map_mat: ShaderMaterial = map.get_surface_override_material(0)
+
+	var total := 0
+	for loop in loops:
+		total += loop.size()
+	if total == 0:
+		globe_mat.set_shader_parameter("outline_vertex_count", 0)
+		map_mat.set_shader_parameter("outline_vertex_count", 0)
+		globe_mat.set_shader_parameter("outline_highlight_index", -1)
+		map_mat.set_shader_parameter("outline_highlight_index", -1)
+		globe_mat.set_shader_parameter("outline_loops_mode", false)
+		map_mat.set_shader_parameter("outline_loops_mode", false)
+		return
+
+	var img := Image.create(total, 1, false, Image.FORMAT_RGBAF)
+	var base := 0
+	for loop in loops:
+		var n: int = loop.size()
+		for i in range(n):
+			var v: Vector2 = loop[i]
+			var next: int = base + ((i + 1) % n)
+			img.set_pixel(base + i, 0, Color(
+				deg_to_rad(v.x), deg_to_rad(v.y),
+				float(next), 0.0
+			))
+		base += n
+
+	var tex := ImageTexture.create_from_image(img)
+	globe_mat.set_shader_parameter("outline_data", tex)
+	globe_mat.set_shader_parameter("outline_vertex_count", total)
+	globe_mat.set_shader_parameter("outline_closed", false)
+	globe_mat.set_shader_parameter("outline_triangles_mode", false)
+	globe_mat.set_shader_parameter("outline_loops_mode", true)
+	globe_mat.set_shader_parameter("outline_highlight_index", highlight_index)
+	map_mat.set_shader_parameter("outline_data", tex)
+	map_mat.set_shader_parameter("outline_vertex_count", total)
+	map_mat.set_shader_parameter("outline_closed", false)
+	map_mat.set_shader_parameter("outline_triangles_mode", false)
+	map_mat.set_shader_parameter("outline_loops_mode", true)
+	map_mat.set_shader_parameter("outline_highlight_index", highlight_index)
