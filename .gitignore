@@ -229,3 +229,7 @@ mono_crash.*.json
 .claude
 
 # Project
+
+# Tests
+# Screenshots written next to a golden reference when a comparison fails.
+Tests/Golden/*.actual.png
