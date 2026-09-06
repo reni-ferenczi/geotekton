@@ -195,7 +195,9 @@ func set_outline(vertices: Array[Vector2], closed: bool = false, triangles_mode:
 # neighbour so arbitrarily many loops can share one texture.
 # `highlight_index` indexes into the flattened vertex list (loops concatenated
 # in order). -1 disables the highlight.
-func set_outline_loops(loops: Array, highlight_index: int = -1) -> void:
+# `selected_indices` (optional) marks vertices drawn with a distinct multi-select
+# colour — indices are into the first loop only (loop 0 = editable set).
+func set_outline_loops(loops: Array, highlight_index: int = -1, selected_indices: Array[int] = []) -> void:
 	var globe_mat: ShaderMaterial = globe.get_surface_override_material(0)
 	var map_mat: ShaderMaterial = map.get_surface_override_material(0)
 
@@ -211,18 +213,25 @@ func set_outline_loops(loops: Array, highlight_index: int = -1) -> void:
 		map_mat.set_shader_parameter("outline_loops_mode", false)
 		return
 
+	var sel_set := {}
+	for idx in selected_indices:
+		sel_set[idx] = true
+
 	var img := Image.create(total, 1, false, Image.FORMAT_RGBAF)
 	var base := 0
+	var is_first_loop := true
 	for loop in loops:
 		var n: int = loop.size()
 		for i in range(n):
 			var v: Vector2 = loop[i]
 			var next: int = base + ((i + 1) % n)
+			var sel_flag := 1.0 if (is_first_loop and sel_set.has(i)) else 0.0
 			img.set_pixel(base + i, 0, Color(
 				deg_to_rad(v.x), deg_to_rad(v.y),
-				float(next), 0.0
+				float(next), sel_flag
 			))
 		base += n
+		is_first_loop = false
 
 	var tex := ImageTexture.create_from_image(img)
 	globe_mat.set_shader_parameter("outline_data", tex)

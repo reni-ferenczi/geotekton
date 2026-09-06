@@ -220,6 +220,24 @@ void fragment() {
 		float outline_alpha = max(dot_alpha, max(line_alpha, closing_alpha));
 		base = mix(base, vec3(1.0, 1.0, 0.0), outline_alpha);
 
+		// Selected vertices (lasso multi-select) — cyan-blue dots drawn on top
+		// of the default yellow vertex markers. The .w channel of each texel
+		// carries the selection flag (set by set_outline_loops for loop 0).
+		if (outline_loops_mode) {
+			float min_sel_dist = 1e10;
+			for (int i = 0; i < outline_vertex_count; i++) {
+				vec4 v = texelFetch(outline_data, ivec2(i, 0), 0);
+				if (v.w > 0.5) {
+					vec3 vp = latlon_to_unit(v.xy);
+					float d = sqrt(2.0 * max(0.0, 1.0 - dot(vp, p)));
+					min_sel_dist = min(min_sel_dist, d);
+				}
+			}
+			float sr = outline_dot_radius * 1.6;
+			float sel_alpha = 1.0 - smoothstep(sr * 0.7, sr, min_sel_dist);
+			base = mix(base, vec3(0.1, 0.6, 1.0), sel_alpha);
+		}
+
 		// Highlighted vertex (edit mode hover) — larger orange dot on top
 		if (outline_highlight_index >= 0 && outline_highlight_index < outline_vertex_count) {
 			vec4 hv = texelFetch(outline_data, ivec2(outline_highlight_index, 0), 0);

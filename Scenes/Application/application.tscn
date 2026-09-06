@@ -9,6 +9,7 @@
 [ext_resource type="Texture2D" uid="uid://drgl1h6nlsu3l" path="res://Assets/GodotIcons/Edit.svg" id="7_tooldraw"]
 [ext_resource type="Texture2D" uid="uid://csahgmxw80sow" path="res://Assets/GodotIcons/ToolRotate.svg" id="8_toolaxis"]
 [ext_resource type="Texture2D" uid="uid://cek62f1d17y64" path="res://Assets/GodotIcons/CurveEdit.svg" id="9_tooledit"]
+[ext_resource type="Texture2D" uid="uid://3s05lnxnr57x" path="res://Assets/GodotIcons/ToolSelect.svg" id="10_toollasso"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
@@ -109,6 +110,16 @@ tooltip_text = "Edit vertices"
 disabled = true
 toggle_mode = true
 icon = ExtResource("9_tooledit")
+expand_icon = true
+
+[node name="Lasso" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=769603315]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Lasso select vertices (DEL to remove)"
+disabled = true
+toggle_mode = true
+icon = ExtResource("10_toollasso")
 expand_icon = true
 
 [node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" unique_id=1571975947 instance=ExtResource("3_hn1gi")]

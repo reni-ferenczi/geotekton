@@ -6,7 +6,7 @@ static var DEBUG: bool = true
 static var VERSION: String = ProjectSettings.get_setting("application/config/version")
 const ui_scale: float = 1.0
 
-enum Tool { MOVE, DRAW, EDIT }
+enum Tool { MOVE, DRAW, EDIT, LASSO }
 
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
@@ -14,6 +14,7 @@ enum Tool { MOVE, DRAW, EDIT }
 @onready var axis_button: Button = %Axis
 @onready var draw_button: Button = %Draw
 @onready var edit_button: Button = %Edit
+@onready var lasso_button: Button = %Lasso
 
 var active_tool: Tool = Tool.MOVE
 var last_triangles: Array = []
@@ -37,6 +38,11 @@ func _ready() -> void:
 	axis_button.pressed.connect(_on_axis_pressed)
 	draw_button.pressed.connect(_on_draw_pressed)
 	edit_button.pressed.connect(_on_edit_pressed)
+	lasso_button.pressed.connect(_on_lasso_pressed)
+
+	# Connect lasso tool signals (captured in PlanetView)
+	planet_view.lasso_finished.connect(_on_lasso_finished)
+	planet_view.lasso_started.connect(_on_lasso_started)
 
 	# Connect feature selection from the features panel
 	features.feature_tree.feature_selected.connect(_on_feature_selected)
@@ -109,19 +115,38 @@ func _on_edit_pressed() -> void:
 	set_active_tool(Tool.EDIT)
 
 
+func _on_lasso_pressed() -> void:
+	set_active_tool(Tool.LASSO)
+
+
 func set_active_tool(tool: Tool) -> void:
 	if active_tool == Tool.DRAW and tool != Tool.DRAW:
 		_outline_cancel()
-	if active_tool == Tool.EDIT and tool != Tool.EDIT:
+	# EDIT and LASSO share the same working vertex set. Only tear it down
+	# when leaving both.
+	var was_edit_or_lasso := active_tool == Tool.EDIT or active_tool == Tool.LASSO
+	var will_be_edit_or_lasso := tool == Tool.EDIT or tool == Tool.LASSO
+	if was_edit_or_lasso and not will_be_edit_or_lasso:
 		_edit_end()
 	active_tool = tool
 	move_button.button_pressed = (tool == Tool.MOVE)
 	draw_button.button_pressed = (tool == Tool.DRAW)
 	edit_button.button_pressed = (tool == Tool.EDIT)
+	lasso_button.button_pressed = (tool == Tool.LASSO)
 	planet_view.drawing_mode = (tool == Tool.DRAW)
 	planet_view.editing_mode = (tool == Tool.EDIT)
-	if tool == Tool.EDIT:
+	planet_view.lasso_mode = (tool == Tool.LASSO)
+	if will_be_edit_or_lasso and not was_edit_or_lasso:
 		_edit_begin()
+	if tool != Tool.LASSO:
+		lasso_selected.clear()
+		planet_view.clear_lasso_path()
+	if will_be_edit_or_lasso:
+		# Refresh so hover/selection highlights swap correctly when switching
+		# between EDIT and LASSO. _edit_end already refreshes when leaving.
+		_refresh_edit_outline()
+		# Take focus away from the feature tree so DEL/ESC reach our handlers.
+		planet_view.grab_focus()
 	_update_move_enabled()
 
 
@@ -146,20 +171,22 @@ func _on_feature_selected(node: Feature) -> void:
 	var is_leaf := node != null and not node.is_group
 	draw_button.disabled = not is_leaf
 	edit_button.disabled = not (is_leaf and node.has_craton())
+	lasso_button.disabled = not (is_leaf and node.has_craton())
 
 	if is_leaf:
 		# Auto-select Draw if the feature has no craton (no vertices)
 		if not node.has_craton():
-			if active_tool == Tool.EDIT:
+			if active_tool == Tool.EDIT or active_tool == Tool.LASSO:
 				set_active_tool(Tool.DRAW)
 			else:
 				set_active_tool(Tool.DRAW)
-		elif active_tool == Tool.EDIT:
+		elif active_tool == Tool.EDIT or active_tool == Tool.LASSO:
 			# Rebuild edit working set from the (possibly reloaded) feature.
 			_edit_begin()
+			lasso_selected.clear()
 	else:
 		# Can't draw/edit on groups or nothing — force Move
-		if active_tool == Tool.DRAW or active_tool == Tool.EDIT:
+		if active_tool == Tool.DRAW or active_tool == Tool.EDIT or active_tool == Tool.LASSO:
 			set_active_tool(Tool.MOVE)
 
 	_update_move_enabled()
@@ -303,9 +330,15 @@ func _on_planet_input_for_drawing(lat: float, lon: float, event: InputEvent) -> 
 			_refresh_outline()
 
 
-func _unhandled_key_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
+	# Intercept DEL/ESC in EDIT/LASSO modes BEFORE the feature tree's
+	# _unhandled_key_input can consume DEL to delete the whole feature.
+	# _input runs before GUI/_unhandled, so marking handled stops propagation.
 	if event is not InputEventKey or not event.is_pressed():
 		return
+	if active_tool != Tool.DRAW and active_tool != Tool.EDIT and active_tool != Tool.LASSO:
+		return
+	print("[key] tool=", active_tool, " keycode=", event.keycode, " lasso_selected=", lasso_selected.size(), " hovered=", edit_hovered_vertex)
 
 	if active_tool == Tool.DRAW:
 		if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
@@ -318,8 +351,26 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		if event.keycode == KEY_ESCAPE:
 			set_active_tool(Tool.MOVE)
 			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_DELETE and edit_hovered_vertex >= 0:
-			_edit_delete_vertex(edit_hovered_vertex)
+		elif event.keycode == KEY_DELETE:
+			# Always consume DEL in edit mode — otherwise the feature tree
+			# would delete the whole feature as a fallback.
+			if edit_hovered_vertex >= 0:
+				_edit_delete_vertex(edit_hovered_vertex)
+			get_viewport().set_input_as_handled()
+	elif active_tool == Tool.LASSO:
+		if event.keycode == KEY_ESCAPE:
+			if not lasso_selected.is_empty():
+				# First ESC clears the selection; second switches tool.
+				lasso_selected.clear()
+				_refresh_edit_outline()
+			else:
+				set_active_tool(Tool.MOVE)
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_DELETE:
+			# Always consume DEL in lasso mode — otherwise the feature tree
+			# would delete the whole feature as a fallback.
+			if not lasso_selected.is_empty():
+				_lasso_delete_selected()
 			get_viewport().set_input_as_handled()
 
 
@@ -397,7 +448,7 @@ func _refresh_selection_outline() -> void:
 	if not outline_vertices.is_empty():
 		return
 	# Don't overwrite the edit-mode outline (it uses its own rendering path)
-	if active_tool == Tool.EDIT and not edit_vertices.is_empty():
+	if (active_tool == Tool.EDIT or active_tool == Tool.LASSO) and not edit_vertices.is_empty():
 		_refresh_edit_outline()
 		return
 	var selected := features.feature_tree.get_selected_node()
@@ -435,6 +486,9 @@ var edit_hovered_vertex: int = -1
 var edit_dragging_vertex: int = -1
 var edit_drag_original: Vector2 = Vector2.ZERO
 
+# Lasso tool — indices into edit_vertices currently highlighted by a lasso select.
+var lasso_selected: Array[int] = []
+
 
 func _edit_begin() -> void:
 	var selected := features.feature_tree.get_selected_node()
@@ -469,10 +523,14 @@ func _refresh_edit_outline() -> void:
 			for v in selected.outlines[i]:
 				arr.append(v)
 			loops.append(Feature.apply_rotation(arr, selected.rotation_angles))
-	planet_view.planet.set_outline_loops(loops, edit_hovered_vertex)
+	var highlight := edit_hovered_vertex if active_tool == Tool.EDIT else -1
+	var selected_indices := lasso_selected if active_tool == Tool.LASSO else ([] as Array[int])
+	planet_view.planet.set_outline_loops(loops, highlight, selected_indices)
 
 
 func _on_planet_input_for_editing(lat: float, lon: float, event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		print("[edit] received button event: tool=", active_tool, " verts=", edit_vertices.size(), " pressed=", event.is_pressed(), " btn=", event.button_index)
 	if active_tool != Tool.EDIT or edit_vertices.is_empty():
 		return
 
@@ -502,7 +560,10 @@ func _on_planet_input_for_editing(lat: float, lon: float, event: InputEvent) -> 
 			edit_dragging_vertex = vi
 			edit_drag_original = edit_vertices[vi]
 			return
-		# No vertex hit — try edge insertion
+		# No vertex hit — Shift+click on an edge inserts a new vertex.
+		# Plain click is a no-op so a slight miss doesn't add an unwanted vertex.
+		if not Input.is_key_pressed(KEY_SHIFT):
+			return
 		var edge := _edit_pick_edge(p)
 		if edge.get("index", -1) >= 0:
 			var insert_at: int = int(edge["index"]) + 1
@@ -593,6 +654,65 @@ func _edit_commit() -> void:
 	features.reload()
 	refresh_cratons()
 	# reload() re-fires feature_selected which calls _edit_begin() to resync.
+
+
+### Lasso tool — multi-vertex selection via screen-space polygon
+
+
+func _on_lasso_started() -> void:
+	# Prior selection stays visible until the drop finishes so the user
+	# always sees *some* highlight while dragging.
+	pass
+
+
+func _on_lasso_finished(path: PackedVector2Array) -> void:
+	print("[lasso] finished: tool=", active_tool, " path_pts=", path.size(), " verts=", edit_vertices.size())
+	if active_tool != Tool.LASSO or edit_vertices.is_empty() or path.size() < 3:
+		planet_view.show_toast("Lasso: no-op (tool=%d, verts=%d, path=%d)" % [active_tool, edit_vertices.size(), path.size()])
+		return
+	var new_selected: Array[int] = []
+	var n_visible := 0
+	for i in range(edit_vertices.size()):
+		var v := edit_vertices[i]
+		var info := planet_view.project_latlon_to_screen(v.x, v.y)
+		if not info["visible"]:
+			continue
+		n_visible += 1
+		var screen: Vector2 = info["screen"]
+		if Geometry2D.is_point_in_polygon(screen, path):
+			new_selected.append(i)
+	print("[lasso]   visible=", n_visible, " selected=", new_selected.size(), " first_path=", path[0] if path.size() > 0 else Vector2.ZERO)
+	planet_view.show_toast("Lasso: %d selected (of %d visible / %d total)" % [new_selected.size(), n_visible, edit_vertices.size()])
+	lasso_selected = new_selected
+	_refresh_edit_outline()
+
+
+func _lasso_delete_selected() -> void:
+	if lasso_selected.is_empty():
+		return
+
+	var sel_set := {}
+	for idx in lasso_selected:
+		sel_set[idx] = true
+	var new_verts: Array[Vector2] = []
+	for i in range(edit_vertices.size()):
+		if not sel_set.has(i):
+			new_verts.append(edit_vertices[i])
+
+	if new_verts.size() < 3:
+		planet_view.show_toast("Can't delete: outline needs at least 3 vertices")
+		return
+
+	var xyz: Array = []
+	for v in new_verts:
+		xyz.append(Feature._latlon_to_xyz_s(v))
+	if Feature.polygon_self_intersects(xyz):
+		planet_view.show_toast("Can't delete: would create a self-intersection")
+		return
+
+	edit_vertices = new_verts
+	lasso_selected.clear()
+	_edit_commit()
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
