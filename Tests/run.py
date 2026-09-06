@@ -17,9 +17,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from automation_client import DEFAULT_GODOT
+
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = ROOT / "Tests"
-DEFAULT_GODOT = r"C:\Tools\Godot\Godot_v4.6.2-stable_win64_console.exe"
 RUNNER = "res://Tests/run_tests.gd"
 
 USAGE = "usage: run.py headless|rendered [--filter=SUBSTRING] | session | golden | all"
