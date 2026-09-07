@@ -1,7 +1,6 @@
 extends VBoxContainer
 class_name Features
 
-const CLIPBOARD_MARKER := "middle-earth"
 
 @onready var feature_tree: FeatureTree = $FeatureTree
 @onready var add_group_button: Button = $PanelContainer/Buttons/AddGroup
@@ -80,7 +79,7 @@ func update_button_availability() -> void:
 
 func detect_clipboard_content() -> void:
 	var clipboard := DisplayServer.clipboard_get()
-	paste_button.disabled = not (CLIPBOARD_MARKER in clipboard)
+	paste_button.disabled = not (Document.APPLICATION in clipboard)
 
 
 ### Add group and feature
@@ -232,7 +231,7 @@ func copy(node: Feature) -> void:
 	if node == null or node.is_root:
 		return
 	var data: Variant = node.to_json()
-	data["application"] = CLIPBOARD_MARKER
+	data["application"] = Document.APPLICATION
 	var json := JSON.stringify(data)
 	DisplayServer.clipboard_set(json)
 	update_button_availability()
@@ -251,7 +250,7 @@ func paste(parent: Feature, index: int = -1) -> void:
 	if data is not Dictionary:
 		return
 
-	if data.get("application", "") != CLIPBOARD_MARKER:
+	if data.get("application", "") != Document.APPLICATION:
 		return
 
 	var node := Feature.from_json(data)

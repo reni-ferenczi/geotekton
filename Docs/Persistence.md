@@ -37,6 +37,9 @@ nothing. When the document has no path yet, Save asks for one first.
 | Save    | Write to the document path; ask for one only when it has none    |
 | Save As | Always ask for a path, appending `.middle-earth` when it is missing |
 
+There is no autosave: a document reaches the disk only when one of these
+commands writes it.
+
 The file dialogs are the ones the platform provides
 (`DisplayServer.file_dialog_show`), so nothing happens when one is cancelled.
 Scripted runs answer them through `Application.file_dialog_hook` instead of
@@ -143,7 +146,8 @@ restored from the config, and the newest recent file is reopened unless
 `restore_session` is off or the file is gone. Everything but the reopened file is
 written back when the application quits.
 
-A run started with `--automation-port` skips all of this and keeps its settings
-in a scratch folder under the user data directory, so a scripted run always
-starts from the same window and never touches the settings of whoever is at the
-keyboard.
+A run that does not own the window skips all of this and keeps its settings in a
+scratch folder under the user data directory: one started with
+`--automation-port`, and one where a test runner hosts the application scene. So
+a scripted run always starts from the same window and never touches the settings
+of whoever is at the keyboard.

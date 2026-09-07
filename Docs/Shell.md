@@ -42,7 +42,8 @@ item means adding an enum value and one `add_item` line.
 
 The shortcuts are menu accelerators, so they work whatever has the keyboard
 focus. The feature tree keeps its own keys for editing: Delete, Ctrl+Z, Ctrl+Y,
-Ctrl+C, Ctrl+X, Ctrl+V and Ctrl+D.
+Ctrl+C, Ctrl+X, Ctrl+V and Ctrl+D. Its toolbar also has Save and Load buttons,
+which run the File > Save and File > Open commands.
 
 ## Full screen
 
