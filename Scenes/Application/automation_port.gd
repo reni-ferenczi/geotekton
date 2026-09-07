@@ -273,6 +273,20 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"get_performance":
+			# What one frame is costing, and how much there is to draw. The
+			# engine's own counters: the editor profiler cannot be reached from
+			# a scripted run, and these are the numbers it shows.
+			return {"ok": true, "performance": {
+				"fps": Engine.get_frames_per_second(),
+				"process_ms": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+				"physics_ms": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+				"draw_calls": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+				"primitives": app.geometry.primitives.size(),
+				"features": app.geometry.features.size(),
+				"playing": _timeline().playing,
+			}}
+
 		"get_timeline":
 			return {"ok": true, "timeline": _timeline().to_json()}
 
