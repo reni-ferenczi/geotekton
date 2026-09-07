@@ -891,7 +891,3 @@ func _refresh_selection_outline() -> void:
 func _on_program_changed() -> void:
 	refresh_cratons()
 
-
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta: float) -> void:
-	pass
