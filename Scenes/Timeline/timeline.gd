@@ -119,8 +119,7 @@ func _build() -> void:
 	configure_button.pressed.connect(func() -> void: configure_requested.emit())
 
 	slider = HSlider.new()
-	slider.name = "TimestampSlider"
-	slider.unique_name_in_owner = true
+	slider.name = "Slider"
 	slider.custom_minimum_size = Vector2(150, 24)
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.step = 1.0

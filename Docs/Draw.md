@@ -97,10 +97,12 @@ A feature stores its geometry as `rings`, each an ordered
 `geometry_kind` saying what those rings mean. A ring is closed only for a
 polygon; several rings on one polygon are separate outlines, not holes.
 
-The vertices are kept in the frame of the feature itself, before
-`rotation_angles` is applied, so moving a feature never rewrites them. What the
-user clicks is in world space, so `Feature.unapply_rotation()` takes it back to
-that frame on commit.
+The vertices are kept in the frame of the feature itself, before the rotation
+its keyframes and its groups' give it at the current time is applied, so moving
+a feature never rewrites them. What the user clicks is in world space, so the
+inverse of that rotation, `Feature.world_basis(root, feature, time).transposed()`
+through `Feature.apply_basis()`, takes it back to that frame on commit. See
+[Time](Time.md#groups-carry-motion).
 
 For a polygon, `Feature.rebuild_triangles()` derives the triangles that fill it,
 on load and after every edit. They are a cache: never written to a file, and
