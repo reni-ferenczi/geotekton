@@ -8,6 +8,9 @@ const ui_scale: float = 1.0
 
 const APPLICATION_NAME := "Middle Earth"
 const DOCUMENTATION_URL := "https://github.com/reni-ferenczi/middle-earth/tree/main/Docs"
+# Where an isolated run keeps its settings, under the user data directory.
+const ISOLATED_SETTINGS_DIR := "isolated-settings"
+
 # The Earth texture credited in the About dialog, as listed in README.md.
 const EARTH_TEXTURE_URL := "https://wall.alphacoders.com/big.php?i=11433"
 static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Document.EXTENSION])
@@ -89,11 +92,12 @@ func _ready() -> void:
 	get_tree().root.content_scale_factor = Application.ui_scale
 	get_tree().set_auto_accept_quit(false)
 
-	# Settle this before anything reads a setting.
+	# Settled before anything reads a setting, so an isolated run cannot pick one
+	# up from the config file it is about to be kept out of.
 	var port := Cli.automation_port(OS.get_cmdline_user_args())
 	isolated = port != 0 or not started_on_its_own
 	if isolated:
-		Config.directory_override = OS.get_user_data_dir().path_join("automation")
+		Config.directory_override = OS.get_user_data_dir().path_join(ISOLATED_SETTINGS_DIR)
 		Config.clear()
 
 	features.attach(document)

@@ -169,6 +169,13 @@ def run_document_session(client: AutomationClient, folder: Path) -> None:
     check(client.call("get_file_dialog")["file_dialog"] is None, "Save does not ask for a path")
     check(not client.call("get_document")["document"]["dirty"], "Save makes the document clean")
 
+    # The Save button of the feature tree toolbar runs the same command.
+    client.call("toolbar", button="AddFeature")
+    client.call("get_file_dialog")
+    client.call("toolbar", button="Save")
+    check(client.call("get_file_dialog")["file_dialog"] is None, "the toolbar Save does not ask either")
+    check(not client.call("get_document")["document"]["dirty"], "the toolbar Save writes the document")
+
     # Save As always asks, and cancelling it leaves the path alone.
     client.call("menu", item="save_as")
     asked = client.call("get_file_dialog")["file_dialog"]
