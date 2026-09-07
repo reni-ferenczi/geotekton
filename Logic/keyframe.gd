@@ -52,6 +52,11 @@ static func interpolate(keyframes: Array[Keyframe], time: float) -> Vector3:
 		var after: Keyframe = keyframes[i]
 		if after.time < time:
 			continue
+		# Landing on a keyframe gives back exactly what it holds. Blending to it
+		# with a weight of one would come to the same rotation, but only to the
+		# precision of the quaternion it passes through on the way.
+		if is_equal_approx(after.time, time):
+			return after.rotation
 		var before: Keyframe = keyframes[i - 1]
 		var span := after.time - before.time
 		if span <= 0.0:
