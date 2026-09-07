@@ -344,6 +344,12 @@ func _dispatch(request: Dictionary) -> Dictionary:
 		"click":
 			return await _click(request)
 
+		"press":
+			return await _button(request, true)
+
+		"release":
+			return await _button(request, false)
+
 		"key":
 			var keycode := OS.find_keycode_from_string(str(request.get("key", "")))
 			if keycode == KEY_NONE:
@@ -604,6 +610,21 @@ func _move_mouse(position: Vector2) -> void:
 	mouse_position = position
 	Input.parse_input_event(event)
 	await _physics_frames(2)
+
+
+# Half a click, so a script can drag: press, move the mouse, release. A click
+# is the two of them at one point, which is not a drag however far the pointer
+# went in between.
+func _button(request: Dictionary, pressed: bool) -> Dictionary:
+	var button_name := str(request.get("button", "left"))
+	if not BUTTONS.has(button_name):
+		return {"ok": false, "error": "unknown button: %s" % button_name}
+	if request.has("x") or request.has("y"):
+		await _move_mouse(_point(request))
+	_send_button(int(BUTTONS[button_name]), false, pressed)
+	await _physics_frames(2)
+	await _frames(2)
+	return {"ok": true}
 
 
 func _click(request: Dictionary) -> Dictionary:
