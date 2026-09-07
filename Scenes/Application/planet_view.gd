@@ -10,6 +10,8 @@ signal move_to(lat: float, lon: float)
 signal move_ended()
 signal move_cancelled()
 signal craton_clicked(lat: float, lon: float)
+# A right click asking for the Edit commands on whatever is under the pointer.
+signal craton_context_menu(lat: float, lon: float)
 signal craton_hovered(lat: float, lon: float)
 # Where the mouse is on the planet, NAN when it is not over the planet.
 signal cursor_moved(lat: float, lon: float)
@@ -78,6 +80,9 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 		print("Globe click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
 		if drawing_mode and event.button_index != MOUSE_BUTTON_MIDDLE:
 			return
+		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_RIGHT:
+			craton_context_menu.emit(lat, lon)
+			return
 		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
 			craton_clicked.emit(lat, lon)
 			return
@@ -96,6 +101,9 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 func _on_planet_input_event_map(lat: float, lon: float, event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		print("Map click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
+		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_RIGHT:
+			craton_context_menu.emit(lat, lon)
+			return
 		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
 			craton_clicked.emit(lat, lon)
 			return

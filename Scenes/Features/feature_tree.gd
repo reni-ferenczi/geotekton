@@ -4,7 +4,6 @@ class_name FeatureTree
 signal program_changed()
 signal node_visibility_changed()
 signal feature_selected(node: Feature)
-signal unhandled_key_input(event: InputEvent)
 
 @onready var empty_icon := preload("res://Assets/Icons/Generated/Empty.png")
 @onready var group_icon := [preload("res://Assets/Icons/Generated/GroupDisabled.png"), preload("res://Assets/Icons/Generated/GroupEnabled.png")]
@@ -231,10 +230,6 @@ func _drop_data(at_position: Vector2, data: Variant) -> void:
 		to_parent.children.insert(to_index, dragged_node)
 	collapse(to_parent, false)
 	program_changed.emit()
-
-
-func _unhandled_key_input(event: InputEvent) -> void:
-	unhandled_key_input.emit(event)
 
 
 func _on_item_selected() -> void:
