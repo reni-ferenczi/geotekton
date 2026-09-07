@@ -42,10 +42,10 @@ const EXPECTED := {
 		"titles": ["Planet", "Shapes", "Red Triangle", "Blue Ridge", "Green Stations"],
 		"hits": [
 			[Vector2(-3, 0), "Red Triangle"],
-			[Vector2(0, 60), "Blue Ridge"],
+			[Vector2(0, 40), "Blue Ridge"],
 			[Vector2(-30, -30), "Green Stations"],
 			[Vector2(30, -30), "Green Stations"],
-			[Vector2(5, 40), ""],
+			[Vector2(5, 17), ""],
 		],
 	},
 }

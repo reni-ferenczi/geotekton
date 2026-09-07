@@ -40,6 +40,9 @@ SCENES = [
     ("two_cratons", "two_cratons.middle-earth", {}),
     ("two_cratons_tilted", "two_cratons.middle-earth", {"lat": 30.0, "lon": -45.0}),
     ("empty", "empty.middle-earth", {}),
+    # The sample is laid out so that the polygon, the polyline and both markers
+    # all fit the default view.
+    ("mixed_geometry", "mixed_geometry.middle-earth", {}),
 ]
 
 USAGE = "usage: golden.py check|update [--port N]"
