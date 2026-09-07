@@ -9,6 +9,12 @@ signal input_event_map(lat: float, lon: float, event: InputEvent)
 # the shader switches on, so they must match the kinds listed in planet.gdshader.
 enum Primitive { TRIANGLE = 0, SEGMENT = 1, POINT = 2 }
 
+# Radius of the globe, in the units planet.tscn is laid out in. The SphereMesh
+# that is drawn and the SphereShape3D that clicks are picked against are both
+# set to it in _ready(), so the surface the pointer meets is the surface the
+# pixel shows.
+const GLOBE_RADIUS := 0.5
+
 # How close a click counts as a hit on a polyline or a multipoint, as a chord
 # length on the unit sphere. A little wider than what is drawn, so a thin line
 # and a small marker stay easy to pick.
@@ -30,6 +36,14 @@ enum OutlineStyle {
 
 @onready var globe = $Globe;
 @onready var map = $Map;
+@onready var globe_shape: CollisionShape3D = $Globe/GlobePhysicsBody/CollisionShape3D;
+
+
+func _ready() -> void:
+	var sphere: SphereMesh = globe.mesh
+	sphere.radius = GLOBE_RADIUS
+	sphere.height = GLOBE_RADIUS * 2.0
+	(globe_shape.shape as SphereShape3D).radius = GLOBE_RADIUS
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.

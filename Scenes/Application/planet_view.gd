@@ -1,8 +1,9 @@
 extends SubViewportContainer
 class_name PlanetView
 
-# Radius of the globe mesh (SphereMesh in planet.tscn).
-const GLOBE_RADIUS: float = 0.5
+# Radius of the globe, the one Planet gives to both the mesh and the collision
+# shape, so the maths here agrees with what a click is picked against.
+const GLOBE_RADIUS: float = Planet.GLOBE_RADIUS
 
 signal move_started(anchor_lat: float, anchor_lon: float)
 signal move_to(lat: float, lon: float)
