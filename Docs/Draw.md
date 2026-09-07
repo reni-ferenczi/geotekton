@@ -1,25 +1,42 @@
 # Draw Tool
 
-The Draw tool allows users to paint craton shapes (continental fragments) directly on the planet surface by clicking to place polygon vertices, then closing the shape to fill it with triangles.
+The Draw tool places the geometry of a feature on the planet surface: click to
+put vertices down, then press Enter to commit them.
 
 ## Tool Selection
 
-The toolbar above the planet view contains two mutually exclusive tool buttons:
+The toolbar above the planet view holds two mutually exclusive tool buttons and
+a selector for what the Draw tool produces:
 
 - **Move** (ToolMove icon) — Default. Enables rotation and dragging of the globe.
-- **Draw** (Edit/pencil icon) — Enables craton drawing on the globe surface.
+- **Draw** (Edit/pencil icon) — Enables drawing on the globe surface.
+- **Geometry kind** — Polygon, Polyline or Multipoint.
 
 Only one tool can be active at a time. They behave as a radio button group: selecting one deselects the other.
 
 ### Enabling the Draw Tool
 
-The Draw button is **disabled** when no leaf feature is selected (i.e., when a group or nothing is selected). It becomes enabled when a leaf feature node is selected in the feature tree.
+The Draw button is **disabled** when no leaf feature is selected (i.e. when a group or nothing is selected). It becomes enabled when a leaf feature node is selected in the feature tree.
 
-If a newly selected feature has **no vertices** (no craton data yet), the Draw tool is automatically activated to streamline the workflow.
+If a newly selected feature has **no geometry** yet, the Draw tool is automatically activated to streamline the workflow.
+
+### The geometry kind
+
+A feature holds one kind of geometry, so the selector is only free while the
+feature is empty. Once it holds anything, the selector shows that kind and is
+disabled, and anything else drawn on the feature joins it as another part of the
+same kind.
+
+| Kind | Minimum vertices | What a part is |
+|---|---|---|
+| Polygon | 3 | A closed outline, filled in |
+| Polyline | 2 | An open line through the vertices |
+| Multipoint | 1 | Separate markers, one per vertex |
 
 ## Drawing Process
 
-Drawing uses a **polygon outline mode**. The user clicks vertices one by one to trace the craton boundary, then presses Enter to close and triangulate the shape.
+The user clicks vertices one by one, then presses Enter to commit them to the
+selected feature.
 
 ### Input Mapping
 
@@ -27,29 +44,35 @@ Drawing uses a **polygon outline mode**. The user clicks vertices one by one to 
 |-------|--------|
 | **LMB** | Place the next vertex on the globe surface |
 | **RMB** | Undo the last placed vertex (pop from outline) |
-| **Enter** | Close the polygon and triangulate — commits to the feature |
+| **Enter** | Commit the vertices to the feature |
 | **Escape** | Cancel the current outline, discard all placed vertices |
 | **MMB** | Planet rotation (always available, unchanged) |
 
 ### Visual Feedback
 
-While placing vertices, the shader renders a **live preview overlay**:
+While placing vertices, the shader renders a **live preview overlay** in yellow:
 
 - **Yellow dots** at each placed vertex (antialiased circles)
-- **Yellow lines** connecting consecutive vertices along great-circle arcs
-- **Closing line** from the last vertex back to the first (shown when 3+ vertices are placed) so the user can preview the final polygon shape
+- **Yellow lines** connecting consecutive vertices along great-circle arcs,
+  unless the kind is Multipoint, which shows the dots alone
+- **Closing line** from the last vertex back to the first, faint, once a Polygon
+  has three vertices, so the shape it would close into is visible
 
 This preview is ephemeral — it is not saved to the feature until Enter is pressed.
+
+Outside drawing, the same overlay traces the geometry of the selected feature:
+one part per ring, closed for a polygon, open for a polyline, markers alone for
+a multipoint.
 
 ### Step by Step
 
 1. Select a leaf feature in the feature tree (or create one).
 2. Activate the Draw tool (or let it auto-activate for empty features).
-3. **Left-click** on the globe to place vertices in order, tracing the craton boundary.
-4. Use **right-click** to undo mistakes (removes the last vertex).
-5. When satisfied with the polygon shape (3+ vertices required), press **Enter** to close and fill.
-6. The polygon is triangulated and appended to the feature's craton data.
-7. Repeat to add more polygons to the same feature, or select a different feature.
+3. Choose the geometry kind, while the feature is still empty.
+4. **Left-click** on the globe to place vertices in order.
+5. Use **right-click** to undo mistakes (removes the last vertex).
+6. Press **Enter** to commit them, once the kind has enough of them.
+7. Repeat to add more parts to the same feature, or select a different feature.
 
 Press **Escape** at any time to discard the current outline and start over.
 
@@ -57,14 +80,35 @@ Press **Escape** at any time to discard the current outline and start over.
 
 The in-progress outline is automatically cleared when:
 
-- Enter commits the polygon
+- Enter commits the shape
 - Escape cancels it
 - The active tool switches to Move
 - A different feature is selected in the tree
 
-## Triangulation Algorithm — Ear Clipping
+## Data Model
 
-When the user presses Enter with 3+ vertices, the polygon is decomposed into triangles using the **ear-clipping algorithm**:
+A feature stores its geometry as `rings`, each an ordered
+`PackedVector2Array` of `(latitude_deg, longitude_deg)` vertices, plus a
+`geometry_kind` saying what those rings mean. A ring is closed only for a
+polygon; several rings on one polygon are separate outlines, not holes.
+
+The vertices are kept in the frame of the feature itself, before
+`rotation_angles` is applied, so moving a feature never rewrites them. What the
+user clicks is in world space, so `Feature.unapply_rotation()` takes it back to
+that frame on commit.
+
+For a polygon, `Feature.rebuild_triangles()` derives the triangles that fill it,
+on load and after every edit. They are a cache: never written to a file, and
+copied rather than recomputed when the undo stack clones the tree.
+
+After committing, the tool:
+1. Saves an undo version via `document.record()`.
+2. Reloads the feature tree via `features.reload()`.
+3. Refreshes the rendering via `refresh_geometry()`.
+
+## Triangulation — Ear Clipping
+
+`Feature.ear_clip()` decomposes a polygon ring into triangles:
 
 1. **Signed area** is computed via the shoelace formula to determine the polygon's winding direction (CW or CCW).
 2. The algorithm maintains a list of remaining vertex indices and iterates through them.
@@ -78,7 +122,9 @@ The algorithm runs in the 2D lat/lon plane and handles **concave polygons** corr
 
 ### Winding Order Correction
 
-After ear clipping, each output triangle is corrected to have **front-facing winding order** on the sphere:
+Ear clipping keeps the winding of the ring it was given, which is whichever way
+round the user happened to click. `Feature.ensure_front_winding()` then turns
+each triangle so that it faces away from the centre of the sphere:
 
 1. The three vertices (lat/lon in degrees) are converted to 3D unit sphere positions.
 2. The cross product of two edges gives the triangle normal.
@@ -86,43 +132,15 @@ After ear clipping, each output triangle is corrected to have **front-facing win
 
 This ensures all triangles are visible from outside the planet regardless of the order the user clicked the vertices.
 
-## Data Model
-
-Each leaf feature stores its craton as a flat array of `Vector2` vertices in `Feature.vertices`. Every 3 consecutive vertices define one triangle. Vertices are in `(latitude_deg, longitude_deg)` format.
-
-Drawing appends new triangles to the existing array, so multiple polygons can be drawn on the same feature.
-
-After committing, the tool:
-1. Saves an undo version via `document.record()`.
-2. Reloads the feature tree via `features.reload()`.
-3. Refreshes the craton rendering via `refresh_cratons()`.
-
 ## Rendering Pipeline
 
-### Committed Cratons
-
-`Planet.collect_triangles(root)` walks the entire feature tree, extracts all enabled features' triangle data, and uploads it to the planet shader as a data texture. The shader performs per-fragment great-circle half-plane tests to render filled triangles with edge outlines. See `Docs/Shader.md` for shader details.
-
-### Outline Preview
-
-During drawing, `Planet.set_outline(vertices, closed)` uploads the in-progress polygon vertices to the shader as a separate data texture. The shader renders:
-
-- **Vertex dots**: For each vertex, computes the angular distance from the fragment to the vertex position. Draws an antialiased circle using `smoothstep` over `outline_dot_radius`.
-- **Line segments**: For each pair of consecutive vertices, computes the great-circle capsule distance (plane distance within the arc, endpoint distance outside). Draws antialiased lines using `smoothstep` over `outline_line_width`.
-- **Closing segment**: When `outline_closed` is true (3+ vertices), an additional segment from the last vertex back to the first is drawn.
-
-The outline is rendered after cratons, composited on top with yellow color at full opacity.
-
-#### Outline Shader Uniforms
-
-| Uniform | Type | Default | Description |
-|---|---|---|---|
-| `outline_data` | `sampler2D` | — | Vertex positions: each texel is `(lat_rad, lon_rad, 0, 0)` |
-| `outline_vertex_count` | `int` | `0` | Number of vertices in the outline |
-| `outline_closed` | `bool` | `false` | Whether to draw the closing segment (last → first) |
-| `outline_line_width` | `float` | `0.004` | Width of outline lines |
-| `outline_dot_radius` | `float` | `0.012` | Radius of vertex dots |
+`Planet.collect_geometry(root)` walks the feature tree and flattens every
+enabled feature into primitives — triangles, segments or markers — which
+`Planet.set_geometry()` uploads to the shader as a data texture.
+`Planet.set_outline()` uploads the overlay on top of it. See
+[Shader](Shader.md) for both texture layouts and the tests the shader runs.
 
 ## Color
 
-All cratons currently use the feature's color (default `Color.CHOCOLATE`). The outline preview is always yellow.
+Every kind is drawn in the colour of its feature (default `Color.CHOCOLATE`).
+The outline overlay is always yellow.

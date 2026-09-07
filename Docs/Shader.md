@@ -1,15 +1,24 @@
 # Planet Shader
 
-The planet shader (`Scenes/Planet/planet.gdshader`) renders the Earth texture with a longitude/latitude grid overlay and craton (continental segment) triangles on the surface of a sphere.
+The planet shader (`Scenes/Planet/planet.gdshader`) renders the Earth texture
+with a longitude/latitude grid overlay, the geometry of the features on the
+surface of a sphere, and a yellow outline layer over that.
 
 ## Base Rendering
 
 - **Earth texture**: sampled from an equirectangular projection via UV
 - **Grid overlay**: longitude/latitude lines with configurable `split` (divisions), `width`, and `color`; pole-aware width correction in globe mode
 
-## Craton Rendering
+## Feature Geometry Rendering
 
-Cratons are rendered as spherical triangles whose edges follow great circles on the unit sphere. The primitive element is a single triangle defined by three lat/lon vertices.
+A feature is drawn from one of three kinds of primitive, all of which follow
+great circles on the unit sphere:
+
+| Kind | Value | Vertices used | Drawn as |
+|---|---|---|---|
+| Triangle | 0 | a, b, c | A filled spherical triangle, one of the triangles a polygon was cut into |
+| Segment | 1 | a, b | A great-circle capsule between the two ends of a polyline segment |
+| Point | 2 | a | A round marker at one vertex of a multipoint |
 
 ### Math
 
@@ -23,79 +32,112 @@ P   = (cos(lat) * cos(lon), sin(lat), cos(lat) * sin(lon))
 
 A great circle between two points A and B defines a plane through the origin with normal `cross(A, B)`. A point P is on the inside of that edge if `dot(normalize(cross(A, B)), P) > 0`. A point is inside the spherical triangle if it passes the half-plane test for all three edges (assuming CCW winding).
 
+A segment and a point are drawn by distance instead. `arc_distance(a, b, p)` gives
+the distance from P to the arc from A to B: the distance to the plane of the arc
+while P projects within it, and the chord distance to the nearer end outside it.
+A point marker uses `chord(a, p)` directly. Both are antialiased with `smoothstep`,
+which is also what gives the segment its rounded caps.
+
+`Planet.arc_distance()` is the same function in GDScript, so a click and a
+fragment agree on what a line covers. The tolerance the two use differs on
+purpose: `Planet.LINE_HIT_WIDTH` and `Planet.POINT_HIT_RADIUS` are a little
+wider than the drawn width, so a thin line stays easy to pick.
+
 ### Shader Uniforms
 
 | Uniform | Type | Default | Description |
 |---|---|---|---|
-| `craton_data` | `sampler2D` | — | Data texture containing triangle vertices and colors |
-| `craton_count` | `int` | `0` | Number of triangles to render |
-| `craton_edge_width` | `float` | `0.005` | Width of triangle edge lines (antialiased via smoothstep) |
+| `geometry_data` | `sampler2D` | — | Data texture holding the primitives |
+| `geometry_count` | `int` | `0` | Number of primitives to render |
+| `geometry_edge_width` | `float` | `0.001` | Width of the white rim on a filled triangle |
+| `geometry_line_width` | `float` | `0.012` | Width of a polyline segment |
+| `geometry_point_radius` | `float` | `0.02` | Radius of a multipoint marker |
+
+The widths are chord lengths on the unit sphere, so 0.012 is about 0.7 degrees.
 
 ### Data Texture Layout
 
-The `craton_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with **width = triangle count** and **height = 3 rows**:
+The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with **width = primitive count** and **height = 3 rows**:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
 | 0 | lat_a (rad) | lon_a (rad) | lat_b (rad) | lon_b (rad) |
-| 1 | lat_c (rad) | lon_c (rad) | unused | unused |
+| 1 | lat_c (rad) | lon_c (rad) | hovered | kind |
 | 2 | red | green | blue | alpha |
 
-Each column stores one triangle. The shader reads exact texels via `texelFetch`.
+Each column stores one primitive, and the shader reads exact texels via
+`texelFetch`. A vertex a kind does not use repeats vertex a, so a fetch never
+reads uninitialised data. `hovered` is 1 while the pointer rests on the feature
+the primitive belongs to, which brightens its fill.
 
 ### Edge Rendering
 
-Edges are antialiased using `smoothstep` over the minimum signed distance to the three great-circle planes:
+The rim of a filled triangle is antialiased using `smoothstep` over the minimum signed distance to the three great-circle planes:
 
 ```glsl
-float edge = smoothstep(craton_edge_width * 0.5, craton_edge_width, min_dist);
+float edge = smoothstep(geometry_edge_width * 0.5, geometry_edge_width, min_dist);
 ```
 
-Edge color is white; fill color is the triangle's color blended over the earth base.
+The rim is white and the fill is the feature colour blended over the Earth. Since
+every triangle carries its own rim, the cuts inside a polygon show as hairlines.
 
 ### Winding Order
 
-The half-plane tests assume **counter-clockwise (CCW)** winding. If a triangle appears inverted (nothing renders, or the complement renders), swap any two vertices.
+The half-plane tests assume **counter-clockwise (CCW)** winding, seen from
+outside the sphere. `Feature.ensure_front_winding()` puts every derived triangle
+that way round, whichever way the ring it came from was drawn.
 
 ## GDScript API
 
-### `Planet.set_cratons(triangles: Array)`
+### `Planet.set_geometry(primitives: Array, hovered_feature: Feature = null)`
 
-Uploads craton triangles to the shader. Each entry is a dictionary:
+Uploads the primitives to the shader. Each entry is a dictionary:
 
 ```gdscript
 {
+    "kind": Planet.Primitive.TRIANGLE,
     "verts": [Vector2(lat_deg, lon_deg), Vector2(...), Vector2(...)],
-    "color": Color(r, g, b, a)
+    "color": Color(r, g, b, a),
+    "feature": feature,
 }
 ```
 
-Vertices use **degrees** (latitude in [-90, 90], longitude in [-180, 180]). The method converts to radians, packs into a `FORMAT_RGBAF` image, and sets the `craton_data` and `craton_count` parameters on both globe and map shader materials.
+Vertices use **degrees** (latitude in [-90, 90], longitude in [-180, 180]). The method converts to radians, packs into a `FORMAT_RGBAF` image, and sets the `geometry_data` and `geometry_count` parameters on both globe and map shader materials.
 
-Passing an empty array clears all cratons.
+Passing an empty array clears everything.
 
-### `Planet.collect_triangles(root: Feature) -> Array`
+### `Planet.collect_geometry(root: Feature) -> Array`
 
-Static helper that walks a Feature tree and extracts triangles. Every **3 consecutive vertices** in a leaf feature form one triangle. Only enabled features are included.
+Static helper that walks a Feature tree and flattens the enabled features into
+primitives, in world space. A polygon contributes its cached triangles, a
+polyline the segments between consecutive vertices of each ring, and a
+multipoint one marker per vertex.
 
 ```gdscript
-var triangles = Planet.collect_triangles(feature_root)
-planet.set_cratons(triangles)
+var geometry = Planet.collect_geometry(feature_root)
+planet.set_geometry(geometry)
 ```
 
-## Outline Rendering (Drawing Preview)
+### `Planet.hit_test(lat, lon, primitives) -> Feature`
 
-The shader also renders a polygon outline preview used during the Draw tool's vertex placement phase. This is separate from committed craton triangles.
+The same tests on the CPU, walking the array backwards so the topmost primitive
+wins. Returns the feature under the point, or null.
+
+## Outline Overlay
+
+The shader draws a second, yellow layer over the geometry. It shows the shape
+being drawn while the Draw tool places vertices, and otherwise traces the rings
+of the selected feature.
 
 ### Outline Uniforms
 
 | Uniform | Type | Default | Description |
 |---|---|---|---|
-| `outline_data` | `sampler2D` | — | Vertex data texture: each texel `(lat_rad, lon_rad, 0, 0)` |
+| `outline_data` | `sampler2D` | — | Vertex data texture, one texel per vertex |
 | `outline_vertex_count` | `int` | `0` | Number of outline vertices |
-| `outline_closed` | `bool` | `false` | Draw closing segment from last to first vertex |
-| `outline_line_width` | `float` | `0.004` | Width of outline line segments |
-| `outline_dot_radius` | `float` | `0.012` | Radius of vertex dot markers |
+| `outline_line_width` | `float` | `0.002` | Width of outline line segments |
+| `outline_dot_radius` | `float` | `0.006` | Radius of vertex dot markers |
+| `outline_closing_opacity` | `float` | `0.25` | How faint the closing segment of an unfinished polygon is |
 
 ### Outline Data Texture Layout
 
@@ -103,30 +145,41 @@ Width = vertex count, height = 1, format `RGBAF`:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
-| 0 | lat (rad) | lon (rad) | unused | unused |
+| 0 | lat (rad) | lon (rad) | part start | style |
+
+Several parts fit in one texture: every vertex carries the index its part begins
+at, so the shader knows where a part ends without a second array. The style is
+the same for every vertex of a part:
+
+| Style | Meaning |
+|---|---|
+| 0 | Open: segments from the first vertex to the last, nothing more |
+| 1 | Closed, with the closing segment faint — a polygon still being drawn |
+| 2 | The vertex markers only — a multipoint |
+| 3 | Closed, every segment alike — the rings of a selected polygon |
+
+`Planet.OutlineStyle` names the same four values.
 
 ### Outline Math
 
-**Vertex dots**: Angular distance from fragment to vertex approximated as `sqrt(2 * (1 - dot(V, P)))` where V and P are unit sphere positions. This equals the chord distance, which approximates the arc distance for small angles. Dots are antialiased via `smoothstep`.
+**Vertex dots**: the chord distance from the fragment to the nearest vertex,
+antialiased via `smoothstep`. Every vertex gets one, whatever the style.
 
-**Line segments**: Each segment between vertices A and B is rendered as a great-circle capsule:
+**Line segments**: the same `arc_distance()` the geometry pass uses, which gives
+each segment rounded caps.
 
-1. Compute great-circle plane normal: `N = normalize(cross(A, B))`
-2. Distance to the plane: `d = |dot(N, P)|`
-3. Check if P projects within the arc: `dot(cross(N, A), P) >= 0` and `dot(cross(B, N), P) >= 0`
-4. If within arc, use plane distance. Otherwise, use chord distance to nearest endpoint.
-
-This produces rounded-cap line segments (capsule shapes) that follow great circles on the sphere.
-
-**Closing segment**: When `outline_closed` is true, an additional segment from the last vertex to the first is included in the loop by using `seg_count = outline_vertex_count` instead of `outline_vertex_count - 1`.
+**Closing segment**: a vertex whose successor starts a new part is the last of
+its own. When the style closes the part, that vertex joins back to the vertex
+the part started at, at reduced opacity for style 1 and at full opacity for
+style 3.
 
 The outline is composited on top of everything else using yellow color (`vec3(1, 1, 0)`) at the computed alpha.
 
 ## Notes
 
-- The UV-to-latlon conversion is the same for both globe (SphereMesh) and map (PlaneMesh) views, so cratons render correctly in both modes.
-- The data texture approach has no hard size limit — just add more triangles to the array.
-- Performance scales linearly with triangle count — see below.
+- The UV-to-latlon conversion is the same for both globe (SphereMesh) and map (PlaneMesh) views, so the geometry renders correctly in both modes.
+- The data texture approach has no hard size limit — just add more primitives to the array.
+- Performance scales linearly with primitive count — see below.
 
 ## Performance
 

@@ -10,7 +10,11 @@ The application uses semantic versioning: **major.minor.patch** (e.g. `0.1.0`). 
 
 ## Pre-release (major version 0)
 
-While the major version is 0, the application is in pre-release. The file format may change freely without migrations. The first public release will have major version 1.
+While the major version is 0, the application is in pre-release and the file
+format may change without keeping backwards compatibility. A migration is still
+written whenever files in the old format exist and are worth reading: 0.2.0
+changed how a feature stores its geometry and reads 0.1.0 files through
+`Document.migrate()`. The first public release will have major version 1.
 
 ## Public releases (major version 1+)
 

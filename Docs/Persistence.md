@@ -58,7 +58,7 @@ The file is a JSON object with three top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "features": { ... }
 }
 ```
@@ -81,7 +81,6 @@ groups and leaf features.
 {
   "title": "Group Name",
   "enabled": true,
-  "repeat": false,
   "is_group": true,
   "type": "Group",
   "children": [ ... ]
@@ -94,19 +93,25 @@ groups and leaf features.
 {
   "title": "Feature Name",
   "enabled": true,
-  "repeat": false,
   "is_group": false,
   "type": "Feature",
   "color": [0.82, 0.41, 0.12, 1.0],
-  "invert": false,
-  "single": false,
-  "wrap": false,
-  "resize": 0,
-  "vertices": [[45.0, 30.0], [46.0, 31.0]],
-  "position": [0, 0, 0],
+  "geometry_kind": "polygon",
+  "rings": [[[45.0, 30.0], [46.0, 31.0], [45.0, 32.0]]],
+  "rotation": [0, 0, 0],
   "time_range": [0, 2000]
 }
 ```
+
+`geometry_kind` is `"polygon"`, `"polyline"` or `"multipoint"`, and `rings`
+holds one array of `[latitude, longitude]` vertices per part. A ring is closed
+only for a polygon, and several rings on one polygon are separate outlines
+rather than holes. The vertices are in the frame of the feature itself, before
+`rotation` is applied.
+
+The triangles a polygon is filled with are not in the file. They are derived
+from the rings on load, so the file keeps the shape and not the way it happened
+to be cut up. See [Draw](Draw.md#data-model).
 
 Serialization is implemented in `Logic/feature.gd` via `Feature.to_json()` and
 `Feature.from_json()`.
@@ -115,8 +120,25 @@ Serialization is implemented in `Logic/feature.gd` via `Feature.to_json()` and
 
 A loaded file passes through `Document.migrate()`, which receives the parsed
 top-level dictionary and transforms it into what the current version expects,
-based on the `version` field in the file. It does nothing while the major
-version is 0. See [Versioning](Versioning.md) for when a migration is required.
+based on the `version` field in the file. See [Versioning](Versioning.md) for
+when a migration is required.
+
+#### 0.1.0 to 0.2.0
+
+0.1.0 stored a leaf feature as `vertices`, a flat list where every three of them
+were one triangle, and there was no `geometry_kind`. It also carried `invert`,
+`single`, `wrap`, `resize` and `repeat`, five switches left over from the rule
+editor this interface came from, which nothing ever read.
+
+The migration drops the five switches and recovers the outline the triangles
+covered: an edge two triangles share is inside the shape, an edge used by a
+single triangle is on the boundary, and the boundary edges chain up into one
+ring per polygon. A feature holding several separate polygons therefore comes
+back as several rings. Triangles that do not chain up, which a file written by
+hand can hold, are each kept as their own ring, so no vertex is lost.
+
+The oldest files called the rotation angles `position`; the migration renames
+that key as well.
 
 ## The config file
 

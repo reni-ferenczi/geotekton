@@ -145,7 +145,9 @@ a round trip is also a wait for the screen to catch up.
 | `load {path}`                        | loads a `.middle-earth` file, absolute path                      |
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
-| `get_selected`                       | `feature` with `pnid`, `title`, `color`, `rotation`, `vertices`, `world_vertices` |
+| `get_selected`                       | `feature` with `pnid`, `title`, `color`, `rotation`, `geometry_kind`, `rings`, `world_rings` and the derived `triangles` |
+| `get_tool`                           | `tool` (`move` or `draw`), `kind`, whether the kind is locked, and how many vertices the shape being drawn holds |
+| `set_tool {tool, kind}`              | picks the tool and the geometry kind, refusing what the toolbar itself would not allow |
 | `get_time` / `set_time {time}`       | the timeline position                                            |
 | `get_view` / `set_view {lat, lon, angle, fov, show_map}` | the globe orientation, camera and map toggle |
 | `mouse_move {x, y}`                  | moves the mouse                                                  |
