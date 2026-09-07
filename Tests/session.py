@@ -87,6 +87,10 @@ def run_session(client: AutomationClient) -> None:
     check(len(selected["world_vertices"]) == 3, "Green Moved has 3 world vertices")
     check(selected["world_vertices"] != selected["vertices"], "Green Moved is rotated")
 
+    # Take the mouse off the craton first: the one under the pointer is drawn
+    # highlighted, which is a different green from the one the file asks for.
+    away = client.call("latlon_to_screen", lat=30.0, lon=-90.0)["screen"]
+    client.call("mouse_move", x=away[0], y=away[1])
     color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
     check(is_green(color), f"the pixel at (-3, -60) is green: {color}")
 
