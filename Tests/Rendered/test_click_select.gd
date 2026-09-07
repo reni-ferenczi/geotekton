@@ -15,7 +15,8 @@ func test_clicking_a_craton_selects_it() -> void:
 	assert_eq(_selected_title(), "Red Triangle")
 	var selected: Feature = app.features.feature_tree.get_selected_node()
 	if selected != null:
-		assert_eq(selected.vertices.size(), 3, "the red triangle has three vertices")
+		assert_eq(selected.rings.size(), 1, "the red triangle is one ring")
+		assert_eq(selected.vertex_count(), 3, "the red triangle has three vertices")
 
 
 func test_clicking_the_bare_globe_keeps_the_selection() -> void:

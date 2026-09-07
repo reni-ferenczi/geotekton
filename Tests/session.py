@@ -64,7 +64,12 @@ def run_session(client: AutomationClient) -> None:
     client.call("select", title="Blue Quad")
     selected = client.call("get_selected")["feature"]
     check(selected["title"] == "Blue Quad", "select by title selects Blue Quad")
-    check(len(selected["vertices"]) == 6, "Blue Quad has 6 vertices (two triangles)")
+    # The sample is a 0.1.0 file, where the quad was two triangles; the loader
+    # recovers the outline, so what arrives here is one ring of four vertices.
+    check(selected["geometry_kind"] == "polygon", "Blue Quad is a polygon")
+    check([len(ring) for ring in selected["rings"]] == [4],
+          f"Blue Quad is one ring of 4 vertices: {selected['rings']}")
+    check(len(selected["triangles"]) == 6, "which still covers two triangles")
 
     client.call("select", title=None)
     clear = client.call("latlon_to_screen", lat=5.0, lon=40.0)["screen"]
@@ -86,9 +91,9 @@ def run_session(client: AutomationClient) -> None:
     client.call("click", x=screen[0], y=screen[1], button="left")
     selected = client.call("get_selected")["feature"]
     check(selected["title"] == "Green Moved", "clicking (-3, -60) selects Green Moved")
-    check(len(selected["vertices"]) == 3, "Green Moved has 3 vertices")
-    check(len(selected["world_vertices"]) == 3, "Green Moved has 3 world vertices")
-    check(selected["world_vertices"] != selected["vertices"], "Green Moved is rotated")
+    check([len(ring) for ring in selected["rings"]] == [3], "Green Moved is one ring of 3 vertices")
+    check([len(ring) for ring in selected["world_rings"]] == [3], "and 3 world vertices")
+    check(selected["world_rings"] != selected["rings"], "Green Moved is rotated")
 
     # Take the mouse off the craton first: the one under the pointer is drawn
     # highlighted, which is a different green from the one the file asks for.
@@ -219,6 +224,106 @@ def run_document_session(client: AutomationClient, folder: Path) -> None:
     check(client.call("get_panels")["panels"]["timeline"], "View shows the timeline again")
 
 
+DRAWINGS = {
+    "polygon": [(-10.0, -10.0), (10.0, 0.0), (-10.0, 10.0)],
+    "polyline": [(0.0, -15.0), (5.0, 0.0), (0.0, 15.0)],
+    "multipoint": [(-5.0, -5.0), (5.0, 5.0)],
+}
+
+# A click goes out as a screen position computed for the drawn globe and comes
+# back as the lat/lon where the ray met the collision sphere, which has a radius
+# of 0.499 against the 0.5 of the mesh. The two therefore differ by a fraction
+# of a degree, growing with the distance from the middle of the view. See
+# GP-0021 in the gplates-dev tickets.
+CLICK_TOLERANCE = 0.1
+
+
+def start_new_document(client: AutomationClient) -> None:
+    """File > New, throwing away whatever the previous scenario left behind."""
+    client.call("menu", item="new")
+    if client.call("get_dialog")["dialog"] is not None:
+        client.call("dialog", button="Discard")
+    # An earlier scenario turned the globe; the points drawn below are around
+    # the middle of the default view.
+    client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+
+
+def draw(client: AutomationClient, points: list[tuple[float, float]]) -> bool:
+    """Click each point on the globe. False when one of them is not visible."""
+    for lat, lon in points:
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        if not check(screen is not None, f"lat/lon ({lat}, {lon}) is on the visible hemisphere"):
+            return False
+        client.call("click", x=screen[0], y=screen[1])
+    return True
+
+
+def worst_offset(ring: list[list[float]], points: list[tuple[float, float]]) -> float:
+    """How far the stored vertices are from the points that were clicked."""
+    return max(
+        max(abs(stored[0] - lat), abs(stored[1] - lon))
+        for stored, (lat, lon) in zip(ring, points, strict=True)
+    )
+
+
+def run_drawing_session(client: AutomationClient) -> None:
+    """Draw one feature of each geometry kind and check what it stored."""
+    for kind, points in DRAWINGS.items():
+        start_new_document(client)
+        client.call("toolbar", button="AddFeature")
+
+        tool = client.call("get_tool")
+        check(tool["tool"] == "draw", f"the Draw tool arms itself on an empty feature ({kind})")
+        check(not tool["kind_locked"], f"the kind can still be chosen ({kind})")
+        client.call("set_tool", tool="draw", kind=kind)
+
+        if not draw(client, points):
+            continue
+        check(client.call("get_tool")["drawing_vertices"] == len(points),
+              f"{len(points)} vertices are placed ({kind})")
+        client.call("key", key="Enter")
+
+        feature = client.call("get_selected")["feature"]
+        check(feature["geometry_kind"] == kind, f"the feature is a {kind}: {feature['geometry_kind']}")
+        if check(len(feature["rings"]) == 1, f"one ring was committed ({kind})"):
+            ring = feature["rings"][0]
+            if check(len(ring) == len(points), f"the ring holds {len(points)} vertices ({kind})"):
+                offset = worst_offset(ring, points)
+                check(offset < CLICK_TOLERANCE,
+                      f"the stored vertices match the clicked points within "
+                      f"{CLICK_TOLERANCE} degrees ({kind}): {offset:.4f}")
+        check(client.call("get_tool")["kind_locked"],
+              f"the kind is fixed once the feature holds geometry ({kind})")
+
+        # Undo takes the geometry off again, leaving the empty feature behind.
+        client.call("toolbar", button="Undo")
+        check(client.call("get_selected")["feature"]["rings"] == [],
+              f"undo removes the committed geometry ({kind})")
+
+
+def run_escape_session(client: AutomationClient) -> None:
+    """Escape throws the shape being drawn away without touching the feature."""
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", kind="polygon")
+    if not draw(client, DRAWINGS["polygon"]):
+        return
+    check(client.call("get_tool")["drawing_vertices"] == 3, "three vertices are placed")
+
+    client.call("key", key="Escape")
+    check(client.call("get_tool")["drawing_vertices"] == 0, "Escape drops the placed vertices")
+    check(client.call("get_selected")["feature"]["rings"] == [],
+          "Escape leaves the feature without geometry")
+
+    # A polygon of two vertices is not a shape, so Enter commits nothing.
+    client.call("set_tool", tool="draw")
+    if draw(client, DRAWINGS["polygon"][:2]):
+        client.call("key", key="Enter")
+        check(client.call("get_selected")["feature"]["rings"] == [],
+              "Enter on two vertices commits no polygon")
+        client.call("key", key="Escape")
+
+
 def count_features(node: dict) -> int:
     """The number of nodes in a serialized feature tree."""
     return 1 + sum(count_features(child) for child in node.get("children", []))
@@ -244,6 +349,8 @@ def main(argv: list[str]) -> int:
             run_document_session(client, folder)
         finally:
             shutil.rmtree(folder, ignore_errors=True)
+        run_drawing_session(client)
+        run_escape_session(client)
     finally:
         if connected:
             try:

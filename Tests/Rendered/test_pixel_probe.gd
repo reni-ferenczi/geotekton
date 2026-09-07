@@ -17,6 +17,24 @@ func test_three_cratons_are_drawn_in_their_own_colours() -> void:
 	await _check_probe(-3.0, -60.0, "green")
 
 
+func test_a_polyline_and_a_multipoint_are_drawn_in_their_own_colours() -> void:
+	await load_sample("mixed_geometry.middle-earth")
+	# The line runs along the equator from (0, 40) to (0, 80), so its midpoint
+	# is (0, 60); the markers sit at (-30, -30) and (30, -30).
+	await _check_probe(-3.0, 0.0, "red")
+	await _check_probe(0.0, 60.0, "blue")
+	await _check_probe(-30.0, -30.0, "green")
+	await _check_probe(30.0, -30.0, "green")
+
+
+func test_the_earth_shows_beside_a_line_and_a_marker() -> void:
+	await load_sample("mixed_geometry.middle-earth")
+	# Both points are a few degrees off, well beyond the width they are drawn
+	# with, and off the graticule, which is on multiples of 15 degrees.
+	await _check_probe(3.0, 55.0, "")
+	await _check_probe(-27.0, -33.0, "")
+
+
 func test_an_empty_file_draws_no_craton() -> void:
 	await load_sample("empty.middle-earth")
 	await _check_probe(-3.0, 0.0, "")
