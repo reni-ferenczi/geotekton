@@ -17,6 +17,18 @@ const KIND_VALUES := {
 	"multipoint": GeometryKind.MULTIPOINT,
 }
 
+# How many vertices one part of each kind needs before it is a shape. The Draw
+# tool commits nothing below it and an edit that would take a part under it
+# removes the part instead.
+const MINIMUM_VERTICES := {
+	GeometryKind.POLYGON: 3,
+	GeometryKind.POLYLINE: 2,
+	GeometryKind.MULTIPOINT: 1,
+}
+
+# The longest title a feature keeps; anything longer is cut down to it.
+const MAX_TITLE_LENGTH := 100
+
 # Node ID, unique only during the runtime of the application (not persisted)
 var pnid: int = -1
 
@@ -35,7 +47,10 @@ var collapsed: bool
 var is_root: bool
 
 # Feature-only fields
-var color: Color = Color.CHOCOLATE
+# What the feature is, an id in FeatureType.CATALOG. The type says which
+# geometry kinds the feature may hold and which colour it starts in.
+var feature_type: String = FeatureType.UNCLASSIFIED
+var color: Color = FeatureType.color(FeatureType.UNCLASSIFIED)
 
 # Geographic data. Each ring is a run of (latitude, longitude) vertices in
 # degrees, in the frame of the feature itself, before rotation_angles is
@@ -69,7 +84,8 @@ static func create_group(title_: String = "Group") -> Feature:
 	return group
 
 
-static func create_feature(title_: String = "Feature", color_: Color = Color.CHOCOLATE) -> Feature:
+static func create_feature(title_: String = "Feature",
+		color_: Color = FeatureType.color(FeatureType.UNCLASSIFIED)) -> Feature:
 	var feature := Feature.new()
 	feature.init_pnid()
 	feature.title = title_
@@ -78,12 +94,27 @@ static func create_feature(title_: String = "Feature", color_: Color = Color.CHO
 	return feature
 
 
+# A title as a feature keeps it: trimmed, and cut down to MAX_TITLE_LENGTH.
+static func clamp_title(value: String) -> String:
+	var title_ := value.strip_edges()
+	return title_ if title_.length() <= MAX_TITLE_LENGTH else title_.left(MAX_TITLE_LENGTH) + "..."
+
+
 func init_pnid():
 	pnid = next_pnid
 	next_pnid += 1
 
 
 ### Geometry
+
+
+# The geometry kind under the name the file and the type catalog use.
+func kind_name() -> String:
+	return str(KIND_NAMES[geometry_kind])
+
+
+func minimum_vertices() -> int:
+	return int(MINIMUM_VERTICES[geometry_kind])
 
 
 func has_geometry() -> bool:
@@ -133,6 +164,7 @@ func clone() -> Feature:
 	node.is_group = is_group
 	node.collapsed = collapsed
 	node.is_root = is_root
+	node.feature_type = feature_type
 	node.color = color
 	node.geometry_kind = geometry_kind
 	for ring in rings:
@@ -226,6 +258,7 @@ func to_json() -> Variant:
 		data["children"] = children_data
 	else:
 		data["type"] = "Feature"
+		data["feature_type"] = feature_type
 		data["color"] = [color.r, color.g, color.b, color.a]
 		data["geometry_kind"] = KIND_NAMES[geometry_kind]
 		data["rings"] = rings_to_json(rings)
@@ -245,6 +278,7 @@ static func from_json(data: Variant) -> Feature:
 		for child_data in data.get("children", []):
 			node.children.append(Feature.from_json(child_data))
 	else:
+		node.feature_type = FeatureType.normalize(str(data.get("feature_type", FeatureType.UNCLASSIFIED)))
 		var c: Array = data.get("color", [0.82, 0.41, 0.12, 1.0])
 		node.color = Color(c[0], c[1], c[2], c[3])
 		node.geometry_kind = KIND_VALUES.get(data.get("geometry_kind", "polygon"), GeometryKind.POLYGON)

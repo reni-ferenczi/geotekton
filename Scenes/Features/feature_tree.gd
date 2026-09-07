@@ -274,7 +274,7 @@ func on_output_clicked(node: Feature, mouse_button_index):
 			select_node(node)
 			# TODO: Open the color picker
 		else:
-			node.color = Color.CHOCOLATE
+			node.color = FeatureType.color(node.feature_type)
 			program_changed.emit()
 
 
@@ -302,9 +302,7 @@ func on_enabled_clicked(node: Feature):
 func _on_item_edited() -> void:
 	var item = get_edited()
 	var node = item.get_metadata(0) as Feature
-	node.title = item.get_text(0).strip_edges()
-	if len(node.title) > 100:
-		node.title = node.title.left(100) + "..."
+	node.title = Feature.clamp_title(item.get_text(0))
 	program_changed.emit()
 
 

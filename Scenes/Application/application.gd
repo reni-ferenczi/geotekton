@@ -697,14 +697,6 @@ func _on_move_cancelled() -> void:
 # The shape being drawn, in world space, before it is committed to a feature.
 var outline_vertices := PackedVector2Array()
 
-# How many vertices each kind needs before it can be committed.
-const MINIMUM_VERTICES := {
-	Feature.GeometryKind.POLYGON: 3,
-	Feature.GeometryKind.POLYLINE: 2,
-	Feature.GeometryKind.MULTIPOINT: 1,
-}
-
-
 func _on_planet_input_for_drawing(lat: float, lon: float, event: InputEvent) -> void:
 	if active_tool != Tool.DRAW:
 		return
@@ -743,7 +735,7 @@ func _outline_commit() -> void:
 	if selected == null or selected.is_group:
 		return
 	var kind: Feature.GeometryKind = drawing_kind()
-	if outline_vertices.size() < int(MINIMUM_VERTICES[kind]):
+	if outline_vertices.size() < int(Feature.MINIMUM_VERTICES[kind]):
 		return
 
 	# The vertices were clicked in world space; a feature keeps its own frame.

@@ -92,6 +92,7 @@ func _build_tree() -> Feature:
 	var laurentia := Feature.create_feature("Laurentia", Color(0.25, 0.5, 0.75, 1.0))
 	laurentia.add_ring(PackedVector2Array([
 		Vector2(-10, -10), Vector2(10, 0), Vector2(-10, 10)]), Feature.GeometryKind.POLYGON)
+	laurentia.feature_type = "craton"
 	laurentia.rotation_angles = Vector3(30, -20, 10)
 	laurentia.time_range = Vector2i(540, 1800)
 	group.children.append(laurentia)
@@ -99,12 +100,14 @@ func _build_tree() -> Feature:
 	var ridge := Feature.create_feature("Ridge", Color(0.9, 0.1, 0.4, 0.5))
 	ridge.add_ring(PackedVector2Array([
 		Vector2(20, 30), Vector2(40, 30), Vector2(40, 60)]), Feature.GeometryKind.POLYLINE)
+	ridge.feature_type = "ridge"
 	ridge.rotation_angles = Vector3(-120, 45, 0)
 	ridge.time_range = Vector2i(0, 750)
 	ridge.enabled = false
 	group.children.append(ridge)
 
 	var stations := Feature.create_feature("Stations", Color(0.1, 0.8, 0.2, 1.0))
+	stations.feature_type = "marker"
 	stations.add_ring(PackedVector2Array([Vector2(0, 0), Vector2(5, 5)]),
 		Feature.GeometryKind.MULTIPOINT)
 	group.children.append(stations)
@@ -121,6 +124,7 @@ func _assert_same_tree(a: Feature, b: Feature, path: String) -> void:
 		for i in range(mini(a.children.size(), b.children.size())):
 			_assert_same_tree(a.children[i], b.children[i], "%s/%d" % [path, i])
 		return
+	assert_eq(a.feature_type, b.feature_type, "%s feature type" % path)
 	assert_close(a.color, b.color, 1e-6, "%s color" % path)
 	assert_eq(a.geometry_kind, b.geometry_kind, "%s geometry kind" % path)
 	assert_eq(a.rings, b.rings, "%s rings" % path)

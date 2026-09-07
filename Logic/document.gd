@@ -109,6 +109,116 @@ func _apply_current() -> void:
 	state_changed.emit()
 
 
+### Editing
+
+# Every change the Properties panel makes goes through one of these: they
+# validate the change, apply it and record one undo version. The ones that can
+# refuse return a message saying why and leave the tree untouched; the rest
+# return nothing because there is nothing they can refuse.
+
+
+func rename(node: Feature, title: String) -> void:
+	node.title = Feature.clamp_title(title)
+	record()
+
+
+func set_enabled(node: Feature, enabled: bool) -> void:
+	node.enabled = enabled
+	if node.is_group and not enabled:
+		node.collapsed = true
+	record()
+
+
+func set_color(feature: Feature, color: Color) -> void:
+	feature.color = color
+	record()
+
+
+# Give the feature another type. Refused when the feature already holds geometry
+# of a kind that type does not allow, since the alternative is a feature its own
+# type says cannot exist. The colour follows the type as long as it is still the
+# one the old type gave it, so a colour someone picked is never overwritten.
+func set_feature_type(feature: Feature, type_id: String) -> String:
+	if not FeatureType.CATALOG.has(type_id):
+		return "There is no feature type called %s." % type_id
+	if feature.has_geometry() and not FeatureType.allows(type_id, feature.kind_name()):
+		return "A %s cannot be a %s, which is %s." % [
+			feature.kind_name(), FeatureType.label(type_id),
+			" or ".join(FeatureType.kinds(type_id))]
+	if feature.color == FeatureType.color(feature.feature_type):
+		feature.color = FeatureType.color(type_id)
+	feature.feature_type = type_id
+	record()
+	return ""
+
+
+func set_time_range(feature: Feature, time_range: Vector2i) -> String:
+	if time_range.y < time_range.x:
+		return "The time range ends at %d, before it starts at %d." % [time_range.y, time_range.x]
+	feature.time_range = time_range
+	record()
+	return ""
+
+
+# Move one vertex of one part of the geometry, in the frame of the feature.
+func set_vertex(feature: Feature, part: int, index: int, vertex: Vector2) -> String:
+	var error := _check_vertex(feature, part, index, vertex)
+	if not error.is_empty():
+		return error
+	feature.rings[part][index] = vertex
+	feature.rebuild_triangles()
+	record()
+	return ""
+
+
+# Add a vertex to a part, before the vertex currently at index. An index of the
+# part's size appends, which is what the panel does with nothing selected.
+func insert_vertex(feature: Feature, part: int, index: int, vertex: Vector2) -> String:
+	var error := _check_vertex(feature, part, index, vertex, true)
+	if not error.is_empty():
+		return error
+	feature.rings[part].insert(index, vertex)
+	feature.rebuild_triangles()
+	record()
+	return ""
+
+
+# Take a vertex out. A part left with too few vertices to be a shape goes with
+# it, so removing vertices one by one ends with the part gone rather than with
+# geometry nothing can draw.
+func remove_vertex(feature: Feature, part: int, index: int) -> String:
+	var error := _check_index(feature, part, index)
+	if not error.is_empty():
+		return error
+	feature.rings[part].remove_at(index)
+	if feature.rings[part].size() < feature.minimum_vertices():
+		feature.rings.remove_at(part)
+	feature.rebuild_triangles()
+	record()
+	return ""
+
+
+func _check_index(feature: Feature, part: int, index: int, past_the_end: bool = false) -> String:
+	if part < 0 or part >= feature.rings.size():
+		return "The feature has no part %d." % part
+	var limit := feature.rings[part].size() + (1 if past_the_end else 0)
+	if index < 0 or index >= limit:
+		return "Part %d has no vertex %d." % [part, index]
+	return ""
+
+
+func _check_vertex(feature: Feature, part: int, index: int, vertex: Vector2,
+		past_the_end: bool = false) -> String:
+	var error := _check_index(feature, part, index, past_the_end)
+	if not error.is_empty():
+		return error
+	if vertex.x < -90.0 or vertex.x > 90.0:
+		return "Latitude %s is outside -90 to 90." % vertex.x
+	if vertex.y < -180.0 or vertex.y > 180.0:
+		return "Longitude %s is outside -180 to 180." % vertex.y
+	return ""
+
+
 ### Files
 
 
