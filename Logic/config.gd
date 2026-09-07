@@ -53,6 +53,14 @@ static func reload() -> void:
 	_data = {}
 
 
+# Throw every setting away, for a run that must neither depend on nor change
+# the settings of whoever is at the keyboard.
+static func clear() -> void:
+	_data = {}
+	_loaded = true
+	save()
+
+
 static func save() -> void:
 	DirAccess.make_dir_recursive_absolute(_get_config_dir())
 	var file := FileAccess.open(_get_config_path(), FileAccess.WRITE)

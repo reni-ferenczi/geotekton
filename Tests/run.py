@@ -4,6 +4,7 @@ Usage:
     python Tests/run.py headless [--filter=SUBSTRING]
     python Tests/run.py rendered [--filter=SUBSTRING]
     python Tests/run.py session
+    python Tests/run.py cli
     uv run Tests/run.py golden
     uv run Tests/run.py all
 
@@ -23,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TESTS = ROOT / "Tests"
 RUNNER = "res://Tests/run_tests.gd"
 
-USAGE = "usage: run.py headless|rendered [--filter=SUBSTRING] | session | golden | all"
+USAGE = "usage: run.py headless|rendered [--filter=SUBSTRING] | session | cli | golden | all"
 
 
 def godot() -> str:
@@ -63,6 +64,7 @@ def run_all() -> int:
         ("headless", lambda: run_godot([])),
         ("rendered", lambda: run_godot(["--rendered"])),
         ("session", lambda: run_script("session.py", [])),
+        ("cli", lambda: run_script("cli.py", [])),
         ("golden", run_golden),
     ):
         print(f"=== {name} ===")
@@ -80,7 +82,7 @@ def main(argv: list[str]) -> int:
 
     command = argv[0]
     options = argv[1:]
-    if command not in ("headless", "rendered", "session", "golden", "all"):
+    if command not in ("headless", "rendered", "session", "cli", "golden", "all"):
         print(f"unknown command: {command}\n{USAGE}", file=sys.stderr)
         return 2
     if import_project() != 0:
@@ -99,6 +101,8 @@ def main(argv: list[str]) -> int:
         return 2
     if command == "session":
         return run_script("session.py", [])
+    if command == "cli":
+        return run_script("cli.py", [])
     if command == "golden":
         return run_golden()
     return run_all()

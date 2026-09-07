@@ -126,6 +126,17 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"toolbar":
+			var buttons := app.features.get_node_or_null("PanelContainer/Buttons")
+			var button := buttons.get_node_or_null(str(request.get("button", ""))) if buttons != null else null
+			if button is not Button:
+				return {"ok": false, "error": "no toolbar button called %s" % request.get("button", "")}
+			if (button as Button).disabled:
+				return {"ok": false, "error": "the %s button is disabled" % request.get("button", "")}
+			(button as Button).pressed.emit()
+			await _frames(2)
+			return {"ok": true}
+
 		"get_recent":
 			return {"ok": true, "recent": Config.get_recent_files()}
 
@@ -138,6 +149,14 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			app._on_recent_menu_id_pressed(Application.CLEAR_RECENT_ID)
 			await _frames(2)
 			return {"ok": true}
+
+		"get_panels":
+			return {"ok": true, "panels": {
+				"features": app.features.visible,
+				"properties": app.properties.visible,
+				"timeline": app.timeline.visible,
+				"status_bar": app.status_bar.visible,
+			}}
 
 		"get_dialog":
 			var dialog := _visible_dialog()

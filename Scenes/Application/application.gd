@@ -83,6 +83,15 @@ func _ready() -> void:
 	get_tree().root.content_scale_factor = Application.ui_scale
 	get_tree().set_auto_accept_quit(false)
 
+	# The automation port decides the shell before anything reads a setting: a
+	# scripted run starts from the same window every time and leaves the
+	# settings of whoever is at the keyboard alone.
+	var port := Cli.automation_port(OS.get_cmdline_user_args())
+	automated = port != 0
+	if automated:
+		Config.directory_override = OS.get_user_data_dir().path_join("automation")
+		Config.clear()
+
 	features.attach(document)
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
@@ -122,8 +131,6 @@ func _ready() -> void:
 	leave_full_screen.pressed.connect(_toggle_full_screen)
 
 	# Open the test automation port if requested: -- --automation-port=<port>
-	var port := Cli.automation_port(OS.get_cmdline_user_args())
-	automated = port != 0
 	if automated:
 		add_child(AutomationPort.new(self, port))
 
