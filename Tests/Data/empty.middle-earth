@@ -1,0 +1,12 @@
+{
+	"application": "middle-earth",
+	"features": {
+		"children": [],
+		"enabled": true,
+		"is_group": true,
+		"repeat": false,
+		"title": "Planet",
+		"type": "Group"
+	},
+	"version": "0.1.0"
+}

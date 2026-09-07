@@ -1,6 +1,9 @@
 extends SubViewportContainer
 class_name PlanetView
 
+# Radius of the globe mesh (SphereMesh in planet.tscn).
+const GLOBE_RADIUS: float = 0.5
+
 signal move_started(anchor_lat: float, anchor_lon: float)
 signal move_to(lat: float, lon: float)
 signal move_ended()
@@ -114,3 +117,59 @@ func _on_gui_input(event: InputEvent) -> void:
 		rotation_handler.handle_mouse_motion(event.relative)
 	if event is InputEventMouseButton and event.is_released():
 		rotation_handler.handle_mouse_button_released()
+
+
+### Screen and world coordinates
+
+# Window pixels for a point on the globe, or null when it is not visible.
+# Returns null in map mode and when the point is on the far side of the globe.
+func latlon_to_screen(lat: float, lon: float) -> Variant:
+	if planet.show_map:
+		return null
+
+	var lat_rad := deg_to_rad(lat)
+	var lon_rad := deg_to_rad(lon)
+	var cos_lat := cos(lat_rad)
+	var local := Vector3(-cos_lat * sin(lon_rad), sin(lat_rad), -cos_lat * cos(lon_rad)) * GLOBE_RADIUS
+
+	var globe_transform: Transform3D = planet.globe.global_transform
+	var world: Vector3 = globe_transform * local
+	if (world - globe_transform.origin).dot(camera.global_position - world) <= 0.0:
+		return null
+	if camera.is_position_behind(world):
+		return null
+
+	var sub := camera.unproject_position(world)
+	return get_viewport().get_final_transform() * (get_global_transform_with_canvas() * sub)
+
+
+# Lat/lon degrees under a window pixel, or null when the ray misses the globe.
+# Returns null in map mode.
+func screen_to_latlon(screen: Vector2) -> Variant:
+	if planet.show_map:
+		return null
+
+	var canvas: Vector2 = get_viewport().get_final_transform().affine_inverse() * screen
+	var sub: Vector2 = get_global_transform_with_canvas().affine_inverse() * canvas
+
+	var origin := camera.project_ray_origin(sub)
+	var direction := camera.project_ray_normal(sub)
+	var globe_transform: Transform3D = planet.globe.global_transform
+	var offset: Vector3 = origin - globe_transform.origin
+
+	# Nearest intersection of the ray with the globe sphere.
+	var half_b: float = offset.dot(direction)
+	var c: float = offset.length_squared() - GLOBE_RADIUS * GLOBE_RADIUS
+	var discriminant: float = half_b * half_b - c
+	if discriminant < 0.0:
+		return null
+	var root := sqrt(discriminant)
+	var distance: float = -half_b - root
+	if distance < 0.0:
+		distance = -half_b + root
+	if distance < 0.0:
+		return null
+
+	var local: Vector3 = globe_transform.affine_inverse() * (origin + direction * distance)
+	var rad := Vector2(local.x, local.z).length()
+	return Vector2(rad_to_deg(atan2(local.y, rad)), rad_to_deg(atan2(-local.x, -local.z)))

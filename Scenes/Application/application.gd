@@ -51,6 +51,11 @@ func _ready() -> void:
 	planet_view.craton_clicked.connect(_on_craton_clicked)
 	planet_view.craton_hovered.connect(_on_craton_hovered)
 
+	# Open the test automation port if requested: -- --automation-port=<port>
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--automation-port="):
+			add_child(AutomationPort.new(self, int(arg.split("=", true, 1)[1])))
+
 
 ### File menu
 
