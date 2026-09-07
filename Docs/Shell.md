@@ -13,9 +13,9 @@ status bar
 
 ## Menus
 
-`Application._build_menus()` creates the three menus in code and populates them.
-The item ids are the `FileItem`, `ViewItem` and `HelpItem` enums, so adding an
-item means adding an enum value and one `add_item` line.
+`Application._build_menus()` creates the four menus in code and populates them.
+The item ids are the `FileItem`, `EditItem`, `ViewItem` and `HelpItem` enums, so
+adding an item means adding an enum value and one `add_item` line.
 
 | File            | Shortcut       | What it does                                     |
 | --------------- | -------------- | ------------------------------------------------ |
@@ -26,6 +26,16 @@ item means adding an enum value and one `add_item` line.
 | Save As...      | Ctrl+Shift+S   | Always ask for a path                            |
 | Preferences...  |                | The preferences dialog                           |
 | Quit            | Ctrl+Q         | Close, after asking about unsaved changes        |
+
+| Edit      | Shortcut | What it does                                        |
+| --------- | -------- | --------------------------------------------------- |
+| Undo      | Ctrl+Z   | Step back through the undo stack                    |
+| Redo      | Ctrl+Y   | Step forward again                                  |
+| Cut       | Ctrl+X   | Copy the selected node and delete it                |
+| Copy      | Ctrl+C   | Put the selected node on the clipboard              |
+| Paste     | Ctrl+V   | Put what is on the clipboard beside the selection   |
+| Duplicate | Ctrl+D   | A copy of the selected node, with its own identity  |
+| Delete    | Delete   | Remove the selected node                            |
 
 | View        | Shortcut | What it does                              |
 | ----------- | -------- | ----------------------------------------- |
@@ -41,9 +51,11 @@ item means adding an enum value and one `add_item` line.
 | About         |          | Version, credits and a documentation link |
 
 The shortcuts are menu accelerators, so they work whatever has the keyboard
-focus. The feature tree keeps its own keys for editing: Delete, Ctrl+Z, Ctrl+Y,
-Ctrl+C, Ctrl+X, Ctrl+V and Ctrl+D. Its toolbar also has Save and Load buttons,
-which run the File > Save and File > Open commands.
+focus, except where a focused control takes the key first: Ctrl+C and Ctrl+V in
+a text field are still the text field's. The Edit commands are on the feature
+tree toolbar as well, and Duplicate and Delete are also on a right click on the
+globe; see [Properties](Properties.md#edit-commands). The toolbar also has Save
+and Load buttons, which run the File > Save and File > Open commands.
 
 ## Full screen
 

@@ -358,6 +358,17 @@ def run_properties_session(client: AutomationClient) -> None:
     """The Properties panel: what it shows, what it edits and what it refuses."""
     open_mixed_geometry(client)
 
+    # The panel keeps one width whatever it is showing. When it does not, the
+    # split container hands the difference to the planet view, and every screen
+    # position computed before the selection changed is off.
+    widths = {}
+    for title in (None, "Shapes", "Red Triangle"):
+        client.call("select", title=title)
+        panel = client.call("get_properties")["properties"]
+        widths[panel["showing"]] = panel["width"]
+    check(len(set(widths.values())) == 1,
+          f"the panel is the same width for the root, a group and a feature: {widths}")
+
     client.call("select", title="Red Triangle")
     panel = client.call("get_properties")["properties"]
     check(panel["showing"] == "feature", f"selecting a feature fills the panel: {panel['showing']}")

@@ -6,13 +6,18 @@ The toolbar contains two mutually exclusive tool buttons and a selector:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
 - **Draw** — Enables drawing on the globe surface. See `Docs/Draw.md` for full details.
-- **Geometry kind** — What the Draw tool produces: Polygon, Polyline or Multipoint.
+- **Geometry kind** — What the Draw tool produces: Polygon, Polyline or
+  Multipoint. Only the kinds the selected feature's type allows can be picked;
+  see [Properties](Properties.md#what-the-type-restricts).
 
 ## The feature tree
 
 Each row of the tree carries the title of the feature or group and two buttons:
 a colour swatch, on a feature only, and a switch that enables the node. A
 disabled node is neither drawn nor hit tested, itself and everything under it.
+A right click on the swatch puts the colour back to the one the feature's type
+gives. Everything else about a feature is edited in the
+[Properties](Properties.md) panel.
 
 Up to 0.1.0 the rows also had invert, single, wrap, resize and repeat, five
 switches left over from the rule editor this interface came from. Nothing read
@@ -31,6 +36,7 @@ When the Move tool is active and a leaf feature with geometry is selected in the
 | **LMB release** | Finish moving — saves an undo version |
 | **MMB hold** (while moving) | Temporarily rotate the planet instead of moving the feature |
 | **MMB release** (while moving) | Resume moving the feature |
+| **RMB** on globe | Select what is under the pointer and offer Duplicate and Delete |
 | **Ctrl+LMB** | Geographic dragging (unchanged, does not start a move) |
 | **MMB** (not moving) | Planet rotation (unchanged) |
 | **Scroll wheel** | Zoom in/out (always available) |
@@ -52,6 +58,7 @@ Globe navigation works in both Move and Draw modes unless noted otherwise.
 
 | Input | Action |
 |-------|--------|
+| **RMB** on globe | The Edit commands for the feature under the pointer, in the Move tool only |
 | **Ctrl+LMB drag** on globe | Geographic dragging — rotates the globe so the surface follows the cursor |
 | **MMB drag** | Free rotation — captured mouse rotation of the globe |
 | **Scroll wheel** | Zoom in/out (adjusts camera FOV) |

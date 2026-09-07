@@ -25,13 +25,18 @@ If a newly selected feature has **no geometry** yet, the Draw tool is automatica
 A feature holds one kind of geometry, so the selector is only free while the
 feature is empty. Once it holds anything, the selector shows that kind and is
 disabled, and anything else drawn on the feature joins it as another part of the
-same kind.
+same kind. While it is free, it offers only the kinds the feature's type allows;
+see [Properties](Properties.md#what-the-type-restricts).
 
 | Kind | Minimum vertices | What a part is |
 |---|---|---|
 | Polygon | 3 | A closed outline, filled in |
 | Polyline | 2 | An open line through the vertices |
 | Multipoint | 1 | Separate markers, one per vertex |
+
+The minimums are `Feature.MINIMUM_VERTICES`, which the coordinate table of the
+Properties panel reads as well: a part that falls under its minimum is removed
+rather than left as geometry nothing can draw.
 
 ## Drawing Process
 

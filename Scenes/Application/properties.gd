@@ -23,6 +23,9 @@ signal rejected(message: String)
 # The oldest age either end of a time range can name.
 const TIME_LIMIT := 10000
 
+# How wide the panel is, whatever it happens to be showing.
+const CONTENT_WIDTH := 280
+
 # The open document, set by Application through attach().
 var document: Document
 
@@ -65,6 +68,11 @@ func attach(document_: Document) -> void:
 
 
 func _build() -> void:
+	# The panel keeps one width whatever is selected. Its content would otherwise
+	# set a minimum of its own, the split container would honour it, and the
+	# planet view beside it would resize every time the selection changed.
+	custom_minimum_size = Vector2(CONTENT_WIDTH, 0)
+
 	var margin := MarginContainer.new()
 	margin.name = "Margin"
 	for side in ["left", "right", "top", "bottom"]:
@@ -78,6 +86,7 @@ func _build() -> void:
 	placeholder = Label.new()
 	placeholder.name = "Placeholder"
 	placeholder.text = "Nothing is selected."
+	placeholder.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(placeholder)
 
 	var form := GridContainer.new()
@@ -122,6 +131,7 @@ func _build() -> void:
 
 	geometry_label = Label.new()
 	geometry_label.name = "Geometry"
+	geometry_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_row(form, "Geometry", geometry_label)
 
 	coordinates = Tree.new()
@@ -186,20 +196,26 @@ func _row(form: GridContainer, text: String, control: Control, on_a_group: bool 
 ### Filling the panel
 
 
-# Show a feature, a group, or nothing at all.
+# Show a feature, a group, or nothing at all. The root group is nothing to edit:
+# it has no name of its own to change and no switch, the same as on its tree row.
 func show_node(node_: Feature) -> void:
 	node = node_
-	var is_feature := node != null and not node.is_group
+	var editable := node != null and not node.is_root
+	var is_feature := editable and not node.is_group
 
-	placeholder.visible = node == null
+	placeholder.visible = not editable
+	if node != null and node.is_root:
+		placeholder.text = "The %s group holds everything and has nothing to edit." % node.title
+	else:
+		placeholder.text = "Nothing is selected."
 	for row in _rows:
-		var shown: bool = is_feature or (node != null and row["on_a_group"])
+		var shown: bool = is_feature or (editable and row["on_a_group"])
 		(row["label"] as Control).visible = shown
 		(row["control"] as Control).visible = shown
 	for control in _feature_boxes:
 		control.visible = is_feature
 
-	if node == null:
+	if not editable:
 		return
 
 	_filling = true
@@ -264,7 +280,7 @@ static func format_degrees(value: float) -> String:
 
 
 func _commit_name() -> void:
-	if _filling or node == null or name_edit.text == node.title:
+	if _filling or node == null or node.is_root or name_edit.text == node.title:
 		return
 	document.rename(node, name_edit.text)
 	name_edit.text = node.title
@@ -272,7 +288,7 @@ func _commit_name() -> void:
 
 
 func _on_enabled_toggled(pressed: bool) -> void:
-	if _filling or node == null or pressed == node.enabled:
+	if _filling or node == null or node.is_root or pressed == node.enabled:
 		return
 	document.set_enabled(node, pressed)
 	edited.emit()
@@ -426,9 +442,12 @@ func _take_back_coordinate(at: Vector2i, message: String) -> void:
 # What the panel is showing, read off the widgets rather than off the feature.
 func to_json() -> Dictionary:
 	if node == null:
-		return {"showing": "nothing"}
+		return {"showing": "nothing", "width": size.x}
+	if node.is_root:
+		return {"showing": "root", "placeholder": placeholder.text, "width": size.x}
 	var data := {
 		"showing": "group" if node.is_group else "feature",
+		"width": size.x,
 		"name": name_edit.text,
 		"enabled": enabled_check.button_pressed,
 	}
@@ -459,8 +478,8 @@ func _coordinates_to_json() -> Array:
 
 # Drive one field the way a person would, for the scripted session.
 func set_field(field: String, value: Variant) -> String:
-	if node == null:
-		return "nothing is selected"
+	if node == null or node.is_root:
+		return "nothing that can be edited is selected"
 	match field:
 		"name":
 			name_edit.text = str(value)

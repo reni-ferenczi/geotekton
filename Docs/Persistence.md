@@ -58,7 +58,7 @@ The file is a JSON object with three top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "features": { ... }
 }
 ```
@@ -95,6 +95,7 @@ groups and leaf features.
   "enabled": true,
   "is_group": false,
   "type": "Feature",
+  "feature_type": "craton",
   "color": [0.82, 0.41, 0.12, 1.0],
   "geometry_kind": "polygon",
   "rings": [[[45.0, 30.0], [46.0, 31.0], [45.0, 32.0]]],
@@ -103,7 +104,9 @@ groups and leaf features.
 }
 ```
 
-`geometry_kind` is `"polygon"`, `"polyline"` or `"multipoint"`, and `rings`
+`feature_type` is an id from the catalog in `Logic/feature_type.gd`; see
+[Properties](Properties.md#the-type-catalog). `geometry_kind` is `"polygon"`,
+`"polyline"` or `"multipoint"`, and `rings`
 holds one array of `[latitude, longitude]` vertices per part. A ring is closed
 only for a polygon, and several rings on one polygon are separate outlines
 rather than holes. The vertices are in the frame of the feature itself, before
@@ -139,6 +142,13 @@ hand can hold, are each kept as their own ring, so no vertex is lost.
 
 The oldest files called the rotation angles `position`; the migration renames
 that key as well.
+
+#### 0.2.0 to 0.3.0
+
+0.3.0 added `feature_type` to a leaf feature. There is no migration step for it:
+a feature without the key loads as `unclassified`, which is the type that allows
+every geometry kind, so a 0.2.0 file arrives whole and nothing in it is
+reclassified by guesswork.
 
 ## The config file
 
