@@ -57,7 +57,14 @@ follows the feature tree selection, through
 | Geometry   | Label              | no         |
 | Coordinates| Table, Add, Remove | no         |
 
-With nothing selected the panel says so and shows no rows at all.
+With nothing selected the panel says so and shows no rows at all, and so does
+the root group, which has no name of its own to change and no switch — the same
+as on its tree row.
+
+The panel keeps one width, `CONTENT_WIDTH`, whatever it is showing. Letting its
+content set the width would let the split container hand the difference to the
+planet view, so the globe would move under the pointer every time the selection
+changed.
 
 The time range is two ages in millions of years before the present, the same
 axis the timeline slider runs on, so `From` is the younger end. Nothing reads

@@ -534,6 +534,36 @@ def run_globe_menu_session(client: AutomationClient) -> None:
           "and undo brings it back")
 
 
+def run_edit_menu_session(client: AutomationClient) -> None:
+    """The Edit menu runs the commands the feature tree toolbar runs.
+
+    Copy records no undo version, so the menu has to learn about the clipboard
+    some other way; without that, Paste stays disabled right after a Copy.
+    Note that this puts a feature on the real clipboard of whoever is running it.
+    """
+    open_mixed_geometry(client)
+    client.call("select", title="Red Triangle")
+    before = len(client.call("get_features")["features"])
+
+    client.call("menu", item="copy")
+    try:
+        client.call("menu", item="paste")
+    except RuntimeError as error:
+        check(False, f"Edit > Paste is available right after Edit > Copy: {error}")
+    else:
+        check(len(client.call("get_features")["features"]) == before + 1,
+              "Edit > Copy then Edit > Paste adds a feature")
+        client.call("menu", item="undo")
+
+    client.call("select", title="Blue Ridge")
+    client.call("menu", item="delete")
+    check(len(client.call("get_features")["features"]) == before - 1,
+          "Edit > Delete removes the selected feature")
+    check("Blue Ridge" not in titles_of(client), "the one that was selected")
+    client.call("menu", item="undo")
+    check("Blue Ridge" in titles_of(client), "and undo brings it back")
+
+
 def count_features(node: dict) -> int:
     """The number of nodes in a serialized feature tree."""
     return 1 + sum(count_features(child) for child in node.get("children", []))
@@ -565,6 +595,7 @@ def main(argv: list[str]) -> int:
         run_coordinate_session(client)
         run_colour_session(client)
         run_globe_menu_session(client)
+        run_edit_menu_session(client)
     finally:
         if connected:
             try:

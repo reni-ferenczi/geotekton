@@ -112,7 +112,10 @@ func _ready() -> void:
 	properties.rejected.connect(_show_error)
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
-	document.state_changed.connect(_update_edit_menu)
+	# The Edit menus offer what the feature tree toolbar offers, so they follow
+	# the same signal: the undo depth, the selection and the clipboard all reach
+	# it, which a copy that records no undo version otherwise would not.
+	features.commands_changed.connect(_update_edit_menu)
 
 	_build_menus()
 	_build_dialogs()
@@ -679,7 +682,6 @@ func _on_feature_selected(node: Feature) -> void:
 	draw_button.disabled = not is_leaf
 	_update_kind_selector(node)
 	properties.show_node(node)
-	_update_edit_menu()
 
 	if is_leaf:
 		# Auto-select Draw when the feature has no geometry yet

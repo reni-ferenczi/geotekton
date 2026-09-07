@@ -12,9 +12,12 @@ The application uses semantic versioning: **major.minor.patch** (e.g. `0.1.0`). 
 
 While the major version is 0, the application is in pre-release and the file
 format may change without keeping backwards compatibility. A migration is still
-written whenever files in the old format exist and are worth reading: 0.2.0
-changed how a feature stores its geometry and reads 0.1.0 files through
-`Document.migrate()`. The first public release will have major version 1.
+written whenever files in the old format exist, are worth reading, and cannot be
+read as they are: 0.2.0 changed how a feature stores its geometry and reads
+0.1.0 files through `Document.migrate()`, while 0.3.0 only added a field and
+reads a 0.2.0 file without a step of its own.
+
+The first public release will have major version 1.
 
 ## Public releases (major version 1+)
 

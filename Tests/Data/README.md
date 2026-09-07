@@ -7,7 +7,9 @@ See `Docs/Persistence.md` for the formats themselves.
 Three of them are still written in **0.1.0**, where a feature stored a flat list of
 triangles and no geometry kind. They are the fixtures for `Document.migrate()`, which
 recovers the outline those triangles covered, so leave them as they are.
-`mixed_geometry.middle-earth` is written in **0.2.0**.
+`mixed_geometry.middle-earth` is written in **0.2.0**. None of them carries a
+`feature_type`, so all four are fixtures for what 0.3.0 does with an older file:
+every feature in one loads unclassified.
 
 Every polygon is wound counter-clockwise as seen from outside the sphere, which is what
 `Feature.ensure_front_winding` enforces on the triangles it derives and what both

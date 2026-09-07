@@ -1,6 +1,10 @@
 extends VBoxContainer
 class_name Features
 
+# Which of the edit commands can be run has changed. The toolbar is updated
+# here; the Edit menus carry the same commands and follow this.
+signal commands_changed()
+
 
 @onready var feature_tree: FeatureTree = $FeatureTree
 @onready var add_group_button: Button = $PanelContainer/Buttons/AddGroup
@@ -80,6 +84,7 @@ func update_button_availability() -> void:
 	cut_button.disabled = is_root_selected
 	duplicate_button.disabled = is_root_selected
 	detect_clipboard_content()
+	commands_changed.emit()
 
 
 func detect_clipboard_content() -> void:
@@ -240,6 +245,10 @@ func copy(node: Feature) -> void:
 	var json := JSON.stringify(data)
 	DisplayServer.clipboard_set(json)
 	update_button_availability()
+	# Windows can answer a read with the previous clipboard for a moment after a
+	# write, which would leave Paste greyed out on what was just copied, so ask
+	# again once this frame is over.
+	update_button_availability.call_deferred()
 
 
 func paste(parent: Feature, index: int = -1) -> void:
