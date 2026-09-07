@@ -6,12 +6,17 @@
 the file it came from and the undo stack. `Application` creates one and hands it
 to the `Features` panel, which edits that tree instead of holding one of its own.
 
-Two signals tell the rest of the window what happened:
+Three signals tell the rest of the window what happened:
 
 | Signal          | Emitted when                                    |
 | --------------- | ----------------------------------------------- |
 | `root_replaced` | The tree was rebuilt: by New, Open, undo or redo |
 | `state_changed` | The path, the dirty flag or the undo depth moved |
+| `time_changed`  | The current time moved                           |
+
+The document also owns the current time, which is not part of what it holds:
+moving it records no undo version and dirties nothing, and a file opens at the
+present whatever time was being looked at before. See [Time](Time.md).
 
 ### Unsaved changes
 
@@ -58,7 +63,7 @@ The file is a JSON object with three top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "features": { ... }
 }
 ```
@@ -83,6 +88,7 @@ groups and leaf features.
   "enabled": true,
   "is_group": true,
   "type": "Group",
+  "keyframes": [ ... ],
   "children": [ ... ]
 }
 ```
@@ -99,7 +105,7 @@ groups and leaf features.
   "color": [0.82, 0.41, 0.12, 1.0],
   "geometry_kind": "polygon",
   "rings": [[[45.0, 30.0], [46.0, 31.0], [45.0, 32.0]]],
-  "rotation": [0, 0, 0],
+  "keyframes": [{"time": 0.0, "rotation": [0, 0, 0]}],
   "time_range": [0, 2000]
 }
 ```
@@ -110,7 +116,14 @@ groups and leaf features.
 holds one array of `[latitude, longitude]` vertices per part. A ring is closed
 only for a polygon, and several rings on one polygon are separate outlines
 rather than holes. The vertices are in the frame of the feature itself, before
-`rotation` is applied.
+the rotation its keyframes give it at the current time is applied.
+
+`keyframes` is where the node is over time: a list of `{time, rotation}`,
+sorted with the youngest first, `time` an age in millions of years before
+present and `rotation` the three angles above. A group has them as well, and
+everything under it inherits its motion. The file is written at full float
+precision, so a keyframe time comes back as the exact time it was written at;
+see [Time](Time.md#precision).
 
 The triangles a polygon is filled with are not in the file. They are derived
 from the rings on load, so the file keeps the shape and not the way it happened
@@ -150,6 +163,17 @@ a feature without the key loads as `unclassified`, which is the type that allows
 every geometry kind, so a 0.2.0 file arrives whole and nothing in it is
 reclassified by guesswork.
 
+#### 0.3.0 to 0.4.0
+
+Up to 0.3.0 a leaf carried one `rotation` and nothing moved in time. 0.4.0
+keeps `keyframes` instead, on groups as well as on leaves.
+
+The migration turns the one rotation into the keyframe at time zero: the
+present, which is where a file written before this was drawn. A feature that
+came in this way behaves as it did before the phase, because one keyframe holds
+at every time. A group had no rotation to carry over and arrives without
+keyframes, standing still until someone moves it.
+
 ## The config file
 
 `Logic/config.gd` keeps one JSON file per user, `%APPDATA%\MiddleEarth\config.json`,
@@ -164,6 +188,7 @@ more than the last change.
 | `window`                           | `x`, `y`, `width`, `height` and `maximized`          |
 | `splitter_left`, `splitter_right`  | The two split offsets                                |
 | `panel_features`, `panel_properties`, `panel_timeline`, `panel_status_bar` | Which panels are shown |
+| `animation`                        | The playback range, step, frame rate and the two switches |
 
 ### Recent files
 

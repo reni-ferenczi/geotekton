@@ -1,6 +1,7 @@
 # Testing
 
-The test suite has five modes. `Tests/run.py` starts all of them.
+The test suite has five modes, and one more that is run on purpose rather than
+on every change. `Tests/run.py` starts all of them.
 
 | Mode       | Command                       | What it covers                                            |
 | ---------- | ----------------------------- | --------------------------------------------------------- |
@@ -10,6 +11,7 @@ The test suite has five modes. `Tests/run.py` starts all of them.
 | `cli`      | `python Tests/run.py cli`      | What `--version` and `--help` print, from a headless start with no window. |
 | `golden`   | `uv run Tests/run.py golden`   | Full window screenshots diffed against reference images. |
 | `all`      | `uv run Tests/run.py all`      | All five in the order above, stopping at the first failure. |
+| `performance` | `uv run Tests/run.py performance` | The frame time during playback, on a document of a chosen triangle count. Not part of `all`. |
 
 `headless`, `rendered`, `session` and `cli` run under any Python 3.13 or newer. `golden`
 needs Pillow, so run it through `uv run`; under a plain interpreter without Pillow
@@ -19,6 +21,9 @@ mode, so `uv run` is the safe default.
 `headless` and `rendered` accept `--filter=SUBSTRING` to run only the test files
 whose name contains the substring, for example
 `python Tests/run.py headless --filter=rotation`.
+
+`performance` takes `--triangles=N` (default 5000) and `--budget=MS` (default
+one frame at 60 frames a second). See [Frame time](#frame-time).
 
 Set the `GODOT` environment variable to use an engine binary other than
 `C:\Tools\Godot\Godot_v4.6.2-stable_win64_console.exe`.
@@ -73,10 +78,19 @@ uv run Tests/golden.py check|update [--port N]
 `session.py` runs several scenarios against one launch of the application: the
 globe, which checks what is drawn and what a click selects; the document, which
 checks New, Open, Save, Save As, the unsaved changes prompt, the recent file list
-and a View toggle; drawing, one feature of each geometry kind; and the Properties
+and a View toggle; drawing, one feature of each geometry kind; the Properties
 panel, which checks what selecting a feature fills in, what an edit does to the
 tree row and the globe, what the document refuses, Duplicate and Delete from the
-right click menu on the globe, and the Edit menu running the same commands.
+right click menu on the globe, and the Edit menu running the same commands; and
+time, which moves a feature at two times and reads it back in between.
+
+The time scenario draws a triangle whose middle sits on the equator, so that
+turning it about the poles keeps it there and the path between two of its
+positions is a stretch of the equator itself. It is moved at one time and again
+at another, and halfway between them its middle is halfway along that stretch,
+with a pixel probe there showing the feature colour. Outside its time range the
+same probe shows the Earth, and widening the range brings it back, so the probe
+point is shown to be the right one either way.
 
 The Edit menu scenario copies a feature, so a run puts a `.middle-earth` feature
 on the clipboard of whoever is running it. A golden run empties it, for the same
@@ -102,6 +116,26 @@ scene.
 Points near the limb of the globe are lit at a glancing angle and read much
 darker than the colour the file asks for, so tests turn the globe to bring a
 probe point to the front before reading its pixel.
+
+## Frame time
+
+`uv run Tests/run.py performance` builds a document of a given triangle count,
+every feature of it moving between two keyframes, and reports the frame time
+twice: standing still, and playing the animation. Standing still comes first so
+that what playback adds can be told apart from what drawing that much geometry
+costs whether anything moves or not. The numbers come from the engine's own
+counters, never from how the animation looks.
+
+It is not part of `all`, because a frame time depends on the machine and on what
+else it is doing. The engine's processor time counter is not reported either:
+reading it is a request per frame, and the port traffic turned out larger than
+the work being measured.
+
+What it found on the development machine is in
+[Shader](Shader.md#measured): 60 frames a second holds to about 2,000
+triangles, playing costs almost nothing over standing still, and the limit is
+the per-fragment loop over the triangles rather than anything the time control
+does.
 
 ## Golden images
 
@@ -162,12 +196,18 @@ a round trip is also a wait for the screen to catch up.
 | `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets |
 | `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `enabled`, `time_from`, `time_to` |
 | `properties {button, part, index}`   | selects a vertex row and presses `Add` or `Remove` in the panel |
+| `keyframes {button, index}`          | selects a keyframe row and presses `Key` or `Delete` in the panel |
 | `get_tool`                           | `tool` (`move` or `draw`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, and how many vertices the shape being drawn holds |
 | `set_tool {tool, kind}`              | picks the tool and the geometry kind, refusing what the toolbar itself would not allow |
-| `get_time` / `set_time {time}`       | the timeline position                                            |
+| `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
+| `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the keyframe markers and the animation settings |
+| `timeline {button}`                  | presses a time control button: `Play`, `Pause`, `Reset`, `Older`, `Younger`, `Configure` |
+| `set_animation {animation}`          | changes the animation settings the dialog holds, refusing what cannot be played; only the keys given are changed |
+| `get_performance`                    | the frame rate, how much there is to draw, and whether it is playing |
 | `get_view` / `set_view {lat, lon, angle, fov, show_map}` | the globe orientation, camera and map toggle |
 | `mouse_move {x, y}`                  | moves the mouse                                                  |
 | `click {x, y, button, ctrl}`         | presses and releases a mouse button                              |
+| `press {x, y, button}` / `release {x, y, button}` | half a click each, so a drag can be scripted: press, `mouse_move`, release |
 | `key {key, ctrl, shift}`             | presses and releases a key                                       |
 | `latlon_to_screen {lat, lon}`        | `screen: [x, y]`, or `null` on the far side of the globe         |
 | `screen_to_latlon {x, y}`            | `latlon: [lat, lon]`, or `null` off the globe                    |
