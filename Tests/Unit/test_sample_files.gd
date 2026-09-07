@@ -1,16 +1,18 @@
 extends TestCase
 
 # The sample files in Tests/Data are the fixtures for the rendered tests.
-# Loading them here proves that the format is readable and that every craton is
-# wound so the shader's half-plane test finds it at the documented probe point.
-# Keep this table and Tests/Data/README.md in sync.
+# Loading them here proves that both file formats are readable and that every
+# feature is drawn where the shader's tests find it at the documented probe
+# point. Keep this table and Tests/Data/README.md in sync.
 
 const DATA_DIR := "res://Tests/Data"
 
-# file name -> { titles: every title in the tree, in depth-first order,
+# file name -> { version: the format the file is written in,
+#                titles: every title in the tree, in depth-first order,
 #                hits: probe point (latitude, longitude) -> expected feature title or "" }
 const EXPECTED := {
 	"triangle.middle-earth": {
+		"version": "0.1.0",
 		"titles": ["Planet", "Cratons", "Red Triangle"],
 		"hits": [
 			[Vector2(-3, 0), "Red Triangle"],
@@ -18,6 +20,7 @@ const EXPECTED := {
 		],
 	},
 	"two_cratons.middle-earth": {
+		"version": "0.1.0",
 		"titles": ["Planet", "Cratons", "Red Triangle", "Blue Quad", "Green Moved"],
 		"hits": [
 			[Vector2(-3, 0), "Red Triangle"],
@@ -27,9 +30,21 @@ const EXPECTED := {
 		],
 	},
 	"empty.middle-earth": {
+		"version": "0.1.0",
 		"titles": ["Planet"],
 		"hits": [
 			[Vector2(-3, 0), ""],
+			[Vector2(5, 40), ""],
+		],
+	},
+	"mixed_geometry.middle-earth": {
+		"version": "0.2.0",
+		"titles": ["Planet", "Shapes", "Red Triangle", "Blue Ridge", "Green Stations"],
+		"hits": [
+			[Vector2(-3, 0), "Red Triangle"],
+			[Vector2(0, 60), "Blue Ridge"],
+			[Vector2(-30, -30), "Green Stations"],
+			[Vector2(30, -30), "Green Stations"],
 			[Vector2(5, 40), ""],
 		],
 	},
@@ -64,10 +79,10 @@ func test_sample_files_load_and_hit_test() -> void:
 		assert_eq(", ".join(titles), ", ".join(EXPECTED[file_name]["titles"]),
 			"titles of %s" % file_name)
 
-		var triangles := Planet.collect_triangles(root)
+		var geometry := Planet.collect_geometry(root)
 		for probe in EXPECTED[file_name]["hits"]:
 			var point: Vector2 = probe[0]
-			var hit := Planet.hit_test_craton(point.x, point.y, triangles)
+			var hit := Planet.hit_test(point.x, point.y, geometry)
 			var title: String = "" if hit == null else hit.title
 			assert_eq(title, probe[1], "probe %s in %s" % [point, file_name])
 
@@ -85,11 +100,22 @@ func test_the_moved_craton_sits_where_the_rotation_puts_it() -> void:
 	if green == null:
 		return
 	assert_close(green.rotation_angles, Vector3(60, 0, 0), 1e-6)
-	var moved := Feature.apply_rotation([Vector2(-3, 0)] as Array[Vector2], green.rotation_angles)[0]
+	var moved := Feature.apply_rotation(PackedVector2Array([Vector2(-3, 0)]), green.rotation_angles)[0]
 	assert_close(moved, Vector2(-3, -60), 1e-4, "the documented green probe point")
 
 
-# Mirrors the checks in Document.load_from_file.
+func test_the_kinds_the_samples_hold() -> void:
+	var root := _load("%s/mixed_geometry.middle-earth" % DATA_DIR)
+	if root == null:
+		return
+	var kinds: Array[String] = []
+	for node in root.children[0].children:
+		kinds.append(str(Feature.KIND_NAMES[node.geometry_kind]))
+	assert_eq(", ".join(kinds), "polygon, polyline, multipoint",
+		"mixed_geometry.middle-earth covers all three kinds")
+
+
+# Mirrors the checks in Document.load_from_file, migration included.
 func _load(path: String) -> Feature:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
@@ -108,9 +134,10 @@ func _load(path: String) -> Feature:
 	if data.get("application", "") != "middle-earth":
 		fail("%s is not marked as a Middle-Earth file" % path)
 		return null
-	assert_eq(data.get("version", ""), "0.1.0", "file format version of %s" % path)
+	assert_eq(data.get("version", ""), EXPECTED[path.get_file()]["version"],
+		"file format version of %s" % path)
 
-	var root := Feature.from_json(data["features"])
+	var root := Feature.from_json(Document.migrate(data)["features"])
 	root.is_root = true
 	assert_eq(root.title, "Planet", "root group title of %s" % path)
 	assert_true(root.is_group, "the root of %s must be a group" % path)

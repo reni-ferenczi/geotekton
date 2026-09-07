@@ -40,6 +40,7 @@ const PANEL_KEYS := {
 @onready var planet_view: PlanetView = %PlanetView
 @onready var move_button: Button = %Move
 @onready var draw_button: Button = %Draw
+@onready var kind_selector: OptionButton = %GeometryKind
 @onready var menu_bar: MenuBar = %MenuBar
 @onready var left_splitter: HSplitContainer = %LeftSplitter
 @onready var right_splitter: HSplitContainer = %RightSplitter
@@ -54,7 +55,7 @@ const PANEL_KEYS := {
 var document := Document.new()
 
 var active_tool: Tool = Tool.MOVE
-var last_triangles: Array = []
+var last_geometry: Array = []
 var hovered_feature: Feature = null
 
 # True when the application must leave the settings of whoever is at the
@@ -110,6 +111,7 @@ func _ready() -> void:
 	# Connect tool buttons
 	move_button.pressed.connect(_on_move_pressed)
 	draw_button.pressed.connect(_on_draw_pressed)
+	_build_kind_selector()
 
 	# The Save and Load buttons of the feature tree toolbar run the File commands
 	features.save_button.pressed.connect(save_document)
@@ -347,7 +349,7 @@ func _remember_file(path: String) -> void:
 
 func _on_root_replaced() -> void:
 	set_active_tool(Tool.MOVE)
-	refresh_cratons()
+	refresh_geometry()
 
 
 func _update_document_labels() -> void:
@@ -603,10 +605,11 @@ func _on_feature_selected(node: Feature) -> void:
 
 	var is_leaf := node != null and not node.is_group
 	draw_button.disabled = not is_leaf
+	_update_kind_selector(node)
 
 	if is_leaf:
-		# Auto-select Draw if the feature has no craton (no vertices)
-		if node.vertices.is_empty():
+		# Auto-select Draw when the feature has no geometry yet
+		if not node.has_geometry():
 			set_active_tool(Tool.DRAW)
 	else:
 		# Can't draw on groups or nothing — force Move
@@ -614,7 +617,33 @@ func _on_feature_selected(node: Feature) -> void:
 			set_active_tool(Tool.MOVE)
 
 	_update_move_enabled()
-	refresh_cratons()
+	refresh_geometry()
+
+
+### Geometry kind
+
+
+# One entry per kind, with the kind itself as the item id.
+func _build_kind_selector() -> void:
+	kind_selector.clear()
+	for kind in Feature.KIND_NAMES:
+		kind_selector.add_item(str(Feature.KIND_NAMES[kind]).capitalize(), kind)
+	kind_selector.select(kind_selector.get_item_index(Feature.GeometryKind.POLYGON))
+	kind_selector.item_selected.connect(func(_index: int) -> void: _refresh_outline())
+	_update_kind_selector(null)
+
+
+# The kind the Draw tool will produce. A feature that already holds geometry
+# keeps its kind, so the selector then shows it and cannot be changed.
+func drawing_kind() -> Feature.GeometryKind:
+	return kind_selector.get_item_id(kind_selector.selected) as Feature.GeometryKind
+
+
+func _update_kind_selector(node: Feature) -> void:
+	var has_geometry := node != null and not node.is_group and node.has_geometry()
+	if has_geometry:
+		kind_selector.select(kind_selector.get_item_index(node.geometry_kind))
+	kind_selector.disabled = has_geometry or node == null or node.is_group
 
 
 ### Move tool
@@ -622,7 +651,7 @@ func _on_feature_selected(node: Feature) -> void:
 
 func _update_move_enabled() -> void:
 	var selected := features.feature_tree.get_selected_node()
-	var can_move := active_tool == Tool.MOVE and selected != null and not selected.is_group and not selected.vertices.is_empty()
+	var can_move := active_tool == Tool.MOVE and selected != null and not selected.is_group and selected.has_geometry()
 	planet_view.move_enabled = can_move
 
 
@@ -646,26 +675,34 @@ func _on_move_to(lat: float, lon: float) -> void:
 	var new_rot: Variant = Feature.compute_move_rotation(move_anchor_world, target_world, move_base_rot)
 	if new_rot != null:
 		selected.rotation_angles = new_rot
-		refresh_cratons()
+		refresh_geometry()
 
 
 func _on_move_ended() -> void:
 	document.record()
 	features.reload()
-	refresh_cratons()
+	refresh_geometry()
 
 
 func _on_move_cancelled() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	if selected != null and not selected.is_group:
 		selected.rotation_angles = move_base_rot
-	refresh_cratons()
+	refresh_geometry()
 
 
-### Drawing — Polygon outline mode
+### Drawing
 
 
-var outline_vertices: Array[Vector2] = []
+# The shape being drawn, in world space, before it is committed to a feature.
+var outline_vertices := PackedVector2Array()
+
+# How many vertices each kind needs before it can be committed.
+const MINIMUM_VERTICES := {
+	Feature.GeometryKind.POLYGON: 3,
+	Feature.GeometryKind.POLYLINE: 2,
+	Feature.GeometryKind.MULTIPOINT: 1,
+}
 
 
 func _on_planet_input_for_drawing(lat: float, lon: float, event: InputEvent) -> void:
@@ -683,7 +720,7 @@ func _on_planet_input_for_drawing(lat: float, lon: float, event: InputEvent) -> 
 		_refresh_outline()
 	elif event.button_index == MOUSE_BUTTON_RIGHT:
 		if not outline_vertices.is_empty():
-			outline_vertices.pop_back()
+			outline_vertices.remove_at(outline_vertices.size() - 1)
 			_refresh_outline()
 
 
@@ -702,153 +739,52 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func _outline_commit() -> void:
-	if outline_vertices.size() < 3:
-		return
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group:
 		return
+	var kind: Feature.GeometryKind = drawing_kind()
+	if outline_vertices.size() < int(MINIMUM_VERTICES[kind]):
+		return
 
-	var triangles := _ear_clip(outline_vertices)
+	# The vertices were clicked in world space; a feature keeps its own frame.
+	selected.add_ring(Feature.unapply_rotation(outline_vertices, selected.rotation_angles), kind)
 
-	# Ensure front-facing winding on world-space triangles before storing
-	for i in range(0, triangles.size() - 2, 3):
-		_ensure_front_winding(triangles, i)
-
-	# Convert from world space to local (unrotated) space
-	if not selected.rotation_angles.is_zero_approx():
-		triangles = Feature.unapply_rotation(triangles, selected.rotation_angles)
-
-	selected.vertices.append_array(triangles)
-
-	outline_vertices.clear()
-	_refresh_outline()
+	outline_vertices = PackedVector2Array()
 	document.record()
 	features.reload()
-	refresh_cratons()
+	refresh_geometry()
 	set_active_tool(Tool.MOVE)
 
 
 func _outline_cancel() -> void:
-	outline_vertices.clear()
+	outline_vertices = PackedVector2Array()
 	_refresh_selection_outline()
 
 
 func _refresh_outline() -> void:
-	planet_view.planet.set_outline(outline_vertices, outline_vertices.size() >= 3)
+	planet_view.planet.set_outline([{
+		"vertices": outline_vertices,
+		"style": _drawing_outline_style(),
+	}])
 
 
-### Ear-clipping triangulation
-
-
-static func _ear_clip(polygon: Array[Vector2]) -> Array[Vector2]:
-	var n := polygon.size()
-	if n < 3:
-		return []
-
-	var result: Array[Vector2] = []
-
-	# Build mutable index list
-	var idx: Array[int] = []
-	for i in range(n):
-		idx.append(i)
-
-	# Determine winding direction using signed area (shoelace formula)
-	var area := 0.0
-	for i in range(n):
-		var j := (i + 1) % n
-		area += polygon[i].x * polygon[j].y - polygon[j].x * polygon[i].y
-	var winding_sign := 1.0 if area > 0.0 else -1.0
-
-	var max_iterations := n * n
-	var iter := 0
-	var i := 0
-
-	while idx.size() > 3 and iter < max_iterations:
-		iter += 1
-		var sz := idx.size()
-		var prev := (i - 1 + sz) % sz
-		var next := (i + 1) % sz
-
-		var a := polygon[idx[prev]]
-		var b := polygon[idx[i]]
-		var c := polygon[idx[next]]
-
-		# Check if this vertex forms a convex ear (matches polygon winding)
-		var cross_val := (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
-		if cross_val * winding_sign <= 0.0:
-			i = (i + 1) % sz
-			continue
-
-		# Check no other polygon vertex falls inside this triangle
-		var is_ear := true
-		for k in range(sz):
-			if k == prev or k == i or k == next:
-				continue
-			if _point_in_triangle(polygon[idx[k]], a, b, c):
-				is_ear = false
-				break
-
-		if is_ear:
-			result.append(a)
-			result.append(b)
-			result.append(c)
-			idx.remove_at(i)
-			if i >= idx.size():
-				i = 0
-		else:
-			i = (i + 1) % idx.size()
-
-	# Output the final remaining triangle
-	if idx.size() == 3:
-		result.append(polygon[idx[0]])
-		result.append(polygon[idx[1]])
-		result.append(polygon[idx[2]])
-
-	return result
-
-
-static func _point_in_triangle(p: Vector2, a: Vector2, b: Vector2, c: Vector2) -> bool:
-	var d1 := (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y)
-	var d2 := (p.x - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y)
-	var d3 := (p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y)
-	var has_neg := (d1 < 0) or (d2 < 0) or (d3 < 0)
-	var has_pos := (d1 > 0) or (d2 > 0) or (d3 > 0)
-	return not (has_neg and has_pos)
-
-
-### Winding and coordinate helpers
-
-
-func _ensure_front_winding(verts: Array[Vector2], start: int) -> void:
-	var a := _latlon_to_xyz(verts[start])
-	var b := _latlon_to_xyz(verts[start + 1])
-	var c := _latlon_to_xyz(verts[start + 2])
-
-	var normal := (b - a).cross(c - a)
-	var center := (a + b + c) / 3.0
-
-	if normal.dot(center) < 0:
-		var tmp := verts[start + 1]
-		verts[start + 1] = verts[start + 2]
-		verts[start + 2] = tmp
-
-
-func _latlon_to_xyz(v: Vector2) -> Vector3:
-	var lat_rad := deg_to_rad(v.x)
-	var lon_rad := deg_to_rad(v.y)
-	var cos_lat := cos(lat_rad)
-	return Vector3(
-		cos_lat * cos(lon_rad),
-		sin(lat_rad),
-		cos_lat * sin(lon_rad)
-	)
+# How the shape being drawn is shown. A polygon gets a faint closing segment,
+# so it is clear that the shape is not finished; a multipoint gets markers only.
+func _drawing_outline_style() -> Planet.OutlineStyle:
+	match drawing_kind():
+		Feature.GeometryKind.MULTIPOINT:
+			return Planet.OutlineStyle.POINTS
+		Feature.GeometryKind.POLYGON:
+			if outline_vertices.size() >= 3:
+				return Planet.OutlineStyle.CLOSED_PREVIEW
+	return Planet.OutlineStyle.OPEN
 
 
 ### Craton interaction
 
 
 func _on_craton_clicked(lat: float, lon: float) -> void:
-	var hit := Planet.hit_test_craton(lat, lon, last_triangles)
+	var hit := Planet.hit_test(lat, lon, last_geometry)
 	var selected := features.feature_tree.get_selected_node()
 	print("Craton click: hit=%s (pnid=%d), selected=%s (pnid=%d)" % [
 		hit.title if hit else "null", hit.pnid if hit else -1,
@@ -864,34 +800,48 @@ func _on_craton_clicked(lat: float, lon: float) -> void:
 func _on_craton_hovered(lat: float, lon: float) -> void:
 	var new_hovered: Feature = null
 	if not is_nan(lat):
-		new_hovered = Planet.hit_test_craton(lat, lon, last_triangles)
+		new_hovered = Planet.hit_test(lat, lon, last_geometry)
 	if new_hovered != hovered_feature:
 		hovered_feature = new_hovered
-		planet_view.planet.set_cratons(last_triangles, hovered_feature)
+		planet_view.planet.set_geometry(last_geometry, hovered_feature)
 
 
-### Craton rendering
+### Geometry rendering
 
 
-func refresh_cratons() -> void:
-	last_triangles = Planet.collect_triangles(features.root)
-	planet_view.planet.set_cratons(last_triangles, hovered_feature)
+func refresh_geometry() -> void:
+	last_geometry = Planet.collect_geometry(features.root)
+	planet_view.planet.set_geometry(last_geometry, hovered_feature)
 	_refresh_selection_outline()
 
 
+# Trace the selected feature over the geometry: its rings, one outline part
+# each, in the same yellow the shape being drawn is shown in.
 func _refresh_selection_outline() -> void:
 	# Don't overwrite the drawing outline
 	if not outline_vertices.is_empty():
 		return
 	var selected := features.feature_tree.get_selected_node()
-	if selected != null and not selected.is_group and not selected.vertices.is_empty():
-		var verts := Feature.apply_rotation(selected.vertices, selected.rotation_angles)
-		planet_view.planet.set_outline(verts, false, true)
-	else:
-		var empty: Array[Vector2] = []
-		planet_view.planet.set_outline(empty)
+	if selected == null or selected.is_group or not selected.has_geometry():
+		planet_view.planet.set_outline([])
+		return
+
+	var style := Planet.OutlineStyle.OPEN
+	match selected.geometry_kind:
+		Feature.GeometryKind.POLYGON:
+			style = Planet.OutlineStyle.CLOSED
+		Feature.GeometryKind.MULTIPOINT:
+			style = Planet.OutlineStyle.POINTS
+
+	var parts: Array = []
+	for ring in selected.rings:
+		parts.append({
+			"vertices": Feature.apply_rotation(ring, selected.rotation_angles),
+			"style": style,
+		})
+	planet_view.planet.set_outline(parts)
 
 
 func _on_program_changed() -> void:
-	refresh_cratons()
+	refresh_geometry()
 

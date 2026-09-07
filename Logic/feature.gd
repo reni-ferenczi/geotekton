@@ -1,6 +1,22 @@
 class_name Feature
 
 
+# What the vertices of a feature describe. A feature holds one kind of
+# geometry; drawing a second shape on it adds another part of the same kind.
+enum GeometryKind { POLYGON, POLYLINE, MULTIPOINT }
+
+# The kind as it appears in a file, and back.
+const KIND_NAMES := {
+	GeometryKind.POLYGON: "polygon",
+	GeometryKind.POLYLINE: "polyline",
+	GeometryKind.MULTIPOINT: "multipoint",
+}
+const KIND_VALUES := {
+	"polygon": GeometryKind.POLYGON,
+	"polyline": GeometryKind.POLYLINE,
+	"multipoint": GeometryKind.MULTIPOINT,
+}
+
 # Node ID, unique only during the runtime of the application (not persisted)
 var pnid: int = -1
 
@@ -9,7 +25,6 @@ var title: String
 
 # Flags
 var enabled: bool = true
-var repeat: bool
 
 # Whether this is a group (container) or a leaf feature
 var is_group: bool
@@ -21,13 +36,20 @@ var is_root: bool
 
 # Feature-only fields
 var color: Color = Color.CHOCOLATE
-var invert: bool
-var single: bool
-var wrap_: bool
-var resize: int
 
-# Geographic data
-var vertices: Array[Vector2] = []
+# Geographic data. Each ring is a run of (latitude, longitude) vertices in
+# degrees, in the frame of the feature itself, before rotation_angles is
+# applied. What a ring means follows geometry_kind: a closed boundary for a
+# polygon, an open line for a polyline, a bag of separate points for a
+# multipoint. A feature may hold several rings; for a polygon those are
+# separate outlines rather than holes.
+var geometry_kind: GeometryKind = GeometryKind.POLYGON
+var rings: Array[PackedVector2Array] = []
+
+# Triangles covering the polygon rings, 3 vertices each, wound so that they face
+# outwards. Derived from rings by rebuild_triangles(), never read from a file.
+var triangles := PackedVector2Array()
+
 var rotation_angles: Vector3 = Vector3.ZERO
 var time_range: Vector2i = Vector2i(0, 2000)
 
@@ -61,6 +83,45 @@ func init_pnid():
 	next_pnid += 1
 
 
+### Geometry
+
+
+func has_geometry() -> bool:
+	for ring in rings:
+		if not ring.is_empty():
+			return true
+	return false
+
+
+func vertex_count() -> int:
+	var total := 0
+	for ring in rings:
+		total += ring.size()
+	return total
+
+
+# Recompute the cached triangles from the rings. Only a polygon has any; the
+# other kinds are drawn and hit tested from their vertices directly.
+func rebuild_triangles() -> void:
+	triangles = PackedVector2Array()
+	if geometry_kind != GeometryKind.POLYGON:
+		return
+	for ring in rings:
+		var ring_triangles := ear_clip(ring)
+		for i in range(0, ring_triangles.size() - 2, 3):
+			ensure_front_winding(ring_triangles, i)
+		triangles.append_array(ring_triangles)
+
+
+# Add one drawn shape to the feature, adopting the kind when it is the first.
+func add_ring(ring: PackedVector2Array, kind: GeometryKind) -> void:
+	if not has_geometry():
+		geometry_kind = kind
+		rings.clear()
+	rings.append(ring)
+	rebuild_triangles()
+
+
 ### Clone (preserves pnid) and Duplicate (new pnid)
 
 
@@ -69,16 +130,15 @@ func clone() -> Feature:
 	node.pnid = pnid
 	node.title = title
 	node.enabled = enabled
-	node.repeat = repeat
 	node.is_group = is_group
 	node.collapsed = collapsed
 	node.is_root = is_root
 	node.color = color
-	node.invert = invert
-	node.single = single
-	node.wrap_ = wrap_
-	node.resize = resize
-	node.vertices = vertices.duplicate()
+	node.geometry_kind = geometry_kind
+	for ring in rings:
+		node.rings.append(ring.duplicate())
+	# Copied rather than recomputed: every undo step clones the whole tree.
+	node.triangles = triangles.duplicate()
 	node.rotation_angles = rotation_angles
 	node.time_range = time_range
 	for child in children:
@@ -156,7 +216,6 @@ func to_json() -> Variant:
 	var data := {
 		"title": title,
 		"enabled": enabled,
-		"repeat": repeat,
 		"is_group": is_group,
 	}
 	if is_group:
@@ -168,11 +227,8 @@ func to_json() -> Variant:
 	else:
 		data["type"] = "Feature"
 		data["color"] = [color.r, color.g, color.b, color.a]
-		data["invert"] = invert
-		data["single"] = single
-		data["wrap"] = wrap_
-		data["resize"] = resize
-		data["vertices"] = _vertices_to_json()
+		data["geometry_kind"] = KIND_NAMES[geometry_kind]
+		data["rings"] = rings_to_json(rings)
 		data["rotation"] = [rotation_angles.x, rotation_angles.y, rotation_angles.z]
 		data["time_range"] = [time_range.x, time_range.y]
 	return data
@@ -183,7 +239,6 @@ static func from_json(data: Variant) -> Feature:
 	node.init_pnid()
 	node.title = data["title"]
 	node.enabled = data.get("enabled", true)
-	node.repeat = data.get("repeat", false)
 	node.is_group = data.get("is_group", data.get("type") == "Group")
 	if node.is_group:
 		node.collapsed = true
@@ -192,29 +247,128 @@ static func from_json(data: Variant) -> Feature:
 	else:
 		var c: Array = data.get("color", [0.82, 0.41, 0.12, 1.0])
 		node.color = Color(c[0], c[1], c[2], c[3])
-		node.invert = data.get("invert", false)
-		node.single = data.get("single", false)
-		node.wrap_ = data.get("wrap", false)
-		node.resize = data.get("resize", 0)
-		node._vertices_from_json(data.get("vertices", []))
-		var r: Array = data.get("rotation", data.get("position", [0, 0, 0]))
+		node.geometry_kind = KIND_VALUES.get(data.get("geometry_kind", "polygon"), GeometryKind.POLYGON)
+		node.rings = rings_from_json(data.get("rings", []))
+		node.rebuild_triangles()
+		var r: Array = data.get("rotation", [0, 0, 0])
 		node.rotation_angles = Vector3(r[0], r[1], r[2])
 		var tr: Array = data.get("time_range", [0, 2000])
 		node.time_range = Vector2i(tr[0], tr[1])
 	return node
 
 
-func _vertices_to_json() -> Array:
+static func rings_to_json(value: Array[PackedVector2Array]) -> Array:
 	var result: Array = []
-	for v in vertices:
-		result.append([v.x, v.y])
+	for ring in value:
+		var vertices: Array = []
+		for v in ring:
+			vertices.append([v.x, v.y])
+		result.append(vertices)
 	return result
 
 
-func _vertices_from_json(data: Array) -> void:
-	vertices.clear()
-	for v in data:
-		vertices.append(Vector2(v[0], v[1]))
+static func rings_from_json(data: Array) -> Array[PackedVector2Array]:
+	var result: Array[PackedVector2Array] = []
+	for ring_data in data:
+		var ring := PackedVector2Array()
+		for v in ring_data:
+			ring.append(Vector2(v[0], v[1]))
+		result.append(ring)
+	return result
+
+
+### Triangulation
+
+
+# Ear clipping in the (latitude, longitude) plane. Returns a flat list of
+# triangles, 3 vertices each, wound the same way as the polygon that went in.
+# Self-intersecting polygons are not supported.
+static func ear_clip(polygon: PackedVector2Array) -> PackedVector2Array:
+	var n := polygon.size()
+	var result := PackedVector2Array()
+	if n < 3:
+		return result
+
+	# Build mutable index list
+	var idx: Array[int] = []
+	for i in range(n):
+		idx.append(i)
+
+	# Determine winding direction using signed area (shoelace formula)
+	var area := 0.0
+	for i in range(n):
+		var j := (i + 1) % n
+		area += polygon[i].x * polygon[j].y - polygon[j].x * polygon[i].y
+	var winding_sign := 1.0 if area > 0.0 else -1.0
+
+	var max_iterations := n * n
+	var iter := 0
+	var i := 0
+
+	while idx.size() > 3 and iter < max_iterations:
+		iter += 1
+		var sz := idx.size()
+		var prev := (i - 1 + sz) % sz
+		var next := (i + 1) % sz
+
+		var a := polygon[idx[prev]]
+		var b := polygon[idx[i]]
+		var c := polygon[idx[next]]
+
+		# Check if this vertex forms a convex ear (matches polygon winding)
+		var cross_val := (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+		if cross_val * winding_sign <= 0.0:
+			i = (i + 1) % sz
+			continue
+
+		# Check no other polygon vertex falls inside this triangle
+		var is_ear := true
+		for k in range(sz):
+			if k == prev or k == i or k == next:
+				continue
+			if point_in_triangle(polygon[idx[k]], a, b, c):
+				is_ear = false
+				break
+
+		if is_ear:
+			result.append(a)
+			result.append(b)
+			result.append(c)
+			idx.remove_at(i)
+			if i >= idx.size():
+				i = 0
+		else:
+			i = (i + 1) % idx.size()
+
+	# Output the final remaining triangle
+	if idx.size() == 3:
+		result.append(polygon[idx[0]])
+		result.append(polygon[idx[1]])
+		result.append(polygon[idx[2]])
+
+	return result
+
+
+static func point_in_triangle(p: Vector2, a: Vector2, b: Vector2, c: Vector2) -> bool:
+	var d1 := (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y)
+	var d2 := (p.x - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y)
+	var d3 := (p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y)
+	var has_neg := (d1 < 0) or (d2 < 0) or (d3 < 0)
+	var has_pos := (d1 > 0) or (d2 > 0) or (d3 > 0)
+	return not (has_neg and has_pos)
+
+
+# Turn the triangle starting at index start so that it faces away from the
+# centre of the sphere, which is what the shader and the hit test require.
+static func ensure_front_winding(verts: PackedVector2Array, start: int) -> void:
+	var a := _latlon_to_xyz_s(verts[start])
+	var b := _latlon_to_xyz_s(verts[start + 1])
+	var c := _latlon_to_xyz_s(verts[start + 2])
+
+	if (b - a).cross(c - a).dot((a + b + c) / 3.0) < 0.0:
+		var tmp := verts[start + 1]
+		verts[start + 1] = verts[start + 2]
+		verts[start + 2] = tmp
 
 
 ### Rotation helpers
@@ -227,7 +381,7 @@ static func _build_rotation_basis(rot: Vector3) -> Basis:
 		* Basis(Vector3.BACK, deg_to_rad(rot.z))
 
 
-# Extract (α, β, γ) in degrees from M = Ry(α) * Rx(β) * Rz(γ)
+# Extract the three angles in degrees from M = Ry(alpha) * Rx(beta) * Rz(gamma)
 # Note: Godot Basis uses m[column][row], so standard M[row][col] = m[col][row]
 static func _decompose_rotation_degrees(m: Basis) -> Vector3:
 	var sin_beta := clampf(-m[2][1], -1.0, 1.0)
@@ -240,29 +394,29 @@ static func _decompose_rotation_degrees(m: Basis) -> Vector3:
 		alpha = atan2(m[2][0], m[2][2])
 		gamma = atan2(m[0][1], m[1][1])
 	else:
-		# Gimbal lock (β ≈ ±90°): set γ = 0, solve α
+		# Gimbal lock (beta near +-90 degrees): set gamma to 0 and solve alpha
 		gamma = 0.0
 		alpha = atan2(-m[0][2], m[0][0])
 
 	return Vector3(rad_to_deg(alpha), rad_to_deg(beta), rad_to_deg(gamma))
 
 
-static func apply_rotation(verts: Array[Vector2], rot: Vector3) -> Array[Vector2]:
+static func apply_rotation(verts: PackedVector2Array, rot: Vector3) -> PackedVector2Array:
 	if rot.is_zero_approx():
 		return verts
 	var m := _build_rotation_basis(rot)
-	var result: Array[Vector2] = []
+	var result := PackedVector2Array()
 	result.resize(verts.size())
 	for i in range(verts.size()):
 		result[i] = _xyz_to_latlon_s(m * _latlon_to_xyz_s(verts[i]))
 	return result
 
 
-static func unapply_rotation(verts: Array[Vector2], rot: Vector3) -> Array[Vector2]:
+static func unapply_rotation(verts: PackedVector2Array, rot: Vector3) -> PackedVector2Array:
 	if rot.is_zero_approx():
 		return verts
 	var m_inv := _build_rotation_basis(rot).transposed()
-	var result: Array[Vector2] = []
+	var result := PackedVector2Array()
 	result.resize(verts.size())
 	for i in range(verts.size()):
 		result[i] = _xyz_to_latlon_s(m_inv * _latlon_to_xyz_s(verts[i]))
