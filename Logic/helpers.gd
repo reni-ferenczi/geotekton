@@ -115,7 +115,7 @@ static func render_cell(color: Color) -> CachedGraphics:
 	if cached != null:
 		return cached
 
-	var image = Image.create(32, 32, false, Image.FORMAT_BPTC_RGBA)
+	var image = Image.create(32, 32, false, Image.FORMAT_RGBA8)
 	image.fill(color)
 
 	var graphics = CachedGraphics.new()
