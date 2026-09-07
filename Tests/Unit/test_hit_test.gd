@@ -1,11 +1,17 @@
 extends TestCase
 
-# Planet.collect_triangles and Planet.hit_test_craton, the CPU counterpart of the
-# craton shader. The winding must be counter-clockwise as seen from outside the
-# sphere, the same rule Application._ensure_front_winding enforces when drawing.
+# Planet.collect_geometry and Planet.hit_test, the CPU counterpart of the
+# geometry shader. A polygon is hit inside its triangles, which must be wound
+# counter-clockwise as seen from outside the sphere, the rule
+# Feature.ensure_front_winding enforces. A polyline and a multipoint are hit
+# within a tolerance of the line and of the marker.
 
 # Counter-clockwise from outside; see test_winding_matches_the_front_face_rule.
-const TRIANGLE: Array[Vector2] = [Vector2(-10, -10), Vector2(10, 0), Vector2(-10, 10)]
+static var TRIANGLE := PackedVector2Array([Vector2(-10, -10), Vector2(10, 0), Vector2(-10, 10)])
+
+# A line along the equator and a pair of separate points.
+static var LINE := PackedVector2Array([Vector2(0, 0), Vector2(0, 30)])
+static var POINTS := PackedVector2Array([Vector2(45, 45), Vector2(-45, -45)])
 
 
 func test_winding_matches_the_front_face_rule() -> void:
@@ -17,47 +23,81 @@ func test_winding_matches_the_front_face_rule() -> void:
 
 func test_hit_inside_and_miss_outside() -> void:
 	var feature := _make_feature("Craton", Color.RED, Vector3.ZERO)
-	var triangles := Planet.collect_triangles(_make_root([feature]))
-	assert_eq(triangles.size(), 1, "one triangle is collected")
-	assert_eq(triangles[0]["color"], Color.RED)
-	assert_eq(Planet.hit_test_craton(0, 0, triangles), feature, "the centre is inside")
-	assert_eq(Planet.hit_test_craton(40, 40, triangles), null, "a far away point misses")
+	var geometry := Planet.collect_geometry(_make_root([feature]))
+	assert_eq(geometry.size(), 1, "one triangle is collected")
+	assert_eq(geometry[0]["kind"], Planet.Primitive.TRIANGLE)
+	assert_eq(geometry[0]["color"], Color.RED)
+	assert_eq(Planet.hit_test(0, 0, geometry), feature, "the centre is inside")
+	assert_eq(Planet.hit_test(40, 40, geometry), null, "a far away point misses")
+
+
+func test_a_polyline_is_collected_as_segments_and_hit_within_the_tolerance() -> void:
+	var feature := _make_feature("Ridge", Color.BLUE, Vector3.ZERO, LINE, Feature.GeometryKind.POLYLINE)
+	var geometry := Planet.collect_geometry(_make_root([feature]))
+	assert_eq(geometry.size(), 1, "two vertices make one segment")
+	assert_eq(geometry[0]["kind"], Planet.Primitive.SEGMENT)
+
+	assert_eq(Planet.hit_test(0, 15, geometry), feature, "the middle of the line is a hit")
+	assert_eq(Planet.hit_test(0, 0, geometry), feature, "an end of the line is a hit")
+
+	# The tolerance is a chord length on the unit sphere; one degree is 0.0175.
+	var inside := rad_to_deg(Planet.LINE_HIT_WIDTH) * 0.5
+	assert_eq(Planet.hit_test(inside, 15, geometry), feature,
+		"%s degrees off the line is still a hit" % inside)
+	var outside := rad_to_deg(Planet.LINE_HIT_WIDTH) * 2.0
+	assert_eq(Planet.hit_test(outside, 15, geometry), null,
+		"%s degrees off the line misses" % outside)
+	assert_eq(Planet.hit_test(0, 50, geometry), null, "past the end of the line misses")
+
+
+func test_a_multipoint_is_hit_on_its_vertices() -> void:
+	var feature := _make_feature("Stations", Color.GREEN, Vector3.ZERO, POINTS, Feature.GeometryKind.MULTIPOINT)
+	var geometry := Planet.collect_geometry(_make_root([feature]))
+	assert_eq(geometry.size(), 2, "one marker per vertex")
+	assert_eq(geometry[0]["kind"], Planet.Primitive.POINT)
+
+	for point in POINTS:
+		assert_eq(Planet.hit_test(point.x, point.y, geometry), feature,
+			"the marker at %s is a hit" % point)
+	assert_eq(Planet.hit_test(0, 0, geometry), null, "between the markers is a miss")
 
 
 func test_disabled_features_are_not_collected() -> void:
 	var feature := _make_feature("Craton", Color.RED, Vector3.ZERO)
 	feature.enabled = false
-	assert_eq(Planet.collect_triangles(_make_root([feature])).size(), 0)
+	assert_eq(Planet.collect_geometry(_make_root([feature])).size(), 0)
 
 
 func test_rotated_feature_is_hit_at_the_rotated_location() -> void:
 	var rotation := Vector3(90, 0, 0)
 	var feature := _make_feature("Craton", Color.RED, rotation)
-	var triangles := Planet.collect_triangles(_make_root([feature]))
+	var geometry := Planet.collect_geometry(_make_root([feature]))
 
-	var moved := Feature.apply_rotation([Vector2(0, 0)] as Array[Vector2], rotation)[0]
+	var moved := Feature.apply_rotation(PackedVector2Array([Vector2(0, 0)]), rotation)[0]
 	assert_close(moved, Vector2(0, -90), 1e-4,
 		"a positive rotation around Y decreases the longitude")
-	assert_eq(Planet.hit_test_craton(moved.x, moved.y, triangles), feature,
+	assert_eq(Planet.hit_test(moved.x, moved.y, geometry), feature,
 		"the craton is hit at its rotated position")
-	assert_eq(Planet.hit_test_craton(0, 0, triangles), null,
+	assert_eq(Planet.hit_test(0, 0, geometry), null,
 		"the craton is no longer at its unrotated position")
 
 
 func test_overlapping_features_resolve_to_the_first_child() -> void:
-	# collect_triangles walks the tree with a stack, so the last child ends up
-	# first in the array, and hit_test_craton scans the array backwards.
+	# collect_geometry walks the tree with a stack, so the last child ends up
+	# first in the array, and hit_test scans the array backwards.
 	# The first child of the group therefore wins an overlap.
 	var first := _make_feature("First", Color.RED, Vector3.ZERO)
 	var second := _make_feature("Second", Color.BLUE, Vector3.ZERO)
-	var triangles := Planet.collect_triangles(_make_root([first, second]))
-	assert_eq(triangles.size(), 2)
-	assert_eq(Planet.hit_test_craton(0, 0, triangles), first)
+	var geometry := Planet.collect_geometry(_make_root([first, second]))
+	assert_eq(geometry.size(), 2)
+	assert_eq(Planet.hit_test(0, 0, geometry), first)
 
 
-func _make_feature(title: String, color: Color, rotation: Vector3) -> Feature:
+func _make_feature(title: String, color: Color, rotation: Vector3,
+		ring: PackedVector2Array = TRIANGLE,
+		kind: Feature.GeometryKind = Feature.GeometryKind.POLYGON) -> Feature:
 	var feature := Feature.create_feature(title, color)
-	feature.vertices = TRIANGLE.duplicate()
+	feature.add_ring(ring.duplicate(), kind)
 	feature.rotation_angles = rotation
 	return feature
 
@@ -72,8 +112,8 @@ func _make_root(features: Array) -> Feature:
 	return root
 
 
-# The rule from Application._ensure_front_winding: the triangle normal must point away
-# from the centre of the sphere.
+# The rule from Feature.ensure_front_winding: the triangle normal must point
+# away from the centre of the sphere.
 func _is_front_facing(a: Vector2, b: Vector2, c: Vector2) -> bool:
 	var pa := Feature._latlon_to_xyz_s(a)
 	var pb := Feature._latlon_to_xyz_s(b)

@@ -13,20 +13,52 @@ func test_round_trip_keeps_every_field() -> void:
 	_assert_same_tree(original, restored, "root")
 
 
+func test_every_geometry_kind_survives_the_round_trip() -> void:
+	for kind in Feature.KIND_NAMES:
+		var original := Feature.create_feature("Shape")
+		original.add_ring(PackedVector2Array([
+			Vector2(0, 0), Vector2(0, 10), Vector2(10, 10)]), kind)
+		var restored := Feature.from_json(JSON.parse_string(JSON.stringify(original.to_json())))
+		assert_eq(restored.geometry_kind, kind, "the kind of a %s" % Feature.KIND_NAMES[kind])
+		assert_eq(restored.rings, original.rings, "the rings of a %s" % Feature.KIND_NAMES[kind])
+		assert_eq(restored.triangles, original.triangles,
+			"the triangles of a %s are derived again on load" % Feature.KIND_NAMES[kind])
+
+
+func test_a_polygon_of_several_rings_survives_the_round_trip() -> void:
+	var original := Feature.create_feature("Two Islands")
+	original.add_ring(PackedVector2Array([
+		Vector2(0, 0), Vector2(0, 10), Vector2(10, 10)]), Feature.GeometryKind.POLYGON)
+	original.add_ring(PackedVector2Array([
+		Vector2(-30, -30), Vector2(-30, -20), Vector2(-20, -20), Vector2(-20, -30)]),
+		Feature.GeometryKind.POLYGON)
+
+	var restored := Feature.from_json(JSON.parse_string(JSON.stringify(original.to_json())))
+	assert_eq(restored.rings.size(), 2, "both rings come back")
+	assert_eq(restored.rings, original.rings, "with their vertices unchanged")
+	assert_eq(restored.triangles.size(), 3 * 3, "one triangle and two, derived on load")
+
+
 func test_leaf_without_optional_keys_gets_defaults() -> void:
 	var leaf := Feature.from_json({"title": "Bare", "type": "Feature"})
 	assert_eq(leaf.title, "Bare")
 	assert_eq(leaf.is_group, false)
 	assert_eq(leaf.enabled, true)
-	assert_eq(leaf.repeat, false)
 	assert_close(leaf.color, Color(0.82, 0.41, 0.12, 1.0), 1e-6, "default chocolate color")
-	assert_eq(leaf.invert, false)
-	assert_eq(leaf.single, false)
-	assert_eq(leaf.wrap_, false)
-	assert_eq(leaf.resize, 0)
-	assert_eq(leaf.vertices.size(), 0)
+	assert_eq(leaf.geometry_kind, Feature.GeometryKind.POLYGON)
+	assert_eq(leaf.rings.size(), 0)
+	assert_eq(leaf.triangles.size(), 0)
+	assert_eq(leaf.has_geometry(), false)
 	assert_eq(leaf.rotation_angles, Vector3.ZERO)
 	assert_eq(leaf.time_range, Vector2i(0, 2000))
+
+
+func test_the_rule_editor_switches_are_gone() -> void:
+	# 0.1.0 carried invert, single, wrap, resize and repeat, which nothing read.
+	# A file that still holds them loads without them, see Tests/test_migration.gd.
+	var data: Dictionary = _build_tree().children[0].children[0].to_json()
+	for key in ["invert", "single", "wrap", "resize", "repeat"]:
+		assert_true(not data.has(key), "a saved feature must no longer carry %s" % key)
 
 
 func test_clone_keeps_pnid_and_duplicate_assigns_new_ones() -> void:
@@ -58,22 +90,24 @@ func _build_tree() -> Feature:
 	root.children.append(group)
 
 	var laurentia := Feature.create_feature("Laurentia", Color(0.25, 0.5, 0.75, 1.0))
-	laurentia.vertices = [Vector2(-10, -10), Vector2(10, 0), Vector2(-10, 10)]
+	laurentia.add_ring(PackedVector2Array([
+		Vector2(-10, -10), Vector2(10, 0), Vector2(-10, 10)]), Feature.GeometryKind.POLYGON)
 	laurentia.rotation_angles = Vector3(30, -20, 10)
 	laurentia.time_range = Vector2i(540, 1800)
 	group.children.append(laurentia)
 
-	var baltica := Feature.create_feature("Baltica", Color(0.9, 0.1, 0.4, 0.5))
-	baltica.vertices = [Vector2(20, 30), Vector2(40, 30), Vector2(40, 60)]
-	baltica.rotation_angles = Vector3(-120, 45, 0)
-	baltica.time_range = Vector2i(0, 750)
-	baltica.enabled = false
-	baltica.repeat = true
-	baltica.invert = true
-	baltica.single = true
-	baltica.wrap_ = true
-	baltica.resize = 3
-	group.children.append(baltica)
+	var ridge := Feature.create_feature("Ridge", Color(0.9, 0.1, 0.4, 0.5))
+	ridge.add_ring(PackedVector2Array([
+		Vector2(20, 30), Vector2(40, 30), Vector2(40, 60)]), Feature.GeometryKind.POLYLINE)
+	ridge.rotation_angles = Vector3(-120, 45, 0)
+	ridge.time_range = Vector2i(0, 750)
+	ridge.enabled = false
+	group.children.append(ridge)
+
+	var stations := Feature.create_feature("Stations", Color(0.1, 0.8, 0.2, 1.0))
+	stations.add_ring(PackedVector2Array([Vector2(0, 0), Vector2(5, 5)]),
+		Feature.GeometryKind.MULTIPOINT)
+	group.children.append(stations)
 
 	return root
 
@@ -81,7 +115,6 @@ func _build_tree() -> Feature:
 func _assert_same_tree(a: Feature, b: Feature, path: String) -> void:
 	assert_eq(a.title, b.title, "%s title" % path)
 	assert_eq(a.enabled, b.enabled, "%s enabled" % path)
-	assert_eq(a.repeat, b.repeat, "%s repeat" % path)
 	assert_eq(a.is_group, b.is_group, "%s is_group" % path)
 	if a.is_group:
 		assert_eq(a.children.size(), b.children.size(), "%s child count" % path)
@@ -89,10 +122,8 @@ func _assert_same_tree(a: Feature, b: Feature, path: String) -> void:
 			_assert_same_tree(a.children[i], b.children[i], "%s/%d" % [path, i])
 		return
 	assert_close(a.color, b.color, 1e-6, "%s color" % path)
-	assert_eq(a.invert, b.invert, "%s invert" % path)
-	assert_eq(a.single, b.single, "%s single" % path)
-	assert_eq(a.wrap_, b.wrap_, "%s wrap" % path)
-	assert_eq(a.resize, b.resize, "%s resize" % path)
-	assert_eq(a.vertices, b.vertices, "%s vertices" % path)
+	assert_eq(a.geometry_kind, b.geometry_kind, "%s geometry kind" % path)
+	assert_eq(a.rings, b.rings, "%s rings" % path)
+	assert_eq(a.triangles, b.triangles, "%s triangles" % path)
 	assert_close(a.rotation_angles, b.rotation_angles, 1e-6, "%s rotation" % path)
 	assert_eq(a.time_range, b.time_range, "%s time range" % path)

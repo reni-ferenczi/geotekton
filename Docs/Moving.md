@@ -2,9 +2,9 @@
 
 ## Overview
 
-Moving a craton rotates its vertices on the sphere rather than shifting lat/lon values directly. This preserves shape at all latitudes — direct lat/lon translation distorts shapes near the poles.
+Moving a feature rotates its vertices on the sphere rather than shifting lat/lon values directly. This preserves shape at all latitudes — direct lat/lon translation distorts shapes near the poles.
 
-Each leaf feature stores `rotation_angles: Vector3` (degrees) alongside its original `vertices: Array[Vector2]`. The vertices are never modified during a move; only `rotation_angles` changes.
+Each leaf feature stores `rotation_angles: Vector3` (degrees) alongside the `rings` its geometry is made of. The rings are never modified during a move; only `rotation_angles` changes.
 
 ---
 

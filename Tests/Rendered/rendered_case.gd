@@ -29,7 +29,7 @@ func look_at_latlon(lat: float, lon: float) -> void:
 func load_sample(file_name: String) -> void:
 	var path := ProjectSettings.globalize_path("%s/%s" % [DATA_DIR, file_name])
 	app.document.load_from_file(path)
-	app.refresh_cratons()
+	app.refresh_geometry()
 	await frames(2)
 
 

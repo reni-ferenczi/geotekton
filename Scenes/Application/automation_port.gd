@@ -281,6 +281,36 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				return {"ok": false, "error": "failed to save %s (error %d)" % [path, error]}
 			return {"ok": true, "path": path, "size": [image.get_width(), image.get_height()]}
 
+		"get_tool":
+			return {"ok": true,
+				"tool": "draw" if app.active_tool == Application.Tool.DRAW else "move",
+				"kind": Feature.KIND_NAMES[app.drawing_kind()],
+				"kind_locked": app.kind_selector.disabled,
+				"drawing_vertices": app.outline_vertices.size()}
+
+		"set_tool":
+			# Only what the toolbar itself allows: no drawing without a leaf
+			# feature, and no change of kind once the feature holds geometry.
+			var tool_name := str(request.get("tool", ""))
+			if tool_name == "draw":
+				if app.draw_button.disabled:
+					return {"ok": false, "error": "the Draw tool needs a feature selected"}
+				app.set_active_tool(Application.Tool.DRAW)
+			elif tool_name == "move":
+				app.set_active_tool(Application.Tool.MOVE)
+			elif not tool_name.is_empty():
+				return {"ok": false, "error": "unknown tool: %s" % tool_name}
+			if request.has("kind"):
+				var kind_name := str(request["kind"])
+				if not Feature.KIND_VALUES.has(kind_name):
+					return {"ok": false, "error": "unknown geometry kind: %s" % kind_name}
+				if app.kind_selector.disabled:
+					return {"ok": false, "error": "the geometry kind cannot be changed now"}
+				app.kind_selector.select(app.kind_selector.get_item_index(Feature.KIND_VALUES[kind_name]))
+				app.kind_selector.item_selected.emit(app.kind_selector.selected)
+			await _frames(2)
+			return {"ok": true}
+
 		"quit":
 			quitting = true
 			return {"ok": true}
@@ -399,18 +429,23 @@ func _find_by_title(node: Feature, title: String) -> Feature:
 func _feature_to_json(feature: Feature) -> Variant:
 	if feature == null:
 		return null
+	var world_rings: Array[PackedVector2Array] = []
+	for ring in feature.rings:
+		world_rings.append(Feature.apply_rotation(ring, feature.rotation_angles))
 	return {
 		"pnid": feature.pnid,
 		"title": feature.title,
 		"is_group": feature.is_group,
 		"color": [feature.color.r, feature.color.g, feature.color.b, feature.color.a],
 		"rotation": [feature.rotation_angles.x, feature.rotation_angles.y, feature.rotation_angles.z],
-		"vertices": _vertices_to_json(feature.vertices),
-		"world_vertices": _vertices_to_json(Feature.apply_rotation(feature.vertices, feature.rotation_angles)),
+		"geometry_kind": Feature.KIND_NAMES[feature.geometry_kind],
+		"rings": Feature.rings_to_json(feature.rings),
+		"world_rings": Feature.rings_to_json(world_rings),
+		"triangles": _vertices_to_json(feature.triangles),
 	}
 
 
-func _vertices_to_json(vertices: Array[Vector2]) -> Array:
+func _vertices_to_json(vertices: PackedVector2Array) -> Array:
 	var list: Array = []
 	for v in vertices:
 		list.append([v.x, v.y])

@@ -49,14 +49,10 @@ func load_group(parent: TreeItem, group: Feature, enabled: bool):
 		item.set_tooltip_text(0, "[%d]" % group.pnid)
 
 	if not group.is_root:
-		var disabled := not group.enabled
+		# The spacer lines the enable button up with the one on a feature row,
+		# which has the colour swatch in front of it.
 		item.add_button(0, empty_icon, -1, true)
 		item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_ENABLE + int(group.enabled), not group.enabled, group.enabled), 2, false, "Enable this group")
-		item.add_button(0, empty_icon, -1, true)
-		item.add_button(0, empty_icon, -1, true)
-		item.add_button(0, empty_icon, -1, true)
-		item.add_button(0, empty_icon, -1, true)
-		item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_REPEAT, group.repeat, group.enabled), 7, disabled, "Repeat until there is no change")
 
 	for child in group.children:
 		if child.is_group:
@@ -77,14 +73,8 @@ func load_feature(parent: TreeItem, feature: Feature):
 	if Application.DEBUG:
 		item.set_tooltip_text(0, "[%d]" % feature.pnid)
 
-	var disabled := not feature.enabled
-	item.add_button(0, Helpers.render_cell(feature.color).texture, 1, disabled, "Color")
+	item.add_button(0, Helpers.render_cell(feature.color).texture, 1, not feature.enabled, "Color")
 	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_ENABLE + int(feature.enabled), not feature.enabled, feature.enabled), 2, false, "Enable this feature")
-	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_INVERT, feature.invert, feature.enabled), 3, disabled, "Invert the match")
-	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_SINGLE, feature.single, feature.enabled), 4, disabled, "Single match")
-	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_WRAP, feature.wrap_, feature.enabled), 5, disabled, "Wrap around the edges")
-	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_RESIZE + feature.resize, feature.resize != 0, feature.enabled), 6, disabled, "Keep the same size, crop or pad")
-	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_REPEAT, feature.repeat, feature.enabled), 7, disabled, "Repeat until there is no change")
 
 
 ### Selection
@@ -276,16 +266,6 @@ func _on_button_clicked(item: TreeItem, _column: int, id: int, mouse_button_inde
 			on_output_clicked(node, mouse_button_index)
 		2:
 			on_enabled_clicked(node)
-		3:
-			on_invert_clicked(node)
-		4:
-			on_single_clicked(node)
-		5:
-			on_wrap_clicked(node)
-		6:
-			on_resize_clicked(node)
-		7:
-			on_repeat_clicked(node)
 
 
 func on_output_clicked(node: Feature, mouse_button_index):
@@ -316,35 +296,6 @@ func on_enabled_clicked(node: Feature):
 	node.enabled = not node.enabled
 	if node.is_group and not node.enabled:
 		node.collapsed = true
-	program_changed.emit()
-
-
-func on_invert_clicked(node: Feature):
-	if not node.is_group:
-		node.invert = not node.invert
-		program_changed.emit()
-
-
-func on_single_clicked(node: Feature):
-	if not node.is_group:
-		node.single = not node.single
-		program_changed.emit()
-
-
-func on_wrap_clicked(node: Feature):
-	if not node.is_group:
-		node.wrap_ = not node.wrap_
-		program_changed.emit()
-
-
-func on_resize_clicked(node: Feature):
-	if not node.is_group:
-		node.resize = (node.resize + 1) % 3
-		program_changed.emit()
-
-
-func on_repeat_clicked(node: Feature):
-	node.repeat = not node.repeat
 	program_changed.emit()
 
 
