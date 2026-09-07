@@ -57,6 +57,16 @@ func _on_planet_input_event_outside(event: InputEvent) -> void:
 		print("Outside click: x=%+d, y=%+d" % [roundi(p.x), roundi(p.y)])
 
 
+# The background behind the globe reports the pointer as long as it is in the
+# window, so moving off a craton ends the hover by itself there. Nothing
+# reports it once the pointer is out of the window or over another one, and the
+# view is what learns that, so end the hover here too. Without it the craton the
+# pointer left stays highlighted until it comes back.
+func _on_mouse_exited() -> void:
+	craton_hovered.emit(NAN, NAN)
+	cursor_moved.emit(NAN, NAN)
+
+
 func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> void:
 	if is_moving:
 		if event is InputEventMouseMotion and not move_rotating:
