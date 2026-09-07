@@ -22,6 +22,7 @@ static var file_dialog_hook: Callable
 enum Tool { MOVE, DRAW }
 
 enum FileItem { NEW, OPEN, SAVE, SAVE_AS, PREFERENCES, QUIT }
+enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, STATUS_BAR, FULL_SCREEN }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
@@ -44,7 +45,7 @@ const PANEL_KEYS := {
 @onready var menu_bar: MenuBar = %MenuBar
 @onready var left_splitter: HSplitContainer = %LeftSplitter
 @onready var right_splitter: HSplitContainer = %RightSplitter
-@onready var properties: Control = %Properties
+@onready var properties: Properties = %Properties
 @onready var timeline: Timeline = %Timeline
 @onready var status_bar: Control = %StatusBar
 @onready var status_coordinates: Label = %StatusCoordinates
@@ -66,8 +67,11 @@ var isolated: bool = false
 
 var file_menu: PopupMenu
 var recent_menu: PopupMenu
+var edit_menu: PopupMenu
 var view_menu: PopupMenu
 var help_menu: PopupMenu
+# The Edit commands again, on a right click on the globe.
+var globe_menu: PopupMenu
 var save_prompt: ConfirmationDialog
 var about_dialog: AcceptDialog
 var preferences_dialog: AcceptDialog
@@ -102,8 +106,16 @@ func _ready() -> void:
 		Config.clear()
 
 	features.attach(document)
+	properties.attach(document)
+	properties.edited.connect(_on_properties_edited)
+	properties.previewed.connect(refresh_geometry)
+	properties.rejected.connect(_show_error)
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
+	# The Edit menus offer what the feature tree toolbar offers, so they follow
+	# the same signal: the undo depth, the selection and the clipboard all reach
+	# it, which a copy that records no undo version otherwise would not.
+	features.commands_changed.connect(_update_edit_menu)
 
 	_build_menus()
 	_build_dialogs()
@@ -135,6 +147,7 @@ func _ready() -> void:
 
 	# Connect craton interaction signals
 	planet_view.craton_clicked.connect(_on_craton_clicked)
+	planet_view.craton_context_menu.connect(_on_craton_context_menu)
 	planet_view.craton_hovered.connect(_on_craton_hovered)
 	planet_view.cursor_moved.connect(_on_cursor_moved)
 
@@ -175,6 +188,19 @@ func _build_menus() -> void:
 	file_menu.add_item("Quit", FileItem.QUIT, KEY_MASK_CTRL | KEY_Q)
 	file_menu.id_pressed.connect(_on_file_menu_id_pressed)
 
+	edit_menu = _add_menu("Edit")
+	_add_edit_items(edit_menu)
+	edit_menu.id_pressed.connect(_on_edit_menu_id_pressed)
+
+	# The same commands on a right click on the globe, without the accelerators,
+	# which belong to the menu bar and would fire twice from two menus.
+	globe_menu = PopupMenu.new()
+	globe_menu.name = "GlobeMenu"
+	globe_menu.add_item("Duplicate", EditItem.DUPLICATE)
+	globe_menu.add_item("Delete", EditItem.DELETE)
+	globe_menu.id_pressed.connect(_on_edit_menu_id_pressed)
+	add_child(globe_menu)
+
 	view_menu = _add_menu("View")
 	view_menu.add_check_item("Features", ViewItem.FEATURES)
 	view_menu.add_check_item("Properties", ViewItem.PROPERTIES)
@@ -191,6 +217,19 @@ func _build_menus() -> void:
 
 	_rebuild_recent_menu()
 	_update_view_menu_checks()
+	_update_edit_menu()
+
+
+func _add_edit_items(menu: PopupMenu) -> void:
+	menu.add_item("Undo", EditItem.UNDO, KEY_MASK_CTRL | KEY_Z)
+	menu.add_item("Redo", EditItem.REDO, KEY_MASK_CTRL | KEY_Y)
+	menu.add_separator()
+	menu.add_item("Cut", EditItem.CUT, KEY_MASK_CTRL | KEY_X)
+	menu.add_item("Copy", EditItem.COPY, KEY_MASK_CTRL | KEY_C)
+	menu.add_item("Paste", EditItem.PASTE, KEY_MASK_CTRL | KEY_V)
+	menu.add_separator()
+	menu.add_item("Duplicate", EditItem.DUPLICATE, KEY_MASK_CTRL | KEY_D)
+	menu.add_item("Delete", EditItem.DELETE, KEY_DELETE)
 
 
 func _add_menu(title: String) -> PopupMenu:
@@ -222,6 +261,42 @@ func _on_file_menu_id_pressed(id: int) -> void:
 		FileItem.SAVE_AS: save_document_as()
 		FileItem.PREFERENCES: show_preferences()
 		FileItem.QUIT: quit_application()
+
+
+func _on_edit_menu_id_pressed(id: int) -> void:
+	var selected := features.feature_tree.get_selected_node()
+	match id:
+		EditItem.UNDO: features.undo()
+		EditItem.REDO: features.redo()
+		EditItem.CUT: features._on_cut_pressed()
+		EditItem.COPY: features._on_copy_pressed()
+		EditItem.PASTE: features._on_paste_pressed()
+		EditItem.DUPLICATE: features.duplicate_node(selected)
+		EditItem.DELETE: features.delete_node(selected)
+
+
+# What the Edit menus offer, following the feature tree toolbar. The globe menu
+# holds two of the same items, so it is updated from here as well.
+func _update_edit_menu() -> void:
+	if edit_menu == null:
+		return
+	var selected := features.feature_tree.get_selected_node()
+	var is_node := selected != null and not selected.is_root
+	var pasteable := Document.APPLICATION in DisplayServer.clipboard_get()
+	var disabled := {
+		EditItem.UNDO: not document.can_undo(),
+		EditItem.REDO: not document.can_redo(),
+		EditItem.CUT: not is_node,
+		EditItem.COPY: not is_node,
+		EditItem.PASTE: not pasteable,
+		EditItem.DUPLICATE: not is_node,
+		EditItem.DELETE: not is_node,
+	}
+	for menu in [edit_menu, globe_menu]:
+		for item in disabled:
+			var index: int = menu.get_item_index(item)
+			if index >= 0:
+				menu.set_item_disabled(index, disabled[item])
 
 
 func _on_recent_menu_id_pressed(id: int) -> void:
@@ -606,6 +681,7 @@ func _on_feature_selected(node: Feature) -> void:
 	var is_leaf := node != null and not node.is_group
 	draw_button.disabled = not is_leaf
 	_update_kind_selector(node)
+	properties.show_node(node)
 
 	if is_leaf:
 		# Auto-select Draw when the feature has no geometry yet
@@ -639,11 +715,27 @@ func drawing_kind() -> Feature.GeometryKind:
 	return kind_selector.get_item_id(kind_selector.selected) as Feature.GeometryKind
 
 
+# The kinds the selected feature may be drawn in: what its type allows, and only
+# the kind it already holds once there is geometry to keep consistent.
 func _update_kind_selector(node: Feature) -> void:
-	var has_geometry := node != null and not node.is_group and node.has_geometry()
+	var is_leaf := node != null and not node.is_group
+	var has_geometry := is_leaf and node.has_geometry()
+	for index in kind_selector.item_count:
+		var kind_name: String = Feature.KIND_NAMES[kind_selector.get_item_id(index)]
+		kind_selector.set_item_disabled(index,
+			is_leaf and not FeatureType.allows(node.feature_type, kind_name))
 	if has_geometry:
 		kind_selector.select(kind_selector.get_item_index(node.geometry_kind))
-	kind_selector.disabled = has_geometry or node == null or node.is_group
+	elif is_leaf and kind_selector.is_item_disabled(kind_selector.selected):
+		kind_selector.select(_first_allowed_kind())
+	kind_selector.disabled = has_geometry or not is_leaf
+
+
+func _first_allowed_kind() -> int:
+	for index in kind_selector.item_count:
+		if not kind_selector.is_item_disabled(index):
+			return index
+	return kind_selector.selected
 
 
 ### Move tool
@@ -697,14 +789,6 @@ func _on_move_cancelled() -> void:
 # The shape being drawn, in world space, before it is committed to a feature.
 var outline_vertices := PackedVector2Array()
 
-# How many vertices each kind needs before it can be committed.
-const MINIMUM_VERTICES := {
-	Feature.GeometryKind.POLYGON: 3,
-	Feature.GeometryKind.POLYLINE: 2,
-	Feature.GeometryKind.MULTIPOINT: 1,
-}
-
-
 func _on_planet_input_for_drawing(lat: float, lon: float, event: InputEvent) -> void:
 	if active_tool != Tool.DRAW:
 		return
@@ -743,7 +827,7 @@ func _outline_commit() -> void:
 	if selected == null or selected.is_group:
 		return
 	var kind: Feature.GeometryKind = drawing_kind()
-	if outline_vertices.size() < int(MINIMUM_VERTICES[kind]):
+	if outline_vertices.size() < int(Feature.MINIMUM_VERTICES[kind]):
 		return
 
 	# The vertices were clicked in world space; a feature keeps its own frame.
@@ -797,6 +881,18 @@ func _on_craton_clicked(lat: float, lon: float) -> void:
 		planet_view.start_moving(lat, lon)
 
 
+# A right click offers the Edit commands for whatever is under the pointer,
+# selecting it first so the menu and the feature tree agree on the target.
+func _on_craton_context_menu(lat: float, lon: float) -> void:
+	var hit := Planet.hit_test(lat, lon, last_geometry)
+	if hit != null:
+		features.feature_tree.select_node(hit)
+	_update_edit_menu()
+	globe_menu.position = get_window().position + Vector2i(get_viewport().get_mouse_position())
+	globe_menu.reset_size()
+	globe_menu.popup()
+
+
 func _on_craton_hovered(lat: float, lon: float) -> void:
 	var new_hovered: Feature = null
 	if not is_nan(lat):
@@ -843,5 +939,13 @@ func _refresh_selection_outline() -> void:
 
 
 func _on_program_changed() -> void:
+	refresh_geometry()
+
+
+# An edit made in the Properties panel: the tree row and the globe follow it,
+# and so does the Draw tool, whose kinds depend on the type that may have moved.
+func _on_properties_edited() -> void:
+	features.reload()
+	_update_kind_selector(features.feature_tree.get_selected_node())
 	refresh_geometry()
 

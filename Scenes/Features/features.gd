@@ -1,6 +1,10 @@
 extends VBoxContainer
 class_name Features
 
+# Which of the edit commands can be run has changed. The toolbar is updated
+# here; the Edit menus carry the same commands and follow this.
+signal commands_changed()
+
 
 @onready var feature_tree: FeatureTree = $FeatureTree
 @onready var add_group_button: Button = $PanelContainer/Buttons/AddGroup
@@ -34,8 +38,13 @@ func attach(document_: Document) -> void:
 
 
 func _on_root_replaced() -> void:
+	var selected := feature_tree.get_selected_node()
 	reload()
-	feature_tree.select_root()
+	# reload() puts the selection back by pnid, which a clone keeps, so undo and
+	# redo stay on the feature that was selected. A file that was just opened
+	# holds none of the old ids, and then the root is the selection.
+	if selected == null or not feature_tree.items.has(selected.pnid):
+		feature_tree.select_root()
 
 
 ### Undo/Redo
@@ -75,6 +84,7 @@ func update_button_availability() -> void:
 	cut_button.disabled = is_root_selected
 	duplicate_button.disabled = is_root_selected
 	detect_clipboard_content()
+	commands_changed.emit()
 
 
 func detect_clipboard_content() -> void:
@@ -235,6 +245,10 @@ func copy(node: Feature) -> void:
 	var json := JSON.stringify(data)
 	DisplayServer.clipboard_set(json)
 	update_button_availability()
+	# Windows can answer a read with the previous clipboard for a moment after a
+	# write, which would leave Paste greyed out on what was just copied, so ask
+	# again once this frame is over.
+	update_button_availability.call_deferred()
 
 
 func paste(parent: Feature, index: int = -1) -> void:
@@ -274,42 +288,6 @@ func _on_collapse_pressed() -> void:
 
 func _on_expand_pressed() -> void:
 	feature_tree.collapse_all(false)
-
-
-### Keyboard shortcuts
-
-
-func _on_feature_tree_unhandled_key_input(event: InputEvent) -> void:
-	if event is not InputEventKey or not event.pressed:
-		return
-
-	var key_event := event as InputEventKey
-
-	if key_event.keycode == KEY_DELETE:
-		var selected := feature_tree.get_selected_node()
-		delete_node(selected)
-		get_viewport().set_input_as_handled()
-
-	elif key_event.ctrl_pressed:
-		match key_event.keycode:
-			KEY_Z:
-				undo()
-				get_viewport().set_input_as_handled()
-			KEY_Y:
-				redo()
-				get_viewport().set_input_as_handled()
-			KEY_C:
-				_on_copy_pressed()
-				get_viewport().set_input_as_handled()
-			KEY_X:
-				_on_cut_pressed()
-				get_viewport().set_input_as_handled()
-			KEY_V:
-				_on_paste_pressed()
-				get_viewport().set_input_as_handled()
-			KEY_D:
-				_on_duplicate_pressed()
-				get_viewport().set_input_as_handled()
 
 
 ### Tree signals

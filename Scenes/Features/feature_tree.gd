@@ -2,9 +2,7 @@ extends Tree
 class_name FeatureTree
 
 signal program_changed()
-signal node_visibility_changed()
 signal feature_selected(node: Feature)
-signal unhandled_key_input(event: InputEvent)
 
 @onready var empty_icon := preload("res://Assets/Icons/Generated/Empty.png")
 @onready var group_icon := [preload("res://Assets/Icons/Generated/GroupDisabled.png"), preload("res://Assets/Icons/Generated/GroupEnabled.png")]
@@ -13,11 +11,6 @@ signal unhandled_key_input(event: InputEvent)
 var root: Feature = null
 var items: Dictionary[int, TreeItem] = {}
 var editable_item: TreeItem
-
-class PickerTarget:
-	var feature: Feature
-	func _init(feature_: Feature):
-		feature = feature_
 
 
 ### Initialization
@@ -140,7 +133,6 @@ func _on_item_collapsed(item: TreeItem) -> void:
 	if group == null:
 		return
 	group.collapsed = item.collapsed
-	node_visibility_changed.emit()
 
 
 func _get_drag_data(at_position: Vector2) -> Variant:
@@ -233,10 +225,6 @@ func _drop_data(at_position: Vector2, data: Variant) -> void:
 	program_changed.emit()
 
 
-func _unhandled_key_input(event: InputEvent) -> void:
-	unhandled_key_input.emit(event)
-
-
 func _on_item_selected() -> void:
 	if editable_item != null:
 		editable_item.set_editable(0, false)
@@ -271,25 +259,12 @@ func _on_button_clicked(item: TreeItem, _column: int, id: int, mouse_button_inde
 func on_output_clicked(node: Feature, mouse_button_index):
 	if not node.is_group:
 		if mouse_button_index == 1:
+			# The colour is picked in the Properties panel, which follows the
+			# selection, so the swatch only has to get the feature selected.
 			select_node(node)
-			# TODO: Open the color picker
 		else:
-			node.color = Color.CHOCOLATE
+			node.color = FeatureType.color(node.feature_type)
 			program_changed.emit()
-
-
-func _on_picker_completed(target: Variant, selected_color: int, selected_marker: int) -> void:
-	if not root:
-		return
-
-	var feature: Feature
-	if target is PickerTarget:
-		feature = target.feature
-	else:
-		return
-
-	# TODO: Handle color picker result
-	program_changed.emit()
 
 
 func on_enabled_clicked(node: Feature):
@@ -302,9 +277,7 @@ func on_enabled_clicked(node: Feature):
 func _on_item_edited() -> void:
 	var item = get_edited()
 	var node = item.get_metadata(0) as Feature
-	node.title = item.get_text(0).strip_edges()
-	if len(node.title) > 100:
-		node.title = node.title.left(100) + "..."
+	node.title = Feature.clamp_title(item.get_text(0))
 	program_changed.emit()
 
 

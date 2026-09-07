@@ -122,7 +122,67 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			var item: Array = _menu_item(str(request.get("item", "")))
 			if item.is_empty():
 				return {"ok": false, "error": "unknown menu item: %s" % request.get("item", "")}
-			(item[0] as PopupMenu).id_pressed.emit(int(item[1]))
+			var menu := item[0] as PopupMenu
+			if menu.is_item_disabled(menu.get_item_index(int(item[1]))):
+				return {"ok": false, "error": "the %s menu item is disabled" % request.get("item", "")}
+			menu.id_pressed.emit(int(item[1]))
+			await _frames(2)
+			return {"ok": true}
+
+		"get_context_menu":
+			var globe_menu := app.globe_menu
+			return {"ok": true, "context_menu": {
+				"visible": globe_menu.visible,
+				"items": _menu_items(globe_menu),
+			}}
+
+		"context_menu":
+			var label := str(request.get("item", ""))
+			var index := _menu_index(app.globe_menu, label)
+			if index < 0:
+				return {"ok": false, "error": "the globe menu has no %s item" % label}
+			if app.globe_menu.is_item_disabled(index):
+				return {"ok": false, "error": "the %s item is disabled" % label}
+			app.globe_menu.hide()
+			app.globe_menu.id_pressed.emit(app.globe_menu.get_item_id(index))
+			await _frames(2)
+			return {"ok": true}
+
+		"set_clipboard":
+			# The feature tree toolbar greys its Paste button out by what the
+			# clipboard holds, so a run that wants the same window every time
+			# has to say what that is.
+			DisplayServer.clipboard_set(str(request.get("text", "")))
+			app.features.update_button_availability()
+			await _frames(2)
+			app.features.update_button_availability()
+			await _frames(2)
+			return {"ok": true}
+
+		"get_properties":
+			return {"ok": true, "properties": app.properties.to_json()}
+
+		"set_property":
+			var error := app.properties.set_field(
+				str(request.get("field", "")), request.get("value"))
+			if not error.is_empty():
+				return {"ok": false, "error": error}
+			await _frames(2)
+			return {"ok": true}
+
+		"properties":
+			if request.has("part"):
+				app.properties.select_vertex(int(request["part"]), int(request.get("index", 0)))
+			var button_name := str(request.get("button", ""))
+			var vertex_button: Button = {
+				"Add": app.properties.add_button,
+				"Remove": app.properties.remove_button,
+			}.get(button_name)
+			if vertex_button == null:
+				return {"ok": false, "error": "no properties button called %s" % button_name}
+			if vertex_button.disabled:
+				return {"ok": false, "error": "the %s button is disabled" % button_name}
+			vertex_button.pressed.emit()
 			await _frames(2)
 			return {"ok": true}
 
@@ -282,10 +342,15 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true, "path": path, "size": [image.get_width(), image.get_height()]}
 
 		"get_tool":
+			var allowed: Array = []
+			for index in app.kind_selector.item_count:
+				if not app.kind_selector.is_item_disabled(index):
+					allowed.append(Feature.KIND_NAMES[app.kind_selector.get_item_id(index)])
 			return {"ok": true,
 				"tool": "draw" if app.active_tool == Application.Tool.DRAW else "move",
 				"kind": Feature.KIND_NAMES[app.drawing_kind()],
 				"kind_locked": app.kind_selector.disabled,
+				"allowed_kinds": allowed,
 				"drawing_vertices": app.outline_vertices.size()}
 
 		"set_tool":
@@ -306,7 +371,12 @@ func _dispatch(request: Dictionary) -> Dictionary:
 					return {"ok": false, "error": "unknown geometry kind: %s" % kind_name}
 				if app.kind_selector.disabled:
 					return {"ok": false, "error": "the geometry kind cannot be changed now"}
-				app.kind_selector.select(app.kind_selector.get_item_index(Feature.KIND_VALUES[kind_name]))
+				var kind_index := app.kind_selector.get_item_index(Feature.KIND_VALUES[kind_name])
+				if app.kind_selector.is_item_disabled(kind_index):
+					return {"ok": false, "error": "a %s cannot be a %s" % [
+						FeatureType.label(app.features.feature_tree.get_selected_node().feature_type),
+						kind_name]}
+				app.kind_selector.select(kind_index)
 				app.kind_selector.item_selected.emit(app.kind_selector.selected)
 			await _frames(2)
 			return {"ok": true}
@@ -347,6 +417,13 @@ func _timeline() -> Timeline:
 # The menu and item id behind a command name, or an empty array when unknown.
 func _menu_item(name: String) -> Array:
 	match name:
+		"undo": return [app.edit_menu, Application.EditItem.UNDO]
+		"redo": return [app.edit_menu, Application.EditItem.REDO]
+		"cut": return [app.edit_menu, Application.EditItem.CUT]
+		"copy": return [app.edit_menu, Application.EditItem.COPY]
+		"paste": return [app.edit_menu, Application.EditItem.PASTE]
+		"duplicate": return [app.edit_menu, Application.EditItem.DUPLICATE]
+		"delete": return [app.edit_menu, Application.EditItem.DELETE]
 		"new": return [app.file_menu, Application.FileItem.NEW]
 		"open": return [app.file_menu, Application.FileItem.OPEN]
 		"save": return [app.file_menu, Application.FileItem.SAVE]
@@ -360,6 +437,23 @@ func _menu_item(name: String) -> Array:
 		"full_screen": return [app.view_menu, Application.ViewItem.FULL_SCREEN]
 		"about": return [app.help_menu, Application.HelpItem.ABOUT]
 	return []
+
+
+# The label and availability of every item of a popup menu, separators aside.
+func _menu_items(menu: PopupMenu) -> Array:
+	var items: Array = []
+	for index in menu.item_count:
+		if menu.is_item_separator(index):
+			continue
+		items.append({"label": menu.get_item_text(index), "disabled": menu.is_item_disabled(index)})
+	return items
+
+
+func _menu_index(menu: PopupMenu, label: String) -> int:
+	for index in menu.item_count:
+		if menu.get_item_text(index).to_lower() == label.to_lower():
+			return index
+	return -1
 
 
 func _visible_dialog() -> AcceptDialog:
@@ -436,6 +530,9 @@ func _feature_to_json(feature: Feature) -> Variant:
 		"pnid": feature.pnid,
 		"title": feature.title,
 		"is_group": feature.is_group,
+		"enabled": feature.enabled,
+		"feature_type": feature.feature_type,
+		"time_range": [feature.time_range.x, feature.time_range.y],
 		"color": [feature.color.r, feature.color.g, feature.color.b, feature.color.a],
 		"rotation": [feature.rotation_angles.x, feature.rotation_angles.y, feature.rotation_angles.z],
 		"geometry_kind": Feature.KIND_NAMES[feature.geometry_kind],

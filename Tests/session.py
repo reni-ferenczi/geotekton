@@ -44,10 +44,17 @@ def project_version() -> str:
     return match.group(1)
 
 
-def is_green(color: list[float]) -> bool:
-    """True when the pixel is dominated by the green channel."""
+def dominant(color: list[float]) -> str:
+    """The channel a probed pixel is dominated by, empty when none is."""
     red, green, blue = color[0], color[1], color[2]
-    return green > 0.5 and red < 0.3 and blue < 0.3
+    for name, value, others in (
+        ("red", red, (green, blue)),
+        ("green", green, (red, blue)),
+        ("blue", blue, (red, green)),
+    ):
+        if value > 0.5 and max(others) < 0.3:
+            return name
+    return ""
 
 
 def run_session(client: AutomationClient) -> None:
@@ -75,7 +82,7 @@ def run_session(client: AutomationClient) -> None:
     clear = client.call("latlon_to_screen", lat=5.0, lon=40.0)["screen"]
     if check(clear is not None, "lat/lon (5, 40) is on the visible hemisphere"):
         clear_color = client.call("get_pixel", x=clear[0], y=clear[1])["color"]
-        check(not is_green(clear_color), f"the pixel at (5, 40) is not green: {clear_color}")
+        check(dominant(clear_color) != "green", f"the pixel at (5, 40) is not green: {clear_color}")
 
     # Turn the globe so that Green Moved faces the camera. At the default view it
     # sits near the limb, where the surface is barely lit, so the pixel probe
@@ -99,7 +106,7 @@ def run_session(client: AutomationClient) -> None:
     away = client.call("latlon_to_screen", lat=30.0, lon=-90.0)["screen"]
     client.call("mouse_move", x=away[0], y=away[1])
     color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
-    check(is_green(color), f"the pixel at (-3, -60) is green: {color}")
+    check(dominant(color) == "green", f"the pixel at (-3, -60) is green: {color}")
 
     client.call("set_time", time=1500.0)
     check(client.call("get_time")["time"] == 1500.0, "set_time 1500 round trips")
@@ -325,6 +332,238 @@ def run_escape_session(client: AutomationClient) -> None:
         client.call("key", key="Escape")
 
 
+MIXED = ROOT / "Tests" / "Data" / "mixed_geometry.middle-earth"
+
+# The centroid of Red Triangle in mixed_geometry, as Tests/Data/README.md lists it.
+RED_TRIANGLE_PROBE = (-3.0, 0.0)
+
+
+def open_mixed_geometry(client: AutomationClient) -> None:
+    """Load the mixed geometry sample, facing the middle of the default view."""
+    client.call("load", path=str(MIXED))
+    client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+
+
+def titles_of(client: AutomationClient) -> list[str]:
+    """Every title in the feature tree, in tree order."""
+    return [f["title"] for f in client.call("get_features")["features"]]
+
+
+def part_sizes(panel: dict) -> list[int]:
+    """How many vertices the coordinate table shows in each part."""
+    return [len(part) for part in panel["coordinates"]]
+
+
+def run_properties_session(client: AutomationClient) -> None:
+    """The Properties panel: what it shows, what it edits and what it refuses."""
+    open_mixed_geometry(client)
+
+    # The panel keeps one width whatever it is showing. When it does not, the
+    # split container hands the difference to the planet view, and every screen
+    # position computed before the selection changed is off.
+    widths = {}
+    for title in (None, "Shapes", "Red Triangle"):
+        client.call("select", title=title)
+        panel = client.call("get_properties")["properties"]
+        widths[panel["showing"]] = panel["width"]
+    check(len(set(widths.values())) == 1,
+          f"the panel is the same width for the root, a group and a feature: {widths}")
+
+    client.call("select", title="Red Triangle")
+    panel = client.call("get_properties")["properties"]
+    check(panel["showing"] == "feature", f"selecting a feature fills the panel: {panel['showing']}")
+    check(panel["name"] == "Red Triangle", f"with its name: {panel['name']}")
+    check(panel["feature_type"] == "unclassified", f"its type: {panel['feature_type']}")
+    check(panel["color"][:3] == [1.0, 0.0, 0.0], f"its colour: {panel['color']}")
+    check(panel["enabled"] is True, "its enabled flag")
+    check(panel["time_range"] == [0, 2000], f"its time range: {panel['time_range']}")
+    check(part_sizes(panel) == [3], f"and the three vertices of its geometry: {panel['coordinates']}")
+    check("3 vertices in 1 part" in panel["geometry"], f"summarized as: {panel['geometry']}")
+
+    # A group has a name and a switch and nothing else, so that is all it shows.
+    client.call("select", title="Shapes")
+    panel = client.call("get_properties")["properties"]
+    check(panel["showing"] == "group", "selecting a group shows the group properties")
+    check(panel["name"] == "Shapes" and "feature_type" not in panel,
+          f"a group has no type, colour or geometry: {sorted(panel)}")
+
+    # The name in the panel is the name on the tree row, and undo moves both back.
+    client.call("select", title="Red Triangle")
+    client.call("set_property", field="name", value="Gondwana")
+    check("Gondwana" in titles_of(client), "renaming in the panel renames the tree row")
+    check(client.call("get_properties")["properties"]["name"] == "Gondwana",
+          "and the panel keeps the new name")
+    client.call("menu", item="undo")
+    titles = titles_of(client)
+    check("Red Triangle" in titles and "Gondwana" not in titles,
+          "undo puts the old name back in the tree")
+    check(client.call("get_properties")["properties"]["name"] == "Red Triangle",
+          "and in the panel, which stays on the feature it was showing")
+
+    # A type the geometry does not fit is refused, with a message.
+    client.call("select", title="Blue Ridge")
+    client.call("set_property", field="feature_type", value="craton")
+    dialog = client.call("get_dialog")["dialog"]
+    if check(dialog is not None, "a polyline cannot be a craton, and the panel says so"):
+        client.call("dialog", button="OK")
+    check(client.call("get_properties")["properties"]["feature_type"] == "unclassified",
+          "the refused type is off the selector again")
+    check(client.call("get_selected")["feature"]["feature_type"] == "unclassified",
+          "and never reached the feature")
+
+    # One that does fit is taken, and leaves the colour the file picked alone.
+    client.call("set_property", field="feature_type", value="ridge")
+    check(client.call("get_selected")["feature"]["feature_type"] == "ridge",
+          "a polyline may be a ridge")
+    check(client.call("get_properties")["properties"]["color"] == [0.0, 0.0, 1.0, 1.0],
+          "and the blue the file picked survives the type change")
+
+    # A time range that ends before it starts is refused the same way.
+    client.call("set_property", field="time_from", value=500)
+    check(client.call("get_selected")["feature"]["time_range"] == [500, 2000],
+          "the start of the time range is taken")
+    client.call("set_property", field="time_to", value=100)
+    dialog = client.call("get_dialog")["dialog"]
+    if check(dialog is not None, "a range that ends before it starts is refused"):
+        client.call("dialog", button="OK")
+    check(client.call("get_selected")["feature"]["time_range"] == [500, 2000],
+          "and the feature keeps the range it had")
+    check(client.call("get_properties")["properties"]["time_range"] == [500, 2000],
+          "which is what the panel shows again")
+
+    # The switch in the panel is the switch on the tree row.
+    client.call("set_property", field="enabled", value=False)
+    check(client.call("get_selected")["feature"]["enabled"] is False,
+          "the panel disables the feature")
+    client.call("set_property", field="enabled", value=True)
+
+    # The type restricts what the Draw tool offers, while there is no geometry
+    # yet for the kind to be fixed by.
+    client.call("toolbar", button="AddFeature")
+    check(sorted(client.call("get_tool")["allowed_kinds"])
+          == ["multipoint", "polygon", "polyline"],
+          "an unclassified feature may be drawn in any kind")
+    unclassified_color = client.call("get_properties")["properties"]["color"]
+    client.call("set_property", field="feature_type", value="ridge")
+    check(client.call("get_tool")["allowed_kinds"] == ["polyline"],
+          "a ridge may only be drawn as a polyline")
+    # Nobody picked a colour for this one, so it takes the one the type gives.
+    check(client.call("get_properties")["properties"]["color"] != unclassified_color,
+          "and a new feature takes the colour of the type it is given")
+
+
+def run_coordinate_session(client: AutomationClient) -> None:
+    """The coordinate table: adding a vertex and taking one off again."""
+    open_mixed_geometry(client)
+    client.call("select", title="Green Stations")
+    panel = client.call("get_properties")["properties"]
+    check(part_sizes(panel) == [2], f"the multipoint holds two markers: {panel['coordinates']}")
+
+    client.call("properties", button="Add", part=0, index=0)
+    panel = client.call("get_properties")["properties"]
+    check(part_sizes(panel) == [3], f"Add puts a third one in: {panel['coordinates']}")
+    check(panel["coordinates"][0][1] == panel["coordinates"][0][0],
+          "on top of the one it was added after")
+    check(client.call("get_selected")["feature"]["rings"][0][1] == panel["coordinates"][0][0],
+          "and the feature holds it too")
+
+    client.call("properties", button="Remove", part=0, index=1)
+    check(part_sizes(client.call("get_properties")["properties"]) == [2],
+          "Remove takes it off again")
+    client.call("menu", item="undo")
+    check(part_sizes(client.call("get_properties")["properties"]) == [3],
+          "and undo brings it back")
+
+
+def run_colour_session(client: AutomationClient) -> None:
+    """A colour picked in the panel reaches the globe."""
+    open_mixed_geometry(client)
+    client.call("select", title="Red Triangle")
+    lat, lon = RED_TRIANGLE_PROBE
+    screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+    if not check(screen is not None, "the centroid of Red Triangle is on the visible hemisphere"):
+        return
+
+    client.call("set_property", field="color", value=[0.0, 0.0, 1.0, 1.0])
+    # The feature under the pointer is drawn highlighted, which is a different
+    # blue from the one the panel asked for.
+    away = client.call("latlon_to_screen", lat=30.0, lon=15.0)["screen"]
+    client.call("mouse_move", x=away[0], y=away[1])
+    color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+    check(dominant(color) == "blue", f"the centroid is blue after the colour change: {color}")
+
+    client.call("menu", item="undo")
+    color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+    check(dominant(color) == "red", f"and red again after undo: {color}")
+
+
+def run_globe_menu_session(client: AutomationClient) -> None:
+    """Clone and delete from the right click menu on the globe."""
+    open_mixed_geometry(client)
+    lat, lon = RED_TRIANGLE_PROBE
+    screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+    if not check(screen is not None, "the red triangle is on the visible hemisphere"):
+        return
+
+    client.call("click", x=screen[0], y=screen[1], button="right")
+    menu = client.call("get_context_menu")["context_menu"]
+    check(menu["visible"], "a right click on the globe opens the menu")
+    check([item["label"] for item in menu["items"]] == ["Duplicate", "Delete"],
+          f"offering Duplicate and Delete: {menu['items']}")
+    original = client.call("get_selected")["feature"]
+    check(original["title"] == "Red Triangle",
+          f"on the feature under the pointer: {original['title']}")
+
+    before = len(client.call("get_features")["features"])
+    client.call("context_menu", item="Duplicate")
+    clone = client.call("get_selected")["feature"]
+    features = {f["pnid"]: f for f in client.call("get_features")["features"]}
+    check(len(features) == before + 1, "Duplicate adds one feature")
+    check(clone["pnid"] != original["pnid"], "the clone has an identity of its own")
+    check(clone["rings"] == original["rings"], "and the geometry of the original")
+    check(features[clone["pnid"]]["depth"] == features[original["pnid"]]["depth"],
+          "as a sibling beside it")
+
+    client.call("click", x=screen[0], y=screen[1], button="right")
+    check(client.call("get_context_menu")["context_menu"]["visible"], "the menu opens again")
+    client.call("context_menu", item="Delete")
+    check(len(client.call("get_features")["features"]) == before,
+          "Delete takes one off again")
+    client.call("menu", item="undo")
+    check(len(client.call("get_features")["features"]) == before + 1,
+          "and undo brings it back")
+
+
+def run_edit_menu_session(client: AutomationClient) -> None:
+    """The Edit menu runs the commands the feature tree toolbar runs.
+
+    Copy records no undo version, so the menu has to learn about the clipboard
+    some other way; without that, Paste stays disabled right after a Copy.
+    Note that this puts a feature on the real clipboard of whoever is running it.
+    """
+    open_mixed_geometry(client)
+    client.call("select", title="Red Triangle")
+    before = len(client.call("get_features")["features"])
+
+    client.call("menu", item="copy")
+    try:
+        client.call("menu", item="paste")
+    except RuntimeError as error:
+        check(False, f"Edit > Paste is available right after Edit > Copy: {error}")
+    else:
+        check(len(client.call("get_features")["features"]) == before + 1,
+              "Edit > Copy then Edit > Paste adds a feature")
+        client.call("menu", item="undo")
+
+    client.call("select", title="Blue Ridge")
+    client.call("menu", item="delete")
+    check(len(client.call("get_features")["features"]) == before - 1,
+          "Edit > Delete removes the selected feature")
+    check("Blue Ridge" not in titles_of(client), "the one that was selected")
+    client.call("menu", item="undo")
+    check("Blue Ridge" in titles_of(client), "and undo brings it back")
+
+
 def count_features(node: dict) -> int:
     """The number of nodes in a serialized feature tree."""
     return 1 + sum(count_features(child) for child in node.get("children", []))
@@ -352,6 +591,11 @@ def main(argv: list[str]) -> int:
             shutil.rmtree(folder, ignore_errors=True)
         run_drawing_session(client)
         run_escape_session(client)
+        run_properties_session(client)
+        run_coordinate_session(client)
+        run_colour_session(client)
+        run_globe_menu_session(client)
+        run_edit_menu_session(client)
     finally:
         if connected:
             try:

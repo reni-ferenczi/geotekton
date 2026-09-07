@@ -37,4 +37,3 @@ layout_mode = 2
 [connection signal="pressed" from="PanelContainer/Buttons/Expand" to="." method="_on_expand_pressed"]
 [connection signal="feature_selected" from="FeatureTree" to="." method="_on_feature_tree_feature_selected"]
 [connection signal="program_changed" from="FeatureTree" to="." method="_on_feature_tree_program_changed"]
-[connection signal="unhandled_key_input" from="FeatureTree" to="." method="_on_feature_tree_unhandled_key_input"]

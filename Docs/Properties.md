@@ -1,0 +1,133 @@
+# Feature types and the Properties panel
+
+## The type catalog
+
+`Logic/feature_type.gd` holds the whole catalog as one constant dictionary.
+Middle Earth does not carry the GPGIM over; a type here is three things:
+
+| Id             | Name         | Geometry kinds                 | Default colour |
+| -------------- | ------------ | ------------------------------ | -------------- |
+| `unclassified` | Unclassified | polygon, polyline, multipoint  | chocolate      |
+| `craton`       | Craton       | polygon                        | tan            |
+| `terrane`      | Terrane      | polygon                        | olive          |
+| `coastline`    | Coastline    | polygon, polyline              | steel blue     |
+| `ridge`        | Ridge        | polyline                       | crimson        |
+| `marker`       | Marker       | multipoint                     | gold           |
+
+The kinds are written as the names the file uses, so the catalog needs nothing
+from `Feature` to be read and says the same words the `geometry_kind` field
+does.
+
+`unclassified` is what a feature has until someone picks a type. It allows every
+kind, which is what lets a feature be drawn before it is classified and what
+makes a file written before 0.3.0 loadable: those carry no type at all, so every
+feature in one arrives unclassified rather than reclassified by guesswork.
+
+An id the catalog does not know — from a hand-written file, or from a catalog
+that has since lost an entry — reads back as `unclassified` through
+`FeatureType.normalize()`.
+
+### What the type restricts
+
+Two things follow from the type:
+
+- **The geometry kinds the feature may hold.** The Draw tool's kind selector
+  offers only the kinds the selected feature's type allows, and changing the
+  type of a feature that already holds geometry of a forbidden kind is refused.
+  A feature with no geometry yet may take any type.
+- **The colour.** A new feature starts in its type's colour, and changing the
+  type changes the colour with it — but only while the colour is still the one
+  the old type gave. A colour someone picked is never overwritten.
+
+## The Properties panel
+
+`Scenes/Application/properties.gd` builds the panel in code; the scene is the
+`PanelContainer` it is attached to and nothing else. What the panel shows
+follows the feature tree selection, through
+`Application._on_feature_selected()`.
+
+| Row        | Control            | On a group |
+| ---------- | ------------------ | ---------- |
+| Name       | Line edit          | yes        |
+| Type       | Selector           | no         |
+| Colour     | Colour picker      | no         |
+| Enabled    | Switch             | yes        |
+| From (Ma)  | Number             | no         |
+| To (Ma)    | Number             | no         |
+| Geometry   | Label              | no         |
+| Coordinates| Table, Add, Remove | no         |
+
+With nothing selected the panel says so and shows no rows at all, and so does
+the root group, which has no name of its own to change and no switch — the same
+as on its tree row.
+
+The panel keeps one width, `CONTENT_WIDTH`, whatever it is showing. Letting its
+content set the width would let the split container hand the difference to the
+planet view, so the globe would move under the pointer every time the selection
+changed.
+
+The time range is two ages in millions of years before the present, the same
+axis the timeline slider runs on, so `From` is the younger end. Nothing reads
+the range yet; time and motion arrive in a later phase.
+
+### The coordinate table
+
+One row per part of the geometry, with the vertices of that part under it.
+Latitude and longitude are editable in place; a value that is not a number, or
+one off the planet, is refused and the table goes back to what the feature
+holds. `Add` puts a new vertex after the selected one, in the same place, so it
+is moved by editing it rather than by knowing where it goes in advance.
+`Remove` takes the selected vertex off, and a part left with too few vertices to
+be a shape goes with it — three for a polygon, two for a polyline, one for a
+multipoint, as `Feature.MINIMUM_VERTICES` lists them.
+
+With no row picked both buttons work on the last vertex of the last part.
+
+### Every edit goes through the document
+
+The panel never writes to a feature. Each edit calls one of the editing methods
+of `Logic/document.gd`, which validates it, applies it and records exactly one
+undo version:
+
+| Method                  | Refuses                                            |
+| ----------------------- | -------------------------------------------------- |
+| `rename`                | nothing; a long title is cut down the way the tree cuts it |
+| `set_enabled`           | nothing                                            |
+| `set_color`             | nothing                                            |
+| `set_feature_type`      | an unknown type, and one that forbids the kind the feature holds |
+| `set_time_range`        | a range that ends before it starts                 |
+| `set_vertex`            | a part or vertex that is not there, a point off the planet |
+| `insert_vertex`         | the same                                           |
+| `remove_vertex`         | a part or vertex that is not there                 |
+
+A method that can refuse returns the message saying why and changes nothing;
+the panel puts the widget back and shows the message in an error dialog.
+
+The colour picker is the one exception to one edit, one version. While the
+picker is open the feature takes every colour the cursor is dragged over, so the
+globe shows what is being picked, but only the colour left when the picker
+closes reaches the undo stack.
+
+## Edit commands
+
+The commands that were on the feature tree toolbar are also on an **Edit** menu
+in the menu bar — Undo, Redo, Cut, Copy, Paste, Duplicate and Delete — with the
+shortcuts the feature tree used to handle by itself. The menu owns them now, so
+they work wherever the focus is, and a text field still keeps Ctrl+C and Ctrl+V
+for its own text, because a focused control is offered a key before a menu
+accelerator is.
+
+A right click on the globe or the map selects whatever is under the pointer and
+offers Duplicate and Delete on it. Only in the Move tool: in the Draw tool a
+right click takes the last placed vertex back.
+
+## The file
+
+A leaf feature carries `feature_type` in the file from 0.3.0 on:
+
+```json
+"feature_type": "craton"
+```
+
+A 0.2.0 file has no such key and loads with every feature unclassified, so there
+is no migration step for it. See [Persistence](Persistence.md#file-format).
