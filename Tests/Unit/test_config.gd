@@ -11,13 +11,13 @@ func _use_a_scratch_config() -> void:
 	Config.directory_override = ProjectSettings.globalize_path(SCRATCH)
 	DirAccess.make_dir_recursive_absolute(Config.directory_override)
 	DirAccess.remove_absolute(Config.directory_override + "/config.json")
-	Config.reload()
+	Config.forget()
 
 
 func _restore_the_real_config() -> void:
 	DirAccess.remove_absolute(Config.directory_override + "/config.json")
 	Config.directory_override = ""
-	Config.reload()
+	Config.forget()
 
 
 func test_values_survive_a_reload() -> void:
@@ -28,7 +28,7 @@ func test_values_survive_a_reload() -> void:
 	Config.set_value("panel_timeline", false)
 	Config.set_last_directory("C:/Maps")
 
-	Config.reload()
+	Config.forget()
 
 	var window: Variant = Config.get_value("window")
 	assert_true(window is Dictionary, "the window geometry comes back as a dictionary")
@@ -56,12 +56,12 @@ func test_the_recent_list_keeps_the_newest_first_without_duplicates() -> void:
 	Config.add_recent_file("a.middle-earth")
 	Config.add_recent_file("b.middle-earth")
 	Config.add_recent_file("a.middle-earth")
-	Config.reload()
+	Config.forget()
 	assert_eq(Config.get_recent_files(), ["a.middle-earth", "b.middle-earth"],
 		"the reopened file moves to the front and is listed once")
 
 	Config.clear_recent_files()
-	Config.reload()
+	Config.forget()
 	assert_eq(Config.get_recent_files(), [], "Clear empties the list")
 	_restore_the_real_config()
 

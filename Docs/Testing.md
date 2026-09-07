@@ -156,7 +156,7 @@ a round trip is also a wait for the screen to catch up.
 | `get_pixel {x, y}`                   | `color: [r, g, b, a]` in the range 0 to 1                        |
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` |
-| `menu {item}`                        | runs a menu item: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `features`, `properties`, `timeline`, `status_bar`, `full_screen` |
+| `menu {item}`                        | runs a menu item: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `features`, `properties`, `timeline`, `status_bar`, `full_screen`, `about` |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |
 | `get_panels`                         | `panels`, which of the four panels are shown                     |
 | `get_dialog`                         | `dialog` with `name`, `title`, `text` and `buttons`, or `null`   |

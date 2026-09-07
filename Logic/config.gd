@@ -47,8 +47,10 @@ static func _ensure_loaded() -> void:
 		_data = {}
 
 
-# Forget what was read, so the next access loads the file again.
-static func reload() -> void:
+# Drop the copy held in memory, so the next access reads the file again.
+# Not named reload: that is a method of Script itself, and calling it would
+# reload this script and reset every static variable in it.
+static func forget() -> void:
 	_loaded = false
 	_data = {}
 

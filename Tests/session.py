@@ -177,11 +177,22 @@ def run_document_session(client: AutomationClient, folder: Path) -> None:
     check(client.call("get_document")["document"]["path"] == str(second),
           "a cancelled Save As leaves the path alone")
 
-    # The recent list holds both files, newest first, and Clear empties it.
+    # The recent list holds both files, newest first, and opens what it lists.
     recent = client.call("get_recent")["recent"]
     check(recent[:2] == [str(second), str(first)], f"the recent list is newest first: {recent}")
+    client.call("open_recent", index=1)
+    check(client.call("get_document")["document"]["path"] == str(first),
+          "the second entry of the recent list opens the first file")
     client.call("clear_recent")
     check(client.call("get_recent")["recent"] == [], "Clear empties the recent list")
+
+    # The About dialog names the version and credits the Earth texture.
+    client.call("menu", item="about")
+    dialog = client.call("get_dialog")["dialog"]
+    if check(dialog is not None, "Help opens the About dialog"):
+        check(dialog["name"] == "AboutDialog", f"the dialog is the About one: {dialog['name']}")
+        client.call("dialog", button="OK")
+    check(client.call("get_dialog")["dialog"] is None, "OK closes the About dialog")
 
     # New on a clean document goes straight through.
     client.call("menu", item="new")

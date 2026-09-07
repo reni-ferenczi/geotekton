@@ -54,13 +54,16 @@ var active_tool: Tool = Tool.MOVE
 var last_triangles: Array = []
 var hovered_feature: Feature = null
 
-# True while the automation port is open: the session is not restored and not
-# remembered, so scripted runs always start from the same shell.
-var automated: bool = false
+# True when the application must leave the settings of whoever is at the
+# keyboard alone: a scripted run, or a test runner hosting this scene. The
+# session is then neither restored nor remembered, so every run starts from the
+# same shell and its settings go to a scratch folder.
+var isolated: bool = false
 
 var file_menu: PopupMenu
 var recent_menu: PopupMenu
 var view_menu: PopupMenu
+var help_menu: PopupMenu
 var save_prompt: ConfirmationDialog
 var about_dialog: AcceptDialog
 var preferences_dialog: AcceptDialog
@@ -76,7 +79,8 @@ func _ready() -> void:
 	# The switches belong to the application proper. A test runner that hosts
 	# this scene passes its own arguments through the same channel, so they are
 	# only read when the application is the scene that was started.
-	if get_tree().current_scene == self:
+	var started_on_its_own := get_tree().current_scene == self
+	if started_on_its_own:
 		var exit_code := Cli.handle(OS.get_cmdline_user_args())
 		if exit_code >= 0:
 			get_tree().quit(exit_code)
@@ -85,12 +89,10 @@ func _ready() -> void:
 	get_tree().root.content_scale_factor = Application.ui_scale
 	get_tree().set_auto_accept_quit(false)
 
-	# The automation port decides the shell before anything reads a setting: a
-	# scripted run starts from the same window every time and leaves the
-	# settings of whoever is at the keyboard alone.
+	# Settle this before anything reads a setting.
 	var port := Cli.automation_port(OS.get_cmdline_user_args())
-	automated = port != 0
-	if automated:
+	isolated = port != 0 or not started_on_its_own
+	if isolated:
 		Config.directory_override = OS.get_user_data_dir().path_join("automation")
 		Config.clear()
 
@@ -133,10 +135,11 @@ func _ready() -> void:
 	leave_full_screen.pressed.connect(_toggle_full_screen)
 
 	# Open the test automation port if requested: -- --automation-port=<port>
-	if automated:
+	if port != 0:
 		add_child(AutomationPort.new(self, port))
 
-	_restore_session()
+	if not isolated:
+		_restore_session()
 	_update_document_labels()
 	_on_cursor_moved(NAN, NAN)
 
@@ -175,7 +178,7 @@ func _build_menus() -> void:
 	view_menu.add_item("Full Screen", ViewItem.FULL_SCREEN, KEY_F11)
 	view_menu.id_pressed.connect(_on_view_menu_id_pressed)
 
-	var help_menu := _add_menu("Help")
+	help_menu = _add_menu("Help")
 	help_menu.add_item("Documentation", HelpItem.DOCUMENTATION, KEY_F1)
 	help_menu.add_item("About Middle Earth", HelpItem.ABOUT)
 	help_menu.id_pressed.connect(_on_help_menu_id_pressed)
@@ -232,7 +235,8 @@ func _on_view_menu_id_pressed(id: int) -> void:
 	var panel := _panel_node(id)
 	panel.visible = not panel.visible
 	_update_view_menu_checks()
-	_save_panel_visibility()
+	if not isolated:
+		_save_panel_visibility()
 
 
 func _on_help_menu_id_pressed(id: int) -> void:
@@ -304,7 +308,8 @@ func quit_application() -> void:
 
 
 func _finish_quit() -> void:
-	_save_session()
+	if not isolated:
+		_save_session()
 	get_tree().quit()
 
 
@@ -481,10 +486,9 @@ func _show_error(message: String) -> void:
 ### The session: window geometry, panels and the last file
 
 
+# Put the window back the way the last session left it. The caller decides
+# whether the session is remembered at all.
 func _restore_session() -> void:
-	if automated:
-		return
-
 	var window := get_window()
 	var geometry: Variant = Config.get_value("window")
 	if geometry is Dictionary:
@@ -512,8 +516,6 @@ func _restore_session() -> void:
 
 
 func _save_session() -> void:
-	if automated:
-		return
 	var window := get_window()
 	Config.set_value("window", {
 		"x": window.position.x,
@@ -528,8 +530,6 @@ func _save_session() -> void:
 
 
 func _save_panel_visibility() -> void:
-	if automated:
-		return
 	for item in PANEL_KEYS:
 		Config.set_value(PANEL_KEYS[item], _panel_node(item).visible)
 

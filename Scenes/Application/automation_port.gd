@@ -328,6 +328,7 @@ func _menu_item(name: String) -> Array:
 		"timeline": return [app.view_menu, Application.ViewItem.TIMELINE]
 		"status_bar": return [app.view_menu, Application.ViewItem.STATUS_BAR]
 		"full_screen": return [app.view_menu, Application.ViewItem.FULL_SCREEN]
+		"about": return [app.help_menu, Application.HelpItem.ABOUT]
 	return []
 
 
