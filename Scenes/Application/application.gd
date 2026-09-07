@@ -342,7 +342,9 @@ func _on_root_replaced() -> void:
 func _update_document_labels() -> void:
 	var marker := "*" if document.is_dirty() else ""
 	get_window().title = "%s%s — %s" % [marker, document.display_name(), APPLICATION_NAME]
-	status_file.text = Document.UNTITLED if document.path.is_empty() else document.path
+	# The name only: the whole path would make the status bar jump about.
+	status_file.text = "%s%s" % [marker, document.display_name()]
+	status_file.tooltip_text = document.path
 
 
 ### Unsaved changes prompt
