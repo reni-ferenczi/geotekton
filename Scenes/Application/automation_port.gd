@@ -266,10 +266,47 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true, "feature": _feature_to_json(app.features.feature_tree.get_selected_node())}
 
 		"get_time":
-			return {"ok": true, "time": _timeline().timestamp_slider.value}
+			return {"ok": true, "time": app.document.current_time}
 
 		"set_time":
-			_timeline().timestamp_slider.value = float(request.get("time", 0.0))
+			app.document.set_time(float(request.get("time", 0.0)))
+			await _frames(2)
+			return {"ok": true}
+
+		"get_timeline":
+			return {"ok": true, "timeline": _timeline().to_json()}
+
+		"timeline":
+			var error := _timeline().press(str(request.get("button", "")))
+			if not error.is_empty():
+				return {"ok": false, "error": error}
+			await _frames(2)
+			return {"ok": true}
+
+		"set_animation":
+			# The animation dialog without the dialog: whatever the request
+			# names is changed, the rest stays as it was.
+			var settings := AnimationSettings.from_json(
+				_timeline().animation.to_json().merged(request.get("animation", {}), true))
+			var problem := settings.problem()
+			if not problem.is_empty():
+				return {"ok": false, "error": problem}
+			_timeline().set_animation(settings)
+			await _frames(2)
+			return {"ok": true}
+
+		"keyframes":
+			if request.has("index"):
+				app.properties.select_keyframe(int(request["index"]))
+			var key_button: Button = {
+				"Key": app.properties.key_button,
+				"Delete": app.properties.delete_key_button,
+			}.get(str(request.get("button", "")))
+			if key_button == null:
+				return {"ok": false, "error": "no keyframe button called %s" % request.get("button", "")}
+			if key_button.disabled:
+				return {"ok": false, "error": "the %s button is disabled" % request.get("button", "")}
+			key_button.pressed.emit()
 			await _frames(2)
 			return {"ok": true}
 
@@ -520,21 +557,31 @@ func _find_by_title(node: Feature, title: String) -> Feature:
 	return null
 
 
+# What a feature is and where it is at the current time. `rotation` is what its
+# own keyframes give it then and `world_rings` where that puts its vertices once
+# every group above it has had its say, so a script reads the same positions the
+# globe draws.
 func _feature_to_json(feature: Feature) -> Variant:
 	if feature == null:
 		return null
+	var time := app.document.current_time
+	var world := Feature.world_basis(app.document.root, feature, time)
 	var world_rings: Array[PackedVector2Array] = []
 	for ring in feature.rings:
-		world_rings.append(Feature.apply_rotation(ring, feature.rotation_angles))
+		world_rings.append(Feature.apply_basis(ring, world))
+	var rotation := feature.rotation_at(time)
 	return {
 		"pnid": feature.pnid,
 		"title": feature.title,
 		"is_group": feature.is_group,
 		"enabled": feature.enabled,
 		"feature_type": feature.feature_type,
+		"time": time,
 		"time_range": [feature.time_range.x, feature.time_range.y],
+		"exists_now": feature.exists_at(time),
 		"color": [feature.color.r, feature.color.g, feature.color.b, feature.color.a],
-		"rotation": [feature.rotation_angles.x, feature.rotation_angles.y, feature.rotation_angles.z],
+		"rotation": [rotation.x, rotation.y, rotation.z],
+		"keyframes": Keyframe.list_to_json(feature.keyframes),
 		"geometry_kind": Feature.KIND_NAMES[feature.geometry_kind],
 		"rings": Feature.rings_to_json(feature.rings),
 		"world_rings": Feature.rings_to_json(world_rings),

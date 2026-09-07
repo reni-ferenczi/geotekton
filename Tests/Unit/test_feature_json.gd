@@ -49,7 +49,8 @@ func test_leaf_without_optional_keys_gets_defaults() -> void:
 	assert_eq(leaf.rings.size(), 0)
 	assert_eq(leaf.triangles.size(), 0)
 	assert_eq(leaf.has_geometry(), false)
-	assert_eq(leaf.rotation_angles, Vector3.ZERO)
+	assert_eq(leaf.keyframes.size(), 0, "no keyframes, so it does not move")
+	assert_eq(leaf.rotation_at(0.0), Vector3.ZERO)
 	assert_eq(leaf.time_range, Vector2i(0, 2000))
 
 
@@ -87,13 +88,16 @@ func _build_tree() -> Feature:
 	root.is_root = true
 
 	var group := Feature.create_group("Cratons")
+	# A group carries motion of its own, which everything under it inherits.
+	Keyframe.upsert(group.keyframes, 100.0, Vector3(5, 0, 0))
 	root.children.append(group)
 
 	var laurentia := Feature.create_feature("Laurentia", Color(0.25, 0.5, 0.75, 1.0))
 	laurentia.add_ring(PackedVector2Array([
 		Vector2(-10, -10), Vector2(10, 0), Vector2(-10, 10)]), Feature.GeometryKind.POLYGON)
 	laurentia.feature_type = "craton"
-	laurentia.rotation_angles = Vector3(30, -20, 10)
+	Keyframe.upsert(laurentia.keyframes, 0.0, Vector3(30, -20, 10))
+	Keyframe.upsert(laurentia.keyframes, 750.5, Vector3(75, -20, 10))
 	laurentia.time_range = Vector2i(540, 1800)
 	group.children.append(laurentia)
 
@@ -101,7 +105,7 @@ func _build_tree() -> Feature:
 	ridge.add_ring(PackedVector2Array([
 		Vector2(20, 30), Vector2(40, 30), Vector2(40, 60)]), Feature.GeometryKind.POLYLINE)
 	ridge.feature_type = "ridge"
-	ridge.rotation_angles = Vector3(-120, 45, 0)
+	Keyframe.upsert(ridge.keyframes, 0.0, Vector3(-120, 45, 0))
 	ridge.time_range = Vector2i(0, 750)
 	ridge.enabled = false
 	group.children.append(ridge)
@@ -119,6 +123,7 @@ func _assert_same_tree(a: Feature, b: Feature, path: String) -> void:
 	assert_eq(a.title, b.title, "%s title" % path)
 	assert_eq(a.enabled, b.enabled, "%s enabled" % path)
 	assert_eq(a.is_group, b.is_group, "%s is_group" % path)
+	_assert_same_keyframes(a, b, path)
 	if a.is_group:
 		assert_eq(a.children.size(), b.children.size(), "%s child count" % path)
 		for i in range(mini(a.children.size(), b.children.size())):
@@ -129,5 +134,12 @@ func _assert_same_tree(a: Feature, b: Feature, path: String) -> void:
 	assert_eq(a.geometry_kind, b.geometry_kind, "%s geometry kind" % path)
 	assert_eq(a.rings, b.rings, "%s rings" % path)
 	assert_eq(a.triangles, b.triangles, "%s triangles" % path)
-	assert_close(a.rotation_angles, b.rotation_angles, 1e-6, "%s rotation" % path)
 	assert_eq(a.time_range, b.time_range, "%s time range" % path)
+
+
+func _assert_same_keyframes(a: Feature, b: Feature, path: String) -> void:
+	assert_eq(a.keyframes.size(), b.keyframes.size(), "%s keyframe count" % path)
+	for i in range(mini(a.keyframes.size(), b.keyframes.size())):
+		assert_eq(a.keyframes[i].time, b.keyframes[i].time, "%s keyframe %d time" % [path, i])
+		assert_close(a.keyframes[i].rotation, b.keyframes[i].rotation, 1e-6,
+			"%s keyframe %d rotation" % [path, i])

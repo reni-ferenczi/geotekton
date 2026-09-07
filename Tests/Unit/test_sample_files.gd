@@ -118,8 +118,11 @@ func test_the_moved_craton_sits_where_the_rotation_puts_it() -> void:
 	assert_true(green != null, "the sample must contain the Green Moved feature")
 	if green == null:
 		return
-	assert_close(green.rotation_angles, Vector3(60, 0, 0), 1e-6)
-	var moved := Feature.apply_rotation(PackedVector2Array([Vector2(-3, 0)]), green.rotation_angles)[0]
+	assert_eq(green.keyframes.size(), 1, "the one rotation the file holds is one keyframe")
+	assert_close(green.keyframes[0].time, 0.0, 1e-9, "wrapped as the keyframe at time zero")
+	assert_close(green.rotation_at(0.0), Vector3(60, 0, 0), 1e-6)
+	var moved := Feature.apply_rotation(
+		PackedVector2Array([Vector2(-3, 0)]), green.rotation_at(0.0))[0]
 	assert_close(moved, Vector2(-3, -60), 1e-4, "the documented green probe point")
 
 

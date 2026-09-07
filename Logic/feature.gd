@@ -53,11 +53,11 @@ var feature_type: String = FeatureType.UNCLASSIFIED
 var color: Color = FeatureType.color(FeatureType.UNCLASSIFIED)
 
 # Geographic data. Each ring is a run of (latitude, longitude) vertices in
-# degrees, in the frame of the feature itself, before rotation_angles is
-# applied. What a ring means follows geometry_kind: a closed boundary for a
-# polygon, an open line for a polyline, a bag of separate points for a
-# multipoint. A feature may hold several rings; for a polygon those are
-# separate outlines rather than holes.
+# degrees, in the frame of the feature itself, before the rotation its
+# keyframes give it at the current time is applied. What a ring means follows
+# geometry_kind: a closed boundary for a polygon, an open line for a polyline, a
+# bag of separate points for a multipoint. A feature may hold several rings; for
+# a polygon those are separate outlines rather than holes.
 var geometry_kind: GeometryKind = GeometryKind.POLYGON
 var rings: Array[PackedVector2Array] = []
 
@@ -65,7 +65,14 @@ var rings: Array[PackedVector2Array] = []
 # outwards. Derived from rings by rebuild_triangles(), never read from a file.
 var triangles := PackedVector2Array()
 
-var rotation_angles: Vector3 = Vector3.ZERO
+# How the node turns over time, sorted by time. A group has these too: its
+# children inherit its motion, which is what takes the place of a GPlates plate
+# circuit. An empty list means the node does not move at all.
+var keyframes: Array[Keyframe] = []
+
+# The ages between which a feature exists, in millions of years before present.
+# A feature outside it at the current time is neither drawn nor hit tested. Only
+# a leaf feature has one; a group is there whenever its children are.
 var time_range: Vector2i = Vector2i(0, 2000)
 
 # Numbering
@@ -124,6 +131,17 @@ func has_geometry() -> bool:
 	return false
 
 
+# Whether anything under this node can be drawn, the node itself included. A
+# group is worth dragging exactly when something inside it would move with it.
+func holds_geometry() -> bool:
+	if not is_group:
+		return has_geometry()
+	for child in children:
+		if child.holds_geometry():
+			return true
+	return false
+
+
 func vertex_count() -> int:
 	var total := 0
 	for ring in rings:
@@ -171,7 +189,7 @@ func clone() -> Feature:
 		node.rings.append(ring.duplicate())
 	# Copied rather than recomputed: every undo step clones the whole tree.
 	node.triangles = triangles.duplicate()
-	node.rotation_angles = rotation_angles
+	node.keyframes = Keyframe.clone_list(keyframes)
 	node.time_range = time_range
 	for child in children:
 		node.children.append(child.clone())
@@ -249,6 +267,7 @@ func to_json() -> Variant:
 		"title": title,
 		"enabled": enabled,
 		"is_group": is_group,
+		"keyframes": Keyframe.list_to_json(keyframes),
 	}
 	if is_group:
 		data["type"] = "Group"
@@ -262,7 +281,6 @@ func to_json() -> Variant:
 		data["color"] = [color.r, color.g, color.b, color.a]
 		data["geometry_kind"] = KIND_NAMES[geometry_kind]
 		data["rings"] = rings_to_json(rings)
-		data["rotation"] = [rotation_angles.x, rotation_angles.y, rotation_angles.z]
 		data["time_range"] = [time_range.x, time_range.y]
 	return data
 
@@ -273,6 +291,7 @@ static func from_json(data: Variant) -> Feature:
 	node.title = data["title"]
 	node.enabled = data.get("enabled", true)
 	node.is_group = data.get("is_group", data.get("type") == "Group")
+	node.keyframes = Keyframe.list_from_json(data.get("keyframes", []))
 	if node.is_group:
 		node.collapsed = true
 		for child_data in data.get("children", []):
@@ -284,8 +303,6 @@ static func from_json(data: Variant) -> Feature:
 		node.geometry_kind = KIND_VALUES.get(data.get("geometry_kind", "polygon"), GeometryKind.POLYGON)
 		node.rings = rings_from_json(data.get("rings", []))
 		node.rebuild_triangles()
-		var r: Array = data.get("rotation", [0, 0, 0])
-		node.rotation_angles = Vector3(r[0], r[1], r[2])
 		var tr: Array = data.get("time_range", [0, 2000])
 		node.time_range = Vector2i(tr[0], tr[1])
 	return node
@@ -405,11 +422,61 @@ static func ensure_front_winding(verts: PackedVector2Array, start: int) -> void:
 		verts[start + 2] = tmp
 
 
+### Motion in time
+
+
+# The rotation this node applies of its own at the given time, from its own
+# keyframes. What the world sees is this composed with every ancestor's; see
+# world_basis().
+func rotation_at(time: float) -> Vector3:
+	return Keyframe.interpolate(keyframes, time)
+
+
+func basis_at(time: float) -> Basis:
+	return build_rotation_basis(rotation_at(time))
+
+
+# Whether this node is there at the given time. A group is there whenever its
+# children are, so only a leaf feature is limited by a time range. Both ends
+# count as inside, and the range is an age span, so the larger number is the
+# older end.
+func exists_at(time: float) -> bool:
+	if is_group:
+		return true
+	return time >= float(time_range.x) and time <= float(time_range.y)
+
+
+# The rotation that carries a node's own frame into world space at the given
+# time: its own rotation with every ancestor's applied outside it, root first.
+# A group's motion therefore reaches everything under it, which is how a terrane
+# rides on the craton it sits on. The identity when the node is not in the tree.
+static func world_basis(root: Feature, node: Feature, time: float) -> Basis:
+	var chain: Array[Feature] = []
+	if root == null or node == null or not _path_to(root, node, chain):
+		return Basis()
+	var m := Basis()
+	for step in chain:
+		m = m * step.basis_at(time)
+	return m
+
+
+# Fill chain with the nodes from this one down to the target, both included.
+static func _path_to(node: Feature, target: Feature, chain: Array[Feature]) -> bool:
+	chain.append(node)
+	if is_same(node, target):
+		return true
+	for child in node.children:
+		if _path_to(child, target, chain):
+			return true
+	chain.pop_back()
+	return false
+
+
 ### Rotation helpers
 
 
 # Build rotation Basis from angles (degrees): R = Ry(rot.x) * Rx(rot.y) * Rz(rot.z)
-static func _build_rotation_basis(rot: Vector3) -> Basis:
+static func build_rotation_basis(rot: Vector3) -> Basis:
 	return Basis(Vector3.UP, deg_to_rad(rot.x)) \
 		* Basis(Vector3.RIGHT, deg_to_rad(rot.y)) \
 		* Basis(Vector3.BACK, deg_to_rad(rot.z))
@@ -417,7 +484,7 @@ static func _build_rotation_basis(rot: Vector3) -> Basis:
 
 # Extract the three angles in degrees from M = Ry(alpha) * Rx(beta) * Rz(gamma)
 # Note: Godot Basis uses m[column][row], so standard M[row][col] = m[col][row]
-static func _decompose_rotation_degrees(m: Basis) -> Vector3:
+static func decompose_rotation_degrees(m: Basis) -> Vector3:
 	var sin_beta := clampf(-m[2][1], -1.0, 1.0)
 	var beta := asin(sin_beta)
 	var cos_beta := cos(beta)
@@ -438,22 +505,23 @@ static func _decompose_rotation_degrees(m: Basis) -> Vector3:
 static func apply_rotation(verts: PackedVector2Array, rot: Vector3) -> PackedVector2Array:
 	if rot.is_zero_approx():
 		return verts
-	var m := _build_rotation_basis(rot)
-	var result := PackedVector2Array()
-	result.resize(verts.size())
-	for i in range(verts.size()):
-		result[i] = _xyz_to_latlon_s(m * _latlon_to_xyz_s(verts[i]))
-	return result
+	return apply_basis(verts, build_rotation_basis(rot))
 
 
 static func unapply_rotation(verts: PackedVector2Array, rot: Vector3) -> PackedVector2Array:
 	if rot.is_zero_approx():
 		return verts
-	var m_inv := _build_rotation_basis(rot).transposed()
+	return apply_basis(verts, build_rotation_basis(rot).transposed())
+
+
+# Carry latitude and longitude vertices through a rotation already built. The
+# rotation of a node is composed from its own and its ancestors', so most
+# callers have the Basis rather than the three angles that made it.
+static func apply_basis(verts: PackedVector2Array, m: Basis) -> PackedVector2Array:
 	var result := PackedVector2Array()
 	result.resize(verts.size())
 	for i in range(verts.size()):
-		result[i] = _xyz_to_latlon_s(m_inv * _latlon_to_xyz_s(verts[i]))
+		result[i] = _xyz_to_latlon_s(m * _latlon_to_xyz_s(verts[i]))
 	return result
 
 
@@ -469,8 +537,8 @@ static func compute_move_rotation(anchor_world: Vector3, target_world: Vector3, 
 
 	var axis := anchor_world.cross(target_world).normalized()
 	var angle := acos(clampf(dot_val, -1.0, 1.0))
-	var m_new := Basis(axis, angle) * _build_rotation_basis(base_rot)
-	return _decompose_rotation_degrees(m_new)
+	var m_new := Basis(axis, angle) * build_rotation_basis(base_rot)
+	return decompose_rotation_degrees(m_new)
 
 
 static func _latlon_to_xyz_s(v: Vector2) -> Vector3:

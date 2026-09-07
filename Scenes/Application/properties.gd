@@ -21,10 +21,18 @@ signal previewed()
 signal rejected(message: String)
 
 # The oldest age either end of a time range can name.
-const TIME_LIMIT := 10000
+const TIME_LIMIT := int(Document.MAX_TIME)
+
+# The columns of the keyframe table: when the keyframe is, and the three angles
+# of the rotation it holds. The angles are the ones Docs/Moving.md names: a
+# turn about the poles, one about the equator, and the feature's own spin.
+const KEYFRAME_COLUMNS := ["Ma", "Lon", "Lat", "Spin"]
 
 # How wide the panel is, whatever it happens to be showing.
 const CONTENT_WIDTH := 280
+
+# The background of the keyframe row the current time is sitting on.
+const CURRENT_KEYFRAME_COLOR := Color(0.25, 0.35, 0.5, 1.0)
 
 # The open document, set by Application through attach().
 var document: Document
@@ -47,12 +55,18 @@ var geometry_label: Label
 var coordinates: Tree
 var add_button: Button
 var remove_button: Button
+var keyframes: Tree
+var key_button: Button
+var delete_key_button: Button
 
 # Every row of the form, each a label and the control beside it, and whether a
 # group has it too.
 var _rows: Array[Dictionary] = []
 # Everything below the form, which only a leaf feature has.
 var _feature_boxes: Array[Control] = []
+# The keyframe table and its buttons, which a group has as well, because a group
+# carries motion its children inherit.
+var _motion_boxes: Array[Control] = []
 
 
 func _ready() -> void:
@@ -171,6 +185,52 @@ func _build() -> void:
 	remove_button.pressed.connect(_on_remove_pressed)
 	buttons.add_child(remove_button)
 
+	_build_keyframes(box)
+
+
+# The keyframe table: when the node is where, one row per keyframe, with the row
+# at the current time marked. Every cell can be edited, so a keyframe dragged
+# roughly into place with the Move tool can be given exact numbers here.
+func _build_keyframes(box: VBoxContainer) -> void:
+	var heading := Label.new()
+	heading.name = "MotionHeading"
+	heading.text = "Keyframes"
+	box.add_child(heading)
+	_motion_boxes.append(heading)
+
+	keyframes = Tree.new()
+	keyframes.name = "Keyframes"
+	keyframes.columns = KEYFRAME_COLUMNS.size()
+	keyframes.column_titles_visible = true
+	keyframes.hide_root = true
+	for column in KEYFRAME_COLUMNS.size():
+		keyframes.set_column_title(column, KEYFRAME_COLUMNS[column])
+	keyframes.custom_minimum_size = Vector2(0, 120)
+	keyframes.item_edited.connect(_on_keyframe_edited)
+	keyframes.item_selected.connect(_update_keyframe_buttons)
+	keyframes.nothing_selected.connect(_update_keyframe_buttons)
+	box.add_child(keyframes)
+	_motion_boxes.append(keyframes)
+
+	var key_buttons := HBoxContainer.new()
+	key_buttons.name = "KeyframeButtons"
+	box.add_child(key_buttons)
+	_motion_boxes.append(key_buttons)
+
+	key_button = Button.new()
+	key_button.name = "Key"
+	key_button.text = "Key"
+	key_button.tooltip_text = "Hold where this is now as a keyframe at the current time"
+	key_button.pressed.connect(_on_key_pressed)
+	key_buttons.add_child(key_button)
+
+	delete_key_button = Button.new()
+	delete_key_button.name = "DeleteKey"
+	delete_key_button.text = "Delete"
+	delete_key_button.tooltip_text = "Delete the selected keyframe"
+	delete_key_button.pressed.connect(_on_delete_key_pressed)
+	key_buttons.add_child(delete_key_button)
+
 
 func _time_spin(spin_name: String) -> SpinBox:
 	var spin := SpinBox.new()
@@ -214,6 +274,8 @@ func show_node(node_: Feature) -> void:
 		(row["control"] as Control).visible = shown
 	for control in _feature_boxes:
 		control.visible = is_feature
+	for control in _motion_boxes:
+		control.visible = editable
 
 	if not editable:
 		return
@@ -228,8 +290,22 @@ func show_node(node_: Feature) -> void:
 		to_spin.value = node.time_range.y
 		geometry_label.text = _geometry_summary(node)
 		_fill_coordinates()
+	_fill_keyframes()
 	_filling = false
 	_update_vertex_buttons()
+	_update_keyframe_buttons()
+
+
+# The current time moved: mark whichever keyframe row it now sits on. Nothing
+# else in the panel depends on the time.
+func show_time() -> void:
+	if node == null or node.is_root or keyframes == null:
+		return
+	var root := keyframes.get_root()
+	if root == null:
+		return
+	for item in root.get_children():
+		_mark_current(item)
 
 
 func _type_index(type_id: String) -> int:
@@ -274,6 +350,132 @@ func _fill_coordinates() -> void:
 
 static func format_degrees(value: float) -> String:
 	return "%.4f" % value
+
+
+# A time as the keyframe table shows it. Enough decimals to tell two frames of a
+# fine animation apart, without a row of trailing zeros on the usual whole ages.
+static func format_time(value: float) -> String:
+	return String.num(value, 4).trim_suffix(".0")
+
+
+### The keyframe table
+
+
+func _fill_keyframes() -> void:
+	keyframes.clear()
+	if node == null or node.is_root:
+		return
+	var root := keyframes.create_item()
+	for index in node.keyframes.size():
+		var keyframe: Keyframe = node.keyframes[index]
+		var item := keyframes.create_item(root)
+		item.set_metadata(0, index)
+		item.set_text(0, format_time(keyframe.time))
+		for column in [1, 2, 3]:
+			item.set_text(column, format_degrees(keyframe.rotation[column - 1]))
+		for column in KEYFRAME_COLUMNS.size():
+			item.set_editable(column, true)
+		_mark_current(item)
+
+
+# Show which keyframe the document is sitting on, if it is sitting on one.
+func _mark_current(item: TreeItem) -> void:
+	var index: Variant = item.get_metadata(0)
+	if index == null or document == null:
+		return
+	var here := is_equal_approx(node.keyframes[int(index)].time, document.current_time)
+	for column in KEYFRAME_COLUMNS.size():
+		if here:
+			item.set_custom_bg_color(column, CURRENT_KEYFRAME_COLOR)
+		else:
+			item.clear_custom_bg_color(column)
+
+
+func _on_keyframe_edited() -> void:
+	var item := keyframes.get_edited()
+	var column := keyframes.get_edited_column()
+	if _filling or node == null or item == null or item.get_metadata(0) == null:
+		return
+
+	var index := int(item.get_metadata(0))
+	var text := item.get_text(column).strip_edges()
+	if not text.is_valid_float():
+		_take_back_keyframe("%s is not a number." % text)
+		return
+
+	var error: String
+	if column == 0:
+		error = document.set_keyframe_time(node, index, float(text))
+	else:
+		var rotation: Vector3 = node.keyframes[index].rotation
+		rotation[column - 1] = float(text)
+		error = document.set_keyframe_rotation(node, index, rotation)
+	if not error.is_empty():
+		_take_back_keyframe(error)
+		return
+	_refill_keyframes()
+	edited.emit()
+
+
+# Hold where the node is now as a keyframe at the current time. This is how a
+# keyframe is made without dragging: the rotation it records is the one the
+# keyframes around the current time already give, so nothing on the globe moves.
+func _on_key_pressed() -> void:
+	if node == null or node.is_root:
+		return
+	document.set_keyframe(node, document.current_time, node.rotation_at(document.current_time))
+	_refill_keyframes()
+	edited.emit()
+
+
+func _on_delete_key_pressed() -> void:
+	var index := selected_keyframe()
+	if index < 0:
+		return
+	var error := document.remove_keyframe(node, index)
+	if not error.is_empty():
+		rejected.emit(error)
+		return
+	_refill_keyframes()
+	edited.emit()
+
+
+# Which keyframe is picked, or -1 when the table is empty or none is.
+func selected_keyframe() -> int:
+	if node == null or node.is_root or node.keyframes.is_empty():
+		return -1
+	var item := keyframes.get_selected()
+	if item != null and item.get_metadata(0) != null:
+		return int(item.get_metadata(0))
+	return -1
+
+
+func select_keyframe(index: int) -> void:
+	var root := keyframes.get_root()
+	if root == null or index < 0 or index >= root.get_child_count():
+		return
+	keyframes.deselect_all()
+	root.get_child(index).select(0)
+
+
+func _update_keyframe_buttons() -> void:
+	var editable := node != null and not node.is_root
+	key_button.disabled = not editable
+	delete_key_button.disabled = not editable or selected_keyframe() < 0
+
+
+func _refill_keyframes() -> void:
+	_filling = true
+	_fill_keyframes()
+	_filling = false
+	_update_keyframe_buttons()
+
+
+# Put the table back the way the node is and say what went wrong, after an edit
+# the document would not take.
+func _take_back_keyframe(message: String) -> void:
+	_refill_keyframes()
+	rejected.emit(message)
 
 
 ### Editing
@@ -451,6 +653,7 @@ func to_json() -> Dictionary:
 		"name": name_edit.text,
 		"enabled": enabled_check.button_pressed,
 	}
+	data["keyframes"] = _keyframes_to_json()
 	if node.is_group:
 		return data
 	data["feature_type"] = str(type_selector.get_item_metadata(type_selector.selected))
@@ -461,6 +664,21 @@ func to_json() -> Dictionary:
 	data["geometry"] = geometry_label.text
 	data["coordinates"] = _coordinates_to_json()
 	return data
+
+
+# The keyframe table as it stands, read off the rows rather than off the node.
+func _keyframes_to_json() -> Array:
+	var rows: Array = []
+	var root := keyframes.get_root()
+	if root == null:
+		return rows
+	for item in root.get_children():
+		rows.append({
+			"time": float(item.get_text(0)),
+			"rotation": [float(item.get_text(1)), float(item.get_text(2)), float(item.get_text(3))],
+			"current": item.get_custom_bg_color(0) == CURRENT_KEYFRAME_COLOR,
+		})
+	return rows
 
 
 func _coordinates_to_json() -> Array:

@@ -8,9 +8,17 @@ signal feature_selected(node: Feature)
 @onready var group_icon := [preload("res://Assets/Icons/Generated/GroupDisabled.png"), preload("res://Assets/Icons/Generated/GroupEnabled.png")]
 @onready var rule_icon := [preload("res://Assets/Icons/Generated/RuleDisabled.png"), preload("res://Assets/Icons/Generated/RuleEnabled.png")]
 
+# What a row is greyed out to while its feature is not there at the current
+# time, which is when the globe leaves it out as well.
+const ABSENT_COLOR := Color(0.5, 0.5, 0.5, 1.0)
+
 var root: Feature = null
 var items: Dictionary[int, TreeItem] = {}
 var editable_item: TreeItem
+
+# The time the rows are shown for. Rebuilding the tree keeps it, so a reload in
+# the middle of an animation does not put the greyed out rows back.
+var time: float = 0.0
 
 
 ### Initialization
@@ -68,6 +76,26 @@ func load_feature(parent: TreeItem, feature: Feature):
 
 	item.add_button(0, Helpers.render_cell(feature.color).texture, 1, not feature.enabled, "Color")
 	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_ENABLE + int(feature.enabled), not feature.enabled, feature.enabled), 2, false, "Enable this feature")
+	_apply_time(item)
+
+
+### Time
+
+
+# Grey out every feature that is not there at the given time. A group is always
+# there, so only the leaf rows ever change.
+func refresh_time(time_: float) -> void:
+	time = time_
+	for item in items.values():
+		_apply_time(item)
+
+
+func _apply_time(item: TreeItem) -> void:
+	var node := item.get_metadata(0) as Feature
+	if node == null or node.exists_at(time):
+		item.clear_custom_color(0)
+	else:
+		item.set_custom_color(0, ABSENT_COLOR)
 
 
 ### Selection

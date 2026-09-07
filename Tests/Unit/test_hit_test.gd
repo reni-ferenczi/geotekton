@@ -24,9 +24,9 @@ func test_winding_matches_the_front_face_rule() -> void:
 func test_hit_inside_and_miss_outside() -> void:
 	var feature := _make_feature("Craton", Color.RED, Vector3.ZERO)
 	var geometry := Planet.collect_geometry(_make_root([feature]))
-	assert_eq(geometry.size(), 1, "one triangle is collected")
-	assert_eq(geometry[0]["kind"], Planet.Primitive.TRIANGLE)
-	assert_eq(geometry[0]["color"], Color.RED)
+	assert_eq(geometry.primitives.size(), 1, "one triangle is collected")
+	assert_eq(geometry.primitives[0]["kind"], Planet.Primitive.TRIANGLE)
+	assert_eq(geometry.primitives[0]["color"], Color.RED)
 	assert_eq(Planet.hit_test(0, 0, geometry), feature, "the centre is inside")
 	assert_eq(Planet.hit_test(40, 40, geometry), null, "a far away point misses")
 
@@ -34,8 +34,8 @@ func test_hit_inside_and_miss_outside() -> void:
 func test_a_polyline_is_collected_as_segments_and_hit_within_the_tolerance() -> void:
 	var feature := _make_feature("Ridge", Color.BLUE, Vector3.ZERO, LINE, Feature.GeometryKind.POLYLINE)
 	var geometry := Planet.collect_geometry(_make_root([feature]))
-	assert_eq(geometry.size(), 1, "two vertices make one segment")
-	assert_eq(geometry[0]["kind"], Planet.Primitive.SEGMENT)
+	assert_eq(geometry.primitives.size(), 1, "two vertices make one segment")
+	assert_eq(geometry.primitives[0]["kind"], Planet.Primitive.SEGMENT)
 
 	assert_eq(Planet.hit_test(0, 15, geometry), feature, "the middle of the line is a hit")
 	assert_eq(Planet.hit_test(0, 0, geometry), feature, "an end of the line is a hit")
@@ -53,8 +53,8 @@ func test_a_polyline_is_collected_as_segments_and_hit_within_the_tolerance() -> 
 func test_a_multipoint_is_hit_on_its_vertices() -> void:
 	var feature := _make_feature("Stations", Color.GREEN, Vector3.ZERO, POINTS, Feature.GeometryKind.MULTIPOINT)
 	var geometry := Planet.collect_geometry(_make_root([feature]))
-	assert_eq(geometry.size(), 2, "one marker per vertex")
-	assert_eq(geometry[0]["kind"], Planet.Primitive.POINT)
+	assert_eq(geometry.primitives.size(), 2, "one marker per vertex")
+	assert_eq(geometry.primitives[0]["kind"], Planet.Primitive.POINT)
 
 	for point in POINTS:
 		assert_eq(Planet.hit_test(point.x, point.y, geometry), feature,
@@ -65,7 +65,7 @@ func test_a_multipoint_is_hit_on_its_vertices() -> void:
 func test_disabled_features_are_not_collected() -> void:
 	var feature := _make_feature("Craton", Color.RED, Vector3.ZERO)
 	feature.enabled = false
-	assert_eq(Planet.collect_geometry(_make_root([feature])).size(), 0)
+	assert_eq(Planet.collect_geometry(_make_root([feature])).primitives.size(), 0)
 
 
 func test_rotated_feature_is_hit_at_the_rotated_location() -> void:
@@ -89,7 +89,7 @@ func test_overlapping_features_resolve_to_the_first_child() -> void:
 	var first := _make_feature("First", Color.RED, Vector3.ZERO)
 	var second := _make_feature("Second", Color.BLUE, Vector3.ZERO)
 	var geometry := Planet.collect_geometry(_make_root([first, second]))
-	assert_eq(geometry.size(), 2)
+	assert_eq(geometry.primitives.size(), 2)
 	assert_eq(Planet.hit_test(0, 0, geometry), first)
 
 
@@ -98,7 +98,8 @@ func _make_feature(title: String, color: Color, rotation: Vector3,
 		kind: Feature.GeometryKind = Feature.GeometryKind.POLYGON) -> Feature:
 	var feature := Feature.create_feature(title, color)
 	feature.add_ring(ring.duplicate(), kind)
-	feature.rotation_angles = rotation
+	if not rotation.is_zero_approx():
+		Keyframe.upsert(feature.keyframes, 0.0, rotation)
 	return feature
 
 
