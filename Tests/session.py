@@ -78,9 +78,8 @@ def run_session(client: AutomationClient) -> None:
         check(not is_green(clear_color), f"the pixel at (5, 40) is not green: {clear_color}")
 
     # Turn the globe so that Green Moved faces the camera. At the default view it
-    # sits within two degrees of the horizon, where the surface is barely lit and
-    # the collision sphere is a touch smaller than the drawn one, so clicks there
-    # miss the globe.
+    # sits near the limb, where the surface is barely lit, so the pixel probe
+    # below would read a green too dark to recognize.
     client.call("set_view", lon=-60.0)
     check(client.call("get_view")["lon"] == -60.0, "set_view turns the globe to longitude -60")
 
@@ -224,18 +223,20 @@ def run_document_session(client: AutomationClient, folder: Path) -> None:
     check(client.call("get_panels")["panels"]["timeline"], "View shows the timeline again")
 
 
+# The polyline reaches 45 degrees either side of the middle of the view, well out
+# towards the limb, where a mismatch between the drawn globe and the sphere the
+# ray is cast against would show up as a visible offset.
 DRAWINGS = {
     "polygon": [(-10.0, -10.0), (10.0, 0.0), (-10.0, 10.0)],
-    "polyline": [(0.0, -15.0), (5.0, 0.0), (0.0, 15.0)],
+    "polyline": [(0.0, -45.0), (5.0, 0.0), (0.0, 45.0)],
     "multipoint": [(-5.0, -5.0), (5.0, 5.0)],
 }
 
 # A click goes out as a screen position computed for the drawn globe and comes
-# back as the lat/lon where the ray met the collision sphere, which has a radius
-# of 0.499 against the 0.5 of the mesh. The two therefore differ by a fraction
-# of a degree, growing with the distance from the middle of the view. See
-# GP-0021 in the gplates-dev tickets.
-CLICK_TOLERANCE = 0.1
+# back as the lat/lon where the ray met the collision sphere. Both are the same
+# sphere, so what is left is the single precision arithmetic of the projection
+# and the ray cast.
+CLICK_TOLERANCE = 0.001
 
 
 def start_new_document(client: AutomationClient) -> None:
@@ -291,7 +292,7 @@ def run_drawing_session(client: AutomationClient) -> None:
                 offset = worst_offset(ring, points)
                 check(offset < CLICK_TOLERANCE,
                       f"the stored vertices match the clicked points within "
-                      f"{CLICK_TOLERANCE} degrees ({kind}): {offset:.4f}")
+                      f"{CLICK_TOLERANCE} degrees ({kind}): {offset:.6f}")
         check(client.call("get_tool")["kind_locked"],
               f"the kind is fixed once the feature holds geometry ({kind})")
 
