@@ -10,6 +10,8 @@ signal move_ended()
 signal move_cancelled()
 signal craton_clicked(lat: float, lon: float)
 signal craton_hovered(lat: float, lon: float)
+# Where the mouse is on the planet, NAN when it is not over the planet.
+signal cursor_moved(lat: float, lon: float)
 
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet
@@ -49,6 +51,7 @@ func _on_planet_input_event_outside(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion:
 		craton_hovered.emit(NAN, NAN)
+		cursor_moved.emit(NAN, NAN)
 	if event is InputEventMouseButton:
 		var p = event.position
 		print("Outside click: x=%+d, y=%+d" % [roundi(p.x), roundi(p.y)])
@@ -72,6 +75,7 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 		elif event.is_pressed() and event.button_index == MOUSE_BUTTON_MIDDLE:
 			rotation_handler.start_rotating(lat, lon, event.position)
 	if event is InputEventMouseMotion:
+		cursor_moved.emit(lat, lon)
 		if rotation_handler.is_dragging:
 			rotation_handler.handle_dragging(lat, lon)
 		elif not drawing_mode:
@@ -85,6 +89,7 @@ func _on_planet_input_event_map(lat: float, lon: float, event: InputEvent) -> vo
 			craton_clicked.emit(lat, lon)
 			return
 	if event is InputEventMouseMotion:
+		cursor_moved.emit(lat, lon)
 		if not drawing_mode:
 			craton_hovered.emit(lat, lon)
 

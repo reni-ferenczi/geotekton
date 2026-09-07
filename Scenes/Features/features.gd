@@ -2,7 +2,6 @@ extends VBoxContainer
 class_name Features
 
 const CLIPBOARD_MARKER := "middle-earth"
-const MAX_UNDO_BUFFER_SIZE := 100
 
 @onready var feature_tree: FeatureTree = $FeatureTree
 @onready var add_group_button: Button = $PanelContainer/Buttons/AddGroup
@@ -18,48 +17,37 @@ const MAX_UNDO_BUFFER_SIZE := 100
 @onready var save_button: Button = $PanelContainer/Buttons/Save
 @onready var load_button: Button = $PanelContainer/Buttons/Load
 
-var root: Feature
-var versions: Array[Feature] = []
-var next_version: int = 0
+# The open document, owned by Application and set through attach().
+var document: Document
+
+# The feature tree of the open document.
+var root: Feature:
+	get:
+		return document.root
 
 
-func _ready() -> void:
-	root = Feature.create_group("Planet")
-	root.is_root = true
-	save_version()
-	feature_tree.load_root_group(root)
+# Take the document to edit and show its tree. Called once by Application.
+func attach(document_: Document) -> void:
+	document = document_
+	document.root_replaced.connect(_on_root_replaced)
+	document.state_changed.connect(update_button_availability)
+	_on_root_replaced()
+
+
+func _on_root_replaced() -> void:
+	reload()
 	feature_tree.select_root()
-	update_button_availability()
 
 
 ### Undo/Redo
 
 
-func save_version() -> void:
-	# Remove any redo versions
-	while len(versions) > next_version:
-		versions.pop_back()
-	# Record the current version
-	versions.append(root.clone())
-	next_version += 1
-	# Remove the oldest version if the buffer is full
-	while next_version > MAX_UNDO_BUFFER_SIZE:
-		versions.pop_front()
-		next_version -= 1
-
-
 func undo() -> void:
-	if next_version > 1:
-		next_version -= 1
-		root = versions[next_version - 1].clone()
-		reload()
+	document.undo()
 
 
 func redo() -> void:
-	if next_version < len(versions):
-		next_version += 1
-		root = versions[next_version - 1].clone()
-		reload()
+	document.redo()
 
 
 func _on_undo_pressed() -> void:
@@ -83,8 +71,8 @@ func reload() -> void:
 func update_button_availability() -> void:
 	var selected := feature_tree.get_selected_node()
 	var is_root_selected := selected == null or selected.is_root
-	undo_button.disabled = next_version < 2
-	redo_button.disabled = next_version >= len(versions)
+	undo_button.disabled = not document.can_undo()
+	redo_button.disabled = not document.can_redo()
 	cut_button.disabled = is_root_selected
 	duplicate_button.disabled = is_root_selected
 	detect_clipboard_content()
@@ -127,7 +115,7 @@ func _on_add_feature_pressed() -> void:
 func add_new_group(parent: Feature) -> void:
 	var group := Feature.create_group()
 	parent.children.append(group)
-	save_version()
+	document.record()
 	reload()
 	feature_tree.select_node(group)
 	feature_tree.collapse(parent, false)
@@ -136,7 +124,7 @@ func add_new_group(parent: Feature) -> void:
 func add_new_group_at(parent: Feature, index: int) -> void:
 	var group := Feature.create_group()
 	parent.children.insert(index, group)
-	save_version()
+	document.record()
 	reload()
 	feature_tree.select_node(group)
 	feature_tree.collapse(parent, false)
@@ -145,7 +133,7 @@ func add_new_group_at(parent: Feature, index: int) -> void:
 func add_new_feature(parent: Feature) -> void:
 	var feature := Feature.create_feature()
 	parent.children.append(feature)
-	save_version()
+	document.record()
 	reload()
 	feature_tree.select_node(feature)
 	feature_tree.collapse(parent, false)
@@ -154,7 +142,7 @@ func add_new_feature(parent: Feature) -> void:
 func add_new_feature_at(parent: Feature, index: int) -> void:
 	var feature := Feature.create_feature()
 	parent.children.insert(index, feature)
-	save_version()
+	document.record()
 	reload()
 	feature_tree.select_node(feature)
 	feature_tree.collapse(parent, false)
@@ -173,7 +161,7 @@ func delete_node(node: Feature) -> void:
 
 	var index := parent.find_child(node)
 	parent.children.remove_at(index)
-	save_version()
+	document.record()
 
 	# Select next sibling, previous sibling, or parent
 	if index < parent.child_count():
@@ -206,7 +194,7 @@ func duplicate_node(node: Feature) -> void:
 	var index := parent.find_child(node)
 	var duplicated := node.duplicate()
 	parent.children.insert(index + 1, duplicated)
-	save_version()
+	document.record()
 	reload()
 	feature_tree.select_node(duplicated)
 
@@ -271,7 +259,7 @@ func paste(parent: Feature, index: int = -1) -> void:
 		parent.children.append(node)
 	else:
 		parent.children.insert(index, node)
-	save_version()
+	document.record()
 
 	reload()
 	feature_tree.select_node(node)
@@ -287,105 +275,6 @@ func _on_collapse_pressed() -> void:
 
 func _on_expand_pressed() -> void:
 	feature_tree.collapse_all(false)
-
-
-### Save / Load
-
-
-func _on_save_pressed() -> void:
-	DisplayServer.file_dialog_show(
-		"Save",
-		Config.get_last_directory(),
-		"",
-		false,
-		DisplayServer.FILE_DIALOG_MODE_SAVE_FILE,
-		PackedStringArray(["*.middle-earth ; Middle-Earth Files"]),
-		_on_save_dialog_callback,
-	)
-
-
-func _on_save_dialog_callback(status: bool, selected_paths: PackedStringArray, _selected_filter: int) -> void:
-	if not status or selected_paths.is_empty():
-		return
-	var path := selected_paths[0]
-	if not path.ends_with(".middle-earth"):
-		path += ".middle-earth"
-	Config.set_last_directory_from_file(path)
-	_save_to_file(path)
-
-
-func _save_to_file(path: String) -> void:
-	var data := {
-		"application": CLIPBOARD_MARKER,
-		"version": Application.VERSION,
-		"features": root.to_json(),
-	}
-	var json := JSON.stringify(data, "\t")
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		push_error("Failed to open file for writing: %s" % path)
-		return
-	file.store_string(json)
-
-
-func _on_load_pressed() -> void:
-	DisplayServer.file_dialog_show(
-		"Open",
-		Config.get_last_directory(),
-		"",
-		false,
-		DisplayServer.FILE_DIALOG_MODE_OPEN_FILE,
-		PackedStringArray(["*.middle-earth ; Middle-Earth Files"]),
-		_on_load_dialog_callback,
-	)
-
-
-func _on_load_dialog_callback(status: bool, selected_paths: PackedStringArray, _selected_filter: int) -> void:
-	if not status or selected_paths.is_empty():
-		return
-	Config.set_last_directory_from_file(selected_paths[0])
-	_load_from_file(selected_paths[0])
-
-
-func _load_from_file(path: String) -> void:
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		push_error("Failed to open file for reading: %s" % path)
-		return
-
-	var text := file.get_as_text()
-	var json := JSON.new()
-	if json.parse(text) != OK:
-		push_error("Failed to parse JSON: %s" % json.get_error_message())
-		return
-
-	var data: Variant = json.data
-	if data is not Dictionary:
-		push_error("Invalid file format: root is not a dictionary")
-		return
-	if data.get("application", "") != CLIPBOARD_MARKER:
-		push_error("Invalid file format: not a Middle-Earth file")
-		return
-
-	data = migrate(data)
-
-	var loaded_root := Feature.from_json(data["features"])
-	loaded_root.is_root = true
-	root = loaded_root
-
-	# Reset the undo buffer
-	versions.clear()
-	next_version = 0
-	save_version()
-
-	reload()
-	feature_tree.select_root()
-
-
-static func migrate(data: Dictionary) -> Dictionary:
-	# No format migrations while the major version is 0.
-	# Once version 1.0.0 is reached, add migrations here for each file format change.
-	return data
 
 
 ### Keyboard shortcuts
@@ -422,19 +311,13 @@ func _on_feature_tree_unhandled_key_input(event: InputEvent) -> void:
 			KEY_D:
 				_on_duplicate_pressed()
 				get_viewport().set_input_as_handled()
-			KEY_S:
-				_on_save_pressed()
-				get_viewport().set_input_as_handled()
-			KEY_O:
-				_on_load_pressed()
-				get_viewport().set_input_as_handled()
 
 
 ### Tree signals
 
 
 func _on_feature_tree_program_changed() -> void:
-	save_version()
+	document.record()
 	reload()
 
 
