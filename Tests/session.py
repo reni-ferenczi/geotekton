@@ -724,8 +724,17 @@ def run_timeline_checks(client: AutomationClient) -> None:
 
     client.call("timeline", button="Younger")
     check(client.call("get_time")["time"] == 300.0, "a step towards the younger end")
+    check(client.call("get_timeline")["timeline"]["typed"] == 300.0,
+          "which the typed time field shows as well")
     client.call("timeline", button="Older")
     check(client.call("get_time")["time"] == 400.0, "and one back towards the older")
+
+    # A time typed in reaches the slider through the document, the same way a
+    # time set from a script does.
+    client.call("set_time", time=123.0)
+    timeline = client.call("get_timeline")["timeline"]
+    check(timeline["typed"] == 123.0 and timeline["slider"] == -123.0,
+          f"a time set anywhere reaches both the field and the slider: {timeline['slider']}")
 
     client.call("timeline", button="Play")
     check(client.call("get_timeline")["timeline"]["playing"], "Play starts the animation")
