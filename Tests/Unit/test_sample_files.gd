@@ -87,6 +87,25 @@ func test_sample_files_load_and_hit_test() -> void:
 			assert_eq(title, probe[1], "probe %s in %s" % [point, file_name])
 
 
+# Every sample predates the type field, so all of them are fixtures for the one
+# thing 0.3.0 asks of an older file: that it arrives whole and unclassified.
+func test_the_samples_load_without_a_type() -> void:
+	for file_name in EXPECTED:
+		var root := _load("%s/%s" % [DATA_DIR, file_name])
+		if root == null:
+			continue
+		var stack: Array[Feature] = [root]
+		while not stack.is_empty():
+			var node: Feature = stack.pop_back()
+			stack.append_array(node.children)
+			if node.is_group:
+				continue
+			assert_eq(node.feature_type, FeatureType.UNCLASSIFIED,
+				"%s in %s carries no type, so it is unclassified" % [node.title, file_name])
+			assert_true(FeatureType.allows(node.feature_type, node.kind_name()),
+				"and its type allows the kind it holds")
+
+
 func test_the_moved_craton_sits_where_the_rotation_puts_it() -> void:
 	# The README documents the green probe point; it is the red one rotated by 60 degrees.
 	var root := _load("%s/two_cratons.middle-earth" % DATA_DIR)
