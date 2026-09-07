@@ -88,9 +88,9 @@ switch that `--help` forgets to list fails the run.
 | `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
 
 `Tests/Data/README.md` lists the probe points and the colour expected at each one.
-Points near the limb of the globe are dark and cannot be clicked, because the
-collision sphere is slightly smaller than the drawn one, so tests turn the globe to
-bring a probe point to the front before reading or clicking it.
+Points near the limb of the globe are lit at a glancing angle and read much
+darker than the colour the file asks for, so tests turn the globe to bring a
+probe point to the front before reading its pixel.
 
 ## Golden images
 

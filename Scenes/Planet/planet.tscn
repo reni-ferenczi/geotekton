@@ -19,7 +19,6 @@ shader_parameter/width = Vector2(0.015, 0.015)
 shader_parameter/split = Vector2(24, 12)
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_4ilve"]
-radius = 0.499
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_510pn"]
 
