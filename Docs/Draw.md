@@ -93,7 +93,7 @@ Each leaf feature stores its craton as a flat array of `Vector2` vertices in `Fe
 Drawing appends new triangles to the existing array, so multiple polygons can be drawn on the same feature.
 
 After committing, the tool:
-1. Saves an undo version via `features.save_version()`.
+1. Saves an undo version via `document.record()`.
 2. Reloads the feature tree via `features.reload()`.
 3. Refreshes the craton rendering via `refresh_cratons()`.
 

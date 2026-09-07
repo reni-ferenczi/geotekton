@@ -8,6 +8,8 @@ const ui_scale: float = 1.0
 
 const APPLICATION_NAME := "Middle Earth"
 const DOCUMENTATION_URL := "https://github.com/reni-ferenczi/middle-earth/tree/main/Docs"
+# The Earth texture credited in the About dialog, as listed in README.md.
+const EARTH_TEXTURE_URL := "https://wall.alphacoders.com/big.php?i=11433"
 static var FILE_FILTERS := PackedStringArray(["*.middle-earth ; Middle Earth Files"])
 
 # Answers a file dialog without showing one. Set by the automation port so a
@@ -431,8 +433,7 @@ func _build_about_content() -> Control:
 		"",
 		"[b]Credits[/b]",
 		"Reni Ferenczi and Viktor Ferenczi, development.",
-		"Earth texture: NASA Visible Earth, Blue Marble Next Generation,",
-		"[url=https://visibleearth.nasa.gov/collection/1484/blue-marble]visibleearth.nasa.gov[/url]",
+		"Earth texture: [url=%s]4K Ultra HD World Map Wallpaper[/url]." % EARTH_TEXTURE_URL,
 		"",
 		"[url=%s]Documentation[/url]" % DOCUMENTATION_URL,
 	])

@@ -1,16 +1,17 @@
 # Testing
 
-The test suite has four modes. `Tests/run.py` starts all of them.
+The test suite has five modes. `Tests/run.py` starts all of them.
 
 | Mode       | Command                       | What it covers                                            |
 | ---------- | ----------------------------- | --------------------------------------------------------- |
 | `headless` | `python Tests/run.py headless` | Pure logic: rotation math, triangulation, hit testing, the file format. No window. |
 | `rendered` | `python Tests/run.py rendered` | The real application window: what is drawn, where clicks land, screen to world coordinates. |
 | `session`  | `python Tests/run.py session`  | A scripted end-to-end session driving the running application over the automation port. |
+| `cli`      | `python Tests/run.py cli`      | What `--version` and `--help` print, from a headless start with no window. |
 | `golden`   | `uv run Tests/run.py golden`   | Full window screenshots diffed against reference images. |
-| `all`      | `uv run Tests/run.py all`      | All four in the order above, stopping at the first failure. |
+| `all`      | `uv run Tests/run.py all`      | All five in the order above, stopping at the first failure. |
 
-`headless`, `rendered` and `session` run under any Python 3.13 or newer. `golden`
+`headless`, `rendered`, `session` and `cli` run under any Python 3.13 or newer. `golden`
 needs Pillow, so run it through `uv run`; under a plain interpreter without Pillow
 it prints a hint and exits with code 2. `uv run Tests/run.py <mode>` works for every
 mode, so `uv run` is the safe default.
@@ -60,12 +61,20 @@ Assertions collect failures instead of aborting: `assert_true`, `assert_eq`,
 every problem it finds. Never use GDScript's built-in `assert()`, it aborts the run
 and is stripped from release builds.
 
-`Tests/session.py` and `Tests/golden.py` are Python and can also be run on their own:
+`Tests/session.py`, `Tests/cli.py` and `Tests/golden.py` are Python and can also be
+run on their own:
 
 ```
 python Tests/session.py [--port N]
+python Tests/cli.py
 uv run Tests/golden.py check|update [--port N]
 ```
+
+`session.py` runs two scenarios against one launch of the application: the globe,
+which checks what is drawn and what a click selects, and the document, which
+checks New, Open, Save, Save As, the unsaved changes prompt, the recent file list
+and a View toggle. `cli.py` reads the switch list out of `Logic/cli.gd`, so a new
+switch that `--help` forgets to list fails the run.
 
 ## Sample files
 
@@ -146,7 +155,23 @@ a round trip is also a wait for the screen to catch up.
 | `screen_to_latlon {x, y}`            | `latlon: [lat, lon]`, or `null` off the globe                    |
 | `get_pixel {x, y}`                   | `color: [r, g, b, a]` in the range 0 to 1                        |
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
+| `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` |
+| `menu {item}`                        | runs a menu item: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `features`, `properties`, `timeline`, `status_bar`, `full_screen` |
+| `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |
+| `get_panels`                         | `panels`, which of the four panels are shown                     |
+| `get_dialog`                         | `dialog` with `name`, `title`, `text` and `buttons`, or `null`   |
+| `dialog {button}`                    | presses a dialog button by its label                             |
+| `expect_file_dialog {path}`          | answers the next file dialog with a path, or cancels it when empty |
+| `get_file_dialog`                    | `file_dialog` with `mode` and `title` of the last one asked for, and forgets it |
+| `get_recent` / `open_recent {index}` / `clear_recent` | the recent file list                    |
 | `quit`                               | closes the application                                           |
+
+A run with the port open starts from a fixed shell: the window geometry, the
+panel visibility and the last file are neither restored nor remembered, and the
+settings go to a scratch folder instead of the config file of whoever is at the
+keyboard. File dialogs do not open either; `expect_file_dialog` answers the next
+one and `get_file_dialog` reports what was asked for, which is how a script can
+tell that Save As asks for a path and Save on an open file does not.
 
 Screen coordinates are window pixels in a 1800x900 window, so what
 `latlon_to_screen` returns can be passed straight to `click`, `get_pixel` and

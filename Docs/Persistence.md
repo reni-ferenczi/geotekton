@@ -1,16 +1,48 @@
-# Save and Load
+# The document, files and settings
 
-## Overview
+## The document
 
-The application supports explicit saving and loading of the feature tree to and from files. There is no autosave; saving must be triggered by the user.
+`Logic/document.gd` owns everything about the open document: the feature tree,
+the file it came from and the undo stack. `Application` creates one and hands it
+to the `Features` panel, which edits that tree instead of holding one of its own.
 
-### UI entry points
+Two signals tell the rest of the window what happened:
 
-- **Toolbar buttons**: Save and Load buttons in the feature tree toolbar
-- **File menu**: File > Open, File > Save As, File > Save
-- **Keyboard shortcuts**: Ctrl+S (save), Ctrl+O (open/load)
+| Signal          | Emitted when                                    |
+| --------------- | ----------------------------------------------- |
+| `root_replaced` | The tree was rebuilt: by New, Open, undo or redo |
+| `state_changed` | The path, the dirty flag or the undo depth moved |
 
-## File Format
+### Unsaved changes
+
+The undo stack is the only source of the dirty flag. Every edit calls
+`Document.record()`, which stores a clone of the tree; the document remembers
+which of those versions is on disk and is clean exactly while the stack sits on
+it. So undoing back to the last save makes the document clean again, and redoing
+past it makes it dirty again. The stack keeps at most `MAX_UNDO_STEPS` (100)
+versions; once the saved version falls off the bottom the document stays dirty,
+because it can no longer be shown that the tree matches the file.
+
+New, Open, a recent file and Quit ask before throwing unsaved changes away. The
+prompt offers Save, Discard and Cancel: Save writes the file and then goes ahead
+with what was asked for, Discard goes ahead without writing, Cancel does
+nothing. When the document has no path yet, Save asks for one first.
+
+### New, Open, Save and Save As
+
+| Command | What it does                                                     |
+| ------- | ---------------------------------------------------------------- |
+| New     | Empty document, no path, empty undo stack                        |
+| Open    | Ask for a file and load it, replacing the tree and the undo stack |
+| Save    | Write to the document path; ask for one only when it has none    |
+| Save As | Always ask for a path, appending `.middle-earth` when it is missing |
+
+The file dialogs are the ones the platform provides
+(`DisplayServer.file_dialog_show`), so nothing happens when one is cancelled.
+Scripted runs answer them through `Application.file_dialog_hook` instead of
+opening a window; see [Testing](Testing.md#the-automation-port).
+
+## File format
 
 - **Extension**: `.middle-earth` (used for all versions)
 - **Encoding**: UTF-8 without BOM
@@ -36,7 +68,9 @@ The file is a JSON object with three top-level keys:
 
 ### Feature tree serialization
 
-The `features` value is the root "Planet" group. The JSON hierarchy mirrors the tree hierarchy in the UI exactly: groups contain a `children` array with nested groups and leaf features.
+The `features` value is the root "Planet" group. The JSON hierarchy mirrors the
+tree hierarchy in the UI exactly: groups contain a `children` array with nested
+groups and leaf features.
 
 **Group node:**
 
@@ -71,17 +105,45 @@ The `features` value is the root "Planet" group. The JSON hierarchy mirrors the 
 }
 ```
 
-Serialization is implemented in `Logic/feature.gd` via `Feature.to_json()` and `Feature.from_json()`.
+Serialization is implemented in `Logic/feature.gd` via `Feature.to_json()` and
+`Feature.from_json()`.
 
-## Format Migration
+### Format migration
 
-When a file is loaded, it is passed through the `Features.migrate()` function (`Scenes/Features/features.gd`). This function receives the parsed top-level dictionary and transforms it to match the current version's expected format, based on the `version` field in the file.
+A loaded file passes through `Document.migrate()`, which receives the parsed
+top-level dictionary and transforms it into what the current version expects,
+based on the `version` field in the file. It does nothing while the major
+version is 0. See [Versioning](Versioning.md) for when a migration is required.
 
-See [Versioning](Versioning.md) for the rules on when migrations are required and how version numbers relate to file format changes.
+## The config file
 
-## Behavior on Load
+`Logic/config.gd` keeps one JSON file per user, `%APPDATA%\MiddleEarth\config.json`,
+outside the project. Every setter writes it immediately, so a crash cannot lose
+more than the last change.
 
-- The entire feature tree is replaced with the loaded content.
-- The undo/redo buffer is reset (you cannot undo back to the state before loading).
-- The planet view is refreshed to reflect the loaded features.
-- No warning is shown about unsaved changes before loading (planned for a future release).
+| Key                                | What it holds                                       |
+| ---------------------------------- | --------------------------------------------------- |
+| `last_directory`                   | Where the file dialogs open                          |
+| `recent_files`                     | Paths, newest first, at most `MAX_RECENT_FILES` (10) |
+| `restore_session`                  | Whether to reopen the last file on launch            |
+| `window`                           | `x`, `y`, `width`, `height` and `maximized`          |
+| `splitter_left`, `splitter_right`  | The two split offsets                                |
+| `panel_features`, `panel_properties`, `panel_timeline`, `panel_status_bar` | Which panels are shown |
+
+### Recent files
+
+Opening or saving a file puts it at the front of `recent_files`, removes any
+earlier copy of it and drops the oldest entries beyond the cap. File > Open
+Recent lists them in that order, with a Clear entry that empties the list.
+
+### The session
+
+On launch the window geometry, the splitter offsets and the panel visibility are
+restored from the config, and the newest recent file is reopened unless
+`restore_session` is off or the file is gone. Everything but the reopened file is
+written back when the application quits.
+
+A run started with `--automation-port` skips all of this and keeps its settings
+in a scratch folder under the user data directory, so a scripted run always
+starts from the same window and never touches the settings of whoever is at the
+keyboard.
