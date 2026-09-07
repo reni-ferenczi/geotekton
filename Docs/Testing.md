@@ -75,8 +75,11 @@ globe, which checks what is drawn and what a click selects; the document, which
 checks New, Open, Save, Save As, the unsaved changes prompt, the recent file list
 and a View toggle; drawing, one feature of each geometry kind; and the Properties
 panel, which checks what selecting a feature fills in, what an edit does to the
-tree row and the globe, what the document refuses, and Duplicate and Delete from
-the right click menu on the globe.
+tree row and the globe, what the document refuses, Duplicate and Delete from the
+right click menu on the globe, and the Edit menu running the same commands.
+
+The Edit menu scenario copies a feature, so a run puts a `.middle-earth` feature
+on the clipboard of whoever is running it.
 
 `cli.py` reads the switch list out of `Logic/cli.gd`, so a new switch that
 `--help` forgets to list fails the run.
