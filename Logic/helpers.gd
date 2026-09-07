@@ -74,14 +74,10 @@ const ICON_ATLAS_COLUMNS := 18
 const ICON_SHOWN := ICON_ATLAS_COLUMNS
 const ICON_DISABLED := ICON_ATLAS_COLUMNS * 2
 
+# Columns of the icon atlas. Repeat (2), invert (3), single (4), wrap (5) and
+# resize (6) went with the tree row buttons they named in 0.2.0; permutation (9)
+# and orientation (10) were never used here either. The icons stay in the atlas.
 const ICON_ENABLE := 0
-const ICON_REPEAT := 2
-const ICON_INVERT := 3
-const ICON_SINGLE := 4
-const ICON_WRAP := 5
-const ICON_RESIZE := 6
-const ICON_PERMUTATION := 9
-const ICON_ORIENTATION := 10
 
 
 static var rule_options_atlas := Helpers.split_atlas_to_textures(preload("res://Assets/Icons/Generated/IconAtlas.png"), Vector2i(32, 32))

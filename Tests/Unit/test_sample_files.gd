@@ -104,6 +104,27 @@ func test_the_moved_craton_sits_where_the_rotation_puts_it() -> void:
 	assert_close(moved, Vector2(-3, -60), 1e-4, "the documented green probe point")
 
 
+func test_every_triangle_derived_from_a_sample_faces_outwards() -> void:
+	# The rule from Feature.ensure_front_winding, which both Planet.hit_test and
+	# the shader rely on. It held for the triangles the 0.1.0 files listed, and
+	# it has to hold for the ones the recovered rings are cut into.
+	for file_name in EXPECTED:
+		var root := _load("%s/%s" % [DATA_DIR, file_name])
+		if root == null:
+			continue
+		for feature in _leaves(root):
+			var triangles := feature.triangles
+			if feature.geometry_kind == Feature.GeometryKind.POLYGON:
+				assert_eq(triangles.size(), (feature.vertex_count() - 2 * feature.rings.size()) * 3,
+					"%s in %s covers two triangles fewer than it has vertices" % [feature.title, file_name])
+			for i in range(0, triangles.size() - 2, 3):
+				var a := Feature._latlon_to_xyz_s(triangles[i])
+				var b := Feature._latlon_to_xyz_s(triangles[i + 1])
+				var c := Feature._latlon_to_xyz_s(triangles[i + 2])
+				assert_true((b - a).cross(c - a).dot((a + b + c) / 3.0) >= 0.0,
+					"triangle %d of %s in %s faces inwards" % [i / 3, feature.title, file_name])
+
+
 func test_the_kinds_the_samples_hold() -> void:
 	var root := _load("%s/mixed_geometry.middle-earth" % DATA_DIR)
 	if root == null:
@@ -142,6 +163,15 @@ func _load(path: String) -> Feature:
 	assert_eq(root.title, "Planet", "root group title of %s" % path)
 	assert_true(root.is_group, "the root of %s must be a group" % path)
 	return root
+
+
+func _leaves(node: Feature) -> Array[Feature]:
+	var found: Array[Feature] = []
+	if not node.is_group:
+		found.append(node)
+	for child in node.children:
+		found.append_array(_leaves(child))
+	return found
 
 
 func _collect_titles(node: Feature, titles: Array[String]) -> void:

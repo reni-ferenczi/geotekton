@@ -85,6 +85,7 @@ switch that `--help` forgets to list fails the run.
 | `empty.middle-earth`      | The root group only, no features.                          |
 | `triangle.middle-earth`   | One red triangle around lat/lon (-3, 0).                   |
 | `two_cratons.middle-earth` | The red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). |
+| `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
 
 `Tests/Data/README.md` lists the probe points and the colour expected at each one.
 Points near the limb of the globe are dark and cannot be clicked, because the
@@ -93,7 +94,7 @@ bring a probe point to the front before reading or clicking it.
 
 ## Golden images
 
-The references are the four PNGs in `Tests/Golden`, each a full 1800x900 window:
+The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
 
 | Scene                | File                       | View                       |
 | -------------------- | -------------------------- | -------------------------- |
@@ -101,6 +102,7 @@ The references are the four PNGs in `Tests/Golden`, each a full 1800x900 window:
 | `two_cratons`        | `two_cratons.middle-earth` | default                    |
 | `two_cratons_tilted` | `two_cratons.middle-earth` | latitude 30, longitude -45 |
 | `empty`              | `empty.middle-earth`       | default                    |
+| `mixed_geometry`     | `mixed_geometry.middle-earth` | default                 |
 
 A run launches the application once, loads and renders every scene and compares the
 screenshots with the references. Two images are compared per pixel on the largest
@@ -119,7 +121,7 @@ To regenerate the references after an intended visual change:
 uv run Tests/golden.py update
 ```
 
-Look at the four PNGs once to confirm they show what the change intended, then
+Look at the PNGs once to confirm they show what the change intended, then
 commit them. They are reviewed in the pull request that changes them.
 
 ## The automation port
