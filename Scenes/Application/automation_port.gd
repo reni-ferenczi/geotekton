@@ -148,6 +148,17 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"set_clipboard":
+			# The feature tree toolbar greys its Paste button out by what the
+			# clipboard holds, so a run that wants the same window every time
+			# has to say what that is.
+			DisplayServer.clipboard_set(str(request.get("text", "")))
+			app.features.update_button_availability()
+			await _frames(2)
+			app.features.update_button_availability()
+			await _frames(2)
+			return {"ok": true}
+
 		"get_properties":
 			return {"ok": true, "properties": app.properties.to_json()}
 

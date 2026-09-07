@@ -79,7 +79,10 @@ tree row and the globe, what the document refuses, Duplicate and Delete from the
 right click menu on the globe, and the Edit menu running the same commands.
 
 The Edit menu scenario copies a feature, so a run puts a `.middle-earth` feature
-on the clipboard of whoever is running it.
+on the clipboard of whoever is running it. A golden run empties it, for the same
+reason: the Paste button of the feature tree toolbar is greyed out by what the
+clipboard holds, and an unknown clipboard is a 40 by 40 difference in every
+scene.
 
 `cli.py` reads the switch list out of `Logic/cli.gd`, so a new switch that
 `--help` forgets to list fails the run.
@@ -181,6 +184,7 @@ a round trip is also a wait for the screen to catch up.
 | `expect_file_dialog {path}`          | answers the next file dialog with a path, or cancels it when empty |
 | `get_file_dialog`                    | `file_dialog` with `mode` and `title` of the last one asked for, and forgets it |
 | `get_recent` / `open_recent {index}` / `clear_recent` | the recent file list                    |
+| `set_clipboard {text}`               | puts text on the clipboard, so a run can state what Paste is greyed out by |
 | `quit`                               | closes the application                                           |
 
 A run with the port open starts from a fixed shell: the window geometry, the
