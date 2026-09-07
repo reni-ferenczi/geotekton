@@ -58,7 +58,9 @@ Two fields: where the mouse is on the planet, and the open file.
 
 - The coordinates come from the `cursor_moved` signal of the planet view, which
   fires for the globe and the map. It reads `off the planet` while the pointer
-  is over the view but not over the planet.
+  is over the view but not over the planet, and once the pointer leaves the
+  window, which the view learns from its own `mouse_exited` rather than from the
+  planet. The craton highlight under the pointer ends at the same moment.
 - The file field shows the file name, with an asterisk while the document has
   unsaved changes, and the whole path as its tooltip. The window title carries
   the same name and marker.
