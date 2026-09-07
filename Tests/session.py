@@ -736,6 +736,10 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(timeline["typed"] == 123.0 and timeline["slider"] == -123.0,
           f"a time set anywhere reaches both the field and the slider: {timeline['slider']}")
 
+    # An animation long enough that it cannot run out between the request that
+    # starts it and the one that stops it.
+    client.call("set_animation", animation={"increment": 1.0, "frames_per_second": 60.0})
+    client.call("timeline", button="Reset")
     client.call("timeline", button="Play")
     check(client.call("get_timeline")["timeline"]["playing"], "Play starts the animation")
     client.call("timeline", button="Pause")
@@ -743,7 +747,7 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(client.call("get_time")["time"] < 400.0, "having moved the time along the way")
 
     # Playing to the end without looping stops there rather than wrapping.
-    client.call("set_animation", animation={"frames_per_second": 240.0})
+    client.call("set_animation", animation={"increment": 100.0, "frames_per_second": 240.0})
     client.call("timeline", button="Reset")
     client.call("timeline", button="Play")
     for _ in range(20):
