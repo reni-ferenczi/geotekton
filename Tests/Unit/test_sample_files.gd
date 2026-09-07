@@ -89,7 +89,7 @@ func test_the_moved_craton_sits_where_the_rotation_puts_it() -> void:
 	assert_close(moved, Vector2(-3, -60), 1e-4, "the documented green probe point")
 
 
-# Mirrors the checks in Features._load_from_file.
+# Mirrors the checks in Document.load_from_file.
 func _load(path: String) -> Feature:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:

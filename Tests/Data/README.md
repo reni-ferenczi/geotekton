@@ -1,7 +1,7 @@
 # Sample files
 
 Hand-made `.middle-earth` files used as fixtures by the tests. They are written in the
-exact format `Features._save_to_file` produces: tab-indented JSON, keys sorted, file
+exact format `Document.save_to_file` produces: tab-indented JSON, keys sorted, file
 format version `0.1.0`. See `Docs/Persistence.md` for the format itself.
 
 Every craton is wound counter-clockwise as seen from outside the sphere, which is what

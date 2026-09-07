@@ -15,6 +15,12 @@ const BUTTONS := {
 var app: Application
 var port: int
 
+# The last file dialog the application asked for, consumed by get_file_dialog.
+var last_file_dialog: Variant = null
+# The path the next file dialog answers with, empty when it is cancelled.
+var file_dialog_reply: String = ""
+var file_dialog_expected: bool = false
+
 var server := TCPServer.new()
 var client: StreamPeerTCP = null
 var buffer: String = ""
@@ -35,6 +41,8 @@ func _ready() -> void:
 		return
 	# Keep injected motion events discrete instead of merging them per frame.
 	Input.use_accumulated_input = false
+	# Answer file dialogs from the script instead of opening a native one.
+	Application.file_dialog_hook = _on_file_dialog
 	print("Automation port listening on 127.0.0.1:%d" % port)
 
 
@@ -94,14 +102,96 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true, "version": Application.VERSION}
 
 		"load":
-			app.features._load_from_file(str(request.get("path", "")))
-			app.refresh_cratons()
+			var error := app.document.load_from_file(str(request.get("path", "")))
+			if not error.is_empty():
+				return {"ok": false, "error": error}
 			await _frames(2)
 			return {"ok": true}
 
+		"get_document":
+			return {"ok": true, "document": {
+				"path": app.document.path,
+				"name": app.document.display_name(),
+				"dirty": app.document.is_dirty(),
+				"title": app.get_window().title,
+				"can_undo": app.document.can_undo(),
+				"can_redo": app.document.can_redo(),
+			}}
+
+		"menu":
+			var item: Array = _menu_item(str(request.get("item", "")))
+			if item.is_empty():
+				return {"ok": false, "error": "unknown menu item: %s" % request.get("item", "")}
+			(item[0] as PopupMenu).id_pressed.emit(int(item[1]))
+			await _frames(2)
+			return {"ok": true}
+
+		"toolbar":
+			var buttons := app.features.get_node_or_null("PanelContainer/Buttons")
+			var button := buttons.get_node_or_null(str(request.get("button", ""))) if buttons != null else null
+			if button is not Button:
+				return {"ok": false, "error": "no toolbar button called %s" % request.get("button", "")}
+			if (button as Button).disabled:
+				return {"ok": false, "error": "the %s button is disabled" % request.get("button", "")}
+			(button as Button).pressed.emit()
+			await _frames(2)
+			return {"ok": true}
+
+		"get_recent":
+			return {"ok": true, "recent": Config.get_recent_files()}
+
+		"open_recent":
+			app._on_recent_menu_id_pressed(int(request.get("index", 0)))
+			await _frames(2)
+			return {"ok": true}
+
+		"clear_recent":
+			app._on_recent_menu_id_pressed(Application.CLEAR_RECENT_ID)
+			await _frames(2)
+			return {"ok": true}
+
+		"get_panels":
+			return {"ok": true, "panels": {
+				"features": app.features.visible,
+				"properties": app.properties.visible,
+				"timeline": app.timeline.visible,
+				"status_bar": app.status_bar.visible,
+			}}
+
+		"get_dialog":
+			var dialog := _visible_dialog()
+			if dialog == null:
+				return {"ok": true, "dialog": null}
+			return {"ok": true, "dialog": {
+				"name": str(dialog.name),
+				"title": dialog.title,
+				"text": dialog.dialog_text,
+				"buttons": _dialog_buttons(dialog),
+			}}
+
+		"dialog":
+			var open_dialog := _visible_dialog()
+			if open_dialog == null:
+				return {"ok": false, "error": "no dialog is open"}
+			var label := str(request.get("button", ""))
+			if not _press_dialog_button(open_dialog, label):
+				return {"ok": false, "error": "no button labelled %s" % label}
+			await _frames(2)
+			return {"ok": true}
+
+		"expect_file_dialog":
+			file_dialog_reply = str(request.get("path", ""))
+			file_dialog_expected = true
+			return {"ok": true}
+
+		"get_file_dialog":
+			var asked: Variant = last_file_dialog
+			last_file_dialog = null
+			return {"ok": true, "file_dialog": asked}
+
 		"get_features":
 			var list: Array = []
-			_collect_features(app.features.root, 0, list)
+			_collect_features(app.document.root, 0, list)
 			return {"ok": true, "features": list}
 
 		"select":
@@ -221,7 +311,62 @@ func _capture() -> Image:
 
 
 func _timeline() -> Timeline:
-	return app.get_node("LeftSplitter/RightSplitter/Center/Timeline") as Timeline
+	return app.timeline
+
+
+# The menu and item id behind a command name, or an empty array when unknown.
+func _menu_item(name: String) -> Array:
+	match name:
+		"new": return [app.file_menu, Application.FileItem.NEW]
+		"open": return [app.file_menu, Application.FileItem.OPEN]
+		"save": return [app.file_menu, Application.FileItem.SAVE]
+		"save_as": return [app.file_menu, Application.FileItem.SAVE_AS]
+		"preferences": return [app.file_menu, Application.FileItem.PREFERENCES]
+		"quit": return [app.file_menu, Application.FileItem.QUIT]
+		"features": return [app.view_menu, Application.ViewItem.FEATURES]
+		"properties": return [app.view_menu, Application.ViewItem.PROPERTIES]
+		"timeline": return [app.view_menu, Application.ViewItem.TIMELINE]
+		"status_bar": return [app.view_menu, Application.ViewItem.STATUS_BAR]
+		"full_screen": return [app.view_menu, Application.ViewItem.FULL_SCREEN]
+		"about": return [app.help_menu, Application.HelpItem.ABOUT]
+	return []
+
+
+func _visible_dialog() -> AcceptDialog:
+	for child in app.get_children():
+		if child is AcceptDialog and child.visible:
+			return child
+	return null
+
+
+# Every button of a dialog, the built in ones and those added to it.
+func _dialog_buttons(dialog: AcceptDialog) -> Array:
+	var labels: Array = []
+	for child in dialog.get_ok_button().get_parent().get_children():
+		if child is Button:
+			labels.append(child.text)
+	return labels
+
+
+func _press_dialog_button(dialog: AcceptDialog, label: String) -> bool:
+	for child in dialog.get_ok_button().get_parent().get_children():
+		if child is Button and child.text.to_lower() == label.to_lower():
+			child.pressed.emit()
+			return true
+	return false
+
+
+# Stands in for the native file dialog while a script is driving the
+# application: it records the request and answers it with the expected path.
+func _on_file_dialog(mode: int, title: String, on_path: Callable) -> void:
+	last_file_dialog = {"mode": mode, "title": title}
+	if not file_dialog_expected:
+		return
+	file_dialog_expected = false
+	var path := file_dialog_reply
+	file_dialog_reply = ""
+	if not path.is_empty():
+		on_path.call(path)
 
 
 func _collect_features(node: Feature, depth: int, list: Array) -> void:
@@ -231,7 +376,7 @@ func _collect_features(node: Feature, depth: int, list: Array) -> void:
 
 
 func _find_feature(request: Dictionary) -> Feature:
-	var root := app.features.root
+	var root := app.document.root
 	if request.has("pnid"):
 		var pnid := int(request["pnid"])
 		return root if pnid == -1 else root.get_node_by_pnid(pnid)

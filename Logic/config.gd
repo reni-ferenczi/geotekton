@@ -1,11 +1,21 @@
 class_name Config
 
+# Application settings, kept as one JSON file per user, outside the project.
+# Values are read through the accessors below; every setter writes the file
+# immediately, so a crash cannot lose more than the last change.
+
+const MAX_RECENT_FILES := 10
+
+# Where the config file lives; set to a scratch folder by the tests.
+static var directory_override: String = ""
 
 static var _data: Dictionary = {}
 static var _loaded: bool = false
 
 
 static func _get_config_dir() -> String:
+	if not directory_override.is_empty():
+		return directory_override
 	return OS.get_environment("APPDATA") + "/MiddleEarth"
 
 
@@ -37,6 +47,22 @@ static func _ensure_loaded() -> void:
 		_data = {}
 
 
+# Drop the copy held in memory, so the next access reads the file again.
+# Not named reload: that is a method of Script itself, and calling it would
+# reload this script and reset every static variable in it.
+static func forget() -> void:
+	_loaded = false
+	_data = {}
+
+
+# Throw every setting away, for a run that must neither depend on nor change
+# the settings of whoever is at the keyboard.
+static func clear() -> void:
+	_data = {}
+	_loaded = true
+	save()
+
+
 static func save() -> void:
 	DirAccess.make_dir_recursive_absolute(_get_config_dir())
 	var file := FileAccess.open(_get_config_path(), FileAccess.WRITE)
@@ -46,16 +72,55 @@ static func save() -> void:
 	file.store_string(JSON.stringify(_data, "\t"))
 
 
-static func get_last_directory() -> String:
+### Generic access
+
+
+static func get_value(key: String, default: Variant = null) -> Variant:
 	_ensure_loaded()
-	return _data.get("last_directory", _get_default_directory())
+	return _data.get(key, default)
+
+
+static func set_value(key: String, value: Variant) -> void:
+	_ensure_loaded()
+	_data[key] = value
+	save()
+
+
+### Folders
+
+
+static func get_last_directory() -> String:
+	return get_value("last_directory", _get_default_directory())
 
 
 static func set_last_directory(path: String) -> void:
-	_ensure_loaded()
-	_data["last_directory"] = path
-	save()
+	set_value("last_directory", path)
 
 
 static func set_last_directory_from_file(file_path: String) -> void:
 	set_last_directory(file_path.get_base_dir())
+
+
+### Recently opened files
+
+
+static func get_recent_files() -> Array:
+	return get_value("recent_files", [])
+
+
+static func add_recent_file(path: String) -> void:
+	set_value("recent_files", push_recent(get_recent_files(), path, MAX_RECENT_FILES))
+
+
+static func clear_recent_files() -> void:
+	set_value("recent_files", [])
+
+
+# The list with path in front, without a second copy of it and no longer than
+# cap entries.
+static func push_recent(list: Array, path: String, cap: int) -> Array:
+	var result: Array = [path]
+	for entry in list:
+		if str(entry) != path:
+			result.append(entry)
+	return result.slice(0, cap)
