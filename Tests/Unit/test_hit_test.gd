@@ -3,7 +3,7 @@ extends TestCase
 # Planet.collect_geometry and Planet.hit_test, the CPU counterpart of the
 # geometry shader. A polygon is hit inside its triangles, which must be wound
 # counter-clockwise as seen from outside the sphere, the rule
-# Feature.ensure_front_winding enforces. A polyline and a multipoint are hit
+# Feature.faces_outwards enforces. A polyline and a multipoint are hit
 # within a tolerance of the line and of the marker.
 
 # Counter-clockwise from outside; see test_winding_matches_the_front_face_rule.
@@ -188,10 +188,5 @@ func _make_root(features: Array) -> Feature:
 	return root
 
 
-# The rule from Feature.ensure_front_winding: the triangle normal must point
-# away from the centre of the sphere.
 func _is_front_facing(a: Vector2, b: Vector2, c: Vector2) -> bool:
-	var pa := Feature._latlon_to_xyz_s(a)
-	var pb := Feature._latlon_to_xyz_s(b)
-	var pc := Feature._latlon_to_xyz_s(c)
-	return (pb - pa).cross(pc - pa).dot((pa + pb + pc) / 3.0) >= 0.0
+	return Feature.faces_outwards(a, b, c)

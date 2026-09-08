@@ -174,7 +174,7 @@ func test_the_moved_craton_sits_where_the_rotation_puts_it() -> void:
 
 
 func test_every_triangle_derived_from_a_sample_faces_outwards() -> void:
-	# The rule from Feature.ensure_front_winding, which both Planet.hit_test and
+	# The rule from Feature.faces_outwards, which both Planet.hit_test and
 	# the shader rely on. It held for the triangles the 0.1.0 files listed, and
 	# it has to hold for the ones the recovered rings are cut into.
 	for file_name in EXPECTED:

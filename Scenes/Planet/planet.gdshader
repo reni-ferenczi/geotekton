@@ -140,7 +140,16 @@ void fragment() {
 
 			if (d_ab > 0.0 && d_bc > 0.0 && d_ca > 0.0) {
 				coverage = 1.0;
-				float min_dist = min(abs(d_ab), min(abs(d_bc), abs(d_ca)));
+
+				// The pale rim follows the boundary of the shape, not the
+				// edges ear clipping cut it along. Row 3 says which of this
+				// triangle's edges came from the ring; a triangle in the
+				// middle of a large polygon has none and gets no rim at all.
+				vec4 row3 = texelFetch(geometry_data, ivec2(i, 3), 0);
+				float min_dist = 1e9;
+				if (row3.x > 0.5) { min_dist = min(min_dist, abs(d_ab)); }
+				if (row3.y > 0.5) { min_dist = min(min_dist, abs(d_bc)); }
+				if (row3.z > 0.5) { min_dist = min(min_dist, abs(d_ca)); }
 				edge = smoothstep(geometry_edge_width * 0.5, geometry_edge_width, min_dist);
 			}
 		} else if (kind == 1) {

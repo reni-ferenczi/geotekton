@@ -205,8 +205,8 @@ func set_geometry(geometry: Geometry) -> void:
 		map_mat.set_shader_parameter("geometry_count", 0)
 		return
 
-	# Data texture: width = primitive count, height = 3, 32-bit float RGBA
-	var img := Image.create(count, 3, false, Image.FORMAT_RGBAF)
+	# Data texture: width = primitive count, height = 4, 32-bit float RGBA
+	var img := Image.create(count, 4, false, Image.FORMAT_RGBAF)
 
 	for i in range(count):
 		var primitive: Dictionary = geometry.primitives[i]
@@ -227,6 +227,15 @@ func set_geometry(geometry: Geometry) -> void:
 		))
 		# Row 2: color (r, g, b, a)
 		img.set_pixel(i, 2, primitive["color"])
+		# Row 3: which of a triangle's three edges lie on the boundary of the
+		# ring, so the rim follows the shape rather than the triangles it was
+		# cut into. Nothing but a triangle has edges to mark.
+		var edges: int = primitive.get("edges", 0)
+		img.set_pixel(i, 3, Color(
+			1.0 if edges & Feature.EDGE_AB else 0.0,
+			1.0 if edges & Feature.EDGE_BC else 0.0,
+			1.0 if edges & Feature.EDGE_CA else 0.0,
+			0.0))
 
 	var tex := ImageTexture.create_from_image(img)
 	for material in [globe_mat, map_mat]:
@@ -280,8 +289,12 @@ static func collect_geometry(root: Feature, time: float = 0.0) -> Geometry:
 			Feature.GeometryKind.POLYGON:
 				var verts := node.triangles
 				for j in range(0, verts.size() - 2, 3):
-					geometry.primitives.append(_primitive(
-						Primitive.TRIANGLE, [verts[j], verts[j + 1], verts[j + 2]], node, index))
+					var primitive := _primitive(
+						Primitive.TRIANGLE, [verts[j], verts[j + 1], verts[j + 2]], node, index)
+					var triangle := j / 3
+					if triangle < node.triangle_edges.size():
+						primitive["edges"] = node.triangle_edges[triangle]
+					geometry.primitives.append(primitive)
 			Feature.GeometryKind.POLYLINE:
 				for ring in node.rings:
 					for j in range(ring.size() - 1):
