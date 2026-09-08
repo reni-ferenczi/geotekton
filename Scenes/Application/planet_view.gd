@@ -5,6 +5,21 @@ class_name PlanetView
 # shape, so the maths here agrees with what a click is picked against.
 const GLOBE_RADIUS: float = Planet.GLOBE_RADIUS
 
+# The field of view planet_view.tscn lays the camera out with. Zoom 1 shows the
+# globe through exactly that, which is the space the view has always given it.
+# The globe and a map sheet both sit at the middle of the scene, the same
+# distance from the camera, so fitting a sheet into that same space is a matter
+# of the ratio of what has to fit and the distance never comes into it.
+const BASE_FOV := 60.0
+
+# What the zoom may be, and what one press of zoom in or out multiplies it by.
+# One is the whole planet in view and a hundred is a few degrees across the
+# window; a little over four presses double it.
+const MIN_ZOOM := 1.0
+const MAX_ZOOM := 100.0
+const DEFAULT_ZOOM := 1.0
+const ZOOM_STEP := 1.2
+
 signal move_started(anchor_lat: float, anchor_lon: float)
 signal move_to(lat: float, lon: float)
 signal move_ended()
@@ -19,17 +34,62 @@ signal cursor_moved(lat: float, lon: float)
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet
 @onready var camera: Camera3D = %Camera3D
-@onready var rotation_handler: PlanetViewRotation = PlanetViewRotation.new(planet, camera)
+@onready var rotation_handler: PlanetViewRotation = PlanetViewRotation.new(planet)
 
 # True while a tool takes the clicks on the planet for itself: Draw placing
 # vertices, Vertex editing them, Measure marking points. Selecting a feature,
 # moving one and the right click menu are all left alone until it is false
 # again. Rotating the globe with the middle button always works.
 var tool_handles_clicks: bool = false
+
+# How far the view is zoomed in, 1 being the whole planet. The camera's field of
+# view is worked out from it every frame, together with what is being shown, so
+# nothing else has to remember which projection is on screen.
+var zoom: float = DEFAULT_ZOOM
+
 var move_enabled: bool = false
 var is_moving: bool = false
 var move_rotating: bool = false
 var move_on_globe: bool = false
+
+
+func _process(_delta: float) -> void:
+	camera.fov = _fov_for_view()
+
+
+### Zoom
+
+
+func set_zoom(value: float) -> void:
+	zoom = clampf(value, MIN_ZOOM, MAX_ZOOM)
+
+
+func zoom_in() -> void:
+	set_zoom(zoom * ZOOM_STEP)
+
+
+func zoom_out() -> void:
+	set_zoom(zoom / ZOOM_STEP)
+
+
+func reset_zoom() -> void:
+	set_zoom(DEFAULT_ZOOM)
+
+
+# The field of view that fits what is on screen into the window at the current
+# zoom. The globe needs its radius; a map needs half the height of the
+# projection's sheet, or half its width divided by the aspect ratio when the
+# sheet is the wider of the two, which is what a rectangular one is. Both are
+# measured against the globe, so that zoom 1 on the globe is the field of view
+# the scene was laid out with and every other view gets the same margin.
+func _fov_for_view() -> float:
+	var needed := GLOBE_RADIUS
+	if planet.show_map:
+		var size := viewport.size
+		var aspect := float(size.x) / float(maxi(size.y, 1))
+		needed = maxf(MapProjection.extent(planet.projection), 1.0 / aspect)
+	var half_height := tan(deg_to_rad(BASE_FOV) * 0.5) * needed / GLOBE_RADIUS / zoom
+	return rad_to_deg(2.0 * atan(half_height))
 
 
 func start_moving(anchor_lat: float, anchor_lon: float) -> void:
@@ -120,7 +180,10 @@ func _on_planet_input_event_map(lat: float, lon: float, event: InputEvent) -> vo
 func _on_gui_input(event: InputEvent) -> void:
 	# Mouse wheel always works (zoom)
 	if event is InputEventMouseButton and event.is_pressed():
-		rotation_handler.handle_mouse_wheel(event.button_index)
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			zoom_in()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			zoom_out()
 
 	if is_moving:
 		if event is InputEventMouseButton:

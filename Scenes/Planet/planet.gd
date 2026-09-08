@@ -34,7 +34,15 @@ enum OutlineStyle {
 	CLOSED = 3,         # closed, with every segment drawn the same
 }
 
+# The map mesh with the sheet of a projection half a unit tall, which is what a
+# rectangular one wants. Its local x runs across the sheet and its local z down
+# it; _apply_projection() scales that z by the projection's own extent, so the
+# mesh is exactly as tall as the projection draws and its UV covers the sheet
+# and nothing else.
+const MAP_BASIS := Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
+
 @export var show_map: bool = false;
+@export var projection: MapProjection.Kind = MapProjection.Kind.RECTANGULAR;
 @export_range(-90, 90, 1.0, "Latitude") var lat: float = 0.0;
 @export_range(-180, 180, 1.0, "Longitude") var lon: float = 0.0;
 @export_range(-180, 180, 1.0, "Angle") var angle: float = 0.0;
@@ -58,6 +66,21 @@ func _process(_delta: float) -> void:
 
 	if globe:
 		globe.rotation = Vector3(deg_to_rad(lat), deg_to_rad(180 - lon), deg_to_rad(angle))
+	_apply_projection()
+
+
+# Shape the map mesh for the projection it draws and tell the shader which one
+# that is. The sheet is always two units wide and as tall as the projection asks
+# for, so the fragment shader turns UV into a point of the sheet the same way
+# whatever is selected, and MapProjection.inverse() takes it from there.
+func _apply_projection() -> void:
+	var extent := MapProjection.extent(projection)
+	map.transform = Transform3D(
+		Basis(MAP_BASIS.x, MAP_BASIS.y, MAP_BASIS.z * extent), Vector3.ZERO)
+	var material: ShaderMaterial = map.get_surface_override_material(0)
+	material.set_shader_parameter("projection", int(projection))
+	material.set_shader_parameter("map_extent", extent)
+	material.set_shader_parameter("map_centre", Vector2(deg_to_rad(lat), deg_to_rad(lon)))
 
 
 func _on_background_input_event(camera: Node, event: InputEvent, event_position: Vector3, normal: Vector3, shape_idx: int) -> void:

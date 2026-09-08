@@ -8,6 +8,27 @@ uniform vec4 color = vec4(1.0, 1.0, 1.0, 0.3333);
 uniform vec2 width = vec2(0.015, 0.015);
 uniform vec2 split = vec2(24.0, 12.0);
 
+// Which map projection the flat view draws in, matching MapProjection.Kind, and
+// how tall the sheet it draws on is, matching MapProjection.extent(). The globe
+// ignores both. map_centre is (latitude, longitude) in radians: the longitude is
+// the central meridian of every projection and the latitude is the centre of the
+// hemisphere an orthographic one shows.
+uniform int projection = 0;
+uniform float map_extent = 0.5;
+uniform vec2 map_centre = vec2(0.0, 0.0);
+
+const int PROJECTION_RECTANGULAR = 0;
+const int PROJECTION_MERCATOR = 1;
+const int PROJECTION_MOLLWEIDE = 2;
+const int PROJECTION_ROBINSON = 3;
+const int PROJECTION_ORTHOGRAPHIC = 4;
+
+// The Robinson tables and scale factors, and the slack the edges of a sheet are
+// tested with. All of them are MapProjection's, and have to stay its.
+const float ROBINSON_STEP = 5.0;
+const float ROBINSON_EXTENT = 0.50718800410786;
+const float MAP_EDGE_SLACK = 1e-6;
+
 // Feature geometry data texture (filter_nearest for exact texel reads)
 // Layout: width = primitive count, height = 3
 //   Row 0: (lat_a, lon_a, lat_b, lon_b) in radians
@@ -48,6 +69,108 @@ uniform float outline_line_width = 0.002;
 uniform float outline_dot_radius = 0.006;
 uniform float outline_closing_opacity = 0.25;
 
+// One of the two Robinson tables at a latitude in degrees, interpolated between
+// the five degree entries it is given at. The counterpart of
+// MapProjection._robinson_at(); `lengths` picks the table.
+float robinson_at(bool lengths, float lat_deg) {
+	float table[19] = lengths
+		? float[19](1.0000, 0.9986, 0.9954, 0.9900, 0.9822, 0.9730, 0.9600,
+			0.9427, 0.9216, 0.8962, 0.8679, 0.8350, 0.7986, 0.7597, 0.7186,
+			0.6732, 0.6213, 0.5722, 0.5322)
+		: float[19](0.0000, 0.0620, 0.1240, 0.1860, 0.2480, 0.3100, 0.3720,
+			0.4340, 0.4958, 0.5571, 0.6176, 0.6769, 0.7346, 0.7903, 0.8435,
+			0.8936, 0.9394, 0.9761, 1.0000);
+	float position = clamp(lat_deg, 0.0, 90.0) / ROBINSON_STEP;
+	int low = int(position);
+	if (low >= 18) {
+		return table[18];
+	}
+	return mix(table[low], table[low + 1], position - float(low));
+}
+
+// The latitude in degrees whose Robinson distance from the equator is the given
+// one, which is the same table read the other way round. The counterpart of
+// MapProjection._robinson_latitude().
+float robinson_latitude(float distance) {
+	for (int i = 0; i < 18; i++) {
+		float low = robinson_at(false, float(i) * ROBINSON_STEP);
+		float high = robinson_at(false, float(i + 1) * ROBINSON_STEP);
+		if (distance <= high) {
+			return (float(i) + (distance - low) / max(high - low, 1e-9)) * ROBINSON_STEP;
+		}
+	}
+	return 90.0;
+}
+
+// Which point of the planet a point of the map sheet shows, as
+// (latitude, longitude, on the map), all in radians but the last, which is 1
+// where the projection draws something and 0 where it does not: outside the
+// Mollweide ellipse or the Robinson outline, or off the orthographic disc.
+//
+// The counterpart of MapProjection.inverse(), and the reason it exists twice:
+// every fragment of the map needs it here, and every click needs it there.
+vec3 map_inverse(vec2 plane) {
+	float lat = 0.0;
+	float lon = 0.0;
+
+	if (projection == PROJECTION_RECTANGULAR) {
+		lat = plane.y * PI;
+		lon = plane.x * PI;
+	} else if (projection == PROJECTION_MERCATOR) {
+		lat = 2.0 * atan(exp(plane.y * PI)) - PI * 0.5;
+		lon = plane.x * PI;
+	} else if (projection == PROJECTION_MOLLWEIDE) {
+		float sin_theta = plane.y * 2.0;
+		if (abs(sin_theta) > 1.0 + MAP_EDGE_SLACK) {
+			return vec3(0.0);
+		}
+		float theta = asin(clamp(sin_theta, -1.0, 1.0));
+		float cos_theta = cos(theta);
+		lat = asin(clamp((2.0 * theta + sin(2.0 * theta)) / PI, -1.0, 1.0));
+		// The two poles are single points of the ellipse: every meridian
+		// reaches them, so the central one answers for all of them.
+		if (cos_theta >= 1e-6) {
+			lon = plane.x * PI / cos_theta;
+			if (abs(lon) > PI + MAP_EDGE_SLACK) {
+				return vec3(0.0);
+			}
+		}
+	} else if (projection == PROJECTION_ROBINSON) {
+		float distance = plane.y / ROBINSON_EXTENT;
+		if (abs(distance) > 1.0 + MAP_EDGE_SLACK) {
+			return vec3(0.0);
+		}
+		float lat_deg = sign(plane.y) * robinson_latitude(min(abs(distance), 1.0));
+		lon = plane.x * PI / robinson_at(true, abs(lat_deg));
+		if (abs(lon) > PI + MAP_EDGE_SLACK) {
+			return vec3(0.0);
+		}
+		lat = radians(lat_deg);
+	} else {
+		float radius = length(plane);
+		if (radius > 1.0 + MAP_EDGE_SLACK) {
+			return vec3(0.0);
+		}
+		float cos_centre = cos(map_centre.x);
+		float sin_centre = sin(map_centre.x);
+		if (radius < 1e-6) {
+			lat = map_centre.x;
+		} else {
+			float angle = asin(min(radius, 1.0));
+			float sin_c = sin(angle);
+			float cos_c = cos(angle);
+			lat = asin(clamp(
+				cos_c * sin_centre + plane.y * sin_c * cos_centre / radius, -1.0, 1.0));
+			lon = atan(
+				plane.x * sin_c,
+				radius * cos_c * cos_centre - plane.y * sin_c * sin_centre);
+		}
+	}
+
+	lon = mod(lon + map_centre.y + PI, TAU) - PI;
+	return vec3(lat, lon, 1.0);
+}
+
 // Convert lat/lon (radians) to unit sphere position
 vec3 latlon_to_unit(vec2 ll) {
 	float cos_lat = cos(ll.x);
@@ -75,11 +198,28 @@ float arc_distance(vec3 a, vec3 b, vec3 p) {
 }
 
 void fragment() {
+	// Where on the planet this fragment is. The globe carries the
+	// equirectangular grid on its surface, so its UV is the position; the map
+	// has to be projected back, and a fragment its projection does not cover is
+	// not part of the planet at all.
+	float lat = (0.5 - UV.y) * PI;
+	float lon = (UV.x - 0.5) * TAU;
+	vec2 surface_uv = UV;
+	if (!is_globe) {
+		vec3 point = map_inverse(vec2((UV.x - 0.5) * 2.0, (0.5 - UV.y) * 2.0 * map_extent));
+		if (point.z < 0.5) {
+			discard;
+		}
+		lat = point.x;
+		lon = point.y;
+		surface_uv = vec2(lon / TAU + 0.5, 0.5 - lat / PI);
+	}
+
 	// Fetch base Earth color
-	vec4 earth = texture(earth_tex, UV);
+	vec4 earth = texture(earth_tex, surface_uv);
 
 	// Longitude and latitude grids
-	vec2 uv = UV * split;
+	vec2 uv = surface_uv * split;
 	vec2 f = abs(fract(uv + vec2(0.5)) - vec2(0.5));
 	if (is_globe) {
 		// Widen the grid towards the poles to keep the line width constant
@@ -91,8 +231,6 @@ void fragment() {
 	vec3 base = mix(earth.rgb, color.rgb, g ? color.a : 0.0);
 
 	// Precompute sphere position for the geometry and the outline
-	float lat = (0.5 - UV.y) * PI;
-	float lon = (UV.x - 0.5) * TAU;
 	vec3 p = latlon_to_unit(vec2(lat, lon));
 
 	// Feature geometry. Every primitive of one feature follows the last, so the

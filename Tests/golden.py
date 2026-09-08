@@ -34,7 +34,14 @@ MAX_DIFFERENT_FRACTION = 0.002
 
 # Name, sample file, view. Every scene states its whole view, so the scenes stay
 # independent of each other and of the order they run in.
-DEFAULT_VIEW = {"lat": 0.0, "lon": 0.0, "angle": 0.0, "fov": 60.0, "show_map": False}
+DEFAULT_VIEW = {
+    "lat": 0.0,
+    "lon": 0.0,
+    "angle": 0.0,
+    "zoom": 1.0,
+    "show_map": False,
+    "projection": 0,
+}
 SCENES = [
     ("triangle", "triangle.middle-earth", {}),
     ("two_cratons", "two_cratons.middle-earth", {}),

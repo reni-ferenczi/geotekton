@@ -1,7 +1,6 @@
 class_name PlanetViewRotation
 
 var planet: Planet
-var camera: Camera3D
 
 var is_dragging: bool
 var is_rotating: bool
@@ -12,15 +11,11 @@ var previous_lat: float
 var previous_lon: float
 
 const ENABLE_ANGLE: bool = false
-const MIN_FOV: float = 15.0
-const MAX_FOV: float = 90.0
-const FOV_STEP: float = 3.0
 const ROTATION_SENSITIVITY: Vector2 = Vector2(0.5, 0.5)
 
 
-func _init(planet: Planet, camera: Camera3D):
+func _init(planet: Planet):
 	self.planet = planet
-	self.camera = camera
 
 func start_dragging(lat: float, lon: float):
 	print('Start dragging from: ', lat, ', ', lon)
@@ -72,13 +67,6 @@ func cancel():
 		print('Stopped rotating')
 		is_rotating = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-
-
-func handle_mouse_wheel(button_index: int):
-	if button_index == MOUSE_BUTTON_WHEEL_UP:
-		camera.fov = clamp(camera.fov - FOV_STEP, MIN_FOV, MAX_FOV)
-	elif button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		camera.fov = clamp(camera.fov + FOV_STEP, MIN_FOV, MAX_FOV)
 
 
 func handle_mouse_motion(rel: Vector2):

@@ -373,8 +373,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"lat": app.planet_view.planet.lat,
 				"lon": app.planet_view.planet.lon,
 				"angle": app.planet_view.planet.angle,
+				"zoom": app.planet_view.zoom,
 				"fov": app.planet_view.camera.fov,
 				"show_map": app.planet_view.planet.show_map,
+				"projection": int(app.planet_view.planet.projection),
 				"window_size": [size.x, size.y],
 			}
 
@@ -388,8 +390,13 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				planet.angle = float(request["angle"])
 			if request.has("show_map"):
 				planet.show_map = bool(request["show_map"])
-			if request.has("fov"):
-				app.planet_view.camera.fov = float(request["fov"])
+			if request.has("projection"):
+				var kind := int(request["projection"])
+				if kind < 0 or kind >= MapProjection.NAMES.size():
+					return {"ok": false, "error": "no projection numbered %d" % kind}
+				planet.projection = kind as MapProjection.Kind
+			if request.has("zoom"):
+				app.planet_view.set_zoom(float(request["zoom"]))
 			await _frames(2)
 			return {"ok": true}
 
