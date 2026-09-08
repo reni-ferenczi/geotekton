@@ -2,14 +2,15 @@
 
 import logging
 import math
+import re
 
 import pygplates
 import pytest
 
-from middle_earth.gplates import (FEATURE_TYPES, decompose_rotation_degrees, import_files,
-                                  import_project)
+from middle_earth.gplates import (ALLOWED_KINDS, FEATURE_TYPES, MAX_PRIMITIVES, MAX_TIME,
+                                  decompose_rotation_degrees, import_files, import_project)
 
-from conftest import geodata
+from conftest import ROOT, geodata
 from test_gproj import _project_bytes
 
 COASTLINES = geodata("FeatureCollections", "Coastlines",
@@ -152,9 +153,39 @@ def test_a_type_that_will_not_hold_the_geometry_falls_back(tmp_path, caplog):
     assert "Area is a polygon, which the ridge type does not hold" in caplog.text
 
 
-def test_every_mapped_type_names_a_type_the_application_has():
-    catalog = {"craton", "terrane", "coastline", "ridge", "marker", "small_circle", "topology"}
-    assert set(FEATURE_TYPES.values()) <= catalog
+### What this module copies from the application
+
+# Three values are written down in GDScript and again here, because the
+# converter has to know them and cannot ask a running application. These read
+# the GDScript and hold the copies to it, so a change on that side fails here
+# rather than showing up as a strange import.
+
+
+def gdscript(*parts: str) -> str:
+    return (ROOT.joinpath(*parts)).read_text(encoding="utf-8")
+
+
+def test_the_catalog_of_feature_types_is_the_application_s():
+    """Every type the mapping names, with the kinds it says that type holds."""
+    source = gdscript("Logic", "feature_type.gd")
+    every_kind = set(re.findall(r'"(\w+)"', re.search(r"ALL_KINDS := \[(.*?)\]", source).group(1)))
+    catalog = {"unclassified": every_kind}
+    for identifier, kinds in re.findall(r'"(\w+)": \{[^}]*?"kinds": (\[[^]]*\]|ALL_KINDS)', source):
+        catalog[identifier] = every_kind if kinds == "ALL_KINDS" else set(re.findall(r'"(\w+)"', kinds))
+
+    assert set(FEATURE_TYPES.values()) <= set(catalog), "a mapped type the catalog does not have"
+    for identifier, allowed in ALLOWED_KINDS.items():
+        assert identifier in catalog, f"{identifier} is not a type the application has"
+        assert allowed <= catalog[identifier], f"{identifier} is said to hold more than it does"
+
+
+def test_the_oldest_age_is_the_one_the_application_takes():
+    assert "const MAX_TIME := %d.0" % MAX_TIME in gdscript("Logic", "document.gd")
+
+
+def test_the_primitive_limit_is_the_one_the_planet_draws():
+    assert ("const MAX_PRIMITIVES := %d" % MAX_PRIMITIVES
+            in gdscript("Scenes", "Planet", "planet.gd"))
 
 
 def test_an_unnamed_feature_is_called_after_its_type_and_plate(tmp_path):

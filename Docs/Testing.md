@@ -427,7 +427,7 @@ a round trip is also a wait for the screen to catch up.
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
-| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `small_circles` and `topologies`, the geometry class switches |
+| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `small_circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |
@@ -442,7 +442,7 @@ a round trip is also a wait for the screen to catch up.
 | `run_script {name\|path}`            | runs one script, by catalog name or by path, and answers when it has finished, with the `transcript` |
 | `get_dialog`                         | `dialog` with `name`, `title`, `text` and `buttons`, or `null`   |
 | `dialog {button}`                    | presses a dialog button by its label                             |
-| `expect_file_dialog {path}`          | answers the next file dialog with a path, or cancels it when empty |
+| `expect_file_dialog {path\|paths}`    | answers the next file dialog with a path, or with several for the Import dialog, or cancels it when neither is given |
 | `get_file_dialog`                    | `file_dialog` with `mode` and `title` of the last one asked for, and forgets it |
 | `get_recent` / `open_recent {index}` / `clear_recent` | the recent file list                    |
 | `set_clipboard {text}`               | puts text on the clipboard, so a run can state what Paste is greyed out by |
