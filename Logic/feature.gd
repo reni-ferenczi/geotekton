@@ -38,6 +38,12 @@ const EDGE_CA := 4
 # Node ID, unique only during the runtime of the application (not persisted)
 var pnid: int = -1
 
+# What this node is called in the file, kept across a save and a load. A line
+# topology names the features its sections run along by this, so an id that only
+# lasted one run would not do; see Docs/Editing.md#line-topologies. A duplicate,
+# a paste and a node arriving from a file without one all get a fresh id.
+var uuid: String = ""
+
 # For human identification
 var title: String
 
@@ -98,6 +104,7 @@ func _init():
 static func create_group(title_: String = "Group") -> Feature:
 	var group := Feature.new()
 	group.init_pnid()
+	group.init_uuid()
 	group.title = title_
 	group.is_group = true
 	return group
@@ -107,6 +114,7 @@ static func create_feature(title_: String = "Feature",
 		color_: Color = FeatureType.color(FeatureType.UNCLASSIFIED)) -> Feature:
 	var feature := Feature.new()
 	feature.init_pnid()
+	feature.init_uuid()
 	feature.title = title_
 	feature.color = color_
 	feature.is_group = false
@@ -122,6 +130,10 @@ static func clamp_title(value: String) -> String:
 func init_pnid():
 	pnid = next_pnid
 	next_pnid += 1
+
+
+func init_uuid() -> void:
+	uuid = Helpers.generate_uuid_v4()
 
 
 ### Geometry
@@ -225,6 +237,7 @@ func add_ring(ring: PackedVector2Array, kind: GeometryKind) -> void:
 func clone() -> Feature:
 	var node := Feature.new()
 	node.pnid = pnid
+	node.uuid = uuid
 	node.title = title
 	node.enabled = enabled
 	node.is_group = is_group
@@ -248,6 +261,7 @@ func clone() -> Feature:
 func duplicate() -> Feature:
 	var node := clone()
 	node.init_pnid()
+	node.init_uuid()
 	node.is_root = false
 	for i in range(node.children.size()):
 		node.children[i] = node.children[i].duplicate()
@@ -313,6 +327,7 @@ func get_node_by_pnid(pnid_: int) -> Feature:
 
 func to_json() -> Variant:
 	var data := {
+		"uuid": uuid,
 		"title": title,
 		"enabled": enabled,
 		"is_group": is_group,
@@ -337,6 +352,12 @@ func to_json() -> Variant:
 static func from_json(data: Variant) -> Feature:
 	var node := Feature.new()
 	node.init_pnid()
+	# A file written before 0.5.0 carries no id, and neither does one written by
+	# hand; a fresh one then stands in, which is safe because nothing in such a
+	# file can be naming it.
+	node.uuid = str(data.get("uuid", ""))
+	if node.uuid.is_empty():
+		node.init_uuid()
 	node.title = data["title"]
 	node.enabled = data.get("enabled", true)
 	node.is_group = data.get("is_group", data.get("type") == "Group")

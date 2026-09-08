@@ -267,7 +267,9 @@ func paste(parent: Feature, index: int = -1) -> void:
 	if data.get("application", "") != Document.APPLICATION:
 		return
 
-	var node := Feature.from_json(data)
+	# duplicate() rather than the node as it was read: the clipboard carries the
+	# ids of the feature it was copied from, and a paste is another feature.
+	var node := Feature.from_json(data).duplicate()
 	if index < 0:
 		parent.children.append(node)
 	else:

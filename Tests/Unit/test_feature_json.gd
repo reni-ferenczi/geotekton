@@ -83,6 +83,59 @@ func test_clone_keeps_pnid_and_duplicate_assigns_new_ones() -> void:
 	_assert_same_tree(original, copy, "duplicate")
 
 
+# The uuid is what a line topology names its sections by, so it has to mean the
+# same node after a save and a load, and a different one after a duplicate.
+
+
+func test_the_uuid_survives_the_round_trip() -> void:
+	var original := _build_tree()
+	var restored := Feature.from_json(JSON.parse_string(JSON.stringify(original.to_json())))
+	_assert_same_uuids(original, restored, "root")
+	assert_eq(_uuids(restored).size(), _flatten(restored).size(), "and they stay unique")
+
+
+func test_clone_keeps_uuids_and_duplicate_gives_new_ones() -> void:
+	var original := _build_tree()
+	_assert_same_uuids(original, original.clone(), "clone")
+
+	var copy := original.duplicate()
+	var before := _uuids(original)
+	for node in _flatten(copy):
+		assert_true(not before.has(node.uuid),
+			"%s must not keep the uuid it was duplicated from" % node.title)
+	assert_eq(_uuids(copy).size(), _flatten(copy).size(),
+		"and the duplicate's own uuids are unique")
+
+
+func test_a_node_without_a_uuid_is_given_one() -> void:
+	# Every file written before 0.5.0 is such a node, and so is one written by
+	# hand. Nothing in those can be naming it, so a fresh id loses nothing.
+	var leaf := Feature.from_json({"title": "Bare", "type": "Feature"})
+	assert_true(not leaf.uuid.is_empty(), "a leaf that arrives without a uuid gets one")
+	var other := Feature.from_json({"title": "Bare", "type": "Feature"})
+	assert_true(leaf.uuid != other.uuid, "and two of them do not get the same one")
+
+
+func _assert_same_uuids(a: Feature, b: Feature, path: String) -> void:
+	assert_eq(a.uuid, b.uuid, "%s uuid" % path)
+	for i in range(mini(a.children.size(), b.children.size())):
+		_assert_same_uuids(a.children[i], b.children[i], "%s/%d" % [path, i])
+
+
+func _flatten(node: Feature) -> Array[Feature]:
+	var nodes: Array[Feature] = [node]
+	for child in node.children:
+		nodes.append_array(_flatten(child))
+	return nodes
+
+
+func _uuids(node: Feature) -> Dictionary:
+	var seen := {}
+	for one in _flatten(node):
+		seen[one.uuid] = true
+	return seen
+
+
 func _build_tree() -> Feature:
 	var root := Feature.create_group("Planet")
 	root.is_root = true

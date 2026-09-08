@@ -63,7 +63,7 @@ The file is a JSON object with three top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "features": { ... }
 }
 ```
@@ -84,6 +84,7 @@ groups and leaf features.
 
 ```json
 {
+  "uuid": "6b0d6b1e-2c1f-4a3d-9a7e-2f0f1d9c5b31",
   "title": "Group Name",
   "enabled": true,
   "is_group": true,
@@ -97,6 +98,7 @@ groups and leaf features.
 
 ```json
 {
+  "uuid": "0f5b6c2a-7d84-4c19-8b3e-51b0a2c7d4e6",
   "title": "Feature Name",
   "enabled": true,
   "is_group": false,
@@ -109,6 +111,12 @@ groups and leaf features.
   "time_range": [0, 2000]
 }
 ```
+
+`uuid` is what the node is called in the file. It is written for groups as well
+as for features and is kept across a save and a load, because a line topology
+names the features its sections run along by it; see
+[Editing](Editing.md#line-topologies). A duplicate and a paste each get a fresh
+one, so no two nodes of a document share an id.
 
 `feature_type` is an id from the catalog in `Logic/feature_type.gd`; see
 [Properties](Properties.md#the-type-catalog). `geometry_kind` is `"polygon"`,
@@ -173,6 +181,13 @@ present, which is where a file written before this was drawn. A feature that
 came in this way behaves as it did before the phase, because one keyframe holds
 at every time. A group had no rotation to carry over and arrives without
 keyframes, standing still until someone moves it.
+
+#### 0.4.0 to 0.5.0
+
+0.5.0 added `uuid` to every node. There is no migration step for it: a node
+without one is given a fresh id on load, the same way 0.3.0 treated a feature
+without a `feature_type`. Nothing in a file written before 0.5.0 can be naming a
+node, so an id invented on load loses nothing.
 
 ## The config file
 

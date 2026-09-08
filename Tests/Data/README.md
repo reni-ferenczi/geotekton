@@ -15,8 +15,9 @@ either, so all four are fixtures for 0.4.0 as well: the one `rotation` a leaf
 holds becomes its keyframe at time zero, and one keyframe holds at every time, so
 the samples sit where they always did whatever the current time is.
 
-`craton.middle-earth` is the exception and is written in the current **0.4.0**:
-rings, a geometry kind, a feature type and a keyframe list, nothing to migrate.
+`craton.middle-earth` is the exception and is written in the current **0.5.0**:
+rings, a geometry kind, a feature type, a keyframe list and a uuid on every
+node, nothing to migrate.
 It is the fixture for a file the application saved rather than one it had to
 recover.
 
@@ -87,7 +88,7 @@ written here.
 
 Root group `Planet` only, no features. Every probe hits nothing.
 
-### craton.middle-earth (0.4.0)
+### craton.middle-earth (0.5.0)
 
 Root group `Planet` > group `Cratons` > `Old Shield`, the one outline in the
 suite shaped like something real rather than a triangle or a quad on whole
