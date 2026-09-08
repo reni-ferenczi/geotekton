@@ -554,6 +554,7 @@ def run_edit_menu_session(client: AutomationClient) -> None:
     client.call("select", title="Red Triangle")
     before = len(client.call("get_features")["features"])
 
+    copied = client.call("get_selected")["feature"]["uuid"]
     client.call("menu", item="copy")
     try:
         client.call("menu", item="paste")
@@ -562,6 +563,12 @@ def run_edit_menu_session(client: AutomationClient) -> None:
     else:
         check(len(client.call("get_features")["features"]) == before + 1,
               "Edit > Copy then Edit > Paste adds a feature")
+        # The clipboard carries the uuid of the feature it was copied from; a
+        # paste is another feature and gets one of its own, or a topology
+        # naming either of them could not tell them apart.
+        pasted = client.call("get_selected")["feature"]["uuid"]
+        check(pasted != copied and pasted != "",
+              f"the pasted feature has a uuid of its own: {pasted}")
         client.call("menu", item="undo")
 
     client.call("select", title="Blue Ridge")
