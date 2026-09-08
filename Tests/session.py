@@ -1072,13 +1072,15 @@ def run_projection_session(client: AutomationClient) -> None:
     lat, lon = RED_TRIANGLE_PROBE
     for name, request in [
         ("the globe", {"show_map": False}),
-        ("Rectangular", {"show_map": True, "projection": 0}),
-        ("Mercator", {"show_map": True, "projection": 1}),
-        ("Mollweide", {"show_map": True, "projection": 2}),
-        ("Robinson", {"show_map": True, "projection": 3}),
-        ("Orthographic", {"show_map": True, "projection": 4}),
+        ("Rectangular", {"projection": 0}),
+        ("Mercator", {"projection": 1}),
+        ("Mollweide", {"projection": 2}),
+        ("Robinson", {"projection": 3}),
+        ("Orthographic", {"projection": 4}),
     ]:
-        client.call("set_view", **request)
+        # Through the selector, which is the path a person takes; it is what
+        # decides between the globe and a map as well as which projection.
+        client.call("view", projection="globe" if name == "the globe" else request["projection"])
         client.call("select", title=None)
         screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
         if not check(screen is not None, f"Red Triangle has a place on {name}"):
@@ -1094,7 +1096,10 @@ def run_projection_session(client: AutomationClient) -> None:
         client.call("click", x=screen[0], y=screen[1])
         selected = client.call("get_selected")["feature"]
         check(selected["title"] == "Red Triangle", f"and a click there selects it on {name}")
-        check(client.call("get_view")["toolbar"]["projection"] == name.replace("the globe", "Globe"),
+        view = client.call("get_view")
+        check(view["show_map"] == (name != "the globe"),
+              f"and the selector switched the view to {name}")
+        check(view["toolbar"]["projection"] == name.replace("the globe", "Globe"),
               f"and the toolbar says {name}")
 
     run_zoom_checks(client)

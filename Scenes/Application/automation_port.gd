@@ -371,6 +371,21 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true}
 
 		"view":
+			# Picking the projection goes through the selector rather than the
+			# planet, so what is tested is the toolbar a person uses: "globe"
+			# for the globe, or the number of a MapProjection.Kind.
+			if request.has("projection"):
+				var wanted: int = Application.GLOBE_PROJECTION_ID \
+					if str(request["projection"]) == "globe" else int(request["projection"])
+				var item := app.projection_selector.get_item_index(wanted)
+				if item < 0:
+					return {"ok": false, "error": "the selector has no projection %s"
+						% request["projection"]}
+				app.projection_selector.select(item)
+				app.projection_selector.item_selected.emit(item)
+				await _frames(2)
+				return {"ok": true}
+
 			var view_button: Button = {
 				"zoom_in": app.zoom_in_button,
 				"zoom_out": app.zoom_out_button,

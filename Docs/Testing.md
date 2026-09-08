@@ -304,7 +304,7 @@ a round trip is also a wait for the screen to catch up.
 | `set_animation {animation}`          | changes the animation settings the dialog holds, refusing what cannot be played; only the keys given are changed |
 | `get_performance`                    | the frame rate, how much there is to draw, and whether it is playing |
 | `get_view` / `set_view {lat, lon, angle, zoom, show_map, projection}` | where the camera looks, how far it is zoomed in, and whether the globe or one of the five map projections is drawn. `get_view` also reports the derived `fov`, the `window_size` and what the view toolbar fields read |
-| `view {button}`                      | presses a view toolbar button: `zoom_in`, `zoom_out`, `zoom_reset`, `rotate_clockwise`, `rotate_anticlockwise`, `camera_reset` |
+| `view {button}` / `view {projection}` | presses a view toolbar button (`zoom_in`, `zoom_out`, `zoom_reset`, `rotate_clockwise`, `rotate_anticlockwise`, `camera_reset`), or picks a view in the projection selector: `"globe"` or the number of a projection |
 | `mouse_move {x, y}`                  | moves the mouse                                                  |
 | `click {x, y, button, ctrl}`         | presses and releases a mouse button: `left`, `right`, `middle`, `wheel_up` or `wheel_down` |
 | `press {x, y, button}` / `release {x, y, button}` | half a click each, so a drag can be scripted: press, `mouse_move`, release |
