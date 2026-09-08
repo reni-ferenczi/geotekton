@@ -126,6 +126,13 @@ give the same centre and radius back, the polygon holds one vertex per segment
 and the polyline one more, and every committed vertex is checked against the
 angular radius it was asked for.
 
+The projection scenario asks each of the six views — the globe and the five
+map projections — where the red triangle is, probes the pixel there, reads the
+place back out of it and clicks it, so a projection whose forward and inverse
+disagree fails on the pixel and one the shader draws differently fails on the
+click. It then steps the zoom in and out, types one in, resets it, turns the
+view each way and resets the camera, checking the toolbar fields follow.
+
 The topology scenario builds a line topology by clicking two drawn polylines
 with the Topology tool, reverses one section from the panel, moves one of the
 two at a later time and reads back a resolved geometry that has followed it, and
@@ -206,14 +213,24 @@ The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
 | `triangle`           | `triangle.middle-earth`    | default                    |
 | `two_cratons`        | `two_cratons.middle-earth` | default                    |
 | `two_cratons_tilted` | `two_cratons.middle-earth` | latitude 30, longitude -45 |
-
-The sample those two render holds three features and neither view shows all of
-them: the default one has the green feature as a sliver at the limb, and the
-tilted one carries the blue one off the far side. `Tests/Data/README.md` has the
-pixel counts and says which view to write a check against.
 | `empty`              | `empty.middle-earth`       | default                    |
 | `mixed_geometry`     | `mixed_geometry.middle-earth` | default                 |
 | `craton`             | `craton.middle-earth`      | default                    |
+| `map_rectangular`    | `two_cratons.middle-earth` | the map, rectangular       |
+| `map_mercator`       | `two_cratons.middle-earth` | the map, Mercator          |
+| `map_mollweide`      | `two_cratons.middle-earth` | the map, Mollweide         |
+| `map_robinson`       | `two_cratons.middle-earth` | the map, Robinson          |
+| `map_orthographic`   | `two_cratons.middle-earth` | the map, orthographic      |
+
+`two_cratons.middle-earth` holds three features and no globe view shows all of
+them: the default one has the green feature as a sliver at the limb, and the
+tilted one carries the blue one off the far side. The map scenes show all three,
+since a projection draws the whole planet at once. `Tests/Data/README.md` has
+the pixel counts and says which view to write a check against.
+
+The five map scenes are what says the inverse projection in the shader agrees
+with the one in `MapProjection`: a graticule drawn through the wrong inverse is
+wrong everywhere at once, which no tolerance hides.
 
 A run launches the application once, loads and renders every scene and compares the
 screenshots with the references. Two images are compared per pixel on the largest
@@ -280,13 +297,14 @@ a round trip is also a wait for the screen to catch up.
 | `timeline {button}`                  | presses a time control button: `Play`, `Pause`, `Reset`, `Older`, `Younger`, `Configure` |
 | `set_animation {animation}`          | changes the animation settings the dialog holds, refusing what cannot be played; only the keys given are changed |
 | `get_performance`                    | the frame rate, how much there is to draw, and whether it is playing |
-| `get_view` / `set_view {lat, lon, angle, fov, show_map}` | the globe orientation, camera and map toggle |
+| `get_view` / `set_view {lat, lon, angle, zoom, show_map, projection}` | where the camera looks, how far it is zoomed in, and whether the globe or one of the five map projections is drawn. `get_view` also reports the derived `fov`, the `window_size` and what the view toolbar fields read |
+| `view {button}`                      | presses a view toolbar button: `zoom_in`, `zoom_out`, `zoom_reset`, `rotate_clockwise`, `rotate_anticlockwise`, `camera_reset` |
 | `mouse_move {x, y}`                  | moves the mouse                                                  |
 | `click {x, y, button, ctrl}`         | presses and releases a mouse button                              |
 | `press {x, y, button}` / `release {x, y, button}` | half a click each, so a drag can be scripted: press, `mouse_move`, release |
 | `key {key, ctrl, shift}`             | presses and releases a key                                       |
-| `latlon_to_screen {lat, lon}`        | `screen: [x, y]`, or `null` on the far side of the globe         |
-| `screen_to_latlon {x, y}`            | `latlon: [lat, lon]`, or `null` off the globe                    |
+| `latlon_to_screen {lat, lon}`        | `screen: [x, y]`, or `null` where the view does not draw that place: the far side of the globe, or a latitude the projection leaves off the map |
+| `screen_to_latlon {x, y}`            | `latlon: [lat, lon]`, or `null` where there is no planet under the pixel |
 | `get_pixel {x, y}`                   | `color: [r, g, b, a]` in the range 0 to 1                        |
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
