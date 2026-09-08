@@ -21,6 +21,11 @@ const GLOBE_RADIUS := 0.5
 const LINE_HIT_WIDTH := 0.02
 const POINT_HIT_RADIUS := 0.025
 
+# What the outline overlay draws its vertex markers and its lines at before the
+# preferences scale them. Both match the uniform defaults in planet.gdshader.
+const DEFAULT_DOT_RADIUS := 0.006
+const DEFAULT_LINE_WIDTH := 0.002
+
 # Style of one part of the outline overlay. Matches planet.gdshader.
 enum OutlineStyle {
 	OPEN = 0,           # a line from the first vertex to the last
@@ -353,6 +358,15 @@ static func _latlon_to_unit(lat_rad: float, lon_rad: float) -> Vector3:
 
 
 ## Outline overlay: the shape being drawn, and the outline of the selected feature
+
+# How large the outline overlay draws its vertex markers and its lines, as a
+# multiple of what planet.gdshader has them at. The preferences set this; see
+# Config.get_vertex_marker_scale().
+func set_outline_scale(marker: float, line: float) -> void:
+	for material in [globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
+		material.set_shader_parameter("outline_dot_radius", DEFAULT_DOT_RADIUS * marker)
+		material.set_shader_parameter("outline_line_width", DEFAULT_LINE_WIDTH * line)
+
 
 # Upload the outline overlay, drawn over the geometry in yellow.
 # Each part: { "vertices": PackedVector2Array of (lat_deg, lon_deg),

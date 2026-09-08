@@ -21,7 +21,11 @@ signal cursor_moved(lat: float, lon: float)
 @onready var camera: Camera3D = %Camera3D
 @onready var rotation_handler: PlanetViewRotation = PlanetViewRotation.new(planet, camera)
 
-var drawing_mode: bool = false
+# True while a tool takes the clicks on the planet for itself: Draw placing
+# vertices, Vertex editing them, Measure marking points. Selecting a feature,
+# moving one and the right click menu are all left alone until it is false
+# again. Rotating the globe with the middle button always works.
+var tool_handles_clicks: bool = false
 var move_enabled: bool = false
 var is_moving: bool = false
 var move_rotating: bool = false
@@ -78,12 +82,12 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 		return
 	if event is InputEventMouseButton:
 		print("Globe click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
-		if drawing_mode and event.button_index != MOUSE_BUTTON_MIDDLE:
+		if tool_handles_clicks and event.button_index != MOUSE_BUTTON_MIDDLE:
 			return
-		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_RIGHT:
+		if not tool_handles_clicks and event.is_pressed() and event.button_index == MOUSE_BUTTON_RIGHT:
 			craton_context_menu.emit(lat, lon)
 			return
-		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
+		if not tool_handles_clicks and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
 			craton_clicked.emit(lat, lon)
 			return
 		if event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and Input.is_key_pressed(KEY_CTRL):
@@ -94,22 +98,22 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 		cursor_moved.emit(lat, lon)
 		if rotation_handler.is_dragging:
 			rotation_handler.handle_dragging(lat, lon)
-		elif not drawing_mode:
+		elif not tool_handles_clicks:
 			craton_hovered.emit(lat, lon)
 
 
 func _on_planet_input_event_map(lat: float, lon: float, event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		print("Map click: lat=%+d, lon=%+d" % [roundi(lat), roundi(lon)])
-		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_RIGHT:
+		if not tool_handles_clicks and event.is_pressed() and event.button_index == MOUSE_BUTTON_RIGHT:
 			craton_context_menu.emit(lat, lon)
 			return
-		if not drawing_mode and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
+		if not tool_handles_clicks and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and not Input.is_key_pressed(KEY_CTRL):
 			craton_clicked.emit(lat, lon)
 			return
 	if event is InputEventMouseMotion:
 		cursor_moved.emit(lat, lon)
-		if not drawing_mode:
+		if not tool_handles_clicks:
 			craton_hovered.emit(lat, lon)
 
 

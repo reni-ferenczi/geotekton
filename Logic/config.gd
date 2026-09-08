@@ -6,6 +6,12 @@ class_name Config
 
 const MAX_RECENT_FILES := 10
 
+# How far the outline sizes may be scaled either way. Small enough to see and
+# large enough to be worth the setting, without letting a marker swallow the
+# shape it marks.
+const MIN_SCALE := 0.25
+const MAX_SCALE := 4.0
+
 # Where the config file lives; set to a scratch folder by the tests.
 static var directory_override: String = ""
 
@@ -99,6 +105,48 @@ static func set_last_directory(path: String) -> void:
 
 static func set_last_directory_from_file(file_path: String) -> void:
 	set_last_directory(file_path.get_base_dir())
+
+
+### Editing and measuring
+#
+# The planet radius is a preference rather than part of a document: it says
+# which planet the distances are read against, not anything about the features,
+# so it neither dirties a document nor needs a format of its own. The two
+# outline sizes are multiples of what planet.gdshader draws at, which is easier
+# to pick than the chord length on a unit sphere the uniform is in.
+
+
+static func get_planet_radius() -> float:
+	return clampf(float(get_value("planet_radius_km", Measure.EARTH_RADIUS_KM)),
+		Measure.MIN_RADIUS_KM, Measure.MAX_RADIUS_KM)
+
+
+static func set_planet_radius(km: float) -> void:
+	set_value("planet_radius_km", clampf(km, Measure.MIN_RADIUS_KM, Measure.MAX_RADIUS_KM))
+
+
+static func get_vertex_marker_scale() -> float:
+	return clampf(float(get_value("vertex_marker_scale", 1.0)), MIN_SCALE, MAX_SCALE)
+
+
+static func set_vertex_marker_scale(scale: float) -> void:
+	set_value("vertex_marker_scale", clampf(scale, MIN_SCALE, MAX_SCALE))
+
+
+static func get_line_width_scale() -> float:
+	return clampf(float(get_value("line_width_scale", 1.0)), MIN_SCALE, MAX_SCALE)
+
+
+static func set_line_width_scale(scale: float) -> void:
+	set_value("line_width_scale", clampf(scale, MIN_SCALE, MAX_SCALE))
+
+
+static func get_snap_to_vertices() -> bool:
+	return bool(get_value("snap_to_vertices", true))
+
+
+static func set_snap_to_vertices(enabled: bool) -> void:
+	set_value("snap_to_vertices", enabled)
 
 
 ### Recently opened files

@@ -766,6 +766,326 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(not client.call("get_timeline")["timeline"]["playing"], "and stops playing there")
 
 
+### The Vertex, Measure and Split scenarios
+
+# A triangle around the middle of the default view, large enough that its
+# vertices are well apart on screen.
+VERTEX_POLYGON = [(-8.0, -8.0), (8.0, -8.0), (0.0, 8.0)]
+
+# Where the feature is moved to at time zero, and the time the vertices are
+# then edited at, which is between the one keyframe and nothing, so the feature
+# is somewhere other than where its vertices are stored.
+VERTEX_LONGITUDE = 25.0
+VERTEX_TIME = 100.0
+
+# How far off the edge an inserted vertex may land. The insert follows the
+# straight line between the two vertices on screen, and the edge itself is a
+# great circle arc, so the two part company slightly over a long edge.
+EDGE_TOLERANCE = 0.5
+
+# A second polygon, off to the side, whose vertex the first one snaps onto.
+SNAP_POLYGON = [(-8.0, 30.0), (8.0, 30.0), (0.0, 46.0)]
+
+# How many pixels short of the target the snapped vertex is dropped: inside
+# Application.SNAP_PIXELS, so the snap takes it the rest of the way.
+SNAP_SHORT_PIXELS = 6.0
+
+# Twenty degrees along the equator, a distance the radius turns into a number
+# the check works out for itself rather than reading off the status bar.
+MEASURE_POINTS = [(0.0, -10.0), (0.0, 10.0)]
+
+# A five vertex polygon, so a cut between two vertices leaves three on one side.
+SPLIT_POLYGON = [(-8.0, -8.0), (8.0, -8.0), (10.0, 4.0), (0.0, 10.0), (-8.0, 6.0)]
+
+
+def run_vertex_session(client: AutomationClient) -> None:
+    """Edit the vertices of a feature that the current time has moved.
+
+    The point of doing it at a non zero time is that the stored vertex and the
+    one on screen are then different. An edit that forgot to map the click back
+    into the feature's own frame would still look right on the globe and put the
+    wrong numbers in the file, so what is read back is the stored vertex, turned
+    through the feature's rotation at that time and compared with where the
+    pointer was.
+    """
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", kind="polygon")
+    if not draw(client, VERTEX_POLYGON):
+        return
+    client.call("key", key="Enter")
+
+    # Move it at one time, so that at VERTEX_TIME it sits away from where its
+    # vertices are stored.
+    client.call("set_time", time=0.0)
+    if not drag(client, 0.0, VERTEX_LONGITUDE):
+        return
+    client.call("set_time", time=VERTEX_TIME)
+    rotation = client.call("get_selected")["feature"]["keyframes"]
+    check(len(rotation) == 1, f"the feature has the one keyframe it was moved at: {rotation}")
+
+    client.call("set_tool", tool="vertex", snap=False)
+    tool = client.call("get_tool")
+    check(tool["tool"] == "vertex", f"the Vertex tool is active: {tool['tool']}")
+    check(not tool["snapping"], "with snapping off for these checks")
+
+    before = client.call("get_selected")["feature"]
+    check(before["world_rings"][0] != before["rings"][0],
+          "the feature is somewhere other than where its vertices are stored")
+
+    ### Dragging a vertex
+
+    versions = undo_depth(client)
+    grabbed = before["world_rings"][0][0]
+    dropped = [grabbed[0] + 4.0, grabbed[1] + 6.0]
+    if not drag_vertex(client, grabbed, dropped):
+        return
+
+    tool = client.call("get_tool")
+    check(tool["selected_vertex"] == [0, 0],
+          f"the press took hold of the first vertex: {tool['selected_vertex']}")
+
+    after = client.call("get_selected")["feature"]
+    check(len(after["rings"][0]) == len(before["rings"][0]),
+          "the drag moved a vertex rather than adding one")
+    check(worst_offset([after["world_rings"][0][0]], [tuple(dropped)]) < DRAG_TOLERANCE,
+          f"the vertex is where it was dropped: {after['world_rings'][0][0]} wanted {dropped}")
+    check(after["rings"][0][0] != before["rings"][0][0],
+          "and the stored vertex moved with it, in the feature's own frame")
+    check(undo_depth(client) == versions + 1, "the whole drag is one undo step")
+
+    client.call("menu", item="undo")
+    back = client.call("get_selected")["feature"]
+    check(worst_offset(back["rings"][0], [tuple(v) for v in before["rings"][0]]) < 1e-4,
+          "undo puts every stored vertex back")
+    client.call("menu", item="redo")
+
+    ### Inserting on an edge
+
+    before = client.call("get_selected")["feature"]
+    versions = undo_depth(client)
+    first, second = before["world_rings"][0][0], before["world_rings"][0][1]
+    middle = midpoint(first, second)
+    screen = client.call("latlon_to_screen", lat=middle[0], lon=middle[1])["screen"]
+    if not check(screen is not None, "the middle of the first edge is visible"):
+        return
+    client.call("click", x=screen[0], y=screen[1])
+
+    after = client.call("get_selected")["feature"]
+    check(len(after["rings"][0]) == len(before["rings"][0]) + 1,
+          f"one vertex was added: {len(after['rings'][0])}")
+    check(client.call("get_tool")["selected_vertex"] == [0, 1],
+          "the new vertex is the one the tool now holds")
+    check(worst_offset([after["world_rings"][0][1]], [middle]) < EDGE_TOLERANCE,
+          f"it landed on the edge: {after['world_rings'][0][1]} wanted {middle}")
+    check(after["rings"][0][0] == before["rings"][0][0]
+          and after["rings"][0][2] == before["rings"][0][1],
+          "between the two vertices the edge runs between, with both still there")
+    check(undo_depth(client) == versions + 1, "inserting is one undo step")
+
+    ### Deleting the vertex under the pointer
+
+    versions = undo_depth(client)
+    client.call("vertex", action="delete")
+    after = client.call("get_selected")["feature"]
+    check(len(after["rings"][0]) == len(before["rings"][0]),
+          "the inserted vertex is gone again")
+    check(client.call("get_tool")["selected_vertex"] is None,
+          "and the tool holds nothing")
+    check(undo_depth(client) == versions + 1, "deleting is one undo step")
+
+    # A triangle has nothing to spare, so the next deletion is refused rather
+    # than taking the whole shape with it.
+    check(len(after["rings"][0]) == 3, "the feature is back to a triangle")
+    grabbed = after["world_rings"][0][0]
+    if drag_vertex(client, grabbed, grabbed):
+        versions = undo_depth(client)
+        refused = ""
+        try:
+            client.call("vertex", action="delete")
+        except RuntimeError as error:
+            refused = str(error)
+        check(refused != "", f"deleting from a triangle is refused: {refused}")
+        check(len(client.call("get_selected")["feature"]["rings"][0]) == 3,
+              "and the triangle is still whole")
+        check(undo_depth(client) == versions, "a refusal records no undo step")
+
+
+def run_snap_session(client: AutomationClient) -> None:
+    """A dragged vertex jumps onto a vertex of another feature."""
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", kind="polygon")
+    if not draw(client, VERTEX_POLYGON):
+        return
+    client.call("key", key="Enter")
+    client.call("set_property", field="name", value="Anchor")
+
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", kind="polygon")
+    if not draw(client, SNAP_POLYGON):
+        return
+    client.call("key", key="Enter")
+    client.call("set_property", field="name", value="Mover")
+
+    anchor = None
+    for feature in client.call("get_features")["features"]:
+        if feature["title"] == "Anchor":
+            anchor = feature
+    if not check(anchor is not None, "both features are in the tree"):
+        return
+    client.call("select", title="Anchor")
+    target = client.call("get_selected")["feature"]["world_rings"][0][0]
+
+    client.call("select", title="Mover")
+    client.call("set_tool", tool="vertex", snap=True)
+    check(client.call("get_tool")["snapping"], "snapping is on")
+
+    # Drop the vertex a few pixels short of the anchor's, near enough for the
+    # snap to take it the rest of the way.
+    mover = client.call("get_selected")["feature"]["world_rings"][0][0]
+    near = client.call("latlon_to_screen", lat=target[0], lon=target[1])["screen"]
+    grab = client.call("latlon_to_screen", lat=mover[0], lon=mover[1])["screen"]
+    if not check(near is not None and grab is not None, "both vertices are visible"):
+        return
+    short = [near[0] + SNAP_SHORT_PIXELS, near[1]]
+    client.call("press", x=grab[0], y=grab[1])
+    client.call("mouse_move", x=short[0], y=short[1])
+    client.call("release", x=short[0], y=short[1])
+
+    landed = client.call("get_selected")["feature"]["world_rings"][0][0]
+    check(worst_offset([landed], [tuple(target)]) < 1e-3,
+          f"the vertex snapped onto the other feature's: {landed} wanted {target}")
+
+    # The same drop with snapping off stays where it was put.
+    client.call("menu", item="undo")
+    client.call("set_tool", tool="vertex", snap=False)
+    client.call("press", x=grab[0], y=grab[1])
+    client.call("mouse_move", x=short[0], y=short[1])
+    client.call("release", x=short[0], y=short[1])
+    landed = client.call("get_selected")["feature"]["world_rings"][0][0]
+    check(worst_offset([landed], [tuple(target)]) > 1e-3,
+          f"with snapping off it stays where it was dropped: {landed}")
+
+
+def run_measure_session(client: AutomationClient) -> None:
+    """The Measure tool reports a distance in the status bar."""
+    start_new_document(client)
+    client.call("set_tool", tool="measure")
+    check(client.call("get_status")["status"]["measure"] == "click two points to measure",
+          "the status bar asks for two points")
+
+    for lat, lon in MEASURE_POINTS:
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        if not check(screen is not None, f"the point at ({lat}, {lon}) is visible"):
+            return
+        client.call("click", x=screen[0], y=screen[1])
+
+    tool = client.call("get_tool")
+    check(len(tool["measure_points"]) == len(MEASURE_POINTS),
+          f"both points were taken: {tool['measure_points']}")
+
+    # 20 degrees along the equator on a sphere of Earth's mean radius.
+    wanted = 20.0 * math.pi / 180.0 * 6371.0
+    shown = client.call("get_status")["status"]["measure"]
+    check(f"{wanted:.1f} km" in shown, f"the status bar shows {wanted:.1f} km: {shown}")
+
+    # Another planet. The radius is a whole number of kilometres, which is the
+    # step the preference is edited in.
+    other = 3000.0
+    client.call("set_preferences", preferences={"planet_radius_km": other})
+    check(client.call("get_preferences")["preferences"]["planet_radius_km"] == other,
+          "the radius preference took the new value")
+    shown = client.call("get_status")["status"]["measure"]
+    check(f"{20.0 * math.pi / 180.0 * other:.1f} km" in shown,
+          f"a smaller planet makes every distance smaller: {shown}")
+    client.call("set_preferences", preferences={"planet_radius_km": 6371.0})
+
+
+def run_split_session(client: AutomationClient) -> None:
+    """Cutting a polygon in two, with both halves keeping what they were."""
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", kind="polygon")
+    if not draw(client, SPLIT_POLYGON):
+        return
+    client.call("key", key="Enter")
+    client.call("set_property", field="name", value="Whole")
+    client.call("set_property", field="color", value=[0.0, 0.0, 1.0, 1.0])
+    client.call("set_property", field="time_to", value=1500)
+    client.call("set_time", time=0.0)
+    if not drag(client, 0.0, 0.0):
+        return
+
+    whole = client.call("get_selected")["feature"]
+    client.call("set_tool", tool="vertex", snap=False)
+
+    # Hold one vertex, pick the one two along, and cut between them.
+    if not pick_vertex(client, whole["world_rings"][0][0]):
+        return
+    client.call("vertex", action="split_from")
+    check(client.call("get_tool")["split_from"] == [0, 0], "the first end is held")
+    if not pick_vertex(client, whole["world_rings"][0][2]):
+        return
+    check(client.call("get_tool")["can_split"], "the Split button is offered")
+    client.call("vertex", action="split")
+
+    titles = [f["title"] for f in client.call("get_features")["features"]]
+    check("Whole" in titles and "Whole 2" in titles,
+          f"the feature became two: {titles}")
+
+    for title in ("Whole", "Whole 2"):
+        client.call("select", title=title)
+        half = client.call("get_selected")["feature"]
+        check(half["geometry_kind"] == "polygon", f"{title} is still a polygon")
+        check(half["color"][:3] == [0.0, 0.0, 1.0], f"{title} kept the colour: {half['color']}")
+        check(half["time_range"] == whole["time_range"],
+              f"{title} kept the time range: {half['time_range']}")
+        check(half["keyframes"] == whole["keyframes"],
+              f"{title} kept the keyframes: {half['keyframes']}")
+        check(len(half["rings"][0]) >= 3, f"{title} has a ring of its own")
+
+
+### Helpers for the vertex scenarios
+
+
+def undo_depth(client: AutomationClient) -> int:
+    """How many versions the document has recorded, so an edit can be counted."""
+    return client.call("get_document")["document"]["undo_depth"]
+
+
+def midpoint(a: list[float], b: list[float]) -> tuple[float, float]:
+    """Halfway along the great circle arc between two latitude/longitude points."""
+    first, second = unit(a[0], a[1]), unit(b[0], b[1])
+    total = [first[i] + second[i] for i in range(3)]
+    length = math.sqrt(sum(c * c for c in total))
+    x, y, z = (c / length for c in total)
+    return math.degrees(math.asin(y)), math.degrees(math.atan2(z, x))
+
+
+def pick_vertex(client: AutomationClient, world: list[float]) -> bool:
+    """Press and release on a vertex, so the tool takes hold of it."""
+    screen = client.call("latlon_to_screen", lat=world[0], lon=world[1])["screen"]
+    if not check(screen is not None, f"the vertex at {world} is visible"):
+        return False
+    client.call("press", x=screen[0], y=screen[1])
+    client.call("release", x=screen[0], y=screen[1])
+    return True
+
+
+def drag_vertex(client: AutomationClient, world: list[float], to: list[float]) -> bool:
+    """Drag one vertex from where it is on screen to another latitude/longitude."""
+    grab = client.call("latlon_to_screen", lat=world[0], lon=world[1])["screen"]
+    target = client.call("latlon_to_screen", lat=to[0], lon=to[1])["screen"]
+    if not check(grab is not None and target is not None,
+                 f"the vertex drag from {world} to {to} is visible"):
+        return False
+    client.call("press", x=grab[0], y=grab[1])
+    client.call("mouse_move", x=target[0], y=target[1])
+    client.call("release", x=target[0], y=target[1])
+    return True
+
+
 def count_features(node: dict) -> int:
     """The number of nodes in a serialized feature tree."""
     return 1 + sum(count_features(child) for child in node.get("children", []))
@@ -799,6 +1119,10 @@ def main(argv: list[str]) -> int:
         run_globe_menu_session(client)
         run_edit_menu_session(client)
         run_time_session(client)
+        run_vertex_session(client)
+        run_snap_session(client)
+        run_measure_session(client)
+        run_split_session(client)
     finally:
         if connected:
             try:

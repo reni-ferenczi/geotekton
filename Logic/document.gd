@@ -18,8 +18,10 @@ const MAX_UNDO_STEPS := 100
 # present. Older than the Earth, so nothing anyone models runs into it.
 const MAX_TIME := 10000.0
 
-# The feature tree was replaced: rebuild the UI from root.
-signal root_replaced()
+# The feature tree was replaced: rebuild the UI from root. True while it is the
+# same document, which is what stepping through the undo stack does; false when
+# another document has taken its place, as File > New and File > Open do.
+signal root_replaced(same_document: bool)
 
 # The path, the dirty flag or the undo depth changed: refresh title and buttons.
 signal state_changed()
@@ -63,7 +65,7 @@ func reset() -> void:
 	_saved = applied
 	path = ""
 	set_time(0.0)
-	root_replaced.emit()
+	root_replaced.emit(false)
 	state_changed.emit()
 
 
@@ -119,7 +121,7 @@ func redo() -> void:
 
 func _apply_current() -> void:
 	root = versions[applied - 1].clone()
-	root_replaced.emit()
+	root_replaced.emit(true)
 	state_changed.emit()
 
 
@@ -208,6 +210,54 @@ func remove_vertex(feature: Feature, part: int, index: int) -> String:
 	if feature.rings[part].size() < feature.minimum_vertices():
 		feature.rings.remove_at(part)
 	feature.rebuild_triangles()
+	record()
+	return ""
+
+
+# Cut one part of a feature in two, leaving two features side by side in the
+# tree. A polyline is cut at one vertex and a polygon between two, and both
+# halves keep the vertex or vertices the cut runs through.
+#
+# Both halves carry the type, the colour, the time range and the keyframes of
+# the feature they came from, so the two go on moving together and go on
+# existing over the same span. The original keeps its title and every other part
+# it had; the second half is a new feature holding that half alone.
+func split_feature(feature: Feature, part: int, first: int, second: int = -1) -> String:
+	if feature == null or feature.is_group:
+		return "Only a feature with geometry can be split."
+	if part < 0 or part >= feature.rings.size():
+		return "The feature has no part %d." % part
+
+	var ring: PackedVector2Array = feature.rings[part]
+	var problem := ""
+	var halves: Array[PackedVector2Array] = []
+	match feature.geometry_kind:
+		Feature.GeometryKind.POLYLINE:
+			problem = GeometryEdit.polyline_split_problem(ring, first)
+			if problem.is_empty():
+				halves = GeometryEdit.split_polyline(ring, first)
+		Feature.GeometryKind.POLYGON:
+			problem = GeometryEdit.polygon_split_problem(ring, first, second)
+			if problem.is_empty():
+				halves = GeometryEdit.split_polygon(ring, first, second)
+		_:
+			problem = "A multipoint is separate markers, so there is no path to split."
+	if not problem.is_empty():
+		return problem
+
+	var parent := root.find_parent(feature)
+	if parent == null:
+		return "%s is not in the tree." % feature.title
+
+	var other := feature.duplicate()
+	other.title = Feature.clamp_title("%s 2" % feature.title)
+	var only: Array[PackedVector2Array] = [halves[1]]
+	other.rings = only
+	other.rebuild_triangles()
+
+	feature.rings[part] = halves[0]
+	feature.rebuild_triangles()
+	parent.children.insert(parent.find_child(feature) + 1, other)
 	record()
 	return ""
 
@@ -331,7 +381,7 @@ func load_from_file(file_path: String) -> String:
 	_saved = applied
 	path = file_path
 	set_time(0.0)
-	root_replaced.emit()
+	root_replaced.emit(false)
 	state_changed.emit()
 	return ""
 
