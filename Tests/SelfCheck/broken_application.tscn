@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://b06r2q0x74bfc" path="res://Tests/SelfCheck/broken_application.gd" id="1_broken"]
+
+[node name="BrokenApplication" type="VBoxContainer"]
+script = ExtResource("1_broken")

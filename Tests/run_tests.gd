@@ -4,6 +4,7 @@ extends SceneTree
 #   headless: Godot ... -s res://Tests/run_tests.gd -- [--filter=SUBSTRING]
 #   rendered: Godot ... -s res://Tests/run_tests.gd -- --rendered [--filter=SUBSTRING]
 #   --dir=res://... discovers somewhere other than Unit or Rendered.
+#   --scene=res://... hosts a scene other than the application, for the self-check.
 
 const UNIT_DIR := "res://Tests/Unit"
 const RENDERED_DIR := "res://Tests/Rendered"
@@ -41,6 +42,7 @@ class ErrorWatcher extends Logger:
 var rendered: bool = false
 var filter: String = ""
 var directory: String = ""
+var scene_path: String = APPLICATION_SCENE
 var passed: int = 0
 var failed: int = 0
 var watcher := ErrorWatcher.new()
@@ -54,6 +56,8 @@ func _initialize() -> void:
 			filter = arg.trim_prefix("--filter=")
 		elif arg.begins_with("--dir="):
 			directory = arg.trim_prefix("--dir=")
+		elif arg.begins_with("--scene="):
+			scene_path = arg.trim_prefix("--scene=")
 		else:
 			print("Unknown argument: %s" % arg)
 	OS.add_logger(watcher)
@@ -70,14 +74,21 @@ func _run() -> void:
 		application = await _setup_rendered()
 		ready = application != null
 
+	# Taken here rather than at the end, because the first test to run takes
+	# what the watcher holds before it starts. A script the application scene
+	# depends on failing to compile arrives this way: the engine hands back
+	# what it did compile, the window comes up and the tests used to run
+	# against it and pass. See GP-0029.
+	if not _report_errors(watcher.take(), "setup"):
+		ready = false
+
 	if ready:
 		for path in _discover(_folder()):
 			await _run_file(path, application)
 
-	# Errors from the setup, from the discovery, or from work a test left
-	# running after it returned belong to no single test but still count.
-	for message in watcher.take():
-		_fail_line("run", "runtime error: %s" % message)
+	# Errors from the discovery, or from work a test left running after it
+	# returned, belong to no single test but still count.
+	_report_errors(watcher.take(), "run")
 
 	print("%d passed, %d failed" % [passed, failed])
 	OS.remove_logger(watcher)
@@ -92,9 +103,9 @@ func _folder() -> String:
 
 # Show the application window and check that screen coordinates equal window pixels.
 func _setup_rendered() -> Node:
-	var scene: PackedScene = load(APPLICATION_SCENE)
+	var scene: PackedScene = load(scene_path)
 	if scene == null:
-		_fail_line("setup", "cannot load %s" % APPLICATION_SCENE)
+		_fail_line("setup", "cannot load %s" % scene_path)
 		return null
 
 	var application := scene.instantiate()
@@ -160,6 +171,14 @@ func _run_file(path: String, application: Node) -> void:
 			for message in errors:
 				failed += 1
 				print("FAIL %s: runtime error: %s" % [name, message])
+
+
+# Report the errors that belong to no test against name, and say whether the
+# list was empty.
+func _report_errors(messages: Array[String], name: String) -> bool:
+	for message in messages:
+		_fail_line(name, "script error: %s" % message)
+	return messages.is_empty()
 
 
 func _fail_line(name: String, message: String) -> void:

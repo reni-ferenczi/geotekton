@@ -9,13 +9,14 @@ on every change. `Tests/run.py` starts all of them.
 | `rendered` | `python Tests/run.py rendered` | The real application window: what is drawn, where clicks land, screen to world coordinates. |
 | `session`  | `python Tests/run.py session`  | A scripted end-to-end session driving the running application over the automation port. |
 | `cli`      | `python Tests/run.py cli`      | What `--version` and `--help` print, from a headless start with no window. |
-| `self-check` | `python Tests/run.py self-check` | The runner itself: that it reports a test which hits a runtime error as a failure. |
+| `self-check` | `python Tests/run.py self-check` | The runner itself: that it reports a test which hits a runtime error as a failure, and that it fails a run whose application script did not compile. |
 | `golden`   | `uv run Tests/run.py golden`   | Full window screenshots diffed against reference images. |
 | `all`      | `uv run Tests/run.py all`      | All six in the order above, stopping at the first failure. |
 | `performance` | `uv run Tests/run.py performance` | The frame time during playback, and what one hit test costs with and without the bounding cap, on a document of a chosen triangle count. Not part of `all`. |
 
 `headless`, `rendered`, `session`, `cli` and `self-check` run under any Python 3.13
-or newer. `golden`
+or newer. `self-check` opens a window for the second of its two cases, the way
+`rendered` does. `golden`
 needs Pillow, so run it through `uv run`; under a plain interpreter without Pillow
 it prints a hint and exits with code 2. `uv run Tests/run.py <mode>` works for every
 mode, so `uv run` is the safe default.
@@ -79,8 +80,14 @@ A runtime error is different: the engine prints it, abandons the method and
 returns, leaving the failure list empty. The runner registers a `Logger` through
 `OS.add_logger` and turns every script and shader error printed during a test
 into a failure of that test, so a method that stops halfway cannot report `PASS`.
-Errors printed outside any test, during the setup or by work a test left running,
-are reported against `run`.
+
+What the setup prints is read the moment the setup is over and reported against
+`setup`, and no test is run after that. A script the application scene depends
+on failing to compile arrives this way. The engine hands back what it did
+manage to compile rather than nothing, so the window still comes up and the
+tests used to run against it and pass, which is what GP-0029 was. Anything
+printed later but outside a test, by the discovery or by work a test left
+running after it returned, is reported against `run`.
 
 Warnings and engine level errors are left alone. An engine error is not always
 a defect and not always the run's doing: `DisplayServer.clipboard_get()`, which
@@ -172,11 +179,15 @@ sheet, the edge slack and the number of each projection — against
 `MapProjection`. Nothing in either file makes the other follow, so a change to
 one alone fails there rather than as a map drawn slightly wrong.
 
-`self_check.py` runs the runner over `Tests/SelfCheck`, which holds one
-deliberately broken test beside an intact one, and checks that the run fails with
-the broken one reported as a failure and the intact one still passing. That folder
-is reached with the runner's `--dir=res://...` switch and is never discovered by
-`headless` or `rendered`.
+`self_check.py` runs the runner twice over `Tests/SelfCheck`, once per case.
+The first holds one deliberately broken test beside an intact one, and checks
+that the run fails with the broken one reported as a failure and the intact one
+still passing. The second hosts `broken_application.tscn` instead of the
+application, whose script depends on one that does not compile, and checks that
+the parse error is reported against `setup` and that the intact test beside it
+is not reported as passed. That folder is reached with the runner's
+`--dir=res://...` switch and is never discovered by `headless` or `rendered`;
+the stand-in scene is reached with `--scene=res://...`.
 
 ## Sample files
 
