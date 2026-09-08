@@ -888,6 +888,16 @@ def run_vertex_session(client: AutomationClient) -> None:
 
     ### Deleting the vertex under the pointer
 
+    # Delete takes out whatever the pointer is resting on, so the pointer is
+    # moved onto the inserted vertex and nothing is clicked.
+    inserted = client.call("get_selected")["feature"]["world_rings"][0][1]
+    screen = client.call("latlon_to_screen", lat=inserted[0], lon=inserted[1])["screen"]
+    if not check(screen is not None, "the inserted vertex is visible"):
+        return
+    client.call("mouse_move", x=screen[0], y=screen[1])
+    check(client.call("get_tool")["hovered_vertex"] == [0, 1],
+          "the pointer resting on it is enough to name it")
+
     versions = undo_depth(client)
     client.call("vertex", action="delete")
     after = client.call("get_selected")["feature"]

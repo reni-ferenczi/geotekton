@@ -433,6 +433,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"vertex_enabled": not app.vertex_button.disabled,
 				"snapping": app.snapping(),
 				"selected_vertex": _vertex_to_json(app.selected_vertex),
+				"hovered_vertex": _vertex_to_json(app.hovered_vertex),
 				"split_from": _vertex_to_json(app.split_from),
 				"can_split": not app.split_button.disabled,
 				"measure_points": _points_to_json(app.measure_points),

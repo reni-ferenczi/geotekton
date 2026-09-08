@@ -64,7 +64,14 @@ func _on_background_input_event(camera: Node, event: InputEvent, event_position:
 	input_event_outside.emit(event)
 
 
+# The globe and the map both keep their collision bodies whatever is being
+# shown, so both report a pointer that moves over them. Only the one on screen
+# is listened to: the map works out its latitude and longitude by scaling the
+# point, without the bounds a sphere gives, so the hidden one answers with
+# nonsense like 539 degrees of longitude and whoever is listening believes it.
 func _on_globe_physics_body_input_event(camera: Node, event: InputEvent, event_position: Vector3, normal: Vector3, shape_idx: int) -> void:
+	if show_map:
+		return
 	var local_pos = globe.transform.inverse() * event_position
 	var rad = Vector2(local_pos.x, local_pos.z).length()
 	var lat = rad_to_deg(atan2(local_pos.y, rad))
@@ -73,6 +80,8 @@ func _on_globe_physics_body_input_event(camera: Node, event: InputEvent, event_p
 
 
 func _on_map_physics_body_input_event(camera: Node, event: InputEvent, event_position: Vector3, normal: Vector3, shape_idx: int) -> void:
+	if not show_map:
+		return
 	var local_pos = map.transform.inverse() * event_position
 	var lat = local_pos.y * 90
 	var lon = local_pos.x * 180

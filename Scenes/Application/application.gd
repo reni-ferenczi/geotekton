@@ -818,7 +818,7 @@ func set_active_tool(tool: Tool) -> void:
 		_outline_cancel()
 	if active_tool == Tool.VERTEX and tool != Tool.VERTEX:
 		_vertex_cancel_drag()
-		selected_vertex = NO_VERTEX
+		_let_every_vertex_go()
 	if active_tool == Tool.MEASURE and tool != Tool.MEASURE:
 		_measure_clear()
 	active_tool = tool
@@ -865,6 +865,7 @@ func _on_feature_selected(node: Feature) -> void:
 	# back is a different object with the same pnid.
 	if node == null or node.pnid != vertex_feature_pnid:
 		_vertex_cancel_drag()
+		hovered_vertex = NO_VERTEX
 		selected_vertex = NO_VERTEX
 		split_from = NO_VERTEX
 		vertex_feature_pnid = -1 if node == null else node.pnid
@@ -1069,8 +1070,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 					else split_at_selected_vertex())
 			elif event.keycode == KEY_ESCAPE:
 				_vertex_cancel_drag()
-				selected_vertex = NO_VERTEX
-				split_from = NO_VERTEX
+				_let_every_vertex_go()
 				_update_tool_buttons()
 			else:
 				return
@@ -1153,6 +1153,29 @@ var selected_vertex: Vector2i = NO_VERTEX
 # The first vertex of a polygon cut, held until the second one is picked.
 var split_from: Vector2i = NO_VERTEX
 
+# The vertex the pointer is resting on, or NO_VERTEX. Delete takes this one out
+# when there is one, which is what "the vertex under the cursor" means; the one
+# picked by a click stands in when the pointer is resting on nothing.
+var hovered_vertex: Vector2i = NO_VERTEX
+
+
+func _track_vertex_under_pointer(feature: Feature, lat: float, lon: float) -> void:
+	hovered_vertex = NO_VERTEX
+	var screen: Variant = planet_view.latlon_to_screen(lat, lon)
+	if screen == null:
+		return
+	var own := _vertices_on_screen(feature)
+	var picked := GeometryEdit.nearest_point(own[0], screen, VERTEX_PICK_PIXELS)
+	if picked >= 0:
+		hovered_vertex = own[1][picked]
+
+
+# The vertex the tool would act on: the one under the pointer, or the one a
+# click last took hold of when the pointer is resting on nothing.
+func vertex_in_hand() -> Vector2i:
+	return hovered_vertex if hovered_vertex != NO_VERTEX else selected_vertex
+
+
 # The vertex being dragged, the feature it belongs to, and what it was before
 # the drag started, so that a cancelled drag puts it back and a finished one
 # records a single undo version rather than one for every frame of the drag.
@@ -1183,17 +1206,21 @@ var vertex_feature_pnid: int = -1
 # Let go of a picked vertex that the tree no longer has, which an undo of the
 # edit that made it leaves behind.
 func _forget_vertices_that_are_gone(node: Feature) -> void:
-	for held in [selected_vertex, split_from]:
+	for held in [selected_vertex, split_from, hovered_vertex]:
 		if held == NO_VERTEX:
 			continue
 		if node == null or node.is_group or held.x >= node.rings.size():
-			selected_vertex = NO_VERTEX
-			split_from = NO_VERTEX
+			_let_every_vertex_go()
 			return
 		if held.y >= node.rings[held.x].size():
-			selected_vertex = NO_VERTEX
-			split_from = NO_VERTEX
+			_let_every_vertex_go()
 			return
+
+
+func _let_every_vertex_go() -> void:
+	hovered_vertex = NO_VERTEX
+	selected_vertex = NO_VERTEX
+	split_from = NO_VERTEX
 
 
 func _on_vertex_input(lat: float, lon: float, event: InputEvent) -> void:
@@ -1204,6 +1231,8 @@ func _on_vertex_input(lat: float, lon: float, event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		if vertex_drag != NO_VERTEX:
 			_vertex_drag_to(lat, lon)
+		else:
+			_track_vertex_under_pointer(feature, lat, lon)
 		return
 
 	if event is not InputEventMouseButton or event.button_index != MOUSE_BUTTON_LEFT:
@@ -1345,15 +1374,19 @@ func _vertex_cancel_drag() -> void:
 # disappear under a single key press.
 func delete_selected_vertex() -> String:
 	var feature := features.feature_tree.get_selected_node()
-	if feature == null or feature.is_group or selected_vertex == NO_VERTEX:
-		return "No vertex is picked."
+	var target := vertex_in_hand()
+	if feature == null or feature.is_group or target == NO_VERTEX:
+		return "The pointer is on no vertex, and none is picked."
+	if target.x >= feature.rings.size() or target.y >= feature.rings[target.x].size():
+		return "That vertex is no longer there."
 	var problem := GeometryEdit.removal_problem(
-		feature.rings[selected_vertex.x], selected_vertex.y, feature.geometry_kind)
+		feature.rings[target.x], target.y, feature.geometry_kind)
 	if not problem.is_empty():
 		return problem
-	var error := document.remove_vertex(feature, selected_vertex.x, selected_vertex.y)
+	var error := document.remove_vertex(feature, target.x, target.y)
 	if not error.is_empty():
 		return error
+	hovered_vertex = NO_VERTEX
 	selected_vertex = NO_VERTEX
 	split_from = NO_VERTEX
 	_after_vertex_edit()
