@@ -1,7 +1,7 @@
 # Documentation
 
 - [Draw](Draw.md) — Drawing polygons, polylines and multipoints on the planet surface
-- [Editing](Editing.md) — The tools, the feature tree rows, editing vertices, splitting, measuring and globe navigation
+- [Editing](Editing.md) — The tools, the feature tree rows, editing vertices, splitting, measuring, small circles, line topologies and globe navigation
 - [Moving](Moving.md) — Craton movement implementation: rotation math, Basis indexing, mouse tracking
 - [Persistence](Persistence.md) — The document, saving and loading, the file format and the settings file
 - [Properties](Properties.md) — Feature types, the Properties panel and the Edit commands

@@ -63,7 +63,7 @@ The file is a JSON object with three top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "features": { ... }
 }
 ```
@@ -84,6 +84,7 @@ groups and leaf features.
 
 ```json
 {
+  "uuid": "6b0d6b1e-2c1f-4a3d-9a7e-2f0f1d9c5b31",
   "title": "Group Name",
   "enabled": true,
   "is_group": true,
@@ -97,6 +98,7 @@ groups and leaf features.
 
 ```json
 {
+  "uuid": "0f5b6c2a-7d84-4c19-8b3e-51b0a2c7d4e6",
   "title": "Feature Name",
   "enabled": true,
   "is_group": false,
@@ -110,13 +112,49 @@ groups and leaf features.
 }
 ```
 
+`uuid` is what the node is called in the file. It is written for groups as well
+as for features and is kept across a save and a load, because a line topology
+names the features its sections run along by it; see
+[Editing](Editing.md#line-topologies). A duplicate and a paste each get a fresh
+one, so no two nodes of a document share an id.
+
 `feature_type` is an id from the catalog in `Logic/feature_type.gd`; see
 [Properties](Properties.md#the-type-catalog). `geometry_kind` is `"polygon"`,
-`"polyline"` or `"multipoint"`, and `rings`
+`"polyline"`, `"multipoint"` or `"topology"`, and `rings`
 holds one array of `[latitude, longitude]` vertices per part. A ring is closed
 only for a polygon, and several rings on one polygon are separate outlines
 rather than holes. The vertices are in the frame of the feature itself, before
 the rotation its keyframes give it at the current time is applied.
+
+A **line topology** carries `sections` instead of `rings`, because its vertices
+are resolved from the features it runs along every time the tree or the current
+time moves, and writing them down would be writing down a derived value:
+
+```json
+{
+  "uuid": "9c4a1f77-0b2e-4d61-8a05-3c6d2e9f4b18",
+  "title": "Ridge Boundary",
+  "type": "Feature",
+  "is_group": false,
+  "enabled": true,
+  "feature_type": "topology",
+  "color": [0.58, 0.44, 0.86, 1.0],
+  "geometry_kind": "topology",
+  "sections": [
+    {"feature": "0f5b6c2a-7d84-4c19-8b3e-51b0a2c7d4e6", "part": 0,
+     "from": 0, "to": 20, "reversed": false}
+  ],
+  "keyframes": [],
+  "time_range": [0, 2000]
+}
+```
+
+Each section names a feature by its `uuid`, which part of it, the two vertex
+indices the run goes between, both ends included and counted from zero, and
+whether the run is walked backwards. A section whose feature is not in the file
+is kept as it stands, so a topology loads and saves whole even while one of the
+features it names is missing; see
+[Editing](Editing.md#line-topologies).
 
 `keyframes` is where the node is over time: a list of `{time, rotation}`,
 sorted with the youngest first, `time` an age in millions of years before
@@ -173,6 +211,13 @@ present, which is where a file written before this was drawn. A feature that
 came in this way behaves as it did before the phase, because one keyframe holds
 at every time. A group had no rotation to carry over and arrives without
 keyframes, standing still until someone moves it.
+
+#### 0.4.0 to 0.5.0
+
+0.5.0 added `uuid` to every node. There is no migration step for it: a node
+without one is given a fresh id on load, the same way 0.3.0 treated a feature
+without a `feature_type`. Nothing in a file written before 0.5.0 can be naming a
+node, so an id invented on load loses nothing.
 
 ## The config file
 

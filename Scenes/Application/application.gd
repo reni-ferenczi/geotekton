@@ -19,7 +19,7 @@ static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Docum
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, DRAW, VERTEX, MEASURE }
+enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY }
 
 # How near, in window pixels, a click has to be to take hold of a vertex or an
 # edge, and how near a dragged vertex has to come to another before snapping
@@ -50,9 +50,12 @@ const PANEL_KEYS := {
 @onready var draw_button: Button = %Draw
 @onready var vertex_button: Button = %Vertex
 @onready var measure_button: Button = %Measure
+@onready var circle_button: Button = %Circle
+@onready var topology_button: Button = %Topology
 @onready var snap_button: Button = %Snap
 @onready var split_button: Button = %Split
 @onready var kind_selector: OptionButton = %GeometryKind
+@onready var segments_spin: SpinBox = %Segments
 @onready var menu_bar: MenuBar = %MenuBar
 @onready var left_splitter: HSplitContainer = %LeftSplitter
 @onready var right_splitter: HSplitContainer = %RightSplitter
@@ -156,10 +159,18 @@ func _ready() -> void:
 	draw_button.pressed.connect(func() -> void: set_active_tool(Tool.DRAW))
 	vertex_button.pressed.connect(func() -> void: set_active_tool(Tool.VERTEX))
 	measure_button.pressed.connect(func() -> void: set_active_tool(Tool.MEASURE))
+	circle_button.pressed.connect(func() -> void: set_active_tool(Tool.CIRCLE))
+	topology_button.pressed.connect(func() -> void: set_active_tool(Tool.TOPOLOGY))
+	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
 	snap_button.toggled.connect(_on_snap_toggled)
 	split_button.pressed.connect(func() -> void: _report(split_at_selected_vertex()))
 	snap_button.button_pressed = Config.get_snap_to_vertices()
 	_build_kind_selector()
+	# The range and the starting value come from SmallCircle, so the scene does
+	# not carry a second copy of what a circle may be cut into.
+	segments_spin.min_value = SmallCircle.MIN_SEGMENTS
+	segments_spin.max_value = SmallCircle.MAX_SEGMENTS
+	segments_spin.value = SmallCircle.DEFAULT_SEGMENTS
 	_apply_outline_scale()
 
 	# The Save and Load buttons of the feature tree toolbar run the File commands
@@ -821,11 +832,15 @@ func set_active_tool(tool: Tool) -> void:
 		_let_every_vertex_go()
 	if active_tool == Tool.MEASURE and tool != Tool.MEASURE:
 		_measure_clear()
+	if active_tool == Tool.CIRCLE and tool != Tool.CIRCLE:
+		circle_points = PackedVector2Array()
 	active_tool = tool
 	move_button.button_pressed = (tool == Tool.MOVE)
 	draw_button.button_pressed = (tool == Tool.DRAW)
 	vertex_button.button_pressed = (tool == Tool.VERTEX)
 	measure_button.button_pressed = (tool == Tool.MEASURE)
+	circle_button.button_pressed = (tool == Tool.CIRCLE)
+	topology_button.button_pressed = (tool == Tool.TOPOLOGY)
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
@@ -841,11 +856,12 @@ func snapping() -> bool:
 	return snap_button.button_pressed
 
 
-# The Vertex tool needs a leaf feature that already holds geometry; there is
-# nothing to take hold of otherwise. Measure needs nothing at all.
+# The Vertex tool needs a leaf feature holding vertices of its own; there is
+# nothing to take hold of otherwise, and a topology's vertices belong to the
+# features it runs along. Measure needs nothing at all.
 func _update_tool_buttons() -> void:
 	var selected := features.feature_tree.get_selected_node()
-	var editable := selected != null and not selected.is_group and selected.has_geometry()
+	var editable := selected != null and not selected.is_group and selected.has_own_vertices()
 	vertex_button.disabled = not editable
 	snap_button.disabled = active_tool != Tool.VERTEX
 	split_button.disabled = not _split_problem().is_empty()
@@ -875,22 +891,33 @@ func _on_feature_selected(node: Feature) -> void:
 	# Nothing selected does not: rebuilding the tree clears the selection for a
 	# moment before it puts it back, and a tool that gave up over that would
 	# not survive an undo.
-	var editable := node == null or (not node.is_group and node.has_geometry())
+	var editable := node == null or (not node.is_group and node.has_own_vertices())
 	if active_tool == Tool.VERTEX and not editable:
 		set_active_tool(Tool.MOVE)
 
 	var is_leaf := node != null and not node.is_group
-	draw_button.disabled = not is_leaf
+	draw_button.disabled = not _can_draw(node)
+	circle_button.disabled = not _can_draw(node)
+	topology_button.disabled = not _can_build_topology(node)
 	_update_kind_selector(node)
 	properties.show_node(node)
 
 	if is_leaf:
+		# A tool that cannot work on what is now selected gives way to Move,
+		# rather than staying armed and swallowing the clicks meant for the
+		# globe. Nothing selected is left alone: rebuilding the tree clears the
+		# selection for a moment before it puts it back.
+		if (active_tool == Tool.DRAW or active_tool == Tool.CIRCLE) and not _can_draw(node):
+			set_active_tool(Tool.MOVE)
+		elif active_tool == Tool.TOPOLOGY and not _can_build_topology(node):
+			set_active_tool(Tool.MOVE)
 		# Auto-select Draw when the feature has no geometry yet
-		if not node.has_geometry():
+		elif not node.has_geometry() and _can_draw(node):
 			set_active_tool(Tool.DRAW)
 	else:
-		# Can't draw on groups or nothing — force Move
-		if active_tool == Tool.DRAW:
+		# Can't draw or build a topology on groups or nothing — force Move
+		if active_tool == Tool.DRAW or active_tool == Tool.CIRCLE \
+				or active_tool == Tool.TOPOLOGY:
 			set_active_tool(Tool.MOVE)
 
 	_update_move_enabled()
@@ -920,26 +947,59 @@ func drawing_kind() -> Feature.GeometryKind:
 
 
 # The kinds the selected feature may be drawn in: what its type allows, and only
-# the kind it already holds once there is geometry to keep consistent.
+# the kind it already holds once there is geometry to keep consistent. A
+# topology is listed, so a feature holding one shows what it is, but never
+# offered: its geometry comes from the features it names rather than from
+# clicks, which is the Topology tool's business.
 func _update_kind_selector(node: Feature) -> void:
 	var is_leaf := node != null and not node.is_group
 	var has_geometry := is_leaf and node.has_geometry()
 	for index in kind_selector.item_count:
-		var kind_name: String = Feature.KIND_NAMES[kind_selector.get_item_id(index)]
-		kind_selector.set_item_disabled(index,
-			is_leaf and not FeatureType.allows(node.feature_type, kind_name))
+		var kind: int = kind_selector.get_item_id(index)
+		var kind_name: String = Feature.KIND_NAMES[kind]
+		kind_selector.set_item_disabled(index, not kind in Feature.DRAWN_KINDS
+			or (is_leaf and not FeatureType.allows(node.feature_type, kind_name)))
 	if has_geometry:
 		kind_selector.select(kind_selector.get_item_index(node.geometry_kind))
 	elif is_leaf and kind_selector.is_item_disabled(kind_selector.selected):
-		kind_selector.select(_first_allowed_kind())
+		var first := _first_allowed_kind()
+		if first >= 0:
+			kind_selector.select(first)
 	kind_selector.disabled = has_geometry or not is_leaf
 
 
+# The first kind the selector still offers, or -1 when it offers none, which is
+# what a type allowing only topologies leaves behind.
 func _first_allowed_kind() -> int:
 	for index in kind_selector.item_count:
 		if not kind_selector.is_item_disabled(index):
 			return index
-	return kind_selector.selected
+	return -1
+
+
+# Whether the Topology tool has something to build on: a feature that is a
+# topology already, or one holding nothing yet whose type allows it to become
+# one. A feature that holds vertices of its own cannot also borrow them.
+func _can_build_topology(node: Feature) -> bool:
+	if node == null or node.is_group:
+		return false
+	if node.has_geometry():
+		return node.geometry_kind == Feature.GeometryKind.TOPOLOGY
+	return FeatureType.allows(node.feature_type, "topology")
+
+
+# Whether the Draw and Circle tools have a kind they may produce on this
+# feature: the one it already holds, once it holds any, and otherwise a kind its
+# type allows. A topology is neither, since it is built from other features.
+func _can_draw(node: Feature) -> bool:
+	if node == null or node.is_group:
+		return false
+	if node.has_geometry():
+		return node.geometry_kind in Feature.DRAWN_KINDS
+	for kind in Feature.DRAWN_KINDS:
+		if FeatureType.allows(node.feature_type, Feature.KIND_NAMES[kind]):
+			return true
+	return false
 
 
 ### Move tool
@@ -1021,6 +1081,10 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 			_on_vertex_input(lat, lon, event)
 		Tool.MEASURE:
 			_on_measure_input(lat, lon, event)
+		Tool.CIRCLE:
+			_on_circle_input(lat, lon, event)
+		Tool.TOPOLOGY:
+			_on_topology_input(lat, lon, event)
 
 
 # The background behind the globe. A drag of a vertex that ends out there is
@@ -1078,6 +1142,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			if event.keycode == KEY_ESCAPE:
 				_measure_clear()
 				_refresh_selection_outline()
+			else:
+				return
+		Tool.CIRCLE:
+			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				_report(_circle_commit())
+			elif event.keycode == KEY_ESCAPE:
+				circle_points = PackedVector2Array()
+				_refresh_selection_outline()
+				_show_measurement()
 			else:
 				return
 		_:
@@ -1458,6 +1531,178 @@ func split_at_selected_vertex() -> String:
 	return ""
 
 
+### The Circle tool
+#
+# A small circle, drawn as a preview and committed as a polygon or a polyline of
+# a chosen number of segments. Two clicks are a centre and a point on the rim;
+# three are three points the circle passes through. Which one is meant follows
+# from how many points have been clicked, so there is no mode to pick: the
+# preview shows what the clicks so far describe and a third click changes it
+# from the one construction to the other.
+
+# The points clicked so far, in world coordinates.
+var circle_points := PackedVector2Array()
+
+
+func _on_circle_input(lat: float, lon: float, event: InputEvent) -> void:
+	if event is not InputEventMouseButton or not event.is_pressed():
+		return
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		if circle_points.size() >= 3:
+			circle_points = PackedVector2Array()
+		circle_points.append(Vector2(lat, lon))
+	elif event.button_index == MOUSE_BUTTON_RIGHT and not circle_points.is_empty():
+		circle_points.remove_at(circle_points.size() - 1)
+	else:
+		return
+	_refresh_selection_outline()
+	_show_measurement()
+
+
+# The circle the clicked points describe, as [centre, angular radius], or an
+# empty array while they describe none.
+func circle_from_points() -> Array:
+	if circle_points.size() == 2:
+		var radius := SmallCircle.radius_to(circle_points[0], circle_points[1])
+		return [] if radius < 1e-6 else [circle_points[0], radius]
+	if circle_points.size() == 3:
+		return SmallCircle.through(circle_points[0], circle_points[1], circle_points[2])
+	return []
+
+
+# How many segments the circle is cut into, as the toolbar has it.
+func circle_segments() -> int:
+	return int(segments_spin.value)
+
+
+# Whether the circle closes on itself. A polygon does; a polyline is left open
+# and repeats its first vertex, so it draws the whole circle either way.
+func _circle_is_closed() -> bool:
+	return drawing_kind() == Feature.GeometryKind.POLYGON
+
+
+# The circle being previewed, in world coordinates, or an empty ring.
+func circle_ring() -> PackedVector2Array:
+	var circle := circle_from_points()
+	if circle.is_empty():
+		return PackedVector2Array()
+	return SmallCircle.vertices(circle[0], circle[1], circle_segments(), _circle_is_closed())
+
+
+# The clicked points as markers, with the circle they describe over them.
+func _circle_outline() -> Array:
+	var parts: Array = []
+	if not circle_points.is_empty():
+		parts.append({"vertices": circle_points, "style": Planet.OutlineStyle.POINTS})
+	var ring := circle_ring()
+	if not ring.is_empty():
+		parts.append({
+			"vertices": ring,
+			"style": Planet.OutlineStyle.CLOSED if _circle_is_closed()
+				else Planet.OutlineStyle.OPEN,
+		})
+	return parts
+
+
+# Give the selected feature the circle being previewed. Returns why it could not
+# be, or an empty string once it has been.
+func _circle_commit() -> String:
+	var selected := features.feature_tree.get_selected_node()
+	if selected == null or selected.is_group:
+		return "Select a feature to draw the circle on."
+	var circle := circle_from_points()
+	if circle.is_empty():
+		return "Click a centre and a point on the rim, or three points on the rim."
+	var kind: Feature.GeometryKind = drawing_kind()
+	if not kind in Feature.DRAWN_KINDS or kind == Feature.GeometryKind.MULTIPOINT:
+		return "A circle becomes a polygon or a polyline, not a %s." % Feature.KIND_NAMES[kind]
+
+	# The circle was worked out in world space; a feature keeps its own frame,
+	# which at the current time is where its keyframes and its groups' put it.
+	var into_local := Feature.world_basis(
+		features.root, selected, document.current_time).transposed()
+	selected.add_ring(Feature.apply_basis(circle_ring(), into_local), kind)
+
+	circle_points = PackedVector2Array()
+	document.record()
+	features.reload()
+	refresh_geometry()
+	set_active_tool(Tool.MOVE)
+	return ""
+
+
+### The Topology tool
+#
+# Building a line topology by clicking the features it runs along, in order. A
+# click adds the whole of one part of whatever is under it as a section; a right
+# click takes the last section back. There is nothing to commit: each click is
+# one edit and one undo version, so the boundary is on the globe as it grows.
+#
+# Which section runs which way, and which vertices of a feature a section
+# covers, are set afterwards in the Properties panel; see
+# Docs/Editing.md#line-topologies.
+
+
+func _on_topology_input(lat: float, lon: float, event: InputEvent) -> void:
+	if event is not InputEventMouseButton or not event.is_pressed():
+		return
+	var selected := features.feature_tree.get_selected_node()
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		_report(add_topology_section(selected, Planet.hit_test(lat, lon, geometry),
+			Vector2(lat, lon)))
+	elif event.button_index == MOUSE_BUTTON_RIGHT:
+		_report(remove_last_section(selected))
+
+
+# Give the topology a section along the feature that was clicked. Returns why it
+# could not, or an empty string once it has.
+func add_topology_section(node: Feature, target: Feature, at: Vector2) -> String:
+	if target == null:
+		return "Click a feature to add it to the topology."
+	var problem := document.add_section(node, target, _nearest_part(target, at))
+	if not problem.is_empty():
+		return problem
+	_after_topology_edit()
+	return ""
+
+
+func remove_last_section(node: Feature) -> String:
+	if node == null or node.sections.is_empty():
+		return "There is no section to take back."
+	var problem := document.remove_section(node, node.sections.size() - 1)
+	if not problem.is_empty():
+		return problem
+	_after_topology_edit()
+	return ""
+
+
+# Which part of the clicked feature the click fell on: the one holding the
+# vertex nearest to it. A feature of a single part answers with that part
+# without looking at anything.
+func _nearest_part(target: Feature, at: Vector2) -> int:
+	if target.rings.size() <= 1:
+		return 0
+	var m := Feature.world_basis(features.root, target, document.current_time)
+	var best := 0
+	var best_distance := INF
+	for part in target.rings.size():
+		for vertex in Feature.apply_basis(target.rings[part], m):
+			var distance := Measure.distance(vertex, at, 1.0)
+			if distance < best_distance:
+				best_distance = distance
+				best = part
+	return best
+
+
+# The tree row, the globe and the panel all follow a section being added or
+# taken back, since a topology is a feature like any other once it is resolved.
+func _after_topology_edit() -> void:
+	features.reload()
+	properties.show_node(features.feature_tree.get_selected_node())
+	refresh_geometry()
+	_update_tool_buttons()
+
+
 ### The Measure tool
 #
 # The points that have been clicked, and the great circle distance along them.
@@ -1491,6 +1736,21 @@ func _measure_clear() -> void:
 func _show_measurement(error: String = "") -> void:
 	if not error.is_empty():
 		status_measure.text = error
+		return
+
+	if active_tool == Tool.TOPOLOGY:
+		var building := features.feature_tree.get_selected_node()
+		var count := 0 if building == null else building.sections.size()
+		status_measure.text = "click the features the topology runs along" if count == 0 \
+			else "%d section%s   right click takes the last one back" % [
+				count, "" if count == 1 else "s"]
+		return
+
+	if active_tool == Tool.CIRCLE:
+		var circle := circle_from_points()
+		status_measure.text = "click a centre and the rim, or three points on the rim" 			if circle.is_empty() else "centre %.2f° %.2f°   radius %s   %d segments" % [
+				(circle[0] as Vector2).x, (circle[0] as Vector2).y,
+				SmallCircle.format_radius(circle[1]), circle_segments()]
 		return
 
 	var radius := Config.get_planet_radius()
@@ -1620,14 +1880,26 @@ func _resolve_hover() -> bool:
 func refresh_geometry() -> void:
 	geometry = Planet.collect_geometry(features.root, document.current_time)
 	planet_view.planet.set_geometry(geometry)
-	refresh_motion()
+	_refresh_feature_state()
 
 
 # Where the features sit at the current time, without rebuilding the geometry
 # itself. This is what a step of an animation and a drag of the Move tool cost:
 # one small texture, whatever the triangle count is.
+#
+# A topology is the exception: the vertices it draws are the vertices of the
+# features it runs along, so moving the time moves them and the geometry has to
+# be built again. That costs a document holding one the cheap path, which is why
+# it is asked for rather than taken.
 func refresh_motion() -> void:
+	if Topology.holds_any(features.root):
+		refresh_geometry()
+		return
 	geometry.resolve(features.root, document.current_time)
+	_refresh_feature_state()
+
+
+func _refresh_feature_state() -> void:
 	# The features have just moved under a pointer that need not have moved at
 	# all, so the feature it is over is worked out again rather than carried
 	# over. It costs a hit test only while the pointer is on the globe.
@@ -1641,6 +1913,11 @@ func refresh_motion() -> void:
 func _refresh_selection_outline() -> void:
 	# Don't overwrite the drawing outline
 	if not outline_vertices.is_empty():
+		return
+	# The Circle tool draws the circle its clicks describe, so what pressing
+	# Enter would commit is on the globe before it is committed.
+	if active_tool == Tool.CIRCLE:
+		planet_view.planet.set_outline(_circle_outline())
 		return
 	# The Measure tool draws the path it has been given instead, so the points
 	# clicked and the line between them are visible while the distance is read.
@@ -1656,7 +1933,7 @@ func _refresh_selection_outline() -> void:
 		return
 
 	var style := Planet.OutlineStyle.OPEN
-	match selected.geometry_kind:
+	match selected.drawn_as():
 		Feature.GeometryKind.POLYGON:
 			style = Planet.OutlineStyle.CLOSED
 		Feature.GeometryKind.MULTIPOINT:

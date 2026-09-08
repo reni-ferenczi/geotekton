@@ -2,25 +2,32 @@
 
 ## Tools
 
-The toolbar contains four mutually exclusive tool buttons, two switches and a
-selector:
+The toolbar contains six mutually exclusive tool buttons, two switches, a
+selector and a number:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
 - **Draw** — Enables drawing on the globe surface. See `Docs/Draw.md` for full details.
 - **Vertex** — Edits the vertices of the selected feature. Needs a leaf feature
-  that already holds geometry; see [The Vertex tool](#the-vertex-tool).
+  holding vertices of its own; see [The Vertex tool](#the-vertex-tool).
 - **Measure** — Reports great circle distances in the status bar; see
   [The Measure tool](#the-measure-tool).
+- **Circle** — Draws a small circle from a centre or through three points; see
+  [The Circle tool](#the-circle-tool).
+- **Topology** — Builds a line topology out of the features it runs along; see
+  [Line topologies](#line-topologies).
 - **Snap** — Whether a dragged vertex jumps onto a nearby one. Only the Vertex
   tool uses it; see [Snapping](#snapping).
 - **Split** — Cuts the selected feature in two at the vertex the Vertex tool is
   holding; see [Splitting](#splitting). Its tooltip says why it is unavailable
   when it is.
-- **Geometry kind** — What the Draw tool produces: Polygon, Polyline or
-  Multipoint. Only the kinds the selected feature's type allows can be picked;
-  see [Properties](Properties.md#what-the-type-restricts).
+- **Geometry kind** — What the Draw and Circle tools produce: Polygon, Polyline
+  or Multipoint. Only the kinds the selected feature's type allows can be
+  picked; see [Properties](Properties.md#what-the-type-restricts).
+- **Segments** — How many segments a small circle is cut into when it is
+  committed, from 3 to 720.
 
-Only one of Move, Draw, Vertex and Measure is active at a time. Everything but
+Only one of Move, Draw, Vertex, Measure, Circle and Topology is active at a
+time. Everything but
 Move takes the clicks on the planet for itself, so selecting a feature, moving
 one and the right click menu wait until Move comes back. Rotating the globe with
 the middle button always works.
@@ -85,8 +92,10 @@ After committing a shape (pressing Enter in the Draw tool), the Move tool is aut
 
 The Vertex tool edits the geometry of the selected feature on the globe itself,
 rather than through the coordinate table of the [Properties](Properties.md)
-panel. It is available once a leaf feature that already holds geometry is
-selected; there is nothing to take hold of otherwise.
+panel. It is available once a leaf feature holding vertices of its own is
+selected; there is nothing to take hold of otherwise, and a
+[line topology](#line-topologies) borrows every vertex it draws from the
+features its sections run along.
 
 | Input | Action |
 |-------|--------|
@@ -177,6 +186,122 @@ feature they came from, so the two go on moving together and go on existing over
 the same span. The first keeps the title and every other part the feature had;
 the second is named after it, `Laurentia` and `Laurentia 2`, and holds its half
 alone.
+
+## The Circle tool
+
+A **small circle** is the path a point follows while a plate turns about a fixed
+pole: every point of it the same angular distance from one centre. A great
+circle is the case where that distance is 90 degrees.
+
+The tool takes the circle from the points clicked on the globe, and how many
+were clicked says which construction is meant:
+
+| Points clicked | The circle |
+|----------------|------------|
+| 2 | Centre, then a point on the rim; the second click sets the angular radius |
+| 3 | The circle those three points lie on, whose centre is never clicked |
+
+There is no mode to pick. The preview shows what the clicks so far describe, so
+a third click turns the one construction into the other in front of you, and a
+fourth starts again.
+
+| Input | Action |
+|-------|--------|
+| **LMB** on the globe | Add a point; the fourth starts a new circle |
+| **RMB** | Take the last point back |
+| **Enter** | Commit the circle to the selected feature |
+| **Escape** | Start again with no points |
+
+The status bar carries the centre, the radius in degrees and the segment count
+while the tool is armed, so the circle can be read before it is committed.
+
+### What it commits
+
+The circle becomes a ring of the kind the geometry selector is on, cut into the
+number of segments the Segments box holds:
+
+- A **polygon** holds one vertex per segment and closes from the last back to
+  the first.
+- A **polyline** holds one vertex more, the first one repeated at the end, so
+  it draws the whole circle rather than stopping a segment short.
+- A **multipoint** is refused: a circle is a path, not a bag of markers.
+
+The vertices are worked out in world coordinates and then mapped into the
+feature's own frame, the same way the Draw tool does it, so a circle drawn while
+the current time has moved the feature lands where it was clicked. Committing
+records one undo version and goes back to the Move tool.
+
+The construction itself is in `Logic/small_circle.gd` and is tested without a
+window. How well three points settle a centre depends on how large the circle
+is: a vertex is a pair of 32-bit floats and the centre comes out of differences
+between three of them, so a circle a degree across lands its centre to about a
+thousandth of a degree, and a larger one to much less.
+
+## Line topologies
+
+A **line topology** is a feature whose geometry is borrowed rather than drawn: a
+list of **sections**, each naming another feature, a range of that feature's
+vertices and which way round to walk them. A plate boundary is the usual one —
+it runs along the edges of the plates on either side of it, so it should move
+when they do rather than have to be redrawn.
+
+Nothing about it is stored as vertices. Every time the tree or the current time
+changes, `Logic/topology.gd` finds the features the sections name, takes the
+runs of vertices they cover and carries them through the rotation those features
+have then. What comes out is what is drawn, hit tested and measured, so from
+there on a topology is a polyline like any other.
+
+That is also why a topology has **no motion of its own** and no keyframe table
+in the [Properties](Properties.md) panel: where it is comes from the features
+under it.
+
+### Building one
+
+Select a feature holding nothing yet, pick the **Topology** tool, and click the
+features the boundary runs along, in order:
+
+| Input | Action |
+|-------|--------|
+| **LMB** on a feature | Add the part of it that was clicked as the next section |
+| **RMB** | Take the last section back |
+
+There is nothing to commit. Each click is one edit and one undo version, so the
+boundary is on the globe as it grows, and the status bar counts the sections.
+
+A click adds the **whole** of one part of the feature — the part holding the
+vertex nearest the click, for a feature that has several. Trimming it to the
+stretch that belongs to the boundary is done afterwards in the panel.
+
+A click is refused, with the reason in the status bar, when the feature under it
+is a group, is the topology itself, is another topology, or has no vertices. The
+feature being built on is refused as well when it already holds vertices of its
+own: a feature cannot both draw its geometry and borrow it.
+
+### Editing the sections
+
+The [Properties](Properties.md#the-section-table) panel shows the sections where
+another feature shows its coordinates: the feature each one runs along, the two
+vertices it runs between, and which way round. **Reverse** turns the selected
+section round, which is what a boundary usually needs when the next feature's
+vertices run back towards the last one, and **Remove** takes it out.
+
+### Sections that cannot be followed
+
+A section is never dropped. One whose feature has been deleted, or is not there
+at the current time, is drawn in the panel in a warning colour with the reason
+as its tooltip, contributes no vertices, and stays in the file. So deleting a
+feature and undoing it mends the topology by itself.
+
+That is what the persisted `uuid` is for. A section names its feature by an id
+that survives a save and a load, and survives the tree being replaced by a clone
+of itself — which is what undo, redo and every reload do; see
+[Persistence](Persistence.md#feature-tree-serialization).
+
+### The gap between two sections
+
+Each section becomes a **part of its own**, so nothing is drawn between the end
+of one and the start of the next. A line topology is the stretches it names, and
+a segment across the gap is one no feature ever drew.
 
 ## The Measure tool
 

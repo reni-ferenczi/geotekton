@@ -5,20 +5,23 @@ put vertices down, then press Enter to commit them.
 
 ## Tool Selection
 
-The toolbar above the planet view holds four mutually exclusive tool buttons and
+The toolbar above the planet view holds six mutually exclusive tool buttons and
 a selector for what the Draw tool produces. Only the two this page is about are
 listed here; the rest are in [Editing](Editing.md#tools):
 
 - **Move** (ToolMove icon) — Default. Enables rotation and dragging of the globe.
 - **Draw** (Edit/pencil icon) — Enables drawing on the globe surface.
-- **Geometry kind** — Polygon, Polyline or Multipoint.
+- **Geometry kind** — Polygon, Polyline or Multipoint. Topology is listed as
+  well, so a feature holding one says what it is, but it is never offered: a
+  topology is built with the [Topology tool](Editing.md#line-topologies) out of
+  other features rather than out of clicks.
 
 Only one tool can be active at a time. They behave as a radio button group:
 selecting one deselects the others.
 
 ### Enabling the Draw Tool
 
-The Draw button is **disabled** when no leaf feature is selected (i.e. when a group or nothing is selected). It becomes enabled when a leaf feature node is selected in the feature tree.
+The Draw button is **disabled** when no leaf feature is selected (i.e. when a group or nothing is selected). It becomes enabled when a leaf feature node is selected in the feature tree — unless that feature has no kind the Draw tool may produce, which is the case for a line topology and for a feature whose type allows nothing else.
 
 If a newly selected feature has **no geometry** yet, the Draw tool is automatically activated to streamline the workflow.
 

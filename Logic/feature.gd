@@ -3,27 +3,39 @@ class_name Feature
 
 # What the vertices of a feature describe. A feature holds one kind of
 # geometry; drawing a second shape on it adds another part of the same kind.
-enum GeometryKind { POLYGON, POLYLINE, MULTIPOINT }
+#
+# A topology is the odd one out: it keeps no vertices of its own but a list of
+# sections borrowed from other features, and its rings are resolved from those.
+# It is drawn and hit tested as a polyline; see drawn_as() and Logic/topology.gd.
+enum GeometryKind { POLYGON, POLYLINE, MULTIPOINT, TOPOLOGY }
 
 # The kind as it appears in a file, and back.
 const KIND_NAMES := {
 	GeometryKind.POLYGON: "polygon",
 	GeometryKind.POLYLINE: "polyline",
 	GeometryKind.MULTIPOINT: "multipoint",
+	GeometryKind.TOPOLOGY: "topology",
 }
 const KIND_VALUES := {
 	"polygon": GeometryKind.POLYGON,
 	"polyline": GeometryKind.POLYLINE,
 	"multipoint": GeometryKind.MULTIPOINT,
+	"topology": GeometryKind.TOPOLOGY,
 }
+
+# The kinds the Draw tool can produce. A topology is built by clicking whole
+# features rather than by placing vertices, so it is not among them.
+const DRAWN_KINDS := [GeometryKind.POLYGON, GeometryKind.POLYLINE, GeometryKind.MULTIPOINT]
 
 # How many vertices one part of each kind needs before it is a shape. The Draw
 # tool commits nothing below it and an edit that would take a part under it
-# removes the part instead.
+# removes the part instead. A topology is measured in sections rather than in
+# vertices, but a resolved part of one is a piece of a line like any other.
 const MINIMUM_VERTICES := {
 	GeometryKind.POLYGON: 3,
 	GeometryKind.POLYLINE: 2,
 	GeometryKind.MULTIPOINT: 1,
+	GeometryKind.TOPOLOGY: 2,
 }
 
 # The longest title a feature keeps; anything longer is cut down to it.
@@ -37,6 +49,12 @@ const EDGE_CA := 4
 
 # Node ID, unique only during the runtime of the application (not persisted)
 var pnid: int = -1
+
+# What this node is called in the file, kept across a save and a load. A line
+# topology names the features its sections run along by this, so an id that only
+# lasted one run would not do; see Docs/Editing.md#line-topologies. A duplicate,
+# a paste and a node arriving from a file without one all get a fresh id.
+var uuid: String = ""
 
 # For human identification
 var title: String
@@ -66,6 +84,11 @@ var color: Color = FeatureType.color(FeatureType.UNCLASSIFIED)
 # a polygon those are separate outlines rather than holes.
 var geometry_kind: GeometryKind = GeometryKind.POLYGON
 var rings: Array[PackedVector2Array] = []
+
+# What a line topology is made of: runs of vertices borrowed from other
+# features, in order. Only a topology has any, and a topology has nothing in
+# rings but what Topology.rebuild() resolved these into at the current time.
+var sections: Array[TopologySection] = []
 
 # Triangles covering the polygon rings, 3 vertices each, wound so that they face
 # outwards. Derived from rings by rebuild_triangles(), never read from a file.
@@ -98,6 +121,7 @@ func _init():
 static func create_group(title_: String = "Group") -> Feature:
 	var group := Feature.new()
 	group.init_pnid()
+	group.init_uuid()
 	group.title = title_
 	group.is_group = true
 	return group
@@ -107,6 +131,7 @@ static func create_feature(title_: String = "Feature",
 		color_: Color = FeatureType.color(FeatureType.UNCLASSIFIED)) -> Feature:
 	var feature := Feature.new()
 	feature.init_pnid()
+	feature.init_uuid()
 	feature.title = title_
 	feature.color = color_
 	feature.is_group = false
@@ -124,6 +149,10 @@ func init_pnid():
 	next_pnid += 1
 
 
+func init_uuid() -> void:
+	uuid = Helpers.generate_uuid_v4()
+
+
 ### Geometry
 
 
@@ -132,15 +161,34 @@ func kind_name() -> String:
 	return str(KIND_NAMES[geometry_kind])
 
 
+# The kind this feature is drawn, hit tested and measured as. A topology
+# resolves into one run of vertices per section, which is a polyline in every
+# way that matters below this point, so nothing downstream has to know the kind
+# exists at all.
+func drawn_as() -> GeometryKind:
+	return GeometryKind.POLYLINE if geometry_kind == GeometryKind.TOPOLOGY else geometry_kind
+
+
 func minimum_vertices() -> int:
 	return int(MINIMUM_VERTICES[geometry_kind])
 
 
 func has_geometry() -> bool:
+	# A topology is there as soon as it names a section, whether or not the
+	# feature that section runs along can still be found.
+	if geometry_kind == GeometryKind.TOPOLOGY:
+		return not sections.is_empty()
 	for ring in rings:
 		if not ring.is_empty():
 			return true
 	return false
+
+
+# Whether the feature holds vertices someone can take hold of. A topology holds
+# geometry but borrows every vertex of it from the features its sections run
+# along, so there is nothing there to drag, insert, delete or split.
+func has_own_vertices() -> bool:
+	return has_geometry() and geometry_kind != GeometryKind.TOPOLOGY
 
 
 # Whether anything under this node can be drawn, the node itself included. A
@@ -225,6 +273,7 @@ func add_ring(ring: PackedVector2Array, kind: GeometryKind) -> void:
 func clone() -> Feature:
 	var node := Feature.new()
 	node.pnid = pnid
+	node.uuid = uuid
 	node.title = title
 	node.enabled = enabled
 	node.is_group = is_group
@@ -233,6 +282,7 @@ func clone() -> Feature:
 	node.feature_type = feature_type
 	node.color = color
 	node.geometry_kind = geometry_kind
+	node.sections = TopologySection.clone_list(sections)
 	for ring in rings:
 		node.rings.append(ring.duplicate())
 	# Copied rather than recomputed: every undo step clones the whole tree.
@@ -248,6 +298,7 @@ func clone() -> Feature:
 func duplicate() -> Feature:
 	var node := clone()
 	node.init_pnid()
+	node.init_uuid()
 	node.is_root = false
 	for i in range(node.children.size()):
 		node.children[i] = node.children[i].duplicate()
@@ -297,6 +348,21 @@ func contains_node_at_any_depth(node: Feature) -> bool:
 	return false
 
 
+# The node a uuid names, or null when the tree no longer holds it. This is how a
+# topology reaches the features its sections run along, so a section left
+# dangling by a deletion is a null here rather than a missing key.
+func get_node_by_uuid(uuid_: String) -> Feature:
+	if uuid_.is_empty():
+		return null
+	var stack: Array[Feature] = [self]
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		if node.uuid == uuid_:
+			return node
+		stack.append_array(node.children)
+	return null
+
+
 func get_node_by_pnid(pnid_: int) -> Feature:
 	var stack: Array[Feature] = [self]
 	while not stack.is_empty():
@@ -313,6 +379,7 @@ func get_node_by_pnid(pnid_: int) -> Feature:
 
 func to_json() -> Variant:
 	var data := {
+		"uuid": uuid,
 		"title": title,
 		"enabled": enabled,
 		"is_group": is_group,
@@ -329,7 +396,12 @@ func to_json() -> Variant:
 		data["feature_type"] = feature_type
 		data["color"] = [color.r, color.g, color.b, color.a]
 		data["geometry_kind"] = KIND_NAMES[geometry_kind]
-		data["rings"] = rings_to_json(rings)
+		# A topology's rings are resolved from its sections whenever the tree or
+		# the time moves, so writing them would be writing down a derived value.
+		if geometry_kind == GeometryKind.TOPOLOGY:
+			data["sections"] = TopologySection.list_to_json(sections)
+		else:
+			data["rings"] = rings_to_json(rings)
 		data["time_range"] = [time_range.x, time_range.y]
 	return data
 
@@ -337,6 +409,12 @@ func to_json() -> Variant:
 static func from_json(data: Variant) -> Feature:
 	var node := Feature.new()
 	node.init_pnid()
+	# A file written before 0.5.0 carries no id, and neither does one written by
+	# hand; a fresh one then stands in, which is safe because nothing in such a
+	# file can be naming it.
+	node.uuid = str(data.get("uuid", ""))
+	if node.uuid.is_empty():
+		node.init_uuid()
 	node.title = data["title"]
 	node.enabled = data.get("enabled", true)
 	node.is_group = data.get("is_group", data.get("type") == "Group")
@@ -350,6 +428,7 @@ static func from_json(data: Variant) -> Feature:
 		var c: Array = data.get("color", [0.82, 0.41, 0.12, 1.0])
 		node.color = Color(c[0], c[1], c[2], c[3])
 		node.geometry_kind = KIND_VALUES.get(data.get("geometry_kind", "polygon"), GeometryKind.POLYGON)
+		node.sections = TopologySection.list_from_json(data.get("sections", []))
 		node.rings = rings_from_json(data.get("rings", []))
 		node.rebuild_triangles()
 		var tr: Array = data.get("time_range", [0, 2000])

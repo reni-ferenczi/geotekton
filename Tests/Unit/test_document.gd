@@ -224,7 +224,7 @@ func test_a_saved_file_is_0_4_0_and_keeps_the_time_it_was_given() -> void:
 	var file := FileAccess.open(SCRATCH, FileAccess.READ)
 	var raw: Variant = JSON.parse_string(file.get_as_text())
 	file.close()
-	assert_eq(str(raw["version"]), "0.4.0", "the file says which format it is in")
+	assert_eq(str(raw["version"]), "0.5.0", "the file says which format it is in")
 	assert_close(float(raw["features"]["children"][0]["keyframes"][0]["time"]), TIME, 1e-9,
 		"the time survives the round trip through the file")
 

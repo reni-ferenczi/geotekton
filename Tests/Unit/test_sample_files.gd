@@ -38,7 +38,7 @@ const EXPECTED := {
 		],
 	},
 	"craton.middle-earth": {
-		"version": "0.4.0",
+		"version": "0.5.0",
 		"titles": ["Planet", "Cratons", "Old Shield"],
 		"hits": [
 			[Vector2(-10, -8), "Old Shield"],
@@ -46,6 +46,17 @@ const EXPECTED := {
 			[Vector2(13, 6), "Old Shield"],
 			[Vector2(2, 19), ""],
 			[Vector2(-3, -37), ""],
+		],
+	},
+	"topology.middle-earth": {
+		"version": "0.5.0",
+		"titles": ["Planet", "Plates", "West Points", "East Points", "Boundary"],
+		"hits": [
+			[Vector2(0, -32.5), "Boundary"],
+			[Vector2(0, 17.5), "Boundary"],
+			[Vector2(0, 3), ""],
+			[Vector2(0, -40), "West Points"],
+			[Vector2(0, 40), "East Points"],
 		],
 	},
 	"mixed_geometry.middle-earth": {
@@ -102,6 +113,54 @@ func test_sample_files_load_and_hit_test() -> void:
 # thing 0.3.0 asks of an older file: that it arrives whole and unclassified.
 # A file older than 0.3.0 carries no type at all, so everything in it has to
 # arrive unclassified; one written since carries the type it names. Which is
+# Every node of a loaded sample is named, whatever format the file is in: 0.5.0
+# and newer name them, and a node arriving from an older file is given an id on
+# load. A line topology resolves through these, so two nodes sharing one would
+# send a section to whichever of them the search reached first.
+func test_every_node_of_every_sample_has_a_uuid_of_its_own() -> void:
+	for file_name in EXPECTED:
+		var root := _load("%s/%s" % [DATA_DIR, file_name])
+		if root == null:
+			continue
+		var seen := {}
+		var stack: Array[Feature] = [root]
+		while not stack.is_empty():
+			var node: Feature = stack.pop_back()
+			stack.append_array(node.children)
+			assert_true(not node.uuid.is_empty(),
+				"%s in %s has a uuid" % [node.title, file_name])
+			assert_true(not seen.has(node.uuid),
+				"%s in %s has a uuid of its own" % [node.title, file_name])
+			seen[node.uuid] = true
+
+
+# The craton sample is the only one written in a format that names its nodes, so
+# it is the fixture for a uuid that came out of a file rather than out of the
+# loader.
+func test_the_craton_sample_keeps_the_uuids_the_file_names() -> void:
+	var path := "%s/craton.middle-earth" % DATA_DIR
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		fail("cannot read %s" % path)
+		return
+	var data: Variant = JSON.parse_string(file.get_as_text())
+	file.close()
+
+	var root := _load(path)
+	if root == null:
+		return
+	_assert_uuids_come_from(data["features"], root, "Planet")
+
+
+func _assert_uuids_come_from(data: Variant, node: Feature, path: String) -> void:
+	assert_eq(node.uuid, str(data.get("uuid", "")), "the uuid of %s" % path)
+	var children: Array = data.get("children", [])
+	assert_eq(node.children.size(), children.size(), "the children of %s" % path)
+	for i in range(mini(node.children.size(), children.size())):
+		_assert_uuids_come_from(children[i], node.children[i],
+			"%s/%s" % [path, node.children[i].title])
+
+
 # which comes from the version in EXPECTED, so adding a sample cannot quietly
 # skip the check.
 func test_a_sample_carries_the_type_its_format_allows() -> void:

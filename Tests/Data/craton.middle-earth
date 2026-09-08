@@ -109,21 +109,24 @@
 							2000
 						],
 						"title": "Old Shield",
-						"type": "Feature"
+						"type": "Feature",
+						"uuid": "b74a0d36-91c5-4e28-8f13-6a2d5c9e0417"
 					}
 				],
 				"enabled": true,
 				"is_group": true,
 				"keyframes": [],
 				"title": "Cratons",
-				"type": "Group"
+				"type": "Group",
+				"uuid": "8c1e7a52-6b33-4d0f-a5e9-71c2b4d8e930"
 			}
 		],
 		"enabled": true,
 		"is_group": true,
 		"keyframes": [],
 		"title": "Planet",
-		"type": "Group"
+		"type": "Group",
+		"uuid": "3f9d2c10-5a44-4b7e-9c21-0d8e6f1a2b30"
 	},
-	"version": "0.4.0"
+	"version": "0.5.0"
 }

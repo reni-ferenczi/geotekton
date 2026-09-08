@@ -60,9 +60,9 @@ static func path_length(points: PackedVector2Array, radius: float = EARTH_RADIUS
 # around its outline, a polyline along it, and a multipoint has no length at all
 # because its vertices are separate markers rather than a path.
 static func geometry_length(feature: Feature, radius: float = EARTH_RADIUS_KM) -> float:
-	if feature == null or feature.geometry_kind == Feature.GeometryKind.MULTIPOINT:
+	if feature == null or feature.drawn_as() == Feature.GeometryKind.MULTIPOINT:
 		return 0.0
-	var closed := feature.geometry_kind == Feature.GeometryKind.POLYGON
+	var closed := feature.drawn_as() == Feature.GeometryKind.POLYGON
 	var total := 0.0
 	for ring in feature.rings:
 		total += path_length(ring, radius, closed)

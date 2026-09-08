@@ -7,12 +7,14 @@ Middle Earth does not carry the GPGIM over; a type here is three things:
 
 | Id             | Name         | Geometry kinds                 | Default colour |
 | -------------- | ------------ | ------------------------------ | -------------- |
-| `unclassified` | Unclassified | polygon, polyline, multipoint  | chocolate      |
+| `unclassified` | Unclassified | polygon, polyline, multipoint, topology | chocolate |
 | `craton`       | Craton       | polygon                        | tan            |
 | `terrane`      | Terrane      | polygon                        | olive          |
 | `coastline`    | Coastline    | polygon, polyline              | steel blue     |
 | `ridge`        | Ridge        | polyline                       | crimson        |
 | `marker`       | Marker       | multipoint                     | gold           |
+| `small_circle` | Small circle | polygon, polyline              | dark turquoise |
+| `topology`     | Topology     | topology                       | medium purple  |
 
 The kinds are written as the names the file uses, so the catalog needs nothing
 from `Feature` to be read and says the same words the `geometry_kind` field
@@ -56,7 +58,13 @@ follows the feature tree selection, through
 | To (Ma)    | Number             | no         |
 | Geometry   | Label              | no         |
 | Coordinates| Table, Add, Remove | no         |
+| Sections   | Table, Reverse, Remove | no     |
 | Keyframes  | Table, Key, Delete | yes        |
+
+A feature shows either the coordinate table or the section table, never both: a
+[line topology](Editing.md#line-topologies) borrows its vertices instead of
+holding them. A topology has no keyframe table either, because where it is comes
+from the features its sections run along.
 
 With nothing selected the panel says so and shows no rows at all, and so does
 the root group, which has no name of its own to change and no switch — the same
@@ -89,6 +97,23 @@ multipoint, as `Feature.MINIMUM_VERTICES` lists them.
 
 With no row picked both buttons work on the last vertex of the last part.
 
+### The section table
+
+Only a [line topology](Editing.md#line-topologies) has one. One row per section:
+the feature it runs along, the two vertices it runs between, counted from one
+the way the coordinate table counts them, and `on` or `back` for which way round
+it is walked.
+
+`From` and `To` are editable, so a section added by clicking a whole feature can
+be trimmed to the stretch that belongs to the boundary. `Reverse` turns the
+selected section round and `Remove` takes it out; with no row picked both work
+on the last section, the way the coordinate table's buttons do.
+
+A section whose feature cannot be followed — deleted, or not there at the
+current time — is shown in a warning colour with the reason as its tooltip,
+rather than being dropped. The table is filled again whenever the current time
+moves, since a section can be followed at one time and not at another.
+
 ### The keyframe table
 
 One row per keyframe: `Ma`, the time, and `Lon`, `Lat` and `Spin`, the three
@@ -118,10 +143,14 @@ undo version:
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |
 | `remove_vertex`         | a part or vertex that is not there                 |
-| `split_feature`         | a group, a part that is not there, a multipoint, and a cut that would leave half a shape or run outside it |
+| `split_feature`         | a group, a topology, a part that is not there, a multipoint, and a cut that would leave half a shape or run outside it |
 | `set_keyframe`          | nothing; the time it names replaces or is added    |
 | `set_keyframe_time`     | a keyframe that is not there, a time outside 0 to `MAX_TIME`, and a time another keyframe already holds |
 | `set_keyframe_rotation` | a keyframe that is not there                       |
+| `add_section`           | a group, a feature holding vertices of its own, a type that forbids topologies, and a target that is a group, a topology, the topology itself or has no vertices |
+| `remove_section`        | anything but a topology, and a section that is not there |
+| `reverse_section`       | the same                                           |
+| `set_section_range`     | the same, and a vertex number below one            |
 
 A method that can refuse returns the message saying why and changes nothing;
 the panel puts the widget back and shows the message in an error dialog.

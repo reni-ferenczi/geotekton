@@ -11,6 +11,8 @@
 [ext_resource type="Texture2D" uid="uid://ceybndew6vt08" path="res://Assets/GodotIcons/Ruler.svg" id="9_toolmeasure"]
 [ext_resource type="Texture2D" uid="uid://c8cem4qmabn4u" path="res://Assets/GodotIcons/Snap.svg" id="10_toolsnap"]
 [ext_resource type="Texture2D" uid="uid://bbx5oicbbars8" path="res://Assets/GodotIcons/CurveClose.svg" id="11_toolsplit"]
+[ext_resource type="Texture2D" uid="uid://dlgtg7jn7dvnj" path="res://Assets/GodotIcons/CircleShape2D.svg" id="12_toolcircle"]
+[ext_resource type="Texture2D" uid="uid://b511xsklgdqqf" path="res://Assets/GodotIcons/NavigationLink3D.svg" id="13_tooltopology"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
@@ -102,6 +104,26 @@ toggle_mode = true
 icon = ExtResource("9_toolmeasure")
 expand_icon = true
 
+[node name="Circle" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Draw a small circle by its centre or through three points"
+disabled = true
+toggle_mode = true
+icon = ExtResource("12_toolcircle")
+expand_icon = true
+
+[node name="Topology" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Build a line topology by clicking the features it runs along"
+disabled = true
+toggle_mode = true
+icon = ExtResource("13_tooltopology")
+expand_icon = true
+
 [node name="Snap" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
@@ -125,8 +147,15 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(140, 40)
 layout_mode = 2
-tooltip_text = "What the Draw tool produces"
+tooltip_text = "What the Draw and Circle tools produce"
 disabled = true
+
+[node name="Segments" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 40)
+layout_mode = 2
+tooltip_text = "How many segments a small circle is cut into"
+suffix = "seg"
 
 [node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("3_hn1gi")]
 unique_name_in_owner = true

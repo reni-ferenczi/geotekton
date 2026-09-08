@@ -23,6 +23,16 @@ signal rejected(message: String)
 # The oldest age either end of a time range can name.
 const TIME_LIMIT := int(Document.MAX_TIME)
 
+# The columns of the section table of a line topology: the feature the section
+# runs along, the vertices of it the section covers, counted from one as the
+# coordinate table counts them, and which way round it is walked.
+const SECTION_COLUMNS = ["Feature", "From", "To", "Way"]
+
+# A section whose feature can no longer be found, or cannot be followed at the
+# current time, is drawn in this rather than dropped, so a topology says what it
+# has lost instead of quietly shrinking.
+const BROKEN_SECTION_COLOR = Color(0.9, 0.45, 0.4, 1.0)
+
 # The columns of the keyframe table: when the keyframe is, and the three angles
 # of the rotation it holds. The angles are the ones Docs/Moving.md names: a
 # turn about the poles, one about the equator, and the feature's own spin.
@@ -58,12 +68,18 @@ var remove_button: Button
 var keyframes: Tree
 var key_button: Button
 var delete_key_button: Button
+var sections: Tree
+var reverse_button: Button
+var remove_section_button: Button
 
 # Every row of the form, each a label and the control beside it, and whether a
 # group has it too.
 var _rows: Array[Dictionary] = []
-# Everything below the form, which only a leaf feature has.
+# The coordinate table and its buttons, which a feature holding vertices of its
+# own has. A topology has the section table below instead.
 var _feature_boxes: Array[Control] = []
+# The section table and its buttons, which only a line topology has.
+var _topology_boxes: Array[Control] = []
 # The keyframe table and its buttons, which a group has as well, because a group
 # carries motion its children inherit.
 var _motion_boxes: Array[Control] = []
@@ -185,7 +201,57 @@ func _build() -> void:
 	remove_button.pressed.connect(_on_remove_pressed)
 	buttons.add_child(remove_button)
 
+	_build_sections(box)
 	_build_keyframes(box)
+
+
+# The section table of a line topology: which feature each section runs along,
+# which of its vertices, and which way round. The two ends are editable, so a
+# section built by clicking a whole feature can be trimmed to the stretch that
+# belongs to the boundary.
+func _build_sections(box: VBoxContainer) -> void:
+	var heading := Label.new()
+	heading.name = "SectionHeading"
+	heading.text = "Sections"
+	box.add_child(heading)
+	_topology_boxes.append(heading)
+
+	sections = Tree.new()
+	sections.name = "Sections"
+	sections.columns = SECTION_COLUMNS.size()
+	sections.column_titles_visible = true
+	sections.hide_root = true
+	for column in SECTION_COLUMNS.size():
+		sections.set_column_title(column, SECTION_COLUMNS[column])
+		if column > 0:
+			sections.set_column_expand(column, false)
+			sections.set_column_custom_minimum_width(column, 48)
+	sections.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sections.custom_minimum_size = Vector2(0, 160)
+	sections.item_edited.connect(_on_section_edited)
+	sections.item_selected.connect(_update_section_buttons)
+	sections.nothing_selected.connect(_update_section_buttons)
+	box.add_child(sections)
+	_topology_boxes.append(sections)
+
+	var buttons := HBoxContainer.new()
+	buttons.name = "SectionButtons"
+	box.add_child(buttons)
+	_topology_boxes.append(buttons)
+
+	reverse_button = Button.new()
+	reverse_button.name = "Reverse"
+	reverse_button.text = "Reverse"
+	reverse_button.tooltip_text = "Walk the selected section the other way round"
+	reverse_button.pressed.connect(_on_reverse_pressed)
+	buttons.add_child(reverse_button)
+
+	remove_section_button = Button.new()
+	remove_section_button.name = "RemoveSection"
+	remove_section_button.text = "Remove"
+	remove_section_button.tooltip_text = "Take the selected section out of the topology"
+	remove_section_button.pressed.connect(_on_remove_section_pressed)
+	buttons.add_child(remove_section_button)
 
 
 # The keyframe table: when the node is where, one row per keyframe, with the row
@@ -272,10 +338,15 @@ func show_node(node_: Feature) -> void:
 		var shown: bool = is_feature or (editable and row["on_a_group"])
 		(row["label"] as Control).visible = shown
 		(row["control"] as Control).visible = shown
+	# A topology has sections where a feature has coordinates, and no motion of
+	# its own: where it is comes from the features its sections run along.
+	var is_topology := is_feature and node.geometry_kind == Feature.GeometryKind.TOPOLOGY
 	for control in _feature_boxes:
-		control.visible = is_feature
+		control.visible = is_feature and not is_topology
+	for control in _topology_boxes:
+		control.visible = is_topology
 	for control in _motion_boxes:
-		control.visible = editable
+		control.visible = editable and not is_topology
 
 	if not editable:
 		return
@@ -290,17 +361,22 @@ func show_node(node_: Feature) -> void:
 		to_spin.value = node.time_range.y
 		geometry_label.text = _geometry_summary(node)
 		_fill_coordinates()
+		_fill_sections()
 	_fill_keyframes()
 	_filling = false
 	_update_vertex_buttons()
+	_update_section_buttons()
 	_update_keyframe_buttons()
 
 
-# The current time moved: mark whichever keyframe row it now sits on. Nothing
-# else in the panel depends on the time.
+# The current time moved: mark whichever keyframe row it now sits on, and fill
+# the section table again, since a section can be followed at one time and
+# broken at another. Nothing else in the panel depends on the time.
 func show_time() -> void:
 	if node == null or node.is_root or keyframes == null:
 		return
+	if node.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		_refill_sections()
 	var root := keyframes.get_root()
 	if root == null:
 		return
@@ -318,6 +394,14 @@ func _type_index(type_id: String) -> int:
 func _geometry_summary(feature: Feature) -> String:
 	if not feature.has_geometry():
 		return "none yet"
+	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		var count := feature.sections.size()
+		var broken := 0
+		for entry in _resolved_sections():
+			if not str(entry["problem"]).is_empty():
+				broken += 1
+		return "topology, %d section%s%s" % [count, "" if count == 1 else "s",
+			"" if broken == 0 else ", %d broken" % broken]
 	var vertices := feature.vertex_count()
 	var parts := feature.rings.size()
 	return "%s, %d %s in %d %s" % [
@@ -356,6 +440,138 @@ static func format_degrees(value: float) -> String:
 # fine animation apart, without a row of trailing zeros on the usual whole ages.
 static func format_time(value: float) -> String:
 	return String.num(value, 4).trim_suffix(".0")
+
+
+### The section table
+
+
+# Every section of the topology at the current time, so the table can say which
+# of them are broken. An empty list while anything but a topology is selected.
+func _resolved_sections() -> Array:
+	if document == null or node == null or node.is_group \
+			or node.geometry_kind != Feature.GeometryKind.TOPOLOGY:
+		return []
+	return Topology.resolve(document.root, node, document.current_time)
+
+
+func _fill_sections() -> void:
+	sections.clear()
+	if node == null or node.is_group \
+			or node.geometry_kind != Feature.GeometryKind.TOPOLOGY:
+		return
+	var root := sections.create_item()
+	var resolved := _resolved_sections()
+	for index in node.sections.size():
+		var section: TopologySection = node.sections[index]
+		var problem := str(resolved[index]["problem"]) if index < resolved.size() else ""
+		var title := str(resolved[index]["title"]) if index < resolved.size() else ""
+
+		var item := sections.create_item(root)
+		item.set_metadata(0, index)
+		item.set_text(0, title if not title.is_empty() else "(missing)")
+		item.set_text(1, str(section.from_index + 1))
+		item.set_text(2, str(section.to_index + 1))
+		item.set_text(3, "back" if section.reversed else "on")
+		for column in [1, 2]:
+			item.set_editable(column, true)
+		if not problem.is_empty():
+			for column in SECTION_COLUMNS.size():
+				item.set_custom_color(column, BROKEN_SECTION_COLOR)
+				item.set_tooltip_text(column, problem)
+
+
+func _on_section_edited() -> void:
+	var item := sections.get_edited()
+	var column := sections.get_edited_column()
+	if _filling or node == null or item == null or item.get_metadata(0) == null:
+		return
+
+	var index := int(item.get_metadata(0))
+	var text := item.get_text(column).strip_edges()
+	if not text.is_valid_int():
+		_take_back_section("%s is not a vertex number." % text)
+		return
+
+	# The table counts vertices from one, as the coordinate table does.
+	var section: TopologySection = node.sections[index]
+	var from_index := section.from_index
+	var to_index := section.to_index
+	if column == 1:
+		from_index = int(text) - 1
+	else:
+		to_index = int(text) - 1
+	var error := document.set_section_range(node, index, from_index, to_index)
+	if not error.is_empty():
+		_take_back_section(error)
+		return
+	_refill_sections()
+	edited.emit()
+
+
+func _on_reverse_pressed() -> void:
+	var index := selected_section()
+	if index < 0:
+		return
+	var error := document.reverse_section(node, index)
+	if not error.is_empty():
+		rejected.emit(error)
+		return
+	_refill_sections()
+	select_section(index)
+	edited.emit()
+
+
+func _on_remove_section_pressed() -> void:
+	var index := selected_section()
+	if index < 0:
+		return
+	var error := document.remove_section(node, index)
+	if not error.is_empty():
+		rejected.emit(error)
+		return
+	_refill_sections()
+	edited.emit()
+
+
+# Which section is picked, or -1 when the table is empty or none is. With no row
+# picked the last section stands in, the way the coordinate table works.
+func selected_section() -> int:
+	if node == null or node.is_group or node.sections.is_empty():
+		return -1
+	var item := sections.get_selected()
+	if item != null and item.get_metadata(0) != null:
+		return int(item.get_metadata(0))
+	return node.sections.size() - 1
+
+
+func select_section(index: int) -> void:
+	var root := sections.get_root()
+	if root == null or index < 0 or index >= root.get_child_count():
+		return
+	sections.deselect_all()
+	root.get_child(index).select(0)
+
+
+func _update_section_buttons() -> void:
+	var has_sections := node != null and not node.is_group and not node.sections.is_empty()
+	reverse_button.disabled = not has_sections
+	remove_section_button.disabled = not has_sections
+
+
+func _refill_sections() -> void:
+	_filling = true
+	_fill_sections()
+	if not node.is_group:
+		geometry_label.text = _geometry_summary(node)
+	_filling = false
+	_update_section_buttons()
+
+
+# Put the table back the way the topology is and say what went wrong, after an
+# edit the document would not take.
+func _take_back_section(message: String) -> void:
+	_refill_sections()
+	rejected.emit(message)
 
 
 ### The keyframe table
@@ -623,7 +839,7 @@ func select_vertex(part: int, index: int) -> void:
 
 
 func _update_vertex_buttons() -> void:
-	var has_geometry := node != null and not node.is_group and node.has_geometry()
+	var has_geometry := node != null and not node.is_group and node.has_own_vertices()
 	add_button.disabled = not has_geometry
 	remove_button.disabled = not has_geometry
 
@@ -663,7 +879,26 @@ func to_json() -> Dictionary:
 	data["time_range"] = [int(from_spin.value), int(to_spin.value)]
 	data["geometry"] = geometry_label.text
 	data["coordinates"] = _coordinates_to_json()
+	data["sections"] = _sections_to_json()
 	return data
+
+
+# The section table as it stands, read off the rows rather than off the feature,
+# so a run checks what the panel is showing.
+func _sections_to_json() -> Array:
+	var rows: Array = []
+	var root := sections.get_root()
+	if root == null:
+		return rows
+	for item in root.get_children():
+		rows.append({
+			"feature": item.get_text(0),
+			"from": int(item.get_text(1)),
+			"to": int(item.get_text(2)),
+			"way": item.get_text(3),
+			"broken": item.get_custom_color(0) == BROKEN_SECTION_COLOR,
+		})
+	return rows
 
 
 # The keyframe table as it stands, read off the rows rather than off the node.

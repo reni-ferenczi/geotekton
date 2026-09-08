@@ -4,7 +4,7 @@ Hand-made `.middle-earth` files used as fixtures by the tests. They are written 
 exact format `Document.save_to_file` produces: tab-indented JSON, keys sorted.
 See `Docs/Persistence.md` for the formats themselves.
 
-Four of the five are fixtures for the older formats. Three are still written in
+Four of the six are fixtures for the older formats. Three are still written in
 **0.1.0**, where a feature stored a flat list of
 triangles and no geometry kind. They are the fixtures for `Document.migrate()`, which
 recovers the outline those triangles covered, so leave them as they are.
@@ -15,10 +15,19 @@ either, so all four are fixtures for 0.4.0 as well: the one `rotation` a leaf
 holds becomes its keyframe at time zero, and one keyframe holds at every time, so
 the samples sit where they always did whatever the current time is.
 
-`craton.middle-earth` is the exception and is written in the current **0.4.0**:
-rings, a geometry kind, a feature type and a keyframe list, nothing to migrate.
-It is the fixture for a file the application saved rather than one it had to
-recover.
+The other two are written in the current **0.5.0** and have nothing to migrate.
+`craton.middle-earth` is the fixture for a file the application saved rather
+than one it had to recover: rings, a geometry kind, a feature type, a keyframe
+list and a uuid on every node.
+
+`topology.middle-earth` is the fixture for a
+[line topology](../../Docs/Editing.md#line-topologies): two multipoints on the
+equator, `West Points` in red at 40, 25 and 10 degrees west and `East Points` in
+blue at 10, 25 and 40 degrees east, with a green `Boundary` running along all of
+both. The features it names are multipoints on purpose, so the only thing drawn
+between two of their vertices is the boundary itself: a probe there says which
+feature painted the pixel rather than which one happened to be painted last. The
+gap from 10 west to 10 east is where the two sections meet without being joined.
 
 Every polygon is wound counter-clockwise as seen from outside the sphere, which is what
 `Feature.faces_outwards` enforces on the triangles it derives and what both
@@ -87,7 +96,26 @@ written here.
 
 Root group `Planet` only, no features. Every probe hits nothing.
 
-### craton.middle-earth (0.4.0)
+### topology.middle-earth (0.5.0)
+
+Root group `Planet` > group `Plates` > `West Points`, `East Points`, and
+`Boundary` beside the group.
+
+| Probe      | Expected feature | Colour |
+| ---------- | ---------------- | ------ |
+| (0, -32.5) | Boundary         | green  |
+| (0, 17.5)  | Boundary         | green  |
+| (0, 3)     | none             | Earth  |
+| (0, -40)   | West Points      | red    |
+| (0, 40)    | East Points      | blue   |
+
+The two probes on the boundary sit between markers, where nothing but the
+resolved topology is drawn. The one at (0, 3) is in the gap between the two
+sections, off the graticule, and shows the Earth: the sections are not joined
+up. The two on the markers are at vertices the boundary also runs through, and
+the marker wins there, so they say the features are still drawn under it.
+
+### craton.middle-earth (0.5.0)
 
 Root group `Planet` > group `Cratons` > `Old Shield`, the one outline in the
 suite shaped like something real rather than a triangle or a quad on whole

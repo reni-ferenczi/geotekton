@@ -554,6 +554,7 @@ def run_edit_menu_session(client: AutomationClient) -> None:
     client.call("select", title="Red Triangle")
     before = len(client.call("get_features")["features"])
 
+    copied = client.call("get_selected")["feature"]["uuid"]
     client.call("menu", item="copy")
     try:
         client.call("menu", item="paste")
@@ -562,6 +563,12 @@ def run_edit_menu_session(client: AutomationClient) -> None:
     else:
         check(len(client.call("get_features")["features"]) == before + 1,
               "Edit > Copy then Edit > Paste adds a feature")
+        # The clipboard carries the uuid of the feature it was copied from; a
+        # paste is another feature and gets one of its own, or a topology
+        # naming either of them could not tell them apart.
+        pasted = client.call("get_selected")["feature"]["uuid"]
+        check(pasted != copied and pasted != "",
+              f"the pasted feature has a uuid of its own: {pasted}")
         client.call("menu", item="undo")
 
     client.call("select", title="Blue Ridge")
@@ -764,6 +771,261 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(client.call("get_time")["time"] == 0.0,
           f"the animation stops on the end time: {client.call('get_time')['time']}")
     check(not client.call("get_timeline")["timeline"]["playing"], "and stops playing there")
+
+
+### The Circle scenario
+
+
+def angular_distance(a: tuple[float, float], b: tuple[float, float]) -> float:
+    """The angle between two lat/lon points, in degrees."""
+    lat_a, lat_b = math.radians(a[0]), math.radians(b[0])
+    half_lat = math.sin((lat_b - lat_a) / 2.0)
+    half_lon = math.sin(math.radians(b[1] - a[1]) / 2.0)
+    h = half_lat ** 2 + math.cos(lat_a) * math.cos(lat_b) * half_lon ** 2
+    return math.degrees(2.0 * math.asin(math.sqrt(min(1.0, h))))
+
+
+# The circle the scenario builds: a centre near the middle of the default view
+# and a radius wide enough to click accurately but well inside the hemisphere.
+CIRCLE_CENTRE = (0.0, 0.0)
+CIRCLE_RADIUS = 15.0
+CIRCLE_SEGMENTS = 12
+
+# How far a vertex may sit from the radius it was asked for. The clicks go
+# through the globe, so what comes back is a point picked on the sphere rather
+# than the number that was typed.
+CIRCLE_TOLERANCE = 0.5
+
+
+def build_circle(client: AutomationClient, kind: str, points: list[tuple[float, float]]) -> dict:
+    """Start a document, click the points with the Circle tool and commit."""
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", kind=kind)
+    client.call("set_tool", tool="circle", segments=CIRCLE_SEGMENTS)
+    check(client.call("get_tool")["tool"] == "circle", f"the Circle tool is armed ({kind})")
+    if not draw(client, points):
+        return {}
+    return client.call("get_tool")
+
+
+def run_circle_session(client: AutomationClient) -> None:
+    """A small circle from a centre and a rim point, and one through three points."""
+    rim = (CIRCLE_CENTRE[0] + CIRCLE_RADIUS, CIRCLE_CENTRE[1])
+    tool = build_circle(client, "polygon", [CIRCLE_CENTRE, rim])
+    if not tool:
+        return
+    if check(tool["circle"] is not None, "two clicks describe a circle"):
+        centre = tuple(tool["circle"]["centre"])
+        check(angular_distance(centre, CIRCLE_CENTRE) < CIRCLE_TOLERANCE,
+              f"its centre is where the first click landed: {centre}")
+        check(abs(tool["circle"]["radius"] - CIRCLE_RADIUS) < CIRCLE_TOLERANCE,
+              f"its radius reaches the second click: {tool['circle']['radius']:.4f}")
+
+    client.call("key", key="Enter")
+    feature = client.call("get_selected")["feature"]
+    if check(len(feature["rings"]) == 1, "the circle is committed as one part"):
+        ring = feature["rings"][0]
+        check(len(ring) == CIRCLE_SEGMENTS,
+              f"a polygon holds one vertex per segment: {len(ring)}")
+        worst = max(abs(angular_distance(tuple(v), CIRCLE_CENTRE) - CIRCLE_RADIUS) for v in ring)
+        check(worst < CIRCLE_TOLERANCE,
+              f"every vertex sits the radius from the centre, within {worst:.4f} degrees")
+    check(client.call("get_selected")["feature"]["geometry_kind"] == "polygon",
+          "and the feature is a polygon")
+
+    # A polyline of the same segment count draws the whole circle, so it repeats
+    # its first vertex at the end.
+    tool = build_circle(client, "polyline", [CIRCLE_CENTRE, rim])
+    if tool:
+        client.call("key", key="Enter")
+        feature = client.call("get_selected")["feature"]
+        if check(len(feature["rings"]) == 1, "the polyline circle is committed as one part"):
+            check(len(feature["rings"][0]) == CIRCLE_SEGMENTS + 1,
+                  f"and holds a vertex more than it has segments: {len(feature['rings'][0])}")
+
+    # Three points on the rim describe the same circle, without its centre ever
+    # being clicked.
+    on_rim = [
+        (CIRCLE_CENTRE[0] + CIRCLE_RADIUS, CIRCLE_CENTRE[1]),
+        (CIRCLE_CENTRE[0] - CIRCLE_RADIUS, CIRCLE_CENTRE[1]),
+        (CIRCLE_CENTRE[0], CIRCLE_CENTRE[1] + CIRCLE_RADIUS),
+    ]
+    tool = build_circle(client, "polygon", on_rim)
+    if not tool:
+        return
+    if check(tool["circle"] is not None, "three clicks describe a circle"):
+        centre = tuple(tool["circle"]["centre"])
+        check(angular_distance(centre, CIRCLE_CENTRE) < CIRCLE_TOLERANCE,
+              f"whose centre was never clicked: {centre}")
+        check(abs(tool["circle"]["radius"] - CIRCLE_RADIUS) < CIRCLE_TOLERANCE,
+              f"and whose radius is the one the points were taken from: "
+              f"{tool['circle']['radius']:.4f}")
+
+    client.call("key", key="Escape")
+    check(client.call("get_tool")["circle"] is None, "Escape drops the clicked points")
+    check(client.call("get_selected")["feature"]["rings"] == [],
+          "and leaves the feature without geometry")
+
+
+### The Topology scenario
+
+# Two polylines on the equator, well apart, and the point on each one that is
+# clicked to add it to the topology. A boundary built from them holds one
+# section per line and nothing across the gap between them.
+WEST_LINE = [(0.0, -40.0), (0.0, -30.0), (0.0, -20.0)]
+EAST_LINE = [(0.0, 20.0), (0.0, 30.0), (0.0, 40.0)]
+WEST_CLICK = (0.0, -35.0)
+EAST_CLICK = (0.0, 35.0)
+
+# Where the western line is dragged to at TOPOLOGY_TIME, and how far a resolved
+# vertex may sit from where the line it came from is.
+TOPOLOGY_TIME = 100.0
+MOVED_LONGITUDE = -10.0
+TOPOLOGY_TOLERANCE = 0.5
+
+
+def add_polyline(client: AutomationClient, name: str,
+                 points: list[tuple[float, float]]) -> bool:
+    """Add a named feature and draw one polyline on it."""
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value=name)
+    client.call("set_tool", tool="draw", kind="polyline")
+    if not draw(client, points):
+        return False
+    client.call("key", key="Enter")
+    return True
+
+
+def click_at(client: AutomationClient, at: tuple[float, float]) -> bool:
+    """Click a point of the globe named by latitude and longitude."""
+    screen = client.call("latlon_to_screen", lat=at[0], lon=at[1])["screen"]
+    if not check(screen is not None, f"the point {at} is on the visible hemisphere"):
+        return False
+    client.call("click", x=screen[0], y=screen[1])
+    return True
+
+
+def run_topology_session(client: AutomationClient) -> None:
+    """Build a line topology by clicking two features, then edit and move it."""
+    start_new_document(client)
+    if not add_polyline(client, "West Line", WEST_LINE):
+        return
+    if not add_polyline(client, "East Line", EAST_LINE):
+        return
+
+    # A third feature, holding nothing, becomes the topology.
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Boundary")
+    client.call("set_tool", tool="topology")
+    check(client.call("get_tool")["tool"] == "topology", "the Topology tool is armed")
+
+    if not click_at(client, WEST_CLICK) or not click_at(client, EAST_CLICK):
+        return
+
+    feature = client.call("get_selected")["feature"]
+    check(feature["geometry_kind"] == "topology",
+          f"clicking a feature makes the empty one a topology: {feature['geometry_kind']}")
+    sections = feature.get("sections", [])
+    if not check(len(sections) == 2, f"one section per feature clicked: {len(sections)}"):
+        return
+    check([s["problem"] for s in sections] == ["", ""], "both sections resolve")
+    check(len(feature["rings"]) == 2,
+          "and each becomes a part of its own, so the gap between them is not joined")
+
+    # What a section resolves to is the run of vertices of the feature it names.
+    west_vertices = [tuple(v) for v in sections[0]["vertices"]]
+    check(worst_offset(sections[0]["vertices"], WEST_LINE) < TOPOLOGY_TOLERANCE,
+          f"the first section runs along the western line: {west_vertices}")
+    check(worst_offset(sections[1]["vertices"], EAST_LINE) < TOPOLOGY_TOLERANCE,
+          "and the second along the eastern one")
+
+    # Reversing a section from the panel turns that run round and leaves the
+    # other one alone.
+    client.call("sections", button="Reverse", index=0)
+    sections = client.call("get_selected")["feature"]["sections"]
+    check(sections[0]["reversed"] and not sections[1]["reversed"],
+          "Reverse turns the section that was picked and not the other")
+    check(worst_offset(sections[0]["vertices"], list(reversed(WEST_LINE)))
+          < TOPOLOGY_TOLERANCE,
+          "so its vertices come back the other way round")
+    panel = client.call("get_properties")["properties"]
+    check([row["way"] for row in panel["sections"]] == ["back", "on"],
+          f"and the panel says which way each section runs: {panel['sections']}")
+
+    run_moved_section_checks(client)
+    run_broken_section_checks(client)
+
+
+def run_moved_section_checks(client: AutomationClient) -> None:
+    """A topology follows the feature a section runs along when it moves."""
+    boundary = client.call("get_selected")["feature"]["pnid"]
+
+    # Move the western line at a later time. The drag writes its keyframe there,
+    # so the line is where it was drawn at the present and elsewhere at 100 Ma.
+    client.call("select", title="West Line")
+    check(client.call("get_selected")["feature"]["geometry_kind"] == "polyline",
+          "the western line is selected to be moved")
+    # Selecting a feature the Topology tool cannot build on puts the Move tool
+    # back, so the drag below is a drag rather than another section.
+    check(client.call("get_tool")["tool"] == "move",
+          "the Topology tool gives way to Move on a feature holding vertices")
+
+    # Pin where the line is at the present first. Without a keyframe there, the
+    # one the drag writes would be the only one and would hold at every time.
+    client.call("keyframes", button="Key")
+    client.call("set_time", time=TOPOLOGY_TIME)
+    if not drag(client, 0.0, MOVED_LONGITUDE):
+        return
+    moved = client.call("get_selected")["feature"]["world_rings"][0]
+    check(abs(centroid([moved])[1] - MOVED_LONGITUDE) < TOPOLOGY_TOLERANCE,
+          f"the drag really moved it, to {centroid([moved])[1]:.3f}")
+
+    client.call("select", pnid=boundary)
+    sections = client.call("get_selected")["feature"]["sections"]
+    # The section was reversed, so it holds the moved line back to front.
+    resolved = list(reversed(sections[0]["vertices"]))
+    check(worst_offset(resolved, [tuple(v) for v in moved]) < TOPOLOGY_TOLERANCE,
+          f"at {TOPOLOGY_TIME} Ma the section follows the line it runs along: {resolved}")
+    check(worst_offset(sections[1]["vertices"], EAST_LINE) < TOPOLOGY_TOLERANCE,
+          "while the section whose feature did not move is where it was")
+
+    client.call("set_time", time=0.0)
+    sections = client.call("get_selected")["feature"]["sections"]
+    check(worst_offset(list(reversed(sections[0]["vertices"])), WEST_LINE)
+          < TOPOLOGY_TOLERANCE,
+          "and at the present it is back where the line was drawn")
+
+
+def run_broken_section_checks(client: AutomationClient) -> None:
+    """A section whose feature is deleted is shown as broken, not dropped."""
+    boundary = client.call("get_selected")["feature"]["pnid"]
+    client.call("select", title="West Line")
+    client.call("menu", item="delete")
+
+    client.call("select", pnid=boundary)
+    sections = client.call("get_selected")["feature"]["sections"]
+    if not check(len(sections) == 2, "the deleted feature does not take its section with it"):
+        return
+    check(sections[0]["problem"] != "", f"which is broken instead: {sections[0]['problem']}")
+    check(sections[1]["problem"] == "", "and the other section is untouched")
+    panel = client.call("get_properties")["properties"]
+    check([row["broken"] for row in panel["sections"]] == [True, False],
+          f"the panel marks the broken one: {panel['sections']}")
+
+    # An undo brings the feature back, and the section with it. The uuid is what
+    # makes that work: the tree that comes back is a clone, so nothing the
+    # section could have held on to is the same object.
+    client.call("toolbar", button="Undo")
+    client.call("select", pnid=boundary)
+    sections = client.call("get_selected")["feature"]["sections"]
+    check([s["problem"] for s in sections] == ["", ""],
+          "undoing the deletion mends the broken section")
+
+    # Remove is the way to take a section out on purpose.
+    client.call("sections", button="Remove", index=1)
+    check(len(client.call("get_selected")["feature"]["sections"]) == 1,
+          "Remove takes the picked section out of the topology")
 
 
 ### The Vertex, Measure and Split scenarios
@@ -1136,6 +1398,8 @@ def main(argv: list[str]) -> int:
         run_snap_session(client)
         run_measure_session(client)
         run_split_session(client)
+        run_circle_session(client)
+        run_topology_session(client)
     finally:
         if connected:
             try:

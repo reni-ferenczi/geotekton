@@ -15,8 +15,9 @@ format may change without keeping backwards compatibility. A migration is still
 written whenever files in the old format exist, are worth reading, and cannot be
 read as they are: 0.2.0 changed how a feature stores its geometry and reads
 0.1.0 files through `Document.migrate()`; 0.3.0 only added a field and reads a
-0.2.0 file without a step of its own; and 0.4.0 replaced the single rotation
-with a list of keyframes and has a step for it.
+0.2.0 file without a step of its own; 0.4.0 replaced the single rotation
+with a list of keyframes and has a step for it; and 0.5.0 again only added
+fields, so it too reads the version before it as it stands.
 
 The first public release will have major version 1.
 
