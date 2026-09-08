@@ -4,15 +4,21 @@ Hand-made `.middle-earth` files used as fixtures by the tests. They are written 
 exact format `Document.save_to_file` produces: tab-indented JSON, keys sorted.
 See `Docs/Persistence.md` for the formats themselves.
 
-Three of them are still written in **0.1.0**, where a feature stored a flat list of
+Four of the five are fixtures for the older formats. Three are still written in
+**0.1.0**, where a feature stored a flat list of
 triangles and no geometry kind. They are the fixtures for `Document.migrate()`, which
 recovers the outline those triangles covered, so leave them as they are.
-`mixed_geometry.middle-earth` is written in **0.2.0**. None of them carries a
-`feature_type`, so all four are fixtures for what 0.3.0 does with an older file:
-every feature in one loads unclassified. None of them carries `keyframes` either,
-so all four are fixtures for 0.4.0 as well: the one `rotation` a leaf holds
-becomes its keyframe at time zero, and one keyframe holds at every time, so the
-samples sit where they always did whatever the current time is.
+`mixed_geometry.middle-earth` is written in **0.2.0**. None of those four carries
+a `feature_type`, so all four are fixtures for what 0.3.0 does with an older
+file: every feature in one loads unclassified. None of them carries `keyframes`
+either, so all four are fixtures for 0.4.0 as well: the one `rotation` a leaf
+holds becomes its keyframe at time zero, and one keyframe holds at every time, so
+the samples sit where they always did whatever the current time is.
+
+`craton.middle-earth` is the exception and is written in the current **0.4.0**:
+rings, a geometry kind, a feature type and a keyframe list, nothing to migrate.
+It is the fixture for a file the application saved rather than one it had to
+recover.
 
 Every polygon is wound counter-clockwise as seen from outside the sphere, which is what
 `Feature.ensure_front_winding` enforces on the triangles it derives and what both
@@ -60,6 +66,42 @@ written here.
 ### empty.middle-earth (0.1.0)
 
 Root group `Planet` only, no features. Every probe hits nothing.
+
+### craton.middle-earth (0.4.0)
+
+Root group `Planet` > group `Cratons` > `Old Shield`, the one outline in the
+suite shaped like something real rather than a triangle or a quad on whole
+degrees. Twenty-one vertices, so ear clipping gives nineteen triangles, and it
+was built to have the parts that are awkward to handle:
+
+- a **bay** cut into the east coast, at vertex `(0, 6)`, so the shape is
+  properly concave and a point in the mouth of it is outside the feature;
+- a **narrow neck** joining a northern lobe, 4.3 degrees across at its
+  narrowest, between the vertices at `(12.5, 4)` and `(11, 8)`;
+- a **close pair** of vertices half a degree apart, `(10.4, 25.3)` and
+  `(10, 25)`, against a longest edge of 18 degrees, a ratio of 36 to 1.
+
+`Tests/Unit/test_craton_sample.gd` measures each of those, so a sample that
+quietly became convex or lost its neck fails rather than going on passing the
+probe checks while testing much less than it looks.
+
+The outline is made up rather than traced from a published craton: it was drawn
+to have those three awkward parts, and to face the camera in the default view so
+that none of it runs off the limb. It spans latitude -22 to 24 and longitude -26
+to 26.
+
+`Old Shield` is a `craton`, the first sample feature to name a type at all, and
+it keeps the blue the file picks rather than the tan the type would give it. A
+saturated colour is what the probe helpers can recognise; the shape is what makes
+it craton-like, not the colour.
+
+| Probe      | Expected feature | Where it is                     |
+| ---------- | ---------------- | ------------------------------- |
+| (-10, -8)  | Old Shield       | deep in the body                |
+| (19, 4)    | Old Shield       | the northern lobe               |
+| (13, 6)    | Old Shield       | inside the neck                 |
+| (2, 19)    | nothing          | the mouth of the bay            |
+| (-3, -37)  | nothing          | well clear to the west          |
 
 ### mixed_geometry.middle-earth (0.2.0)
 

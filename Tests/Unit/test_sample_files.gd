@@ -37,6 +37,17 @@ const EXPECTED := {
 			[Vector2(5, 40), ""],
 		],
 	},
+	"craton.middle-earth": {
+		"version": "0.4.0",
+		"titles": ["Planet", "Cratons", "Old Shield"],
+		"hits": [
+			[Vector2(-10, -8), "Old Shield"],
+			[Vector2(19, 4), "Old Shield"],
+			[Vector2(13, 6), "Old Shield"],
+			[Vector2(2, 19), ""],
+			[Vector2(-3, -37), ""],
+		],
+	},
 	"mixed_geometry.middle-earth": {
 		"version": "0.2.0",
 		"titles": ["Planet", "Shapes", "Red Triangle", "Blue Ridge", "Green Stations"],
@@ -89,21 +100,57 @@ func test_sample_files_load_and_hit_test() -> void:
 
 # Every sample predates the type field, so all of them are fixtures for the one
 # thing 0.3.0 asks of an older file: that it arrives whole and unclassified.
-func test_the_samples_load_without_a_type() -> void:
+# A file older than 0.3.0 carries no type at all, so everything in it has to
+# arrive unclassified; one written since carries the type it names. Which is
+# which comes from the version in EXPECTED, so adding a sample cannot quietly
+# skip the check.
+func test_a_sample_carries_the_type_its_format_allows() -> void:
 	for file_name in EXPECTED:
 		var root := _load("%s/%s" % [DATA_DIR, file_name])
 		if root == null:
 			continue
+		var carries_types := not Document._is_older_than(
+			str(EXPECTED[file_name]["version"]), "0.3.0")
 		var stack: Array[Feature] = [root]
 		while not stack.is_empty():
 			var node: Feature = stack.pop_back()
 			stack.append_array(node.children)
 			if node.is_group:
 				continue
-			assert_eq(node.feature_type, FeatureType.UNCLASSIFIED,
-				"%s in %s carries no type, so it is unclassified" % [node.title, file_name])
+			if carries_types:
+				assert_true(FeatureType.CATALOG.has(node.feature_type),
+					"%s in %s names a type in the catalog: %s" % [
+						node.title, file_name, node.feature_type])
+			else:
+				assert_eq(node.feature_type, FeatureType.UNCLASSIFIED,
+					"%s in %s carries no type, so it is unclassified" % [node.title, file_name])
 			assert_true(FeatureType.allows(node.feature_type, node.kind_name()),
 				"and its type allows the kind it holds")
+
+
+func test_the_craton_sample_keeps_the_type_and_colour_it_names() -> void:
+	var root := _load("%s/craton.middle-earth" % DATA_DIR)
+	if root == null:
+		return
+	var shield := _find(root, "Old Shield")
+	assert_true(shield != null, "the sample holds Old Shield")
+	if shield == null:
+		return
+	assert_eq(shield.feature_type, "craton", "it is a craton")
+	assert_eq(shield.color, Color(0, 0, 1, 1),
+		"and keeps the colour the file picked, not the one the type would give")
+	assert_true(shield.color != FeatureType.color("craton"),
+		"which are different, so the check means something")
+
+
+func _find(root: Feature, title: String) -> Feature:
+	var stack: Array[Feature] = [root]
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		if node.title == title:
+			return node
+		stack.append_array(node.children)
+	return null
 
 
 func test_the_moved_craton_sits_where_the_rotation_puts_it() -> void:
