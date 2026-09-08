@@ -28,3 +28,20 @@ func test_the_application_keeps_running_without_switches() -> void:
 func test_the_automation_port_is_read_from_the_switch() -> void:
 	assert_eq(Cli.automation_port(PackedStringArray(["--automation-port=45455"])), 45455)
 	assert_eq(Cli.automation_port(PackedStringArray([])), 0)
+
+
+func test_no_python_is_a_switch_that_keeps_the_application_running() -> void:
+	assert_eq(Cli.handle(PackedStringArray(["--no-python"])), -1)
+	assert_true(Cli.no_python(PackedStringArray(["--no-python"])))
+	assert_true(not Cli.no_python(PackedStringArray([])))
+	assert_true(Cli.no_python(PackedStringArray(["--automation-port=45455", "--no-python"])))
+
+
+func test_help_command_needs_a_name() -> void:
+	assert_eq(Cli.handle(PackedStringArray(["--help-command"])), 2)
+	assert_eq(Cli.handle(PackedStringArray(["--help-command="])), 2)
+
+
+func test_help_command_fails_on_a_script_that_is_not_there() -> void:
+	assert_eq(Cli.handle(PackedStringArray(["--help-command=no_such_script"])), 2)
+	assert_eq(Cli.handle(PackedStringArray(["--help-command", "no_such_script"])), 2)

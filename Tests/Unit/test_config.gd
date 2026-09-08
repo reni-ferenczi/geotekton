@@ -72,3 +72,25 @@ func test_the_recent_list_is_capped() -> void:
 		list = Config.push_recent(list, "file %d" % i, Config.MAX_RECENT_FILES)
 	assert_eq(list.size(), Config.MAX_RECENT_FILES, "the list stops at MAX_RECENT_FILES")
 	assert_eq(str(list[0]), "file %d" % (Config.MAX_RECENT_FILES + 4), "the newest is first")
+
+
+func test_the_python_settings_default_to_the_project_and_survive_a_reload() -> void:
+	_use_a_scratch_config()
+	var project := ProjectSettings.globalize_path("res://")
+	assert_true(Config.get_python_interpreter().begins_with(project.path_join(".venv")),
+		"an unset interpreter is the project's own environment")
+	assert_eq(Config.get_script_directories(), [project.path_join("Scripts")],
+		"an unset script list is the folder the project ships")
+
+	Config.set_python_interpreter("C:/Python/python.exe")
+	Config.set_script_directories(["C:/Scripts", " C:/More ", "", "C:/Scripts"])
+	Config.forget()
+
+	assert_eq(Config.get_python_interpreter(), "C:/Python/python.exe")
+	assert_eq(Config.get_script_directories(), ["C:/Scripts", "C:/More"],
+		"blank entries and repeats are dropped")
+
+	Config.set_script_directories([])
+	Config.forget()
+	assert_eq(Config.get_script_directories(), [], "an empty list is a choice, not an absence")
+	_restore_the_real_config()

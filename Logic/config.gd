@@ -175,6 +175,56 @@ static func set_view_defaults(settings: ViewSettings) -> void:
 
 
 
+### Python
+#
+# Which interpreter runs the scripting bridge and where the scripts that become
+# menu entries are looked for. The interpreter defaults to the environment the
+# project's own tooling uses, so a checkout that has had `uv sync` run in it
+# needs no setting at all; an installed application is given one in Preferences.
+
+
+static func _default_interpreter() -> String:
+	var project := ProjectSettings.globalize_path("res://")
+	if OS.get_name() == "Windows":
+		return project.path_join(".venv/Scripts/python.exe")
+	return project.path_join(".venv/bin/python")
+
+
+# Where the scripts shipped with the project are, which is what the script
+# directories start as.
+static func _default_script_directory() -> String:
+	return ProjectSettings.globalize_path("res://").path_join("Scripts")
+
+
+static func get_python_interpreter() -> String:
+	var path := str(get_value("python_interpreter", ""))
+	return path if not path.is_empty() else _default_interpreter()
+
+
+static func set_python_interpreter(path: String) -> void:
+	set_value("python_interpreter", path)
+
+
+static func get_script_directories() -> Array:
+	var stored: Variant = get_value("script_directories")
+	if stored is not Array:
+		return [_default_script_directory()]
+	var directories: Array = []
+	for entry in stored:
+		if not str(entry).strip_edges().is_empty():
+			directories.append(str(entry).strip_edges())
+	return directories
+
+
+static func set_script_directories(directories: Array) -> void:
+	var cleaned: Array = []
+	for entry in directories:
+		var path := str(entry).strip_edges()
+		if not path.is_empty() and path not in cleaned:
+			cleaned.append(path)
+	set_value("script_directories", cleaned)
+
+
 ### Recently opened files
 
 
