@@ -22,7 +22,7 @@ static var IMAGE_FILTERS := PackedStringArray(
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY }
+enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT }
 
 # How near, in window pixels, a click has to be to take hold of a vertex or an
 # edge, and how near a dragged vertex has to come to another before snapping
@@ -58,6 +58,7 @@ const PANEL_KEYS := {
 @onready var measure_button: Button = %Measure
 @onready var circle_button: Button = %Circle
 @onready var topology_button: Button = %Topology
+@onready var light_button: Button = %Light
 @onready var snap_button: Button = %Snap
 @onready var split_button: Button = %Split
 @onready var kind_selector: OptionButton = %GeometryKind
@@ -188,6 +189,7 @@ func _ready() -> void:
 	measure_button.pressed.connect(func() -> void: set_active_tool(Tool.MEASURE))
 	circle_button.pressed.connect(func() -> void: set_active_tool(Tool.CIRCLE))
 	topology_button.pressed.connect(func() -> void: set_active_tool(Tool.TOPOLOGY))
+	light_button.pressed.connect(func() -> void: set_active_tool(Tool.LIGHT))
 	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
 	snap_button.toggled.connect(_on_snap_toggled)
 	split_button.pressed.connect(func() -> void: _report(split_at_selected_vertex()))
@@ -1052,6 +1054,8 @@ func set_active_tool(tool: Tool) -> void:
 		_measure_clear()
 	if active_tool == Tool.CIRCLE and tool != Tool.CIRCLE:
 		circle_points = PackedVector2Array()
+	if active_tool == Tool.LIGHT and tool != Tool.LIGHT:
+		_light_dragging = false
 	active_tool = tool
 	move_button.button_pressed = (tool == Tool.MOVE)
 	draw_button.button_pressed = (tool == Tool.DRAW)
@@ -1059,6 +1063,7 @@ func set_active_tool(tool: Tool) -> void:
 	measure_button.button_pressed = (tool == Tool.MEASURE)
 	circle_button.button_pressed = (tool == Tool.CIRCLE)
 	topology_button.button_pressed = (tool == Tool.TOPOLOGY)
+	light_button.button_pressed = (tool == Tool.LIGHT)
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
@@ -1202,6 +1207,12 @@ func _turn_view(degrees: float) -> void:
 # would write it straight back is what set_value_no_signal is for.
 func _update_view_toolbar() -> void:
 	var planet := planet_view.planet
+	# The light is dragged on the globe, and a map sheet has nowhere to drag it,
+	# so the tool is offered on the globe alone and gives way to Move when a map
+	# takes over, rather than staying armed and swallowing the clicks.
+	light_button.disabled = planet.show_map
+	if planet.show_map and active_tool == Tool.LIGHT:
+		set_active_tool(Tool.MOVE)
 	var id := int(planet.projection) if planet.show_map else GLOBE_PROJECTION_ID
 	var index := projection_selector.get_item_index(id)
 	if projection_selector.selected != index:
@@ -1365,16 +1376,22 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 			_on_circle_input(lat, lon, event)
 		Tool.TOPOLOGY:
 			_on_topology_input(lat, lon, event)
+		Tool.LIGHT:
+			_on_light_input(lat, lon, event)
 
 
 # The background behind the globe. A drag of a vertex that ends out there is
 # still a release, and letting it pass would leave the vertex stuck to the
 # pointer.
 func _on_planet_input_outside(event: InputEvent) -> void:
-	if active_tool != Tool.VERTEX or event is not InputEventMouseButton:
+	if event is not InputEventMouseButton:
 		return
-	if event.button_index == MOUSE_BUTTON_LEFT and event.is_released():
+	if event.button_index != MOUSE_BUTTON_LEFT or not event.is_released():
+		return
+	if active_tool == Tool.VERTEX:
 		_vertex_commit_drag()
+	elif active_tool == Tool.LIGHT:
+		_light_dragging = false
 
 
 func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
@@ -1983,6 +2000,48 @@ func _after_topology_edit() -> void:
 	_update_tool_buttons()
 
 
+### The Light tool
+#
+# Where the light comes from is a direction in the scene rather than a place on
+# the planet, so it is dragged on the globe: the point under the pointer is the
+# point the light shines straight at. A map sheet is flat and has no such point,
+# so the tool waits for the globe.
+
+
+# True while the light is being dragged, so that the whole drag moves it and not
+# only the press that started it.
+var _light_dragging: bool = false
+
+
+func _on_light_input(lat: float, lon: float, event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_light_dragging = event.is_pressed()
+		if event.is_pressed():
+			_point_light_at(lat, lon)
+	elif event is InputEventMouseMotion and _light_dragging:
+		_point_light_at(lat, lon)
+
+
+func _point_light_at(lat: float, lon: float) -> void:
+	var direction = planet_view.globe_direction(lat, lon)
+	if direction == null:
+		return
+	document.view.light_direction = ViewSettings.light_from_vector(direction)
+	document.view_edited()
+	apply_view_settings()
+	if view_dialog.visible:
+		_fill_view_fields()
+	_refresh_selection_outline()
+
+
+# Where the light stands on the globe, so the tool can mark it. Null while a map
+# is being shown, where the light has no place to be marked at.
+func _light_marker() -> Variant:
+	if planet_view.planet.show_map:
+		return null
+	return planet_view.direction_to_latlon(document.view.light_vector())
+
+
 ### The Measure tool
 #
 # The points that have been clicked, and the great circle distance along them.
@@ -2198,6 +2257,15 @@ func _refresh_selection_outline() -> void:
 	# Enter would commit is on the globe before it is committed.
 	if active_tool == Tool.CIRCLE:
 		planet_view.planet.set_outline(_circle_outline())
+		return
+	# The Light tool marks where the light stands, so the direction being dragged
+	# is somewhere rather than only shown by the shading it produces.
+	if active_tool == Tool.LIGHT:
+		var marker = _light_marker()
+		planet_view.planet.set_outline([] if marker == null else [{
+			"vertices": PackedVector2Array([marker]),
+			"style": Planet.OutlineStyle.POINTS,
+		}])
 		return
 	# The Measure tool draws the path it has been given instead, so the points
 	# clicked and the line between them are visible while the distance is read.

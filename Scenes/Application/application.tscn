@@ -19,6 +19,7 @@
 [ext_resource type="Texture2D" uid="uid://c57mfqi8mb5ve" path="res://Assets/GodotIcons/RotateLeft.svg" id="17_rotateleft"]
 [ext_resource type="Texture2D" uid="uid://clt0hnssu7kmd" path="res://Assets/GodotIcons/RotateRight.svg" id="18_rotateright"]
 [ext_resource type="Texture2D" uid="uid://bu7s3wqnnfknb" path="res://Assets/GodotIcons/Reload.svg" id="19_reload"]
+[ext_resource type="Texture2D" uid="uid://pd4kwykj2jsn" path="res://Assets/GodotIcons/DirectionalLight3D.svg" id="20_toollight"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
@@ -128,6 +129,15 @@ tooltip_text = "Build a line topology by clicking the features it runs along"
 disabled = true
 toggle_mode = true
 icon = ExtResource("13_tooltopology")
+expand_icon = true
+
+[node name="Light" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Drag the light around the globe"
+toggle_mode = true
+icon = ExtResource("20_toollight")
 expand_icon = true
 
 [node name="Snap" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]

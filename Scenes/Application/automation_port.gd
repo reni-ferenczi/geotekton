@@ -14,6 +14,7 @@ const TOOL_NAMES := {
 	Application.Tool.MEASURE: "measure",
 	Application.Tool.CIRCLE: "circle",
 	Application.Tool.TOPOLOGY: "topology",
+	Application.Tool.LIGHT: "light",
 }
 
 # The wheel is here so a run can zoom the way a person does, with the pointer
@@ -535,6 +536,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 					return {"ok": false, "error":
 						"the Topology tool needs a feature that can be a topology"}
 				app.set_active_tool(Application.Tool.TOPOLOGY)
+			elif tool_name == "light":
+				if app.light_button.disabled:
+					return {"ok": false, "error": "the light is dragged on the globe"}
+				app.set_active_tool(Application.Tool.LIGHT)
 			elif tool_name == "move":
 				app.set_active_tool(Application.Tool.MOVE)
 			elif not tool_name.is_empty():
