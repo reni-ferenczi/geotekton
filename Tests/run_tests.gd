@@ -70,14 +70,21 @@ func _run() -> void:
 		application = await _setup_rendered()
 		ready = application != null
 
+	# Taken here rather than at the end, because the first test to run takes
+	# what the watcher holds before it starts. A script the application scene
+	# depends on failing to compile arrives this way: the engine hands back
+	# what it did compile, the window comes up and the tests used to run
+	# against it and pass. See GP-0029.
+	if not _report_errors(watcher.take(), "setup"):
+		ready = false
+
 	if ready:
 		for path in _discover(_folder()):
 			await _run_file(path, application)
 
-	# Errors from the setup, from the discovery, or from work a test left
-	# running after it returned belong to no single test but still count.
-	for message in watcher.take():
-		_fail_line("run", "runtime error: %s" % message)
+	# Errors from the discovery, or from work a test left running after it
+	# returned, belong to no single test but still count.
+	_report_errors(watcher.take(), "run")
 
 	print("%d passed, %d failed" % [passed, failed])
 	OS.remove_logger(watcher)
@@ -160,6 +167,14 @@ func _run_file(path: String, application: Node) -> void:
 			for message in errors:
 				failed += 1
 				print("FAIL %s: runtime error: %s" % [name, message])
+
+
+# Report the errors that belong to no test against name, and say whether the
+# list was empty.
+func _report_errors(messages: Array[String], name: String) -> bool:
+	for message in messages:
+		_fail_line(name, "script error: %s" % message)
+	return messages.is_empty()
 
 
 func _fail_line(name: String, message: String) -> void:
