@@ -287,6 +287,16 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"playing": _timeline().playing,
 			}}
 
+		"benchmark_hit_test":
+			# What the bounding cap is worth, measured on the document that is
+			# loaded. The same points are hit tested twice: once against the
+			# caps the geometry was built with, and once against caps widened
+			# to the whole sphere, which is what the hit test faced before
+			# there were any. Widening a cap is not a switch put in for the
+			# benchmark: a feature spanning more than a hemisphere gets exactly
+			# that cap, and the loop then behaves as it always did.
+			return _benchmark_hit_test(int(request.get("samples", 2000)))
+
 		"get_timeline":
 			return {"ok": true, "timeline": _timeline().to_json()}
 
@@ -446,6 +456,50 @@ func _dispatch(request: Dictionary) -> Dictionary:
 
 
 ### Helpers
+
+
+# Hit test the same spread of points with and without the caps, and report the
+# microseconds one hit test costs each way.
+func _benchmark_hit_test(samples: int) -> Dictionary:
+	var geometry: Planet.Geometry = app.geometry
+	if geometry.features.is_empty():
+		return {"ok": false, "error": "nothing is loaded to hit test"}
+
+	# A spread over the whole globe rather than random points, so two runs of
+	# the benchmark ask the same questions. The golden ratio in longitude walks
+	# around the planet without ever repeating a meridian.
+	var points := PackedVector2Array()
+	for i in range(samples):
+		var t := (float(i) + 0.5) / float(samples)
+		points.append(Vector2(rad_to_deg(asin(2.0 * t - 1.0)), fmod(i * 222.4922, 360.0) - 180.0))
+
+	var capped := _time_hit_tests(points, geometry)
+	var hits := 0
+	for point in points:
+		if Planet.hit_test(point.x, point.y, geometry) != null:
+			hits += 1
+
+	var kept := geometry.cap_cosines.duplicate()
+	for i in range(geometry.cap_cosines.size()):
+		geometry.cap_cosines[i] = -1.0
+	var uncapped := _time_hit_tests(points, geometry)
+	geometry.cap_cosines = kept
+
+	return {"ok": true, "hit_test": {
+		"samples": samples,
+		"hits": hits,
+		"capped_us": capped / float(samples),
+		"uncapped_us": uncapped / float(samples),
+		"primitives": geometry.primitives.size(),
+		"features": geometry.features.size(),
+	}}
+
+
+func _time_hit_tests(points: PackedVector2Array, geometry: Planet.Geometry) -> float:
+	var started := Time.get_ticks_usec()
+	for point in points:
+		Planet.hit_test(point.x, point.y, geometry)
+	return float(Time.get_ticks_usec() - started)
 
 
 func _frames(count: int) -> void:

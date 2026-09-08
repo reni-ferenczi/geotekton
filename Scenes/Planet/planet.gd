@@ -94,6 +94,24 @@ class Geometry extends RefCounted:
 	var features: Array[Feature] = []
 	var index_of := {}
 
+	# Where each feature's primitives sit in the list, as a half open range.
+	# Every primitive of one feature is contiguous, so the hit test can walk one
+	# feature or skip all of it.
+	var starts: Array[int] = []
+	var ends: Array[int] = []
+
+	# A cap holding every primitive of one feature, in that feature's own frame:
+	# the centre of the cap, and the cosine of its angular radius. A point whose
+	# dot product with the centre falls under the cosine is outside everything
+	# that feature draws, so the hit test throws the feature away with one
+	# multiply instead of walking its triangles.
+	#
+	# A cosine of -1 is a cap that holds the whole sphere, which is what a
+	# feature wider than a hemisphere gets: no cap smaller than everything would
+	# hold it, and the hit test then walks it as it did before caps existed.
+	var cap_centres: Array[Vector3] = []
+	var cap_cosines: Array[float] = []
+
 	# Where each feature is and whether it is there at all, at the time resolve()
 	# was last called for. One entry per feature, in the same order.
 	var bases: Array[Basis] = []
@@ -108,7 +126,38 @@ class Geometry extends RefCounted:
 		index_of[feature] = index
 		bases.append(Basis())
 		shown.append(true)
+		starts.append(primitives.size())
+		ends.append(primitives.size())
+		cap_centres.append(Vector3.UP)
+		cap_cosines.append(-1.0)
 		return index
+
+	# Work out the cap around each feature from the primitives collected for it.
+	# Called once the geometry is complete; the caps are in each feature's own
+	# frame, so moving the feature never invalidates them and a step of an
+	# animation does not touch them.
+	func build_caps(tolerance: float) -> void:
+		for index in range(features.size()):
+			var sum := Vector3.ZERO
+			var points: Array[Vector3] = []
+			for i in range(starts[index], ends[index]):
+				for v in (primitives[i]["verts"] as Array):
+					var unit := Planet._latlon_to_unit(deg_to_rad(v.x), deg_to_rad(v.y))
+					points.append(unit)
+					sum += unit
+			if points.is_empty() or sum.length_squared() < 1e-12:
+				cap_cosines[index] = -1.0
+				continue
+			var centre := sum.normalized()
+			var smallest := 1.0
+			for point in points:
+				smallest = minf(smallest, centre.dot(point))
+			# Widen the cap by the click tolerance, so a click just outside a
+			# thin line is still offered to the triangle loop. A cap that has
+			# grown past a right angle is no cheaper than no cap at all.
+			var radius := acos(clampf(smallest, -1.0, 1.0)) + tolerance
+			cap_centres[index] = centre
+			cap_cosines[index] = -1.0 if radius >= PI * 0.5 else cos(radius)
 
 	# Work out where every feature sits at a time and whether it is there then.
 	# The tree is walked from the root down so that each node composes its own
@@ -228,6 +277,8 @@ static func collect_geometry(root: Feature, time: float = 0.0) -> Geometry:
 				for ring in node.rings:
 					for v in ring:
 						geometry.primitives.append(_primitive(Primitive.POINT, [v], node, index))
+		geometry.ends[index] = geometry.primitives.size()
+	geometry.build_caps(2.0 * asin(maxf(LINE_HIT_WIDTH, POINT_HIT_RADIUS) * 0.5))
 	geometry.resolve(root, time)
 	return geometry
 
@@ -245,36 +296,37 @@ static func _primitive(kind: Primitive, verts: Array, node: Feature, index: int)
 ## rotation of one point per feature instead of one per vertex.
 static func hit_test(lat: float, lon: float, geometry: Geometry) -> Feature:
 	var p := _latlon_to_unit(deg_to_rad(lat), deg_to_rad(lon))
-	var resolved := -1
-	var local := p
-	# Iterate in reverse so topmost (last-drawn) geometry wins
-	for i in range(geometry.primitives.size() - 1, -1, -1):
-		var primitive: Dictionary = geometry.primitives[i]
-		var index: int = primitive["index"]
+	# Walk the features in reverse, so the topmost, last drawn one wins, and
+	# every primitive of a feature together, since they are contiguous.
+	for index in range(geometry.features.size() - 1, -1, -1):
 		if not geometry.shown[index]:
 			continue
-		if index != resolved:
-			resolved = index
-			local = geometry.bases[index].transposed() * p
+		var local := geometry.bases[index].transposed() * p
+		# One multiply against the feature's cap throws out everything the
+		# point cannot be inside, before a single triangle is looked at.
+		if local.dot(geometry.cap_centres[index]) < geometry.cap_cosines[index]:
+			continue
 
-		var v: Array = primitive["verts"]
-		var a := _latlon_to_unit(deg_to_rad(v[0].x), deg_to_rad(v[0].y))
+		for i in range(geometry.ends[index] - 1, geometry.starts[index] - 1, -1):
+			var primitive: Dictionary = geometry.primitives[i]
+			var v: Array = primitive["verts"]
+			var a := _latlon_to_unit(deg_to_rad(v[0].x), deg_to_rad(v[0].y))
 
-		match int(primitive["kind"]):
-			Primitive.TRIANGLE:
-				var b := _latlon_to_unit(deg_to_rad(v[1].x), deg_to_rad(v[1].y))
-				var c := _latlon_to_unit(deg_to_rad(v[2].x), deg_to_rad(v[2].y))
-				if a.cross(b).normalized().dot(local) > 0.0 \
-					and b.cross(c).normalized().dot(local) > 0.0 \
-					and c.cross(a).normalized().dot(local) > 0.0:
-					return primitive["feature"] as Feature
-			Primitive.SEGMENT:
-				var b := _latlon_to_unit(deg_to_rad(v[1].x), deg_to_rad(v[1].y))
-				if arc_distance(a, b, local) <= LINE_HIT_WIDTH:
-					return primitive["feature"] as Feature
-			Primitive.POINT:
-				if _chord(a, local) <= POINT_HIT_RADIUS:
-					return primitive["feature"] as Feature
+			match int(primitive["kind"]):
+				Primitive.TRIANGLE:
+					var b := _latlon_to_unit(deg_to_rad(v[1].x), deg_to_rad(v[1].y))
+					var c := _latlon_to_unit(deg_to_rad(v[2].x), deg_to_rad(v[2].y))
+					if a.cross(b).normalized().dot(local) > 0.0 \
+						and b.cross(c).normalized().dot(local) > 0.0 \
+						and c.cross(a).normalized().dot(local) > 0.0:
+						return primitive["feature"] as Feature
+				Primitive.SEGMENT:
+					var b := _latlon_to_unit(deg_to_rad(v[1].x), deg_to_rad(v[1].y))
+					if arc_distance(a, b, local) <= LINE_HIT_WIDTH:
+						return primitive["feature"] as Feature
+				Primitive.POINT:
+					if _chord(a, local) <= POINT_HIT_RADIUS:
+						return primitive["feature"] as Feature
 	return null
 
 

@@ -12,7 +12,7 @@ on every change. `Tests/run.py` starts all of them.
 | `self-check` | `python Tests/run.py self-check` | The runner itself: that it reports a test which hits a runtime error as a failure. |
 | `golden`   | `uv run Tests/run.py golden`   | Full window screenshots diffed against reference images. |
 | `all`      | `uv run Tests/run.py all`      | All six in the order above, stopping at the first failure. |
-| `performance` | `uv run Tests/run.py performance` | The frame time during playback, on a document of a chosen triangle count. Not part of `all`. |
+| `performance` | `uv run Tests/run.py performance` | The frame time during playback, and what one hit test costs with and without the bounding cap, on a document of a chosen triangle count. Not part of `all`. |
 
 `headless`, `rendered`, `session`, `cli` and `self-check` run under any Python 3.13
 or newer. `golden`
@@ -157,6 +157,14 @@ What it found on the development machine is in
 triangles, playing costs almost nothing over standing still, and the limit is
 the per-fragment loop over the triangles rather than anything the time control
 does.
+
+The same run then hit tests two thousand points spread over the whole globe,
+twice: once against the [bounding caps](Shader.md#the-bounding-cap) the geometry
+was built with, and once against caps widened to the whole sphere, which is what
+the hit test faced before there were any. Widening a cap is not a switch put in
+for the benchmark; a feature spanning more than a hemisphere gets exactly that
+cap. The run fails if the caps do not make the hit test at least five times
+faster.
 
 ## Golden images
 
