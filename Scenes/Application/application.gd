@@ -181,9 +181,9 @@ func _ready() -> void:
 	features.feature_tree.feature_selected.connect(_on_feature_selected)
 
 	# Connect planet click events for the tools that take clicks for themselves
-	planet_view.planet.input_event_globe.connect(_on_planet_input)
-	planet_view.planet.input_event_map.connect(_on_planet_input)
-	planet_view.planet.input_event_outside.connect(_on_planet_input_outside)
+	planet_view.input_event_globe.connect(_on_planet_input)
+	planet_view.input_event_map.connect(_on_planet_input)
+	planet_view.input_event_outside.connect(_on_planet_input_outside)
 
 	# Connect program changes to refresh cratons
 	features.feature_tree.program_changed.connect(_on_program_changed)

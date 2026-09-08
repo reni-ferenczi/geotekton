@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://ddsy7ljlp8o3g"]
+[gd_scene load_steps=10 format=3 uid="uid://ddsy7ljlp8o3g"]
 
 [ext_resource type="Shader" uid="uid://diyn5fhv3xlpq" path="res://Scenes/Planet/planet.gdshader" id="1_4ilve"]
 [ext_resource type="Script" uid="uid://dvlkwdhf7so0a" path="res://Scenes/Planet/planet.gd" id="1_wwls2"]
@@ -18,8 +18,6 @@ shader_parameter/color = Vector4(1, 1, 1, 0.3333)
 shader_parameter/width = Vector2(0.015, 0.015)
 shader_parameter/split = Vector2(24, 12)
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_4ilve"]
-
 [sub_resource type="PlaneMesh" id="PlaneMesh_510pn"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_elfkv"]
@@ -30,9 +28,6 @@ shader_parameter/earth_tex = ExtResource("2_wwls2")
 shader_parameter/color = Vector4(1, 1, 1, 0.3333)
 shader_parameter/width = Vector2(0.015, 0.015)
 shader_parameter/split = Vector2(24, 12)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_4ilve"]
-size = Vector3(2, 0.009, 2)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ip3qi"]
 albedo_texture = ExtResource("3_4ilve")
@@ -50,11 +45,6 @@ mesh = SubResource("SphereMesh_510pn")
 surface_material_override/0 = SubResource("ShaderMaterial_ip3qi")
 metadata/_edit_lock_ = true
 
-[node name="GlobePhysicsBody" type="StaticBody3D" parent="Globe"]
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Globe/GlobePhysicsBody"]
-shape = SubResource("SphereShape3D_4ilve")
-
 [node name="Map" type="MeshInstance3D" parent="."]
 unique_name_in_owner = true
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -0.5, 0, 1, -2.1855694e-08, 0, 0, 0)
@@ -63,24 +53,12 @@ mesh = SubResource("PlaneMesh_510pn")
 surface_material_override/0 = SubResource("ShaderMaterial_elfkv")
 metadata/_edit_lock_ = true
 
-[node name="MapPhysicsBody" type="StaticBody3D" parent="Map"]
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Map/MapPhysicsBody"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005, 0)
-shape = SubResource("BoxShape3D_4ilve")
-
 [node name="Background" type="MeshInstance3D" parent="."]
 unique_name_in_owner = true
 transform = Transform3D(4.2, 0, 0, 0, -4.371139e-08, -2.1, 0, 1, -9.1793915e-08, 0, 0, -1)
 mesh = SubResource("PlaneMesh_510pn")
 surface_material_override/0 = SubResource("StandardMaterial3D_ip3qi")
 metadata/_edit_lock_ = true
-
-[node name="MapPhysicsBody" type="StaticBody3D" parent="Background"]
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Background/MapPhysicsBody"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005, 0)
-shape = SubResource("BoxShape3D_4ilve")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 2)
@@ -90,6 +68,3 @@ metadata/_edit_lock_ = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.05)
 fov = 60.0
 
-[connection signal="input_event" from="Globe/GlobePhysicsBody" to="." method="_on_globe_physics_body_input_event"]
-[connection signal="input_event" from="Map/MapPhysicsBody" to="." method="_on_map_physics_body_input_event"]
-[connection signal="input_event" from="Background/MapPhysicsBody" to="." method="_on_map_physics_body_input_event"]

@@ -20,6 +20,13 @@ const MAX_ZOOM := 100.0
 const DEFAULT_ZOOM := 1.0
 const ZOOM_STEP := 1.2
 
+# The mouse on the planet, and off it. Where the pointer is is worked out from
+# the pixel it is over, by the same screen_to_latlon() the automation port and
+# the tests use, so a click and a scripted click cannot disagree.
+signal input_event_globe(lat: float, lon: float, event: InputEvent)
+signal input_event_map(lat: float, lon: float, event: InputEvent)
+signal input_event_outside(event: InputEvent)
+
 signal move_started(anchor_lat: float, anchor_lon: float)
 signal move_to(lat: float, lon: float)
 signal move_ended()
@@ -185,6 +192,9 @@ func _on_gui_input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			zoom_out()
 
+	if event is InputEventMouseButton or event is InputEventMouseMotion:
+		_report_pointer(event)
+
 	if is_moving:
 		if event is InputEventMouseButton:
 			if event.button_index == MOUSE_BUTTON_MIDDLE:
@@ -210,45 +220,111 @@ func _on_gui_input(event: InputEvent) -> void:
 		rotation_handler.handle_mouse_button_released()
 
 
-### Screen and world coordinates
+# Hand one mouse event to whatever is under the pointer: the globe, the map, or
+# neither. The view answers it first, for the selection, the hover and the drags
+# it owns, and then passes it on to the Application for the tool that is armed.
+func _report_pointer(event: InputEvent) -> void:
+	var point = _view_to_latlon(event.position)
+	if point == null:
+		_on_planet_input_event_outside(event)
+		input_event_outside.emit(event)
+	elif planet.show_map:
+		_on_planet_input_event_map(point.x, point.y, event)
+		input_event_map.emit(point.x, point.y, event)
+	else:
+		_on_planet_input_event_globe(point.x, point.y, event)
+		input_event_globe.emit(point.x, point.y, event)
 
-# Window pixels for a point on the globe, or null when it is not visible.
-# Returns null in map mode and when the point is on the far side of the globe.
+
+### Screen and world coordinates
+#
+# Every click, every hover and every scripted check goes through these two, on
+# the globe and on the map alike. The globe is met by a ray against a sphere of
+# the drawn radius; the map by the same ray meeting the sheet, with
+# MapProjection saying which point of the planet a place of the sheet shows.
+# "View" here is a pixel of the planet view; "screen" is a window pixel, which
+# is what the automation port and the tests speak in.
+
+
+# Window pixels for a point on the planet, or null when it is not on screen: the
+# far side of the globe, or a latitude and longitude the projection does not
+# draw.
 func latlon_to_screen(lat: float, lon: float) -> Variant:
-	if planet.show_map:
+	var point = _latlon_to_view(lat, lon)
+	if point == null:
 		return null
+	return get_viewport().get_final_transform() * (get_global_transform_with_canvas() * point)
+
+
+# Lat/lon degrees under a window pixel, or null when there is no planet there.
+func screen_to_latlon(screen: Vector2) -> Variant:
+	var canvas: Vector2 = get_viewport().get_final_transform().affine_inverse() * screen
+	return _view_to_latlon(get_global_transform_with_canvas().affine_inverse() * canvas)
+
+
+# Where a point of the planet lands in the view, or null when it is not drawn.
+func _latlon_to_view(lat: float, lon: float) -> Variant:
+	var scene = _latlon_to_scene(lat, lon)
+	if scene == null:
+		return null
+	var world: Vector3 = planet.global_transform * (scene as Vector3)
+	if camera.is_position_behind(world):
+		return null
+	return camera.unproject_position(world)
+
+
+# Where a point of the planet sits in the scene, in the planet's own frame, or
+# null when what is being shown does not reach it.
+func _latlon_to_scene(lat: float, lon: float) -> Variant:
+	if planet.show_map:
+		var plane = MapProjection.forward(
+			planet.projection, Vector2(lat, lon), Vector2(planet.lat, planet.lon))
+		return null if plane == null else Planet.map_to_scene(plane)
 
 	var lat_rad := deg_to_rad(lat)
 	var lon_rad := deg_to_rad(lon)
 	var cos_lat := cos(lat_rad)
-	var local := Vector3(-cos_lat * sin(lon_rad), sin(lat_rad), -cos_lat * cos(lon_rad)) * GLOBE_RADIUS
-
-	var globe_transform: Transform3D = planet.globe.global_transform
-	var world: Vector3 = globe_transform * local
-	if (world - globe_transform.origin).dot(camera.global_position - world) <= 0.0:
+	var on_globe := Vector3(
+		-cos_lat * sin(lon_rad), sin(lat_rad), -cos_lat * cos(lon_rad)) * GLOBE_RADIUS
+	var globe_transform: Transform3D = planet.globe.transform
+	var scene: Vector3 = globe_transform * on_globe
+	# The far side of the globe, which the near side hides.
+	var eye: Vector3 = planet.global_transform.affine_inverse() * camera.global_position
+	if (scene - globe_transform.origin).dot(eye - scene) <= 0.0:
 		return null
-	if camera.is_position_behind(world):
-		return null
-
-	var sub := camera.unproject_position(world)
-	return get_viewport().get_final_transform() * (get_global_transform_with_canvas() * sub)
+	return scene
 
 
-# Lat/lon degrees under a window pixel, or null when the ray misses the globe.
-# Returns null in map mode.
-func screen_to_latlon(screen: Vector2) -> Variant:
+# Lat/lon degrees under a point of the view, or null when there is no planet
+# under it.
+func _view_to_latlon(point: Vector2) -> Variant:
+	var to_planet := planet.global_transform.affine_inverse()
+	var origin: Vector3 = to_planet * camera.project_ray_origin(point)
+	var direction: Vector3 = to_planet.basis * camera.project_ray_normal(point)
 	if planet.show_map:
+		return _map_latlon(origin, direction)
+	return _globe_latlon(origin, direction)
+
+
+# Where a ray meets the map sheet, and which point of the planet the projection
+# draws there. The sheet is a plane, so the ray meets it at most once.
+func _map_latlon(origin: Vector3, direction: Vector3) -> Variant:
+	if absf(direction.z) < 1e-9:
 		return null
+	var distance := -origin.z / direction.z
+	if distance < 0.0:
+		return null
+	return MapProjection.inverse(
+		planet.projection,
+		Planet.scene_to_map(origin + direction * distance),
+		Vector2(planet.lat, planet.lon))
 
-	var canvas: Vector2 = get_viewport().get_final_transform().affine_inverse() * screen
-	var sub: Vector2 = get_global_transform_with_canvas().affine_inverse() * canvas
 
-	var origin := camera.project_ray_origin(sub)
-	var direction := camera.project_ray_normal(sub)
-	var globe_transform: Transform3D = planet.globe.global_transform
+# Where a ray meets the globe, at the nearer of the two crossings.
+func _globe_latlon(origin: Vector3, direction: Vector3) -> Variant:
+	var globe_transform: Transform3D = planet.globe.transform
 	var offset: Vector3 = origin - globe_transform.origin
 
-	# Nearest intersection of the ray with the globe sphere.
 	var half_b: float = offset.dot(direction)
 	var c: float = offset.length_squared() - GLOBE_RADIUS * GLOBE_RADIUS
 	var discriminant: float = half_b * half_b - c

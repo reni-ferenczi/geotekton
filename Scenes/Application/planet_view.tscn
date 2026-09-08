@@ -21,8 +21,6 @@ unique_name_in_owner = true
 handle_input_locally = false
 screen_space_aa = 2
 mesh_lod_threshold = 0.0
-physics_object_picking = true
-physics_object_picking_first_only = true
 size = Vector2i(1800, 900)
 render_target_update_mode = 4
 
@@ -40,6 +38,3 @@ environment = SubResource("Environment_ub1o7")
 
 [connection signal="gui_input" from="." to="." method="_on_gui_input"]
 [connection signal="mouse_exited" from="." to="." method="_on_mouse_exited"]
-[connection signal="input_event_globe" from="SubViewport/Planet" to="." method="_on_planet_input_event_globe"]
-[connection signal="input_event_map" from="SubViewport/Planet" to="." method="_on_planet_input_event_map"]
-[connection signal="input_event_outside" from="SubViewport/Planet" to="." method="_on_planet_input_event_outside"]
