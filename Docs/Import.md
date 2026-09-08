@@ -73,6 +73,12 @@ ones on either side of it already say is left out, so a plate that stops moving
 early costs a few keyframes rather than one per step, and a plate that never
 moves costs none.
 
+Sampling costs accuracy between the samples. On the GPlates mid ocean ridges
+the imported features sit exactly where `pygplates` reconstructs them at every
+sampled time and up to two degrees away halfway between two of them, which is
+where the model turns fastest. A finer step is `import_files(paths, step=...)`
+from the [console](Scripting.md); the menu takes the default.
+
 The two programs use different frames — GPlates puts z through the north pole,
 Middle Earth puts y there — so a rotation is carried across by swapping the
 last two axes in both the rows and the columns of its matrix, and the result is
@@ -117,15 +123,16 @@ time than GPlates says it is there; valid forever into the past stops at
 
 ## How much fits
 
-A global data set is more geometry than the planet draws. The coastlines that
-ship with GPlates are 59,490 triangles and the planet draws 16,384 primitives
-at once, so the console says how much there was and how much of it is on the
-globe. The features that are not drawn are still in the tree, still selected,
-still moved and still saved; they are simply not painted. See
-[Shader](Shader.md#measured), and GP-0030 in the workspace ticket list for
-raising the limit.
+A global data set is more than the application handles today. The coastlines
+that ship with GPlates are 2077 features and 59,490 triangles: they take about
+a minute to open, because every polygon is triangulated on load, and the planet
+draws 16,384 primitives at once, so about a third of them are on the globe. The
+console says how much geometry there was and how much of it fits. The features
+that are not drawn are still in the tree, still selected, still moved and still
+saved; they are simply not painted. See [Shader](Shader.md#measured), and
+GP-0030 in the workspace ticket list for the whole of it.
 
-Importing one region rather than the whole planet is what fits today.
+Importing one region rather than the whole planet is what works today.
 
 ## What is dropped
 
