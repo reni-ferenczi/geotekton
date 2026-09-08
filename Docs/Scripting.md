@@ -141,7 +141,7 @@ does not become a command by accident, and neither does one whose name begins
 with an underscore.
 
 ```python
-"""Add a marker where the camera is looking
+"""Add a marker at the origin
 
 A one point feature at latitude 0, longitude 0, named after the time it was
 added at.
@@ -156,7 +156,7 @@ The catalog is read from the files themselves, not through the interpreter, so
 the entries are listed and `--help-command` answers even with `--no-python` —
 they simply cannot be run. The first directory holding a given name wins, which
 lets a directory earlier in the list put its own version of a command in front
-of a later one. Preferences rescans when it is closed.
+of a later one. Preferences rescans when it is accepted.
 
 The project ships two in `Scripts/`, which is where the list starts.
 
@@ -212,7 +212,6 @@ it.
 | `eval`     | `source`   | `incomplete`, `traceback`            |
 | `complete` | `source`   | `completions`                        |
 | `run_file` | `path`     | `traceback`                          |
-| `reset`    |            | Back to a fresh namespace            |
 | `quit`     |            | Ends the session                     |
 
 A script that raises is not a failure of the bridge: the reply is `ok` with the

@@ -1,7 +1,7 @@
 # The application window
 
 The window is one `Application` scene (`Scenes/Application/application.tscn`):
-a menu bar, four panels around the planet view, and a status bar. The two
+a menu bar, five panels around the planet view, and a status bar. The two
 either side of the view are split containers, not docks, so they can be resized
 and hidden but not torn off or rearranged; the kinematics graphs, the console
 and the time control stack under the view and take the height they ask for.
@@ -159,7 +159,7 @@ reported and exits with code 2.
 `--help-command NAME` prints the docstring of one script and exits, taking its
 name attached with an equals sign or as the next argument. It reads the file
 rather than the interpreter, so it answers without starting one. `--no-python`
-starts the application with no interpreter at all: the console is up but dead,
+starts the application with no interpreter at all: the prompt takes nothing,
 and the scripts are still listed and simply cannot be run. Both are described in
 [Scripting](Scripting.md). `--automation-port` is described in
 [Testing](Testing.md#the-automation-port).

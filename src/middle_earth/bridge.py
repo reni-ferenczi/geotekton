@@ -105,11 +105,9 @@ class Bridge:
         self._next_id = 0
         self._compile = codeop.CommandCompiler()
         self.app = App(self.call)
-        self.namespace: dict[str, Any] = self._fresh_namespace()
-
-    def _fresh_namespace(self) -> dict[str, Any]:
-        """What a console session starts with, and what `reset` goes back to."""
-        return {
+        # What a console session starts with. A script file is run in a copy of
+        # it, so what one script leaves behind is not there for the next.
+        self.namespace: dict[str, Any] = {
             "__name__": "__console__",
             "__doc__": None,
             "app": self.app,
@@ -171,9 +169,6 @@ class Bridge:
             return {"ok": True, "completions": self.complete(str(request.get("source", "")))}
         if command == "run_file":
             return self.run_file(str(request.get("path", "")))
-        if command == "reset":
-            self.namespace = self._fresh_namespace()
-            return {"ok": True}
         if command == "quit":
             self.running = False
             return {"ok": True}

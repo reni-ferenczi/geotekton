@@ -139,9 +139,10 @@ class Feature:
     def rings(self) -> list[list[list[float]]]:
         """The outline rings, each a list of [latitude, longitude] pairs.
 
-        The list is the one inside the document, so writing to it changes the
-        document. A topology has none of its own: its geometry is resolved
-        from the sections it names.
+        For a feature this is the list inside the document, so writing to it
+        changes the document. A group has no geometry at all and a topology
+        none of its own, since its geometry is resolved from the sections it
+        names; both answer with an empty list of their own.
         """
         return self.data.setdefault("rings", []) if not self.is_group else []
 

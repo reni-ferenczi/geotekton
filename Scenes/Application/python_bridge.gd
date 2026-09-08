@@ -334,7 +334,8 @@ func _serve(request_: Dictionary) -> Dictionary:
 				return {"ok": false, "error": "no group with uuid %s" % request_.get("parent", "")}
 			var group := Feature.create_group(str(request_.get("title", "Group")))
 			parent.children.append(group)
-			_edited()
+			app.document.record()
+			_refresh()
 			return {"ok": true, "uuid": group.uuid}
 
 		"add_feature":
@@ -360,7 +361,7 @@ func _serve(request_: Dictionary) -> Dictionary:
 			var degrees: Array = request_.get("rotation", [0.0, 0.0, 0.0])
 			app.document.set_keyframe(moved, float(request_.get("time", 0.0)),
 				Vector3(degrees[0], degrees[1], degrees[2]))
-			_edited()
+			_refresh()
 			return {"ok": true}
 
 		"delete_keyframe":
@@ -395,7 +396,8 @@ func _add_feature(request_: Dictionary) -> Dictionary:
 	feature.rebuild_triangles()
 
 	parent.children.append(feature)
-	_edited()
+	app.document.record()
+	_refresh()
 	return {"ok": true, "uuid": feature.uuid}
 
 
@@ -437,7 +439,7 @@ func _edit_feature(request_: Dictionary) -> Dictionary:
 				app.document.record()
 			_:
 				return {"ok": false, "error": "a feature has no %s" % name}
-	_edited()
+	_refresh()
 	return {"ok": true}
 
 
@@ -451,7 +453,7 @@ func _delete_keyframe(request_: Dictionary) -> Dictionary:
 			var problem := app.document.remove_keyframe(feature, index)
 			if not problem.is_empty():
 				return {"ok": false, "error": problem}
-			_edited()
+			_refresh()
 			return {"ok": true}
 	return {"ok": false, "error": "%s has no keyframe at %s" % [feature.title, time]}
 
@@ -488,8 +490,11 @@ static func _rings(data: Variant) -> Array[PackedVector2Array]:
 
 # What the panels do after an edit, so a script's change reaches the tree, the
 # globe, the timeline and the graphs the same way a person's does.
-func _edited() -> void:
-	app.document.record()
+#
+# The undo version is not recorded here. Every Document setter records one of
+# its own, and a second would cost two steps of undo for one edit; only the two
+# commands that put a node in the tree themselves record, just above.
+func _refresh() -> void:
 	app._on_properties_edited()
 
 

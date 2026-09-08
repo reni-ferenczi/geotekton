@@ -1,4 +1,4 @@
-"""Add a marker where the camera is looking
+"""Add a marker at the origin
 
 A one point feature at latitude 0, longitude 0, named after the time it was
 added at. Useful as a check that scripting reaches the document at all.

@@ -66,7 +66,7 @@ GDScript tests live in two directories and are discovered by file name:
   `TestCase` and adds helpers for loading a sample file, turning the globe, reading
   pixels and injecting clicks.
 
-`Tests/Python/test_*.py` is the seventh mode: plain pytest over
+`Tests/Python/test_*.py` is the `python` mode: plain pytest over
 `src/middle_earth`, with no engine involved. `pythonpath` and `testpaths` are set
 in `pyproject.toml`, so `uv run pytest` from the project root finds them.
 

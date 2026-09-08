@@ -183,7 +183,7 @@ static func set_view_defaults(settings: ViewSettings) -> void:
 # needs no setting at all; an installed application is given one in Preferences.
 
 
-static func _default_interpreter() -> String:
+static func default_interpreter() -> String:
 	var project := ProjectSettings.globalize_path("res://")
 	if OS.get_name() == "Windows":
 		return project.path_join(".venv/Scripts/python.exe")
@@ -198,7 +198,7 @@ static func _default_script_directory() -> String:
 
 static func get_python_interpreter() -> String:
 	var path := str(get_value("python_interpreter", ""))
-	return path if not path.is_empty() else _default_interpreter()
+	return path if not path.is_empty() else default_interpreter()
 
 
 static func set_python_interpreter(path: String) -> void:

@@ -254,12 +254,23 @@ func test_the_interpreter_can_edit_the_document() -> void:
 	assert_eq(feature.rings[0].size(), 3)
 	assert_true(app.document.can_undo(), "the edit went on the undo stack")
 
-	stub.send({"id": -2, "cmd": "set_keyframe", "uuid": uuid, "time": 600.0,
-		"rotation": [-30.0, 10.0, 0.0]})
+	# One undo step per edit, the same as a person's. Recording a version here
+	# as well as in the Document setter would cost two.
+	var depth: int = app.document.applied
+	stub.send({"id": -2, "cmd": "edit_feature", "uuid": uuid, "fields": {"title": "Renamed"}})
 	await _until(func() -> bool: return stub.replies.size() == 2)
 	assert_true(bool(stub.replies[1].get("ok", false)), str(stub.replies[1].get("error", "")))
-	assert_eq(feature.keyframes.size(), 1)
-	assert_close(feature.keyframes[0].time, 600.0)
+	assert_eq(app.document.root.get_node_by_uuid(uuid).title, "Renamed")
+	assert_eq(app.document.applied, depth + 1, "renaming recorded exactly one version")
+
+	stub.send({"id": -3, "cmd": "set_keyframe", "uuid": uuid, "time": 600.0,
+		"rotation": [-30.0, 10.0, 0.0]})
+	await _until(func() -> bool: return stub.replies.size() == 3)
+	assert_true(bool(stub.replies[2].get("ok", false)), str(stub.replies[2].get("error", "")))
+	var moved: Feature = app.document.root.get_node_by_uuid(uuid)
+	assert_eq(moved.keyframes.size(), 1)
+	assert_close(moved.keyframes[0].time, 600.0)
+	assert_eq(app.document.applied, depth + 2, "and so did the keyframe")
 	await _teardown(stub, bridge)
 
 

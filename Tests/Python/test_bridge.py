@@ -189,10 +189,11 @@ def test_an_error_in_a_script_file_names_the_file(peer, tmp_path):
     assert "ValueError: no" in reply["traceback"]
 
 
-def test_reset_forgets_what_the_console_defined(peer):
-    peer.request("eval", source="craton = 'Rodinia'")
-    peer.request("reset")
-    reply = peer.request("eval", source="craton")
+def test_a_script_file_does_not_leak_into_the_console(peer, tmp_path):
+    script = tmp_path / "sets.py"
+    script.write_text("only_in_the_script = 1", encoding="utf-8")
+    peer.request("run_file", path=str(script))
+    reply = peer.request("eval", source="only_in_the_script")
     assert "NameError" in reply["traceback"]
 
 

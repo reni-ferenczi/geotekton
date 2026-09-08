@@ -862,7 +862,7 @@ func _build_preferences_content() -> Control:
 
 	interpreter_edit = LineEdit.new()
 	interpreter_edit.name = "PythonInterpreter"
-	interpreter_edit.placeholder_text = Config._default_interpreter()
+	interpreter_edit.placeholder_text = Config.default_interpreter()
 	box.add_child(interpreter_edit)
 
 	var directories_label := Label.new()
