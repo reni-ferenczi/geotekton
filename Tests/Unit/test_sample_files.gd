@@ -59,6 +59,14 @@ const EXPECTED := {
 			[Vector2(0, 40), "East Points"],
 		],
 	},
+	"motion.middle-earth": {
+		"version": "0.7.0",
+		"titles": ["Planet", "Plates", "Drifting Craton"],
+		"hits": [
+			[Vector2(-4, 5), "Drifting Craton"],
+			[Vector2(5, 40), ""],
+		],
+	},
 	"mixed_geometry.middle-earth": {
 		"version": "0.2.0",
 		"titles": ["Planet", "Shapes", "Red Triangle", "Blue Ridge", "Green Stations"],
