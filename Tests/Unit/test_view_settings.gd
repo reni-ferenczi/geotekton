@@ -1,0 +1,157 @@
+extends TestCase
+
+# The view settings block: how the scene around the features is drawn, saved
+# with the document rather than with the person looking at it.
+
+const SCRATCH := "user://test_view_settings.middle-earth"
+const OLD_SAMPLE := "res://Tests/Data/two_cratons.middle-earth"
+
+
+func test_a_fresh_block_is_the_scene_as_it_was_always_drawn() -> void:
+	var settings := ViewSettings.new()
+	assert_eq(settings.background_color, ViewSettings.DEFAULT_BACKGROUND, "the background")
+	assert_true(settings.star_field, "the star field is on")
+	assert_eq(settings.graticule_color, ViewSettings.DEFAULT_GRATICULE_COLOR, "the graticule")
+	assert_eq(settings.graticule_spacing, 15.0, "fifteen degrees between the lines")
+	assert_eq(settings.light_direction, Vector2.ZERO, "the light shines from the camera")
+	assert_eq(settings.ambient, 0.0, "and the night side is dark")
+	assert_eq(settings.backdrop_path, "", "there is no backdrop image")
+	assert_true(settings.backdrop_visible, "which would be shown if there were")
+	assert_eq(settings.backdrop_opacity, 1.0, "at full opacity")
+
+
+# The graticule is one spacing in degrees; the shader counts divisions of the
+# whole planet, twice as many round the equator as from pole to pole.
+func test_the_spacing_becomes_the_divisions_the_shader_counts() -> void:
+	var settings := ViewSettings.new()
+	assert_eq(settings.graticule_split(), Vector2(24.0, 12.0), "fifteen degrees")
+	settings.graticule_spacing = 30.0
+	assert_eq(settings.graticule_split(), Vector2(12.0, 6.0), "thirty degrees")
+	settings.graticule_spacing = 10.0
+	assert_eq(settings.graticule_split(), Vector2(36.0, 18.0), "ten degrees")
+
+
+func test_every_setting_round_trips_through_json() -> void:
+	var settings := _edited()
+	var back := ViewSettings.from_json(settings.to_json())
+	assert_eq(back.background_color, settings.background_color, "the background colour")
+	assert_eq(back.star_field, settings.star_field, "the star field switch")
+	assert_eq(back.graticule_color, settings.graticule_color, "the graticule colour")
+	assert_eq(back.graticule_spacing, settings.graticule_spacing, "the graticule spacing")
+	assert_eq(back.light_direction, settings.light_direction, "the light direction")
+	assert_eq(back.ambient, settings.ambient, "the ambient level")
+	assert_eq(back.backdrop_path, settings.backdrop_path, "the backdrop path")
+	assert_eq(back.backdrop_opacity, settings.backdrop_opacity, "the backdrop opacity")
+	assert_eq(back.backdrop_visible, settings.backdrop_visible, "the backdrop switch")
+
+
+func test_a_block_that_says_nothing_gets_every_default() -> void:
+	var fresh := ViewSettings.new()
+	for empty in [null, {}, "not a block", []]:
+		var settings := ViewSettings.from_json(empty)
+		assert_eq(settings.to_json(), fresh.to_json(), "%s gives the defaults" % [empty])
+
+
+# A half written block is read for what it does say. Anything else takes the
+# default, so a file from a version that knew fewer settings still opens.
+func test_a_block_missing_a_setting_takes_the_default_for_it() -> void:
+	var settings := ViewSettings.from_json({"ambient": 0.4, "star_field": false})
+	assert_eq(settings.ambient, 0.4, "the setting the block carries")
+	assert_true(not settings.star_field, "and the other one")
+	assert_eq(settings.graticule_spacing, 15.0, "the rest are the defaults")
+	assert_eq(settings.background_color, ViewSettings.DEFAULT_BACKGROUND, "including the colours")
+
+
+func test_a_setting_out_of_range_is_brought_back_into_it() -> void:
+	var wide := ViewSettings.from_json({"graticule_spacing": 500.0, "ambient": 9.0})
+	assert_eq(wide.graticule_spacing, ViewSettings.MAX_SPACING, "the spacing")
+	assert_eq(wide.ambient, ViewSettings.MAX_AMBIENT, "the ambient level")
+	var narrow := ViewSettings.from_json({"graticule_spacing": 0.0, "ambient": -3.0})
+	assert_eq(narrow.graticule_spacing, ViewSettings.MIN_SPACING, "and the other way")
+	assert_eq(narrow.ambient, ViewSettings.MIN_AMBIENT, "for both")
+
+
+func test_the_settings_survive_a_save_and_a_load() -> void:
+	var document := Document.new()
+	document.view = _edited()
+	document.view_edited()
+	assert_true(document.is_dirty(), "editing the view dirties the document")
+
+	var path := ProjectSettings.globalize_path(SCRATCH)
+	assert_eq(document.save_to_file(path), "", "the document is written")
+	assert_true(not document.is_dirty(), "and is clean once it is")
+
+	var reopened := Document.new()
+	assert_eq(reopened.load_from_file(path), "", "and read back")
+	assert_eq(reopened.view.to_json(), document.view.to_json(), "with the whole block")
+	assert_true(not reopened.is_dirty(), "and nothing to save")
+	DirAccess.remove_absolute(path)
+
+
+# A view setting is not an edit of the tree: it dirties the document but records
+# no version, so undo goes back past it to whatever the tree last did.
+func test_a_view_setting_is_not_on_the_undo_stack() -> void:
+	var document := Document.new()
+	var depth := document.applied
+	document.view.ambient = 0.5
+	document.view_edited()
+	assert_eq(document.applied, depth, "no undo version was recorded")
+	assert_true(not document.can_undo(), "and there is nothing to undo")
+
+
+# Every file written before 0.6.0 carries no view block, and opens looking the
+# way it always did.
+func test_a_file_written_before_the_block_existed_gets_the_defaults() -> void:
+	var document := Document.new()
+	assert_eq(document.load_from_file(ProjectSettings.globalize_path(OLD_SAMPLE)), "",
+		"the older sample opens")
+	assert_eq(document.view.to_json(), ViewSettings.new().to_json(),
+		"with the scene as it was drawn then")
+
+
+### The backdrop path
+
+
+# An image beside the project, or under it, is stored relative, so the two can
+# be moved together. Anything else is stored as it stands.
+func test_an_image_beside_the_project_is_stored_relative() -> void:
+	assert_eq(Document.relative_backdrop("C:/maps/world/earth.png", "C:/maps/world/atlas.middle-earth"),
+		"earth.png", "beside the project")
+	assert_eq(Document.relative_backdrop("C:/maps/world/art/earth.png", "C:/maps/world/atlas.middle-earth"),
+		"art/earth.png", "in a folder under it")
+	assert_eq(Document.relative_backdrop("C:/pictures/earth.png", "C:/maps/world/atlas.middle-earth"),
+		"C:/pictures/earth.png", "somewhere else entirely")
+	assert_eq(Document.relative_backdrop("C:/maps/world/earth.png", ""),
+		"C:/maps/world/earth.png", "a document with no path of its own")
+
+
+func test_a_relative_image_is_found_beside_the_project_wherever_it_is() -> void:
+	var document := Document.new()
+	document.view.backdrop_path = "art/earth.png"
+	document.path = "C:/maps/world/atlas.middle-earth"
+	assert_eq(document.resolve_backdrop(), "C:/maps/world/art/earth.png", "where it was saved")
+	document.path = "D:/moved/atlas.middle-earth"
+	assert_eq(document.resolve_backdrop(), "D:/moved/art/earth.png", "and after the folder moved")
+
+
+func test_an_absolute_image_is_left_where_it_points() -> void:
+	var document := Document.new()
+	document.path = "C:/maps/world/atlas.middle-earth"
+	document.view.backdrop_path = "C:/pictures/earth.png"
+	assert_eq(document.resolve_backdrop(), "C:/pictures/earth.png", "an absolute path")
+	document.view.backdrop_path = ""
+	assert_eq(document.resolve_backdrop(), "", "and no image at all")
+
+
+func _edited() -> ViewSettings:
+	var settings := ViewSettings.new()
+	settings.background_color = Color(0.1, 0.2, 0.3, 1.0)
+	settings.star_field = false
+	settings.graticule_color = Color(0.9, 0.4, 0.1, 0.5)
+	settings.graticule_spacing = 30.0
+	settings.light_direction = Vector2(25.0, -40.0)
+	settings.ambient = 0.35
+	settings.backdrop_path = "art/earth.png"
+	settings.backdrop_opacity = 0.5
+	settings.backdrop_visible = false
+	return settings

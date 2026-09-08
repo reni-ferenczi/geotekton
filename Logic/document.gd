@@ -32,6 +32,13 @@ signal time_changed()
 var root: Feature
 var path: String = ""
 
+# How the scene around the features is drawn. Saved with the file, but not on
+# the undo stack: it says how the document is looked at rather than what it
+# holds. It still dirties the document, which _view_changed tracks, since the
+# file is what carries it.
+var view := ViewSettings.new()
+var _view_changed: bool = false
+
 # When everything is drawn, an age in millions of years before present, so a
 # larger number is older and 0 is now. Not part of the document's content: it is
 # where the document is being looked at, so moving it dirties nothing and a file
@@ -56,9 +63,11 @@ func _init() -> void:
 
 
 # Start an empty document with a fresh undo stack, as after File > New.
-func reset() -> void:
+func reset(settings: ViewSettings = null) -> void:
 	root = Feature.create_group("Planet")
 	root.is_root = true
+	view = settings.clone() if settings != null else ViewSettings.new()
+	_view_changed = false
 	versions.clear()
 	applied = 0
 	record()
@@ -70,7 +79,14 @@ func reset() -> void:
 
 
 func is_dirty() -> bool:
-	return applied != _saved
+	return applied != _saved or _view_changed
+
+
+# Say that a view setting was edited, so the document is offered for saving. The
+# caller has already changed `view`; this is what makes the change count.
+func view_edited() -> void:
+	_view_changed = true
+	state_changed.emit()
 
 
 # The file name for the window title, or "Untitled" before the first save.
@@ -448,10 +464,13 @@ func load_from_file(file_path: String) -> String:
 	if data.get("application", "") != APPLICATION:
 		return "%s is not a Middle Earth file" % file_path
 
-	var loaded := Feature.from_json(migrate(data)["features"])
+	var migrated := migrate(data)
+	var loaded := Feature.from_json(migrated["features"])
 	loaded.is_root = true
 
 	root = loaded
+	view = ViewSettings.from_json(migrated.get("view"))
+	_view_changed = false
 	versions.clear()
 	applied = 0
 	record()
@@ -470,6 +489,7 @@ func save_to_file(file_path: String) -> String:
 		"application": APPLICATION,
 		"version": Application.VERSION,
 		"features": root.to_json(),
+		"view": view.to_json(),
 	}
 	var file := FileAccess.open(file_path, FileAccess.WRITE)
 	if file == null:
@@ -478,9 +498,41 @@ func save_to_file(file_path: String) -> String:
 	file.close()
 
 	path = file_path
+	_view_changed = false
 	_saved = applied
 	state_changed.emit()
 	return ""
+
+
+### The backdrop image
+#
+# The path is stored relative when the image sits in the project's own folder or
+# under it, so a project and its images can be moved together, and absolute
+# otherwise. A document with no path of its own has nothing to be relative to
+# and stores what it was given.
+
+
+# The path to write for an image the user picked, given where the file is going.
+static func relative_backdrop(image_path: String, project_path: String) -> String:
+	if image_path.is_empty() or project_path.is_empty() or image_path.is_relative_path():
+		return image_path
+	var folder := project_path.get_base_dir().replace("\\", "/").rstrip("/")
+	var image := image_path.replace("\\", "/")
+	if folder.is_empty() or not image.begins_with(folder + "/"):
+		return image_path
+	return image.substr(folder.length() + 1)
+
+
+# Where the backdrop image actually is, resolved against the project file it was
+# stored beside. Empty when the document names no image.
+func resolve_backdrop() -> String:
+	if view.backdrop_path.is_empty():
+		return ""
+	if view.backdrop_path.is_absolute_path():
+		return view.backdrop_path
+	if path.is_empty():
+		return view.backdrop_path
+	return path.get_base_dir().path_join(view.backdrop_path)
 
 
 # Bring a parsed file up to the format this version writes, based on the
