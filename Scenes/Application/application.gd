@@ -1153,11 +1153,27 @@ var selected_vertex: Vector2i = NO_VERTEX
 # The first vertex of a polygon cut, held until the second one is picked.
 var split_from: Vector2i = NO_VERTEX
 
-# The vertex being dragged and what it was before the drag started, so that a
-# cancelled drag puts it back and a finished one records a single undo version
-# rather than one for every frame of the drag.
+# The vertex being dragged, the feature it belongs to, and what it was before
+# the drag started, so that a cancelled drag puts it back and a finished one
+# records a single undo version rather than one for every frame of the drag.
+#
+# The feature is held rather than looked up: a drag ends for reasons other than
+# a release, selecting another feature among them, and putting the vertex back
+# into whatever happens to be selected then would write it into the wrong shape.
 var vertex_drag: Vector2i = NO_VERTEX
+var vertex_drag_feature: Feature = null
 var vertex_drag_was := Vector2.ZERO
+
+
+# Whether the dragged vertex is still where it was taken hold of. An undo, or a
+# reload that replaced the tree, can leave the drag pointing at a ring that is
+# shorter than it was or gone altogether.
+func _drag_is_live() -> bool:
+	if vertex_drag == NO_VERTEX or vertex_drag_feature == null:
+		return false
+	if vertex_drag.x >= vertex_drag_feature.rings.size():
+		return false
+	return vertex_drag.y < vertex_drag_feature.rings[vertex_drag.x].size()
 
 # Which feature the picked vertex belongs to, by pnid rather than by object:
 # undo, redo and every reload of the tree replace it with a clone.
@@ -1210,6 +1226,7 @@ func _vertex_press(feature: Feature, screen: Vector2) -> void:
 		selected_vertex = own[1][picked]
 		vertex_feature_pnid = feature.pnid
 		vertex_drag = selected_vertex
+		vertex_drag_feature = feature
 		vertex_drag_was = feature.rings[vertex_drag.x][vertex_drag.y]
 		_update_tool_buttons()
 		return
@@ -1257,9 +1274,9 @@ func _insert_on_edge(feature: Feature, screen: Vector2) -> Vector2i:
 # when one is near enough and snapping is on. Nothing is recorded until the
 # release: the drag writes straight into the ring so the globe follows it.
 func _vertex_drag_to(lat: float, lon: float) -> void:
-	var feature := features.feature_tree.get_selected_node()
-	if feature == null:
+	if not _drag_is_live():
 		return
+	var feature := vertex_drag_feature
 
 	var world := Vector2(lat, lon)
 	if snapping():
@@ -1287,13 +1304,14 @@ func _snap_target(feature: Feature, screen: Vector2) -> Variant:
 
 
 func _vertex_commit_drag() -> void:
-	if vertex_drag == NO_VERTEX:
+	if not _drag_is_live():
+		vertex_drag = NO_VERTEX
+		vertex_drag_feature = null
 		return
-	var feature := features.feature_tree.get_selected_node()
+	var feature := vertex_drag_feature
 	var moved := vertex_drag
 	vertex_drag = NO_VERTEX
-	if feature == null:
-		return
+	vertex_drag_feature = null
 
 	# The drag wrote into the ring as it went, so what is on the globe is
 	# already the new shape. Put the vertex back before the command runs, so
@@ -1310,11 +1328,15 @@ func _vertex_commit_drag() -> void:
 func _vertex_cancel_drag() -> void:
 	if vertex_drag == NO_VERTEX:
 		return
-	var feature := features.feature_tree.get_selected_node()
-	if feature != null:
-		feature.rings[vertex_drag.x][vertex_drag.y] = vertex_drag_was
-		feature.rebuild_triangles()
+	var live := _drag_is_live()
+	var feature := vertex_drag_feature
+	var put_back := vertex_drag
 	vertex_drag = NO_VERTEX
+	vertex_drag_feature = null
+	if not live:
+		return
+	feature.rings[put_back.x][put_back.y] = vertex_drag_was
+	feature.rebuild_triangles()
 	_after_vertex_edit()
 
 

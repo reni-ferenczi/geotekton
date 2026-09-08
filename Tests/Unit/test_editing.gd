@@ -19,6 +19,133 @@ func _feature(document: Document) -> Feature:
 	return document.root.children[0]
 
 
+### Splitting
+
+
+# A document holding one five vertex polygon with a colour, a time range and a
+# pair of keyframes, so a split has something to carry over.
+func _splittable(kind: Feature.GeometryKind = Feature.GeometryKind.POLYGON) -> Document:
+	var document := Document.new()
+	var feature := Feature.create_feature("Gondwana", Color.CORNFLOWER_BLUE)
+	feature.add_ring(PackedVector2Array([
+		Vector2(0, 0), Vector2(10, 0), Vector2(14, 10),
+		Vector2(5, 16), Vector2(0, 12)]), kind)
+	feature.feature_type = FeatureType.CATALOG.keys()[1]
+	feature.time_range = Vector2i(20, 800)
+	Keyframe.upsert(feature.keyframes, 0.0, Vector3(5, 0, 0))
+	Keyframe.upsert(feature.keyframes, 300.0, Vector3(40, 10, 0))
+	document.root.children.append(feature)
+	document.record()
+	return document
+
+
+func test_a_polygon_becomes_two_features_side_by_side() -> void:
+	var document := _splittable()
+	var versions := document.applied
+	assert_eq(document.split_feature(_feature(document), 0, 0, 2), "")
+	assert_eq(document.root.children.size(), 2, "the tree holds two features now")
+	assert_eq(document.root.children[0].title, "Gondwana", "the first keeps its title")
+	assert_eq(document.root.children[1].title, "Gondwana 2", "and the second is named after it")
+	assert_eq(document.applied, versions + 1, "the split recorded exactly one version")
+
+	document.undo()
+	assert_eq(document.root.children.size(), 1, "undo puts the one feature back")
+	assert_eq(_feature(document).rings[0].size(), 5, "with all five vertices")
+
+
+func test_both_halves_carry_what_the_feature_was() -> void:
+	var document := _splittable()
+	var whole := _feature(document)
+	var type := whole.feature_type
+	var color := whole.color
+	var time_range := whole.time_range
+	var keyframes := Keyframe.clone_list(whole.keyframes)
+
+	assert_eq(document.split_feature(whole, 0, 1, 3), "")
+	for half in document.root.children:
+		assert_eq(half.geometry_kind, Feature.GeometryKind.POLYGON, "%s is a polygon" % half.title)
+		assert_eq(half.feature_type, type, "%s keeps the type" % half.title)
+		assert_eq(half.color, color, "%s keeps the colour" % half.title)
+		assert_eq(half.time_range, time_range, "%s keeps the time range" % half.title)
+		assert_eq(half.keyframes.size(), keyframes.size(), "%s keeps the keyframes" % half.title)
+		for i in range(keyframes.size()):
+			assert_close(half.keyframes[i].time, keyframes[i].time, 1e-9)
+			assert_close(half.keyframes[i].rotation, keyframes[i].rotation, 1e-6)
+		assert_true(half.pnid > 0, "%s has an id of its own" % half.title)
+	assert_true(document.root.children[0].pnid != document.root.children[1].pnid,
+		"the two halves are two features, not one twice")
+
+
+func test_the_halves_of_a_polygon_are_triangulated_and_add_up() -> void:
+	var document := _splittable()
+	var whole_area := _area(_feature(document).triangles)
+	assert_eq(document.split_feature(_feature(document), 0, 0, 2), "")
+	var sum := 0.0
+	for half in document.root.children:
+		assert_true(half.triangles.size() > 0, "%s has triangles of its own" % half.title)
+		assert_eq(half.triangles.size(), (half.rings[0].size() - 2) * 3,
+			"%s is triangulated from its own ring" % half.title)
+		sum += _area(half.triangles)
+	assert_close(sum, whole_area, whole_area * 1e-4, "the two halves cover the original")
+
+
+func test_a_polyline_splits_at_one_vertex() -> void:
+	var document := _splittable(Feature.GeometryKind.POLYLINE)
+	assert_eq(document.split_feature(_feature(document), 0, 2), "")
+	assert_eq(document.root.children[0].rings[0].size(), 3)
+	assert_eq(document.root.children[1].rings[0].size(), 3)
+	assert_eq(document.root.children[0].rings[0][2], document.root.children[1].rings[0][0],
+		"both halves keep the vertex the cut was made at")
+
+
+func test_a_split_that_cannot_be_made_changes_nothing() -> void:
+	var document := _splittable()
+	var versions := document.applied
+	for attempt in [[0, 0, 1], [0, 2, 2], [0, 9, 2], [3, 0, 2]]:
+		assert_true(not document.split_feature(
+			_feature(document), attempt[0], attempt[1], attempt[2]).is_empty(),
+			"part %d from %d to %d is refused" % attempt)
+	assert_eq(document.root.children.size(), 1, "the tree is untouched")
+	assert_eq(_feature(document).rings[0].size(), 5)
+	assert_eq(document.applied, versions, "and no version was recorded")
+
+
+func test_a_multipoint_has_no_path_to_split() -> void:
+	var document := _splittable(Feature.GeometryKind.MULTIPOINT)
+	assert_true(not document.split_feature(_feature(document), 0, 2).is_empty())
+	assert_eq(document.root.children.size(), 1)
+
+
+func test_a_group_cannot_be_split() -> void:
+	var document := _splittable()
+	var group := Feature.create_group("Cratons")
+	document.root.children.append(group)
+	assert_true(not document.split_feature(group, 0, 0, 2).is_empty())
+
+
+func test_the_other_parts_of_a_feature_stay_with_the_first_half() -> void:
+	var document := _splittable()
+	var feature := _feature(document)
+	feature.add_ring(PackedVector2Array([
+		Vector2(-30, -30), Vector2(-20, -30), Vector2(-25, -20)]),
+		Feature.GeometryKind.POLYGON)
+	document.record()
+
+	assert_eq(document.split_feature(feature, 0, 0, 2), "")
+	assert_eq(document.root.children[0].rings.size(), 2,
+		"the first half keeps the part that was not split")
+	assert_eq(document.root.children[1].rings.size(), 1,
+		"and the second holds its half alone")
+
+
+func _area(triangles: PackedVector2Array) -> float:
+	var total := 0.0
+	for i in range(0, triangles.size() - 2, 3):
+		total += absf((triangles[i + 1] - triangles[i]).cross(
+			triangles[i + 2] - triangles[i])) * 0.5
+	return total
+
+
 ### Titles, colours and switches
 
 
