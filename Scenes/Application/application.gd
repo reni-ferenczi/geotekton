@@ -19,7 +19,14 @@ static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Docum
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, DRAW }
+enum Tool { MOVE, DRAW, VERTEX, MEASURE }
+
+# How near, in window pixels, a click has to be to take hold of a vertex or an
+# edge, and how near a dragged vertex has to come to another before snapping
+# takes it the rest of the way. Pixels rather than a distance on the sphere, so
+# a tool behaves the same however far the view is zoomed in.
+const VERTEX_PICK_PIXELS := 12.0
+const SNAP_PIXELS := 12.0
 
 enum FileItem { NEW, OPEN, SAVE, SAVE_AS, PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE }
@@ -41,6 +48,10 @@ const PANEL_KEYS := {
 @onready var planet_view: PlanetView = %PlanetView
 @onready var move_button: Button = %Move
 @onready var draw_button: Button = %Draw
+@onready var vertex_button: Button = %Vertex
+@onready var measure_button: Button = %Measure
+@onready var snap_button: Button = %Snap
+@onready var split_button: Button = %Split
 @onready var kind_selector: OptionButton = %GeometryKind
 @onready var menu_bar: MenuBar = %MenuBar
 @onready var left_splitter: HSplitContainer = %LeftSplitter
@@ -49,6 +60,7 @@ const PANEL_KEYS := {
 @onready var timeline: Timeline = %Timeline
 @onready var status_bar: Control = %StatusBar
 @onready var status_coordinates: Label = %StatusCoordinates
+@onready var status_measure: Label = %StatusMeasure
 @onready var status_file: Label = %StatusFile
 @onready var leave_full_screen: Button = %LeaveFullScreen
 
@@ -88,6 +100,9 @@ var preferences_dialog: AcceptDialog
 var error_dialog: AcceptDialog
 var restore_session_check: CheckBox
 var default_folder_edit: LineEdit
+var radius_spin: SpinBox
+var marker_spin: SpinBox
+var line_spin: SpinBox
 var animation_dialog: AcceptDialog
 # The fields of the animation dialog, by the name of the setting each one edits.
 var animation_fields: Dictionary = {}
@@ -137,9 +152,15 @@ func _ready() -> void:
 	_build_dialogs()
 
 	# Connect tool buttons
-	move_button.pressed.connect(_on_move_pressed)
-	draw_button.pressed.connect(_on_draw_pressed)
+	move_button.pressed.connect(func() -> void: set_active_tool(Tool.MOVE))
+	draw_button.pressed.connect(func() -> void: set_active_tool(Tool.DRAW))
+	vertex_button.pressed.connect(func() -> void: set_active_tool(Tool.VERTEX))
+	measure_button.pressed.connect(func() -> void: set_active_tool(Tool.MEASURE))
+	snap_button.toggled.connect(_on_snap_toggled)
+	split_button.pressed.connect(func() -> void: _report(split_at_selected_vertex()))
+	snap_button.button_pressed = Config.get_snap_to_vertices()
 	_build_kind_selector()
+	_apply_outline_scale()
 
 	# The Save and Load buttons of the feature tree toolbar run the File commands
 	features.save_button.pressed.connect(save_document)
@@ -148,9 +169,10 @@ func _ready() -> void:
 	# Connect feature selection from the features panel
 	features.feature_tree.feature_selected.connect(_on_feature_selected)
 
-	# Connect planet click events for drawing
-	planet_view.planet.input_event_globe.connect(_on_planet_input_for_drawing)
-	planet_view.planet.input_event_map.connect(_on_planet_input_for_drawing)
+	# Connect planet click events for the tools that take clicks for themselves
+	planet_view.planet.input_event_globe.connect(_on_planet_input)
+	planet_view.planet.input_event_map.connect(_on_planet_input)
+	planet_view.planet.input_event_outside.connect(_on_planet_input_outside)
 
 	# Connect program changes to refresh cratons
 	features.feature_tree.program_changed.connect(_on_program_changed)
@@ -438,8 +460,13 @@ func _remember_file(path: String) -> void:
 	_rebuild_recent_menu()
 
 
-func _on_root_replaced() -> void:
-	set_active_tool(Tool.MOVE)
+func _on_root_replaced(same_document: bool) -> void:
+	# Undo and redo put another version of the same document in place, which is
+	# no reason to take a tool out of someone's hand mid edit. A new or opened
+	# document is: whatever was half drawn or half picked belonged to the one
+	# being left behind.
+	if not same_document:
+		set_active_tool(Tool.MOVE)
 	refresh_geometry()
 
 
@@ -567,7 +594,33 @@ func _build_preferences_content() -> Control:
 	restore_session_check.text = "Reopen the last file on launch"
 	box.add_child(restore_session_check)
 
+	var form := GridContainer.new()
+	form.columns = 2
+	box.add_child(form)
+
+	radius_spin = _preference_spin(form, "PlanetRadius", "Planet radius (km)",
+		Measure.MIN_RADIUS_KM, Measure.MAX_RADIUS_KM, 1.0)
+	marker_spin = _preference_spin(form, "VertexMarkerScale", "Vertex marker size",
+		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
+	line_spin = _preference_spin(form, "LineWidthScale", "Outline line width",
+		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
+
 	return box
+
+
+func _preference_spin(form: GridContainer, name: String, text: String,
+		low: float, high: float, step: float) -> SpinBox:
+	var label := Label.new()
+	label.text = text
+	form.add_child(label)
+	var spin := SpinBox.new()
+	spin.name = name
+	spin.min_value = low
+	spin.max_value = high
+	spin.step = step
+	spin.custom_minimum_size = Vector2(140, 0)
+	form.add_child(spin)
+	return spin
 
 
 # How playback walks the timeline: where it starts and ends, how far one frame
@@ -644,12 +697,26 @@ func _on_animation_confirmed() -> void:
 func show_preferences() -> void:
 	default_folder_edit.text = Config.get_last_directory()
 	restore_session_check.button_pressed = bool(Config.get_value("restore_session", true))
+	radius_spin.value = Config.get_planet_radius()
+	marker_spin.value = Config.get_vertex_marker_scale()
+	line_spin.value = Config.get_line_width_scale()
 	preferences_dialog.popup_centered()
 
 
 func _on_preferences_confirmed() -> void:
 	Config.set_last_directory(default_folder_edit.text)
 	Config.set_value("restore_session", restore_session_check.button_pressed)
+	Config.set_planet_radius(radius_spin.value)
+	Config.set_vertex_marker_scale(marker_spin.value)
+	Config.set_line_width_scale(line_spin.value)
+	_apply_outline_scale()
+	_show_measurement()
+
+
+# Give the outline overlay the sizes the preferences ask for.
+func _apply_outline_scale() -> void:
+	planet_view.planet.set_outline_scale(
+		Config.get_vertex_marker_scale(), Config.get_line_width_scale())
 
 
 func _show_error(message: String) -> void:
@@ -746,22 +813,43 @@ func _on_cursor_moved(lat: float, lon: float) -> void:
 ### Tool button group
 
 
-func _on_move_pressed() -> void:
-	set_active_tool(Tool.MOVE)
-
-
-func _on_draw_pressed() -> void:
-	set_active_tool(Tool.DRAW)
-
-
 func set_active_tool(tool: Tool) -> void:
 	if active_tool == Tool.DRAW and tool != Tool.DRAW:
 		_outline_cancel()
+	if active_tool == Tool.VERTEX and tool != Tool.VERTEX:
+		_vertex_cancel_drag()
+		_let_every_vertex_go()
+	if active_tool == Tool.MEASURE and tool != Tool.MEASURE:
+		_measure_clear()
 	active_tool = tool
 	move_button.button_pressed = (tool == Tool.MOVE)
 	draw_button.button_pressed = (tool == Tool.DRAW)
-	planet_view.drawing_mode = (tool == Tool.DRAW)
+	vertex_button.button_pressed = (tool == Tool.VERTEX)
+	measure_button.button_pressed = (tool == Tool.MEASURE)
+	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
+	_update_tool_buttons()
+	_refresh_selection_outline()
+	_show_measurement()
+
+
+func _on_snap_toggled(enabled: bool) -> void:
+	Config.set_snap_to_vertices(enabled)
+
+
+func snapping() -> bool:
+	return snap_button.button_pressed
+
+
+# The Vertex tool needs a leaf feature that already holds geometry; there is
+# nothing to take hold of otherwise. Measure needs nothing at all.
+func _update_tool_buttons() -> void:
+	var selected := features.feature_tree.get_selected_node()
+	var editable := selected != null and not selected.is_group and selected.has_geometry()
+	vertex_button.disabled = not editable
+	snap_button.disabled = active_tool != Tool.VERTEX
+	split_button.disabled = not _split_problem().is_empty()
+	split_button.tooltip_text = _split_tooltip()
 
 
 ### Feature selection
@@ -771,6 +859,25 @@ func _on_feature_selected(node: Feature) -> void:
 	# Clear any in-progress outline when switching features
 	if not outline_vertices.is_empty():
 		_outline_cancel()
+	# The vertex the Vertex tool was holding belonged to whichever feature is
+	# being left, so it only survives a reselection of the same one. Undo, redo
+	# and every reload replace the tree with a clone, so the node that comes
+	# back is a different object with the same pnid.
+	if node == null or node.pnid != vertex_feature_pnid:
+		_vertex_cancel_drag()
+		hovered_vertex = NO_VERTEX
+		selected_vertex = NO_VERTEX
+		split_from = NO_VERTEX
+		vertex_feature_pnid = -1 if node == null else node.pnid
+	_forget_vertices_that_are_gone(node)
+
+	# A group has no vertices to edit, so the Vertex tool falls back to Move.
+	# Nothing selected does not: rebuilding the tree clears the selection for a
+	# moment before it puts it back, and a tool that gave up over that would
+	# not survive an undo.
+	var editable := node == null or (not node.is_group and node.has_geometry())
+	if active_tool == Tool.VERTEX and not editable:
+		set_active_tool(Tool.MOVE)
 
 	var is_leaf := node != null and not node.is_group
 	draw_button.disabled = not is_leaf
@@ -787,8 +894,10 @@ func _on_feature_selected(node: Feature) -> void:
 			set_active_tool(Tool.MOVE)
 
 	_update_move_enabled()
+	_update_tool_buttons()
 	timeline.show_keyframes(node)
 	refresh_geometry()
+	_show_measurement()
 
 
 ### Geometry kind
@@ -901,9 +1010,30 @@ func _on_move_cancelled() -> void:
 # The shape being drawn, in world space, before it is committed to a feature.
 var outline_vertices := PackedVector2Array()
 
-func _on_planet_input_for_drawing(lat: float, lon: float, event: InputEvent) -> void:
-	if active_tool != Tool.DRAW:
+# Every input event on the planet, sent to whichever tool takes clicks. The
+# Move tool is not here: selecting, dragging and the right click menu are the
+# view's own, and it leaves them alone while a tool owns the clicks.
+func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
+	match active_tool:
+		Tool.DRAW:
+			_on_draw_input(lat, lon, event)
+		Tool.VERTEX:
+			_on_vertex_input(lat, lon, event)
+		Tool.MEASURE:
+			_on_measure_input(lat, lon, event)
+
+
+# The background behind the globe. A drag of a vertex that ends out there is
+# still a release, and letting it pass would leave the vertex stuck to the
+# pointer.
+func _on_planet_input_outside(event: InputEvent) -> void:
+	if active_tool != Tool.VERTEX or event is not InputEventMouseButton:
 		return
+	if event.button_index == MOUSE_BUTTON_LEFT and event.is_released():
+		_vertex_commit_drag()
+
+
+func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 	if event is not InputEventMouseButton or not event.is_pressed():
 		return
 
@@ -921,17 +1051,44 @@ func _on_planet_input_for_drawing(lat: float, lon: float, event: InputEvent) -> 
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if active_tool != Tool.DRAW:
-		return
 	if event is not InputEventKey or not event.is_pressed():
 		return
 
-	if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
-		_outline_commit()
-		get_viewport().set_input_as_handled()
-	elif event.keycode == KEY_ESCAPE:
-		_outline_cancel()
-		get_viewport().set_input_as_handled()
+	match active_tool:
+		Tool.DRAW:
+			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				_outline_commit()
+			elif event.keycode == KEY_ESCAPE:
+				_outline_cancel()
+			else:
+				return
+		Tool.VERTEX:
+			if event.keycode == KEY_DELETE:
+				_report(delete_selected_vertex())
+			elif event.keycode == KEY_S:
+				_report(hold_split_from() if event.shift_pressed
+					else split_at_selected_vertex())
+			elif event.keycode == KEY_ESCAPE:
+				_vertex_cancel_drag()
+				_let_every_vertex_go()
+				_update_tool_buttons()
+			else:
+				return
+		Tool.MEASURE:
+			if event.keycode == KEY_ESCAPE:
+				_measure_clear()
+				_refresh_selection_outline()
+			else:
+				return
+		_:
+			return
+	get_viewport().set_input_as_handled()
+
+
+# Say in the status bar why a tool refused what it was asked to do. An empty
+# message is the tool having done it, which needs no telling.
+func _report(problem: String) -> void:
+	_show_measurement(problem)
 
 
 func _outline_commit() -> void:
@@ -977,6 +1134,435 @@ func _drawing_outline_style() -> Planet.OutlineStyle:
 			if outline_vertices.size() >= 3:
 				return Planet.OutlineStyle.CLOSED_PREVIEW
 	return Planet.OutlineStyle.OPEN
+
+
+### The Vertex tool
+#
+# Editing the vertices of the selected feature on the globe. A click takes hold
+# of the vertex under it, or puts a new one on the edge under it; Delete takes
+# one out. Every edit maps the click back into the feature's own frame, through
+# the inverse of the rotation its keyframes and its groups give it at the
+# current time, so an edit made while the feature has moved lands where the
+# pointer is rather than where the feature was first drawn.
+
+# The vertex the tool is working on, as (part, index), or NO_VERTEX.
+const NO_VERTEX := Vector2i(-1, -1)
+
+var selected_vertex: Vector2i = NO_VERTEX
+
+# The first vertex of a polygon cut, held until the second one is picked.
+var split_from: Vector2i = NO_VERTEX
+
+# The vertex the pointer is resting on, or NO_VERTEX. Delete takes this one out
+# when there is one, which is what "the vertex under the cursor" means; the one
+# picked by a click stands in when the pointer is resting on nothing.
+var hovered_vertex: Vector2i = NO_VERTEX
+
+
+func _track_vertex_under_pointer(feature: Feature, lat: float, lon: float) -> void:
+	hovered_vertex = NO_VERTEX
+	var screen: Variant = planet_view.latlon_to_screen(lat, lon)
+	if screen == null:
+		return
+	var own := _vertices_on_screen(feature)
+	var picked := GeometryEdit.nearest_point(own[0], screen, VERTEX_PICK_PIXELS)
+	if picked >= 0:
+		hovered_vertex = own[1][picked]
+
+
+# The vertex the tool would act on: the one under the pointer, or the one a
+# click last took hold of when the pointer is resting on nothing.
+func vertex_in_hand() -> Vector2i:
+	return hovered_vertex if hovered_vertex != NO_VERTEX else selected_vertex
+
+
+# The vertex being dragged, the feature it belongs to, and what it was before
+# the drag started, so that a cancelled drag puts it back and a finished one
+# records a single undo version rather than one for every frame of the drag.
+#
+# The feature is held rather than looked up: a drag ends for reasons other than
+# a release, selecting another feature among them, and putting the vertex back
+# into whatever happens to be selected then would write it into the wrong shape.
+var vertex_drag: Vector2i = NO_VERTEX
+var vertex_drag_feature: Feature = null
+var vertex_drag_was := Vector2.ZERO
+
+
+# Whether the dragged vertex is still where it was taken hold of. An undo, or a
+# reload that replaced the tree, can leave the drag pointing at a ring that is
+# shorter than it was or gone altogether.
+func _drag_is_live() -> bool:
+	if vertex_drag == NO_VERTEX or vertex_drag_feature == null:
+		return false
+	if vertex_drag.x >= vertex_drag_feature.rings.size():
+		return false
+	return vertex_drag.y < vertex_drag_feature.rings[vertex_drag.x].size()
+
+# Which feature the picked vertex belongs to, by pnid rather than by object:
+# undo, redo and every reload of the tree replace it with a clone.
+var vertex_feature_pnid: int = -1
+
+
+# Let go of a picked vertex that the tree no longer has, which an undo of the
+# edit that made it leaves behind.
+func _forget_vertices_that_are_gone(node: Feature) -> void:
+	for held in [selected_vertex, split_from, hovered_vertex]:
+		if held == NO_VERTEX:
+			continue
+		if node == null or node.is_group or held.x >= node.rings.size():
+			_let_every_vertex_go()
+			return
+		if held.y >= node.rings[held.x].size():
+			_let_every_vertex_go()
+			return
+
+
+func _let_every_vertex_go() -> void:
+	hovered_vertex = NO_VERTEX
+	selected_vertex = NO_VERTEX
+	split_from = NO_VERTEX
+
+
+func _on_vertex_input(lat: float, lon: float, event: InputEvent) -> void:
+	var feature := features.feature_tree.get_selected_node()
+	if feature == null or feature.is_group or not feature.has_geometry():
+		return
+
+	if event is InputEventMouseMotion:
+		if vertex_drag != NO_VERTEX:
+			_vertex_drag_to(lat, lon)
+		else:
+			_track_vertex_under_pointer(feature, lat, lon)
+		return
+
+	if event is not InputEventMouseButton or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if event.is_released():
+		_vertex_commit_drag()
+		return
+
+	var screen: Variant = planet_view.latlon_to_screen(lat, lon)
+	if screen != null:
+		_vertex_press(feature, screen)
+
+
+# A press takes hold of the vertex under the pointer, or failing that puts a new
+# one on the edge under it. A press on neither lets go of the one it had.
+func _vertex_press(feature: Feature, screen: Vector2) -> void:
+	var own := _vertices_on_screen(feature)
+	var picked := GeometryEdit.nearest_point(own[0], screen, VERTEX_PICK_PIXELS)
+	if picked >= 0:
+		selected_vertex = own[1][picked]
+		vertex_feature_pnid = feature.pnid
+		vertex_drag = selected_vertex
+		vertex_drag_feature = feature
+		vertex_drag_was = feature.rings[vertex_drag.x][vertex_drag.y]
+		_update_tool_buttons()
+		return
+
+	selected_vertex = _insert_on_edge(feature, screen)
+	vertex_feature_pnid = feature.pnid
+	_update_tool_buttons()
+
+
+# Put a vertex on the edge nearest the pointer, at the point of that edge
+# nearest the pointer, so the shape does not change until it is dragged.
+# Returns where it went, or NO_VERTEX when no edge was near enough.
+func _insert_on_edge(feature: Feature, screen: Vector2) -> Vector2i:
+	if feature.geometry_kind == Feature.GeometryKind.MULTIPOINT:
+		return NO_VERTEX
+	var closed := feature.geometry_kind == Feature.GeometryKind.POLYGON
+
+	var best_part := -1
+	var best: Array = [-1, INF, 0.0]
+	for part in feature.rings.size():
+		var on_screen := _ring_on_screen(feature, part)
+		if on_screen.size() < feature.rings[part].size():
+			# Part of the ring is round the back, where a screen distance means
+			# nothing. Leave that part alone rather than guess at it.
+			continue
+		var found := GeometryEdit.nearest_segment(on_screen, screen, closed)
+		if found[0] >= 0 and found[1] < best[1]:
+			best = found
+			best_part = part
+	if best_part < 0 or float(best[1]) > VERTEX_PICK_PIXELS:
+		return NO_VERTEX
+
+	var ring: PackedVector2Array = feature.rings[best_part]
+	var from := int(best[0])
+	var vertex := Measure.along(ring[from], ring[(from + 1) % ring.size()], float(best[2]))
+	var error := document.insert_vertex(feature, best_part, from + 1, vertex)
+	if not error.is_empty():
+		_show_measurement(error)
+		return NO_VERTEX
+	_after_vertex_edit()
+	return Vector2i(best_part, from + 1)
+
+
+# Follow the pointer with the vertex being dragged, snapping onto a neighbour
+# when one is near enough and snapping is on. Nothing is recorded until the
+# release: the drag writes straight into the ring so the globe follows it.
+func _vertex_drag_to(lat: float, lon: float) -> void:
+	if not _drag_is_live():
+		return
+	var feature := vertex_drag_feature
+
+	var world := Vector2(lat, lon)
+	if snapping():
+		var screen: Variant = planet_view.latlon_to_screen(lat, lon)
+		if screen != null:
+			var snapped: Variant = _snap_target(feature, screen)
+			if snapped != null:
+				world = snapped
+
+	var into_local := Feature.world_basis(
+		features.root, feature, document.current_time).transposed()
+	feature.rings[vertex_drag.x][vertex_drag.y] = Feature.apply_basis(
+		PackedVector2Array([world]), into_local)[0]
+	feature.rebuild_triangles()
+	refresh_geometry()
+
+
+# Where a dragged vertex should jump to: the nearest vertex of any feature
+# within SNAP_PIXELS, in world coordinates, or null when there is none. The one
+# being dragged is left out, since it is always nearest to itself.
+func _snap_target(feature: Feature, screen: Vector2) -> Variant:
+	var candidates := _vertices_on_screen(null, feature, vertex_drag)
+	var picked := GeometryEdit.nearest_point(candidates[0], screen, SNAP_PIXELS)
+	return null if picked < 0 else candidates[2][picked]
+
+
+func _vertex_commit_drag() -> void:
+	if not _drag_is_live():
+		vertex_drag = NO_VERTEX
+		vertex_drag_feature = null
+		return
+	var feature := vertex_drag_feature
+	var moved := vertex_drag
+	vertex_drag = NO_VERTEX
+	vertex_drag_feature = null
+
+	# The drag wrote into the ring as it went, so what is on the globe is
+	# already the new shape. Put the vertex back before the command runs, so
+	# that it records a change rather than finding it made.
+	var landed: Vector2 = feature.rings[moved.x][moved.y]
+	feature.rings[moved.x][moved.y] = vertex_drag_was
+	feature.rebuild_triangles()
+	var error := document.set_vertex(feature, moved.x, moved.y, landed)
+	if not error.is_empty():
+		_show_measurement(error)
+	_after_vertex_edit()
+
+
+func _vertex_cancel_drag() -> void:
+	if vertex_drag == NO_VERTEX:
+		return
+	var live := _drag_is_live()
+	var feature := vertex_drag_feature
+	var put_back := vertex_drag
+	vertex_drag = NO_VERTEX
+	vertex_drag_feature = null
+	if not live:
+		return
+	feature.rings[put_back.x][put_back.y] = vertex_drag_was
+	feature.rebuild_triangles()
+	_after_vertex_edit()
+
+
+# Take out the vertex the tool is working on. Refused when the part would fall
+# under the minimum its kind needs: on the globe a triangle would otherwise
+# disappear under a single key press.
+func delete_selected_vertex() -> String:
+	var feature := features.feature_tree.get_selected_node()
+	var target := vertex_in_hand()
+	if feature == null or feature.is_group or target == NO_VERTEX:
+		return "The pointer is on no vertex, and none is picked."
+	if target.x >= feature.rings.size() or target.y >= feature.rings[target.x].size():
+		return "That vertex is no longer there."
+	var problem := GeometryEdit.removal_problem(
+		feature.rings[target.x], target.y, feature.geometry_kind)
+	if not problem.is_empty():
+		return problem
+	var error := document.remove_vertex(feature, target.x, target.y)
+	if not error.is_empty():
+		return error
+	hovered_vertex = NO_VERTEX
+	selected_vertex = NO_VERTEX
+	split_from = NO_VERTEX
+	_after_vertex_edit()
+	return ""
+
+
+func _after_vertex_edit() -> void:
+	features.reload()
+	refresh_geometry()
+	properties.show_node(features.feature_tree.get_selected_node())
+	_update_tool_buttons()
+
+
+### Splitting
+
+
+# Why the selected feature cannot be split where the tool is pointing, or an
+# empty string when it can. A polyline is cut at the picked vertex; a polygon
+# between it and the one held with Split From.
+func _split_problem() -> String:
+	if active_tool != Tool.VERTEX:
+		return "Splitting belongs to the Vertex tool."
+	var feature := features.feature_tree.get_selected_node()
+	if feature == null or feature.is_group or selected_vertex == NO_VERTEX:
+		return "Pick the vertex to split at first."
+	var ring: PackedVector2Array = feature.rings[selected_vertex.x]
+	match feature.geometry_kind:
+		Feature.GeometryKind.POLYLINE:
+			return GeometryEdit.polyline_split_problem(ring, selected_vertex.y)
+		Feature.GeometryKind.POLYGON:
+			if split_from == NO_VERTEX or split_from.x != selected_vertex.x:
+				return "A polygon is cut between two vertices; hold the first with Split From."
+			return GeometryEdit.polygon_split_problem(ring, split_from.y, selected_vertex.y)
+	return "A multipoint is separate markers, so it has no path to split."
+
+
+func _split_tooltip() -> String:
+	var problem := _split_problem()
+	return "Split the feature in two" if problem.is_empty() else problem
+
+
+# Hold the picked vertex as one end of a polygon cut. The other end is whichever
+# vertex is picked next.
+func hold_split_from() -> String:
+	var feature := features.feature_tree.get_selected_node()
+	if feature == null or feature.is_group or selected_vertex == NO_VERTEX:
+		return "Pick a vertex first."
+	if feature.geometry_kind != Feature.GeometryKind.POLYGON:
+		return "Only a polygon is cut between two vertices."
+	split_from = selected_vertex
+	_update_tool_buttons()
+	return ""
+
+
+func split_at_selected_vertex() -> String:
+	var problem := _split_problem()
+	if not problem.is_empty():
+		return problem
+	var feature := features.feature_tree.get_selected_node()
+	var other := split_from.y if feature.geometry_kind == Feature.GeometryKind.POLYGON else -1
+	var error := document.split_feature(feature, selected_vertex.x, selected_vertex.y, other)
+	if not error.is_empty():
+		return error
+	split_from = NO_VERTEX
+	selected_vertex = NO_VERTEX
+	features.reload()
+	refresh_geometry()
+	_update_tool_buttons()
+	return ""
+
+
+### The Measure tool
+#
+# The points that have been clicked, and the great circle distance along them.
+# The radius they are read against is a preference; see
+# Config.get_planet_radius().
+
+var measure_points := PackedVector2Array()
+
+
+func _on_measure_input(_lat: float, _lon: float, event: InputEvent) -> void:
+	if event is not InputEventMouseButton or not event.is_pressed():
+		return
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		measure_points.append(Vector2(_lat, _lon))
+	elif event.button_index == MOUSE_BUTTON_RIGHT and not measure_points.is_empty():
+		measure_points.remove_at(measure_points.size() - 1)
+	else:
+		return
+	_refresh_selection_outline()
+	_show_measurement()
+
+
+func _measure_clear() -> void:
+	measure_points = PackedVector2Array()
+	_show_measurement()
+
+
+# What the status bar says about distance: an error while there is one to
+# report, the measured path while the Measure tool has points, the length of the
+# selected geometry while it has none, and nothing at all otherwise.
+func _show_measurement(error: String = "") -> void:
+	if not error.is_empty():
+		status_measure.text = error
+		return
+
+	var radius := Config.get_planet_radius()
+	if active_tool == Tool.MEASURE:
+		if measure_points.size() < 2:
+			status_measure.text = "click two points to measure"
+			return
+		var last := Measure.distance(measure_points[measure_points.size() - 2],
+			measure_points[measure_points.size() - 1], radius)
+		status_measure.text = "%s   total %s" % [Measure.format_km(last),
+			Measure.format_km(Measure.path_length(measure_points, radius))]
+		return
+
+	var selected := features.feature_tree.get_selected_node()
+	var length := Measure.geometry_length(selected, radius)
+	status_measure.text = "" if length <= 0.0 else "%s along %s" % [
+		Measure.format_km(length), selected.title]
+
+
+### Vertices on screen
+
+
+# Where vertices are in window pixels, for picking one and for snapping to one.
+#
+# Returns three lists side by side: the window pixels, the (part, index) each
+# came from, and the world latitude and longitude each is at. A vertex on the
+# far side of the globe has no window pixel and is left out of all three, so a
+# screen distance is never taken to something that cannot be seen.
+#
+# With a feature given, only that one is looked at. Otherwise every feature the
+# geometry holds and the current time shows is, which is what lets a vertex snap
+# onto one belonging to another feature.
+func _vertices_on_screen(only: Feature = null, without: Feature = null,
+		except: Vector2i = NO_VERTEX) -> Array:
+	var points := PackedVector2Array()
+	var places: Array[Vector2i] = []
+	var world := PackedVector2Array()
+
+	var wanted: Array[Feature] = []
+	if only != null:
+		wanted.append(only)
+	else:
+		for index in geometry.features.size():
+			if geometry.shown[index]:
+				wanted.append(geometry.features[index])
+
+	for feature in wanted:
+		var m := Feature.world_basis(features.root, feature, document.current_time)
+		for part in feature.rings.size():
+			var turned := Feature.apply_basis(feature.rings[part], m)
+			for index in turned.size():
+				if feature == without and Vector2i(part, index) == except:
+					continue
+				var screen: Variant = planet_view.latlon_to_screen(turned[index].x, turned[index].y)
+				if screen == null:
+					continue
+				points.append(screen)
+				places.append(Vector2i(part, index))
+				world.append(turned[index])
+	return [points, places, world]
+
+
+# One ring of one feature in window pixels, with whatever is round the back left
+# out. A caller that needs the indices to line up checks the size first.
+func _ring_on_screen(feature: Feature, part: int) -> PackedVector2Array:
+	var m := Feature.world_basis(features.root, feature, document.current_time)
+	var points := PackedVector2Array()
+	for vertex in Feature.apply_basis(feature.rings[part], m):
+		var screen: Variant = planet_view.latlon_to_screen(vertex.x, vertex.y)
+		if screen != null:
+			points.append(screen)
+	return points
 
 
 ### Craton interaction
@@ -1055,6 +1641,14 @@ func refresh_motion() -> void:
 func _refresh_selection_outline() -> void:
 	# Don't overwrite the drawing outline
 	if not outline_vertices.is_empty():
+		return
+	# The Measure tool draws the path it has been given instead, so the points
+	# clicked and the line between them are visible while the distance is read.
+	if active_tool == Tool.MEASURE:
+		planet_view.planet.set_outline([] if measure_points.is_empty() else [{
+			"vertices": measure_points,
+			"style": Planet.OutlineStyle.OPEN,
+		}])
 		return
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group or not selected.has_geometry():

@@ -12,7 +12,7 @@ on every change. `Tests/run.py` starts all of them.
 | `self-check` | `python Tests/run.py self-check` | The runner itself: that it reports a test which hits a runtime error as a failure. |
 | `golden`   | `uv run Tests/run.py golden`   | Full window screenshots diffed against reference images. |
 | `all`      | `uv run Tests/run.py all`      | All six in the order above, stopping at the first failure. |
-| `performance` | `uv run Tests/run.py performance` | The frame time during playback, on a document of a chosen triangle count. Not part of `all`. |
+| `performance` | `uv run Tests/run.py performance` | The frame time during playback, and what one hit test costs with and without the bounding cap, on a document of a chosen triangle count. Not part of `all`. |
 
 `headless`, `rendered`, `session`, `cli` and `self-check` run under any Python 3.13
 or newer. `golden`
@@ -62,6 +62,13 @@ GDScript tests live in two directories and are discovered by file name:
 Every method named `test_*` is one test. The runner (`Tests/run_tests.gd`) creates a
 fresh instance of the test class per method, so tests do not share state. Helper
 methods must not start with `test_` or the runner calls them as tests.
+
+Do not declare a script level `static var` in a rendered test. It makes the
+engine segfault during shutdown, after every test has passed and the summary has
+been printed, so the run fails with nothing to point at. A `const` array of
+`Vector2`, turned into a `PackedVector2Array` where it is used, does the same job
+without it. The file passes when it is the only one being run, which is what
+makes this easy to miss; `Tests/Unit` is unaffected. See GP-0025.
 
 Assertions collect failures instead of aborting: `assert_true`, `assert_eq`,
 `assert_close` and `fail` append to `TestCase.failures`, so one test method reports
@@ -113,6 +120,16 @@ reason: the Paste button of the feature tree toolbar is greyed out by what the
 clipboard holds, and an unknown clipboard is a 40 by 40 difference in every
 scene.
 
+The vertex scenarios come last: `run_vertex_session` drags a vertex, inserts one
+on an edge and deletes one, all at a time that has moved the feature away from
+where its vertices are stored, so an edit that forgot to map the click back into
+the feature's own frame would be caught even though the globe looked right;
+`run_snap_session` drops a vertex a few pixels from one belonging to another
+feature, with snapping on and then off; `run_measure_session` reads a distance
+off the status bar and checks it against the arc it was told to measure, on two
+planet radii; and `run_split_session` cuts a polygon in two and checks that both
+halves kept the type, the colour, the time range and the keyframes.
+
 `cli.py` reads the switch list out of `Logic/cli.gd`, so a new switch that
 `--help` forgets to list fails the run.
 
@@ -157,6 +174,14 @@ What it found on the development machine is in
 triangles, playing costs almost nothing over standing still, and the limit is
 the per-fragment loop over the triangles rather than anything the time control
 does.
+
+The same run then hit tests two thousand points spread over the whole globe,
+twice: once against the [bounding caps](Shader.md#the-bounding-cap) the geometry
+was built with, and once against caps widened to the whole sphere, which is what
+the hit test faced before there were any. Widening a cap is not a switch put in
+for the benchmark; a feature spanning more than a hemisphere gets exactly that
+cap. The run fails if the caps do not make the hit test at least five times
+faster.
 
 ## Golden images
 
@@ -224,8 +249,11 @@ a round trip is also a wait for the screen to catch up.
 | `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `enabled`, `time_from`, `time_to` |
 | `properties {button, part, index}`   | selects a vertex row and presses `Add` or `Remove` in the panel |
 | `keyframes {button, index}`          | selects a keyframe row and presses `Key` or `Delete` in the panel |
-| `get_tool`                           | `tool` (`move` or `draw`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, and how many vertices the shape being drawn holds |
-| `set_tool {tool, kind}`              | picks the tool and the geometry kind, refusing what the toolbar itself would not allow |
+| `get_tool`                           | `tool` (`move`, `draw`, `vertex` or `measure`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, and the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split` and the Measure tool's `measure_points` |
+| `set_tool {tool, kind, snap}`        | picks the tool, the geometry kind and the snap switch, refusing what the toolbar itself would not allow |
+| `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
+| `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
+| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
 | `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the keyframe markers and the animation settings |
 | `timeline {button}`                  | presses a time control button: `Play`, `Pause`, `Reset`, `Older`, `Younger`, `Configure` |
@@ -240,7 +268,8 @@ a round trip is also a wait for the screen to catch up.
 | `screen_to_latlon {x, y}`            | `latlon: [lat, lon]`, or `null` off the globe                    |
 | `get_pixel {x, y}`                   | `color: [r, g, b, a]` in the range 0 to 1                        |
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
-| `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` |
+| `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
+| `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
 | `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `status_bar`, `full_screen`, `about` |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |

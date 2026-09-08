@@ -138,6 +138,29 @@ carrying the geometry into world space, it carries the point being asked about
 into each feature's frame, through the transpose of that same rotation: one
 rotation of one point per feature instead of one per vertex.
 
+### The bounding cap
+
+The hit test runs on every mouse motion, and walking every triangle of every
+feature to answer it is most of what it costs. Each feature therefore carries a
+cap: a centre and an angular radius that hold every vertex it draws, worked out
+once by `Geometry.build_caps()` when the geometry is collected.
+
+The cap is in the feature's own frame, like the vertices, so moving a feature
+never invalidates it and a step of an animation does not touch it. The point
+being asked about is already carried into that frame, so testing it is one dot
+product against the centre. A point outside the cap is outside everything the
+feature draws, and the whole feature is skipped before a triangle is looked at.
+
+The radius is widened by the click tolerance, so a click just beside a thin line
+still reaches the segment test. A feature wider than a hemisphere gets a cap of
+the whole sphere, stored as a cosine of -1, and the loop then behaves exactly as
+it did before caps existed.
+
+On the 5,000 triangle sample of `Tests/run.py performance`, on an AMD Radeon
+8060S, one hit test costs 76 microseconds with the caps and 5,925 without them,
+which is 78 times faster. Most of that is features rejected outright: the cost
+of the ones that survive the cap is what is left.
+
 ## GDScript API
 
 ### `Planet.Geometry`
@@ -149,6 +172,8 @@ uploaded apart:
 |---|---|
 | `primitives` | One dictionary per primitive: `kind`, `verts`, `color`, `feature`, `index` |
 | `features` | The features the primitives belong to, in the order they were met |
+| `starts`, `ends` | Where each feature's primitives sit in `primitives`, as a half open range |
+| `cap_centres`, `cap_cosines` | The bounding cap of each feature, in its own frame |
 | `bases`, `shown` | Where each feature is and whether it is there, at `time` |
 
 `verts` are `Vector2(latitude, longitude)` in **degrees**, in the feature's own
@@ -183,9 +208,10 @@ planet.set_feature_state(geometry, hovered_feature)
 
 ### `Planet.hit_test(lat, lon, geometry) -> Feature`
 
-The same tests on the CPU, walking the primitives backwards so the topmost one
-wins, and skipping whichever features `shown` says are not there. Returns the
-feature under the point, or null.
+The same tests on the CPU, walking the features backwards so the topmost one
+wins, skipping whichever features `shown` says are not there, and skipping the
+ones whose [bounding cap](#the-bounding-cap) the point falls outside. Returns
+the feature under the point, or null.
 
 ## Outline Overlay
 

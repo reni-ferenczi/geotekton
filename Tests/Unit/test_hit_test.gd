@@ -93,6 +93,81 @@ func test_overlapping_features_resolve_to_the_first_child() -> void:
 	assert_eq(Planet.hit_test(0, 0, geometry), first)
 
 
+### The bounding cap
+#
+# The cap is what lets the hit test throw a feature away with one multiply
+# instead of walking its triangles. Everything here checks that it never throws
+# away something it should have kept; that it is faster is measured by
+# Tests/performance.py rather than asserted here.
+
+
+func test_the_cap_holds_every_vertex_of_its_feature() -> void:
+	var feature := _make_feature("Craton", Color.RED, Vector3.ZERO)
+	var geometry := Planet.collect_geometry(_make_root([feature]))
+	assert_eq(geometry.features.size(), 1)
+	assert_true(geometry.cap_cosines[0] > -1.0, "a small triangle gets a cap worth having")
+
+	for vertex in TRIANGLE:
+		var unit := Planet._latlon_to_unit(deg_to_rad(vertex.x), deg_to_rad(vertex.y))
+		assert_true(unit.dot(geometry.cap_centres[0]) >= geometry.cap_cosines[0],
+			"the vertex at %s is inside the cap" % vertex)
+
+
+func test_the_cap_covers_the_click_tolerance_around_a_marker() -> void:
+	# A multipoint is hit within POINT_HIT_RADIUS of its marker, so the cap has
+	# to reach that far too or the hit would be rejected before it is tested.
+	var feature := _make_feature("Islands", Color.RED, Vector3.ZERO,
+		PackedVector2Array([Vector2(0, 0)]), Feature.GeometryKind.MULTIPOINT)
+	var geometry := Planet.collect_geometry(_make_root([feature]))
+	var edge := Vector2(0.0, rad_to_deg(2.0 * asin(Planet.POINT_HIT_RADIUS * 0.5)) * 0.99)
+	assert_eq(Planet.hit_test(edge.x, edge.y, geometry), feature,
+		"a click just inside the tolerance still reaches the marker")
+
+
+func test_a_feature_that_covers_the_planet_keeps_a_cap_of_everything() -> void:
+	# Four markers at the poles and on opposite sides of the equator. No cap
+	# smaller than the whole sphere holds them, so the hit test walks the
+	# feature as it would have without caps at all.
+	var feature := _make_feature("Everywhere", Color.RED, Vector3.ZERO,
+		PackedVector2Array([Vector2(90, 0), Vector2(-90, 0), Vector2(0, 0), Vector2(0, 180)]),
+		Feature.GeometryKind.MULTIPOINT)
+	var geometry := Planet.collect_geometry(_make_root([feature]))
+	assert_close(geometry.cap_cosines[0], -1.0, 1e-9, "the cap holds the whole sphere")
+	assert_eq(Planet.hit_test(90, 0, geometry), feature, "and every marker is still hit")
+	assert_eq(Planet.hit_test(0, 180, geometry), feature)
+
+
+func test_the_cap_follows_the_feature_when_the_time_moves_it() -> void:
+	# The cap is in the feature's own frame, so it is the point being asked
+	# about that is carried into that frame, not the cap out of it. A feature
+	# with two keyframes is hit in two different places at two times, with the
+	# cap never rebuilt in between.
+	var feature := _make_feature("Craton", Color.RED, Vector3.ZERO)
+	Keyframe.upsert(feature.keyframes, 0.0, Vector3.ZERO)
+	Keyframe.upsert(feature.keyframes, 100.0, Vector3(90, 0, 0))
+	var root := _make_root([feature])
+	var geometry := Planet.collect_geometry(root, 0.0)
+	assert_eq(Planet.hit_test(0, 0, geometry), feature, "at time zero it is where it was drawn")
+
+	geometry.resolve(root, 100.0)
+	assert_eq(Planet.hit_test(0, 0, geometry), null, "at 100 it has moved off that point")
+	assert_eq(Planet.hit_test(0, -90, geometry), feature, "and onto this one")
+
+
+func test_a_feature_of_several_parts_is_capped_around_all_of_them() -> void:
+	var feature := Feature.create_feature("Two blobs", Color.RED)
+	feature.add_ring(PackedVector2Array([Vector2(-5, -35), Vector2(5, -25), Vector2(-5, -15)]),
+		Feature.GeometryKind.POLYGON)
+	feature.add_ring(PackedVector2Array([Vector2(-5, 15), Vector2(5, 25), Vector2(-5, 35)]),
+		Feature.GeometryKind.POLYGON)
+	var geometry := Planet.collect_geometry(_make_root([feature]))
+	assert_eq(geometry.starts[0], 0, "both parts belong to the one feature")
+	assert_eq(geometry.ends[0], geometry.primitives.size())
+	assert_eq(Planet.hit_test(-2, -25, geometry), feature, "the first part is hit")
+	assert_eq(Planet.hit_test(-2, 25, geometry), feature, "and so is the second")
+	assert_eq(Planet.hit_test(0, 0, geometry), null, "the gap between them is not")
+
+
 func _make_feature(title: String, color: Color, rotation: Vector3,
 		ring: PackedVector2Array = TRIANGLE,
 		kind: Feature.GeometryKind = Feature.GeometryKind.POLYGON) -> Feature:

@@ -66,13 +66,20 @@ hidden while the window is not full screen.
 
 ## Status bar
 
-Two fields: where the mouse is on the planet, and the open file.
+Three fields: where the mouse is on the planet, what the tools have to say, and
+the open file.
 
 - The coordinates come from the `cursor_moved` signal of the planet view, which
   fires for the globe and the map. It reads `off the planet` while the pointer
   is over the view but not over the planet, and once the pointer leaves the
   window, which the view learns from its own `mouse_exited` rather than from the
   planet. The craton highlight under the pointer ends at the same moment.
+- The middle field is the tools'. The [Measure tool](Editing.md#the-measure-tool)
+  shows the last segment and the total along the path being measured; outside it
+  the field shows the length along the selected feature's geometry. It is also
+  where the [Vertex tool](Editing.md#the-vertex-tool) says why it refused
+  something, so a deletion that would leave half a shape is answered in place
+  rather than in a dialog.
 - The file field shows the file name, with an asterisk while the document has
   unsaved changes, and the whole path as its tooltip. The window title carries
   the same name and marker.
@@ -85,9 +92,18 @@ One page so far, in the dialog under File > Preferences:
   setting the dialogs update as files are opened and saved.
 - **Reopen the last file on launch** — when off, the application starts with an
   empty document however the last session ended.
+- **Planet radius (km)** — what distances are read against, in whole kilometres.
+  It defaults to Earth's mean radius; see
+  [Editing](Editing.md#the-planet-radius) for why it is a preference and not
+  part of a document.
+- **Vertex marker size** and **Outline line width** — how large the outline
+  overlay draws the vertices of the selected feature and the lines between them,
+  as multiples of what the shader draws at.
 
-Both are written to the config file described in
-[Persistence](Persistence.md#the-config-file).
+All of them are written to the config file described in
+[Persistence](Persistence.md#the-config-file). So is the state of the Snap
+switch in the toolbar, which is not in the dialog because it is toggled while
+editing rather than set once.
 
 ## Command line
 

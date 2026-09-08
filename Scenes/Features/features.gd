@@ -37,7 +37,7 @@ func attach(document_: Document) -> void:
 	_on_root_replaced()
 
 
-func _on_root_replaced() -> void:
+func _on_root_replaced(_same_document: bool = false) -> void:
 	var selected := feature_tree.get_selected_node()
 	reload()
 	# reload() puts the selection back by pnid, which a clone keeps, so undo and

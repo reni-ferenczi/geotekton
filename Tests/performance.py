@@ -1,11 +1,15 @@
-"""Frame time during playback, on a document big enough to be worth measuring.
+"""Frame time during playback, and what the hit test costs, on a document big
+enough to be worth measuring.
 
 Builds a sample of a chosen triangle count, every feature of it moving, plays
 the animation and samples the engine's own frame counters while it runs. The
-number is read off the counters, never off how the animation looks.
+number is read off the counters, never off how the animation looks. Then hit
+tests a spread of points over the whole globe, with the bounding caps and with
+caps widened to the whole sphere, which is what the hit test faced before the
+caps existed.
 
-This is not part of `run.py all`: a frame time depends on the machine and on
-what else it is doing, so it is run on purpose rather than on every change.
+This is not part of `run.py all`: a time depends on the machine and on what
+else it is doing, so it is run on purpose rather than on every change.
 
 Usage:
     uv run Tests/performance.py [--port N] [--triangles N] [--budget MS]
@@ -43,6 +47,11 @@ CIRCLE_RADIUS = 6.0
 # traffic ends up larger than the work being measured.
 SAMPLES = 120
 WARMUP_SAMPLES = 30
+
+# How many points the hit test benchmark asks about, and how much faster the
+# caps have to make it. The phase asked for five times on the largest sample.
+HIT_TEST_SAMPLES = 2000
+HIT_TEST_SPEEDUP = 5.0
 
 USAGE = "usage: performance.py [--port N] [--triangles N] [--budget MS]"
 
@@ -149,6 +158,21 @@ def measure(client: AutomationClient, budget_ms: float) -> bool:
     return within
 
 
+def measure_hit_test(client: AutomationClient) -> bool:
+    """Report what one hit test costs with and without the caps."""
+    reading = client.call("benchmark_hit_test", samples=HIT_TEST_SAMPLES)["hit_test"]
+    capped, uncapped = reading["capped_us"], reading["uncapped_us"]
+    speedup = uncapped / capped if capped > 0.0 else float("inf")
+    print(f"{reading['samples']} hit tests over {reading['primitives']} primitives, "
+          f"{reading['hits']} of them landing on a feature")
+    print(f"without the bounding cap: {uncapped:.1f} us each")
+    print(f"with it:                  {capped:.1f} us each, {speedup:.1f} times faster")
+    fast_enough = speedup >= HIT_TEST_SPEEDUP
+    print(f"{'PASS' if fast_enough else 'FAIL'} the cap makes the hit test at least "
+          f"{HIT_TEST_SPEEDUP:.0f} times faster")
+    return fast_enough
+
+
 def main(argv: list[str]) -> int:
     port, triangles, budget = DEFAULT_PORT, DEFAULT_TRIANGLES, DEFAULT_BUDGET_MS
     while argv:
@@ -173,11 +197,16 @@ def main(argv: list[str]) -> int:
 
     process = launch_app(port)
     client = AutomationClient(port)
-    within = False
+    passed = False
     try:
         client.connect()
         client.call("load", path=str(sample))
+        # The frame time first. The hit test benchmark spends about ten seconds
+        # solidly on one core, and a machine that has just done that does not
+        # report the frame time it would have cold.
         within = measure(client, budget)
+        print()
+        passed = measure_hit_test(client) and within
     finally:
         try:
             client.call("quit")
@@ -191,7 +220,7 @@ def main(argv: list[str]) -> int:
         if process.poll() is None:
             process.kill()
 
-    return 0 if within else 1
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

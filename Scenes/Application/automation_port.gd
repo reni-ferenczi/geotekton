@@ -6,6 +6,14 @@ class_name AutomationPort
 # newline delimited JSON: one request object per line, one response object per line.
 # Requests are handled one at a time, in order.
 
+# The tool names a scripted run uses, matching the toolbar buttons.
+const TOOL_NAMES := {
+	Application.Tool.MOVE: "move",
+	Application.Tool.DRAW: "draw",
+	Application.Tool.VERTEX: "vertex",
+	Application.Tool.MEASURE: "measure",
+}
+
 const BUTTONS := {
 	"left": MOUSE_BUTTON_LEFT,
 	"right": MOUSE_BUTTON_RIGHT,
@@ -116,6 +124,9 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"title": app.get_window().title,
 				"can_undo": app.document.can_undo(),
 				"can_redo": app.document.can_redo(),
+				# How many versions are applied, so a run can check that an
+				# edit recorded exactly one.
+				"undo_depth": app.document.applied,
 			}}
 
 		"menu":
@@ -287,6 +298,16 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"playing": _timeline().playing,
 			}}
 
+		"benchmark_hit_test":
+			# What the bounding cap is worth, measured on the document that is
+			# loaded. The same points are hit tested twice: once against the
+			# caps the geometry was built with, and once against caps widened
+			# to the whole sphere, which is what the hit test faced before
+			# there were any. Widening a cap is not a switch put in for the
+			# benchmark: a feature spanning more than a hemisphere gets exactly
+			# that cap, and the loop then behaves as it always did.
+			return _benchmark_hit_test(int(request.get("samples", 2000)))
+
 		"get_timeline":
 			return {"ok": true, "timeline": _timeline().to_json()}
 
@@ -404,11 +425,19 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				if not app.kind_selector.is_item_disabled(index):
 					allowed.append(Feature.KIND_NAMES[app.kind_selector.get_item_id(index)])
 			return {"ok": true,
-				"tool": "draw" if app.active_tool == Application.Tool.DRAW else "move",
+				"tool": TOOL_NAMES[app.active_tool],
 				"kind": Feature.KIND_NAMES[app.drawing_kind()],
 				"kind_locked": app.kind_selector.disabled,
 				"allowed_kinds": allowed,
-				"drawing_vertices": app.outline_vertices.size()}
+				"drawing_vertices": app.outline_vertices.size(),
+				"vertex_enabled": not app.vertex_button.disabled,
+				"snapping": app.snapping(),
+				"selected_vertex": _vertex_to_json(app.selected_vertex),
+				"hovered_vertex": _vertex_to_json(app.hovered_vertex),
+				"split_from": _vertex_to_json(app.split_from),
+				"can_split": not app.split_button.disabled,
+				"measure_points": _points_to_json(app.measure_points),
+				"status_measure": app.status_measure.text}
 
 		"set_tool":
 			# Only what the toolbar itself allows: no drawing without a leaf
@@ -418,10 +447,20 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				if app.draw_button.disabled:
 					return {"ok": false, "error": "the Draw tool needs a feature selected"}
 				app.set_active_tool(Application.Tool.DRAW)
+			elif tool_name == "vertex":
+				if app.vertex_button.disabled:
+					return {"ok": false, "error":
+						"the Vertex tool needs a feature that holds geometry"}
+				app.set_active_tool(Application.Tool.VERTEX)
+			elif tool_name == "measure":
+				app.set_active_tool(Application.Tool.MEASURE)
 			elif tool_name == "move":
 				app.set_active_tool(Application.Tool.MOVE)
 			elif not tool_name.is_empty():
 				return {"ok": false, "error": "unknown tool: %s" % tool_name}
+			if request.has("snap"):
+				app.snap_button.button_pressed = bool(request["snap"])
+				app.snap_button.toggled.emit(app.snap_button.button_pressed)
 			if request.has("kind"):
 				var kind_name := str(request["kind"])
 				if not Feature.KIND_VALUES.has(kind_name):
@@ -438,6 +477,58 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"vertex":
+			# What the Vertex tool does without a mouse: hold the first end of a
+			# polygon cut, split, or delete the vertex it is working on. Picking
+			# and dragging go through press, mouse_move and release, since
+			# picking one is the thing being checked.
+			var problem := ""
+			match str(request.get("action", "")):
+				"split_from":
+					problem = app.hold_split_from()
+				"split":
+					problem = app.split_at_selected_vertex()
+				"delete":
+					problem = app.delete_selected_vertex()
+				_:
+					return {"ok": false, "error":
+						"unknown vertex action: %s" % request.get("action", "")}
+			if not problem.is_empty():
+				return {"ok": false, "error": problem}
+			await _frames(2)
+			return {"ok": true}
+
+		"get_status":
+			return {"ok": true, "status": {
+				"coordinates": app.status_coordinates.text,
+				"measure": app.status_measure.text,
+				"file": app.status_file.text,
+			}}
+
+		"get_preferences":
+			return {"ok": true, "preferences": {
+				"planet_radius_km": Config.get_planet_radius(),
+				"vertex_marker_scale": Config.get_vertex_marker_scale(),
+				"line_width_scale": Config.get_line_width_scale(),
+				"snap_to_vertices": Config.get_snap_to_vertices(),
+			}}
+
+		"set_preferences":
+			# The Preferences dialog without the dialog: whatever the request
+			# names is changed through the same fields, the rest stays as it was.
+			app.show_preferences()
+			var wanted: Dictionary = request.get("preferences", {})
+			if wanted.has("planet_radius_km"):
+				app.radius_spin.value = float(wanted["planet_radius_km"])
+			if wanted.has("vertex_marker_scale"):
+				app.marker_spin.value = float(wanted["vertex_marker_scale"])
+			if wanted.has("line_width_scale"):
+				app.line_spin.value = float(wanted["line_width_scale"])
+			app.preferences_dialog.hide()
+			app.preferences_dialog.confirmed.emit()
+			await _frames(2)
+			return {"ok": true}
+
 		"quit":
 			quitting = true
 			return {"ok": true}
@@ -446,6 +537,61 @@ func _dispatch(request: Dictionary) -> Dictionary:
 
 
 ### Helpers
+
+
+func _vertex_to_json(vertex: Vector2i) -> Variant:
+	return null if vertex == Application.NO_VERTEX else [vertex.x, vertex.y]
+
+
+func _points_to_json(points: PackedVector2Array) -> Array:
+	var list: Array = []
+	for point in points:
+		list.append([point.x, point.y])
+	return list
+
+
+# Hit test the same spread of points with and without the caps, and report the
+# microseconds one hit test costs each way.
+func _benchmark_hit_test(samples: int) -> Dictionary:
+	var geometry: Planet.Geometry = app.geometry
+	if geometry.features.is_empty():
+		return {"ok": false, "error": "nothing is loaded to hit test"}
+
+	# A spread over the whole globe rather than random points, so two runs of
+	# the benchmark ask the same questions. The golden ratio in longitude walks
+	# around the planet without ever repeating a meridian.
+	var points := PackedVector2Array()
+	for i in range(samples):
+		var t := (float(i) + 0.5) / float(samples)
+		points.append(Vector2(rad_to_deg(asin(2.0 * t - 1.0)), fmod(i * 222.4922, 360.0) - 180.0))
+
+	var capped := _time_hit_tests(points, geometry)
+	var hits := 0
+	for point in points:
+		if Planet.hit_test(point.x, point.y, geometry) != null:
+			hits += 1
+
+	var kept := geometry.cap_cosines.duplicate()
+	for i in range(geometry.cap_cosines.size()):
+		geometry.cap_cosines[i] = -1.0
+	var uncapped := _time_hit_tests(points, geometry)
+	geometry.cap_cosines = kept
+
+	return {"ok": true, "hit_test": {
+		"samples": samples,
+		"hits": hits,
+		"capped_us": capped / float(samples),
+		"uncapped_us": uncapped / float(samples),
+		"primitives": geometry.primitives.size(),
+		"features": geometry.features.size(),
+	}}
+
+
+func _time_hit_tests(points: PackedVector2Array, geometry: Planet.Geometry) -> float:
+	var started := Time.get_ticks_usec()
+	for point in points:
+		Planet.hit_test(point.x, point.y, geometry)
+	return float(Time.get_ticks_usec() - started)
 
 
 func _frames(count: int) -> void:

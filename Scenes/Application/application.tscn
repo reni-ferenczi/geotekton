@@ -7,6 +7,10 @@
 [ext_resource type="PackedScene" uid="uid://c7lgrfk5yi1l4" path="res://Scenes/Application/properties.tscn" id="5_83lrd"]
 [ext_resource type="Texture2D" uid="uid://ckeyhv2ygt3k4" path="res://Assets/GodotIcons/ToolMove.svg" id="6_toolmove"]
 [ext_resource type="Texture2D" uid="uid://drgl1h6nlsu3l" path="res://Assets/GodotIcons/Edit.svg" id="7_tooldraw"]
+[ext_resource type="Texture2D" uid="uid://cek62f1d17y64" path="res://Assets/GodotIcons/CurveEdit.svg" id="8_toolvertex"]
+[ext_resource type="Texture2D" uid="uid://ceybndew6vt08" path="res://Assets/GodotIcons/Ruler.svg" id="9_toolmeasure"]
+[ext_resource type="Texture2D" uid="uid://c8cem4qmabn4u" path="res://Assets/GodotIcons/Snap.svg" id="10_toolsnap"]
+[ext_resource type="Texture2D" uid="uid://bbx5oicbbars8" path="res://Assets/GodotIcons/CurveClose.svg" id="11_toolsplit"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
@@ -79,6 +83,44 @@ toggle_mode = true
 icon = ExtResource("7_tooldraw")
 expand_icon = true
 
+[node name="Vertex" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Edit the vertices of the selected feature"
+disabled = true
+toggle_mode = true
+icon = ExtResource("8_toolvertex")
+expand_icon = true
+
+[node name="Measure" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Measure distances on the planet"
+toggle_mode = true
+icon = ExtResource("9_toolmeasure")
+expand_icon = true
+
+[node name="Snap" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Snap a dragged vertex onto a nearby one"
+disabled = true
+toggle_mode = true
+icon = ExtResource("10_toolsnap")
+expand_icon = true
+
+[node name="Split" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Split the feature in two"
+disabled = true
+icon = ExtResource("11_toolsplit")
+expand_icon = true
+
 [node name="GeometryKind" type="OptionButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(140, 40)
@@ -109,6 +151,12 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 layout_mode = 2
 
 [node name="StatusCoordinates" type="Label" parent="StatusBar/Fields"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+vertical_alignment = 1
+
+[node name="StatusMeasure" type="Label" parent="StatusBar/Fields"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
