@@ -5,14 +5,16 @@ put vertices down, then press Enter to commit them.
 
 ## Tool Selection
 
-The toolbar above the planet view holds two mutually exclusive tool buttons and
-a selector for what the Draw tool produces:
+The toolbar above the planet view holds four mutually exclusive tool buttons and
+a selector for what the Draw tool produces. Only the two this page is about are
+listed here; the rest are in [Editing](Editing.md#tools):
 
 - **Move** (ToolMove icon) — Default. Enables rotation and dragging of the globe.
 - **Draw** (Edit/pencil icon) — Enables drawing on the globe surface.
 - **Geometry kind** — Polygon, Polyline or Multipoint.
 
-Only one tool can be active at a time. They behave as a radio button group: selecting one deselects the other.
+Only one tool can be active at a time. They behave as a radio button group:
+selecting one deselects the others.
 
 ### Enabling the Draw Tool
 

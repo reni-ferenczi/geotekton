@@ -2,13 +2,33 @@
 
 ## Tools
 
-The toolbar contains two mutually exclusive tool buttons and a selector:
+The toolbar contains four mutually exclusive tool buttons, two switches and a
+selector:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
 - **Draw** — Enables drawing on the globe surface. See `Docs/Draw.md` for full details.
+- **Vertex** — Edits the vertices of the selected feature. Needs a leaf feature
+  that already holds geometry; see [The Vertex tool](#the-vertex-tool).
+- **Measure** — Reports great circle distances in the status bar; see
+  [The Measure tool](#the-measure-tool).
+- **Snap** — Whether a dragged vertex jumps onto a nearby one. Only the Vertex
+  tool uses it; see [Snapping](#snapping).
+- **Split** — Cuts the selected feature in two at the vertex the Vertex tool is
+  holding; see [Splitting](#splitting). Its tooltip says why it is unavailable
+  when it is.
 - **Geometry kind** — What the Draw tool produces: Polygon, Polyline or
   Multipoint. Only the kinds the selected feature's type allows can be picked;
   see [Properties](Properties.md#what-the-type-restricts).
+
+Only one of Move, Draw, Vertex and Measure is active at a time. Everything but
+Move takes the clicks on the planet for itself, so selecting a feature, moving
+one and the right click menu wait until Move comes back. Rotating the globe with
+the middle button always works.
+
+Undo and redo leave the active tool alone: they put another version of the same
+document in place, which is no reason to take a tool out of someone's hand mid
+edit. File > New and File > Open do go back to Move, since whatever was half
+drawn or half picked belonged to the document being left.
 
 ## The feature tree
 
@@ -61,9 +81,154 @@ time, so moving at two times is what makes something move at all — see
 
 After committing a shape (pressing Enter in the Draw tool), the Move tool is automatically selected. This prevents accidentally drawing a second shape on the same feature.
 
+## The Vertex tool
+
+The Vertex tool edits the geometry of the selected feature on the globe itself,
+rather than through the coordinate table of the [Properties](Properties.md)
+panel. It is available once a leaf feature that already holds geometry is
+selected; there is nothing to take hold of otherwise.
+
+| Input | Action |
+|-------|--------|
+| **LMB press** on a vertex | Take hold of it and start dragging |
+| **Mouse motion** (while dragging) | The vertex follows the cursor, snapping if snapping is on |
+| **LMB release** | Drop it there — saves one undo version |
+| **LMB click** on an edge | Put a new vertex on that edge, where the click fell |
+| **Delete** | Take the vertex being held out |
+| **S** | Split the feature at the vertex being held |
+| **Shift+S** | Hold that vertex as one end of a polygon cut |
+| **Escape** | Put a dragged vertex back and let go of it |
+| **MMB drag** | Planet rotation, as everywhere |
+
+A click that lands on neither a vertex nor an edge lets go of the one being
+held. Picking works in **window pixels**, not in degrees, so a vertex is as easy
+to hit whatever the view is zoomed to; the reach is
+`Application.VERTEX_PICK_PIXELS`.
+
+### Editing a feature that has moved
+
+A feature keeps its vertices in its own frame, before the rotation its keyframes
+and its groups' give it at the current time; see
+[Time](Time.md#groups-carry-motion). The Vertex tool therefore maps every click
+back into that frame, through the inverse of
+`Feature.world_basis(root, feature, time)`.
+
+That matters as soon as the current time is anywhere but where the feature was
+drawn. An edit that skipped the mapping would look right on the globe and write
+the wrong numbers into the file, so the scripted check in `run_vertex_session`
+reads back the **stored** vertex and turns it through the feature's rotation
+before comparing it with where the pointer was.
+
+### Inserting on an edge
+
+A click near an edge puts a new vertex at the point of that edge nearest the
+click, rather than at the click itself, so the shape does not change until the
+new vertex is dragged. The point is found in pixels, along the straight line
+between the two vertices on screen, and then turned into a latitude and
+longitude a fraction of the way along the great circle arc between them
+(`Measure.along`). Over a long edge the straight line and the arc part company
+slightly, which is why the new vertex can sit a fraction of a degree off the
+edge it was asked for.
+
+An edge with a vertex round the back of the globe is left alone: a screen
+distance to something that cannot be seen means nothing.
+
+### Deleting
+
+Delete takes out the vertex being held. It is **refused** when the part would
+fall under the minimum its kind needs — three for a polygon, two for a polyline,
+one for a multipoint — and the status bar says so. On the globe the alternative
+is a triangle disappearing under a single key press.
+
+The Remove button of the Properties panel is the older behaviour and keeps it:
+there a part that falls under its minimum is removed along with the vertex. The
+two differ on purpose. The panel lists the parts, so one of them going is
+visible in the table the click was made in; the globe shows no such list.
+
+## Snapping
+
+The **Snap** button in the toolbar decides whether a dragged vertex jumps onto a
+nearby one when it is dropped. Every vertex of every feature the current time
+shows is a candidate, not only those of the feature being edited, so two
+features can be made to meet exactly. The vertex being dragged is left out of
+the candidates; it is always nearest to itself.
+
+The reach is `Application.SNAP_PIXELS` in window pixels, and the nearest
+candidate inside it wins. The setting is remembered between runs.
+
+## Splitting
+
+A feature can be cut in two, leaving two features side by side in the tree.
+
+- A **polyline** is cut at one vertex. Both halves keep that vertex, so between
+  them they hold every original vertex once. An end vertex is refused: one half
+  would be a single point.
+- A **polygon** is cut between two vertices. Hold the first with **Shift+S**,
+  then pick the second and press **S** or the Split button. Both halves keep
+  both vertices.
+
+The cut has to lie inside the shape. On a concave polygon a line between two
+vertices can run outside it, across the mouth of a dent, or cross an edge on the
+way; either would leave two rings that overlap instead of covering the original,
+so the split is refused and the status bar says why.
+
+Both halves carry the type, the colour, the time range and the keyframes of the
+feature they came from, so the two go on moving together and go on existing over
+the same span. The first keeps the title and every other part the feature had;
+the second is named after it, `Laurentia` and `Laurentia 2`, and holds its half
+alone.
+
+## The Measure tool
+
+The Measure tool reports great circle distances in the status bar.
+
+| Input | Action |
+|-------|--------|
+| **LMB** on the globe | Add a point to the path being measured |
+| **RMB** | Take the last point back |
+| **Escape** | Start again with no points |
+
+With two or more points the status bar shows the last segment and the total
+along the whole path. With none it says so. Outside the Measure tool the same
+field shows the length along the selected feature's geometry: around the outline
+of a polygon, along a polyline, and nothing for a multipoint, whose vertices are
+separate markers rather than a path.
+
+The points are drawn in the same yellow outline overlay the Draw tool uses, so
+the path being measured is visible while it is read.
+
+### The planet radius
+
+Distances on a sphere are angles until a radius is put to them. The radius is a
+**preference**, not part of a document: it says which planet the numbers are read
+against, not anything about the features, so it neither dirties a document nor
+needs a place in the file format. It defaults to Earth's mean radius, 6371 km,
+the value the IUGG publishes.
+
+The distance itself is worked out with the haversine formula rather than from
+the dot product of the two points. The dot product of two nearly equal unit
+vectors is 1 to within the rounding of the arithmetic, and taking its arc cosine
+throws most of the digits away — and a short distance is what a measurement
+usually is.
+
+## Preferences
+
+File > Preferences carries three settings that belong to the tools:
+
+| Setting | What it does |
+|---------|--------------|
+| Planet radius (km) | What distances are read against, in whole kilometres |
+| Vertex marker size | How large the outline overlay draws its vertex markers |
+| Outline line width | How wide it draws the lines between them |
+
+The two sizes are multiples of what `planet.gdshader` draws at, from
+`Config.MIN_SCALE` to `Config.MAX_SCALE`. A multiple is easier to pick than the
+chord length on a unit sphere the shader uniform is in; see
+[Shader](Shader.md#outline-uniforms).
+
 ## Globe Navigation
 
-Globe navigation works in both Move and Draw modes unless noted otherwise.
+Globe navigation works in every tool unless noted otherwise.
 
 | Input | Action |
 |-------|--------|

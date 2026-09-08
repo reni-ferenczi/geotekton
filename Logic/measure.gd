@@ -27,7 +27,7 @@ const MAX_RADIUS_KM := 1.0e7
 # equal unit vectors is 1 to within the rounding of the arithmetic, and acos
 # then throws away most of the digits. Short distances are what a measurement
 # usually is.
-static func central_angle(a: Vector2, b: Vector2) -> float:
+static func _central_angle(a: Vector2, b: Vector2) -> float:
 	var lat_a := deg_to_rad(a.x)
 	var lat_b := deg_to_rad(b.x)
 	var half_lat := sin((lat_b - lat_a) * 0.5)
@@ -38,7 +38,7 @@ static func central_angle(a: Vector2, b: Vector2) -> float:
 
 # The great circle distance between two points, in the units the radius is in.
 static func distance(a: Vector2, b: Vector2, radius: float = EARTH_RADIUS_KM) -> float:
-	return central_angle(a, b) * radius
+	return _central_angle(a, b) * radius
 
 
 # The distance along a run of vertices, following the great circle arc between
@@ -50,9 +50,9 @@ static func path_length(points: PackedVector2Array, radius: float = EARTH_RADIUS
 		return 0.0
 	var total := 0.0
 	for i in range(points.size() - 1):
-		total += central_angle(points[i], points[i + 1])
+		total += _central_angle(points[i], points[i + 1])
 	if closed:
-		total += central_angle(points[points.size() - 1], points[0])
+		total += _central_angle(points[points.size() - 1], points[0])
 	return total * radius
 
 
@@ -92,10 +92,10 @@ static func along(a: Vector2, b: Vector2, t: float) -> Vector2:
 # How far along the arc from a to b the point nearest to p sits, from 0 at a to
 # 1 at b. Clamped to the arc, so a point beyond either end gives that end.
 static func fraction_along(a: Vector2, b: Vector2, p: Vector2) -> float:
-	var whole := central_angle(a, b)
+	var whole := _central_angle(a, b)
 	if whole < 1e-9:
 		return 0.0
-	return clampf(central_angle(a, p) / whole, 0.0, 1.0)
+	return clampf(_central_angle(a, p) / whole, 0.0, 1.0)
 
 
 # A distance written the way the status bar shows it: metres under a kilometre,

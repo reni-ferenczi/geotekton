@@ -791,8 +791,11 @@ SNAP_POLYGON = [(-8.0, 30.0), (8.0, 30.0), (0.0, 46.0)]
 SNAP_SHORT_PIXELS = 6.0
 
 # Twenty degrees along the equator, a distance the radius turns into a number
-# the check works out for itself rather than reading off the status bar.
+# the check works out for itself rather than reading off the status bar. The
+# radius is Measure.EARTH_RADIUS_KM, which the preference defaults to.
 MEASURE_POINTS = [(0.0, -10.0), (0.0, 10.0)]
+MEASURE_DEGREES = 20.0
+EARTH_RADIUS_KM = 6371.0
 
 # A five vertex polygon, so a cut between two vertices leaves three on one side.
 SPLIT_POLYGON = [(-8.0, -8.0), (8.0, -8.0), (10.0, 4.0), (0.0, 10.0), (-8.0, 6.0)]
@@ -986,7 +989,7 @@ def run_measure_session(client: AutomationClient) -> None:
           f"both points were taken: {tool['measure_points']}")
 
     # 20 degrees along the equator on a sphere of Earth's mean radius.
-    wanted = 20.0 * math.pi / 180.0 * 6371.0
+    wanted = math.radians(MEASURE_DEGREES) * EARTH_RADIUS_KM
     shown = client.call("get_status")["status"]["measure"]
     check(f"{wanted:.1f} km" in shown, f"the status bar shows {wanted:.1f} km: {shown}")
 
@@ -997,9 +1000,9 @@ def run_measure_session(client: AutomationClient) -> None:
     check(client.call("get_preferences")["preferences"]["planet_radius_km"] == other,
           "the radius preference took the new value")
     shown = client.call("get_status")["status"]["measure"]
-    check(f"{20.0 * math.pi / 180.0 * other:.1f} km" in shown,
+    check(f"{math.radians(MEASURE_DEGREES) * other:.1f} km" in shown,
           f"a smaller planet makes every distance smaller: {shown}")
-    client.call("set_preferences", preferences={"planet_radius_km": 6371.0})
+    client.call("set_preferences", preferences={"planet_radius_km": EARTH_RADIUS_KM})
 
 
 def run_split_session(client: AutomationClient) -> None:

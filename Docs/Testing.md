@@ -113,6 +113,16 @@ reason: the Paste button of the feature tree toolbar is greyed out by what the
 clipboard holds, and an unknown clipboard is a 40 by 40 difference in every
 scene.
 
+The vertex scenarios come last: `run_vertex_session` drags a vertex, inserts one
+on an edge and deletes one, all at a time that has moved the feature away from
+where its vertices are stored, so an edit that forgot to map the click back into
+the feature's own frame would be caught even though the globe looked right;
+`run_snap_session` drops a vertex a few pixels from one belonging to another
+feature, with snapping on and then off; `run_measure_session` reads a distance
+off the status bar and checks it against the arc it was told to measure, on two
+planet radii; and `run_split_session` cuts a polygon in two and checks that both
+halves kept the type, the colour, the time range and the keyframes.
+
 `cli.py` reads the switch list out of `Logic/cli.gd`, so a new switch that
 `--help` forgets to list fails the run.
 
@@ -226,8 +236,11 @@ a round trip is also a wait for the screen to catch up.
 | `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `enabled`, `time_from`, `time_to` |
 | `properties {button, part, index}`   | selects a vertex row and presses `Add` or `Remove` in the panel |
 | `keyframes {button, index}`          | selects a keyframe row and presses `Key` or `Delete` in the panel |
-| `get_tool`                           | `tool` (`move` or `draw`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, and how many vertices the shape being drawn holds |
-| `set_tool {tool, kind}`              | picks the tool and the geometry kind, refusing what the toolbar itself would not allow |
+| `get_tool`                           | `tool` (`move`, `draw`, `vertex` or `measure`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, and the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split` and the Measure tool's `measure_points` |
+| `set_tool {tool, kind, snap}`        | picks the tool, the geometry kind and the snap switch, refusing what the toolbar itself would not allow |
+| `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
+| `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
+| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
 | `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the keyframe markers and the animation settings |
 | `timeline {button}`                  | presses a time control button: `Play`, `Pause`, `Reset`, `Older`, `Younger`, `Configure` |
@@ -242,7 +255,8 @@ a round trip is also a wait for the screen to catch up.
 | `screen_to_latlon {x, y}`            | `latlon: [lat, lon]`, or `null` off the globe                    |
 | `get_pixel {x, y}`                   | `color: [r, g, b, a]` in the range 0 to 1                        |
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
-| `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` |
+| `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
+| `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
 | `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `status_bar`, `full_screen`, `about` |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |

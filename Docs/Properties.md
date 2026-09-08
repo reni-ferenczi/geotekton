@@ -118,6 +118,7 @@ undo version:
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |
 | `remove_vertex`         | a part or vertex that is not there                 |
+| `split_feature`         | a group, a part that is not there, a multipoint, and a cut that would leave half a shape or run outside it |
 | `set_keyframe`          | nothing; the time it names replaces or is added    |
 | `set_keyframe_time`     | a keyframe that is not there, a time outside 0 to `MAX_TIME`, and a time another keyframe already holds |
 | `set_keyframe_rotation` | a keyframe that is not there                       |
@@ -141,7 +142,13 @@ accelerator is.
 
 A right click on the globe or the map selects whatever is under the pointer and
 offers Duplicate and Delete on it. Only in the Move tool: in the Draw tool a
-right click takes the last placed vertex back.
+right click takes the last placed vertex back, and in the Measure tool it takes
+back the last point measured to.
+
+The Remove button here and the Delete key of the
+[Vertex tool](Editing.md#deleting) part company over the last vertices of a
+part. This one removes the part along with the vertex; that one refuses. See
+[Deleting](Editing.md#deleting) for why.
 
 ## The file
 
