@@ -43,6 +43,10 @@ SCENES = [
     # The sample is laid out so that the polygon, the polyline and both markers
     # all fit the default view.
     ("mixed_geometry", "mixed_geometry.middle-earth", {}),
+    # The one outline shaped like something real, drawn facing the camera so
+    # that its bay, its neck and its northern lobe are all in the reference and
+    # none of it runs off the limb. See GP-0026.
+    ("craton", "craton.middle-earth", {}),
 ]
 
 USAGE = "usage: golden.py check|update [--port N]"

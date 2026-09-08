@@ -1,0 +1,129 @@
+{
+	"application": "middle-earth",
+	"features": {
+		"children": [
+			{
+				"children": [
+					{
+						"color": [
+							0.0,
+							0.0,
+							1.0,
+							1.0
+						],
+						"enabled": true,
+						"feature_type": "craton",
+						"geometry_kind": "polygon",
+						"is_group": false,
+						"keyframes": [],
+						"rings": [
+							[
+								[
+									-20.0,
+									-26.0
+								],
+								[
+									-8.0,
+									-20.0
+								],
+								[
+									2.0,
+									-22.0
+								],
+								[
+									12.0,
+									-18.0
+								],
+								[
+									9.0,
+									-6.0
+								],
+								[
+									12.5,
+									4.0
+								],
+								[
+									17.0,
+									-4.0
+								],
+								[
+									24.0,
+									2.0
+								],
+								[
+									22.0,
+									14.0
+								],
+								[
+									16.0,
+									10.0
+								],
+								[
+									11.0,
+									8.0
+								],
+								[
+									13.0,
+									18.0
+								],
+								[
+									10.4,
+									25.3
+								],
+								[
+									10.0,
+									25.0
+								],
+								[
+									6.0,
+									23.0
+								],
+								[
+									0.0,
+									6.0
+								],
+								[
+									-2.0,
+									24.0
+								],
+								[
+									-14.0,
+									26.0
+								],
+								[
+									-21.0,
+									16.0
+								],
+								[
+									-18.0,
+									2.0
+								],
+								[
+									-22.0,
+									-12.0
+								]
+							]
+						],
+						"time_range": [
+							0,
+							2000
+						],
+						"title": "Old Shield",
+						"type": "Feature"
+					}
+				],
+				"enabled": true,
+				"is_group": true,
+				"keyframes": [],
+				"title": "Cratons",
+				"type": "Group"
+			}
+		],
+		"enabled": true,
+		"is_group": true,
+		"keyframes": [],
+		"title": "Planet",
+		"type": "Group"
+	},
+	"version": "0.4.0"
+}
