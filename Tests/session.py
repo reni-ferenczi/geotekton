@@ -1596,6 +1596,170 @@ def count_features(node: dict) -> int:
     return 1 + sum(count_features(child) for child in node.get("children", []))
 
 
+### The styling scenario
+
+
+def linear(value: float) -> float:
+    """One sRGB channel back in linear light, which is what the shader was given."""
+    return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+
+
+def normalized(color) -> tuple[float, float, float]:
+    """A colour divided by its own largest channel, so brightness drops out."""
+    largest = max(color[0], color[1], color[2])
+    if largest < 1e-4:
+        return (0.0, 0.0, 0.0)
+    return tuple(channel / largest for channel in color[:3])
+
+
+# How far a probed pixel may be from the colour asked for, once the window's
+# sRGB and the light on the planet are taken out of it. Matches
+# COLOR_TOLERANCE in Tests/Rendered/test_styling.gd.
+COLOR_TOLERANCE = 0.05
+
+
+def is_colour(probed: list[float], expected: list[float]) -> bool:
+    """Whether a probed pixel is the colour it was meant to be drawn in."""
+    left = normalized([linear(channel) for channel in probed])
+    right = normalized(expected)
+    return all(abs(a - b) < COLOR_TOLERANCE for a, b in zip(left, right))
+
+
+def probe_at(client: AutomationClient, lat: float, lon: float) -> list[float]:
+    """The pixel where a place is, with that place brought round to face the camera."""
+    client.call("set_view", show_map=False, lat=lat, lon=lon, angle=0.0, zoom=1.0)
+    screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+    assert screen is not None, f"({lat}, {lon}) is not on screen"
+    return client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+
+
+# The three features of mixed_geometry.middle-earth, one of each class the
+# visibility switches cover, at the probe points Tests/Data/README.md lists.
+STYLE_PROBES = {"polygons": (-3.0, 0.0), "polylines": (0.0, 40.0), "points": (-30.0, -30.0)}
+
+# The colour an unclassified feature takes under the feature type style, which
+# is what everything in the sample is until something gives it a type.
+UNCLASSIFIED_COLOUR = [0.82, 0.41, 0.12]
+
+
+def run_styling_session(client: AutomationClient, folder: Path) -> None:
+    """The draw styles, the palette read from a file, and the class switches."""
+    sample = ROOT / "Tests" / "Data" / "mixed_geometry.middle-earth"
+    client.call("load", path=str(sample))
+    client.call("mouse_move", x=10, y=10)
+
+    single = [0.1, 0.6, 0.9, 1.0]
+    client.call("set_view_settings",
+                view_settings={"draw_style": "single", "single_color": single})
+    for name, (lat, lon) in STYLE_PROBES.items():
+        check(is_colour(probe_at(client, lat, lon), single),
+              f"the single colour style paints the {name[:-1]}")
+
+    client.call("set_view_settings", view_settings={"draw_style": "type"})
+    for name, (lat, lon) in STYLE_PROBES.items():
+        check(is_colour(probe_at(client, lat, lon), UNCLASSIFIED_COLOUR),
+              f"the feature type style paints the {name[:-1]} unclassified")
+
+    run_palette_checks(client)
+    run_class_switch_checks(client)
+    run_styling_round_trip(client, folder)
+
+
+def run_palette_checks(client: AutomationClient) -> None:
+    """The feature age style over a built in palette and one read from a file."""
+    # Give each feature its own age, which is the older end of its time range.
+    ages = {"Red Triangle": 100, "Blue Ridge": 300, "Green Stations": 900}
+    for title, age in ages.items():
+        client.call("select", title=title)
+        client.call("set_property", field="time_to", value=age)
+    client.call("select", title=None)
+
+    # The steps palette is five flat slices two hundred million years wide:
+    # blue, green, yellow, orange and red.
+    client.call("set_view_settings", view_settings={"draw_style": "age", "palette": "steps"})
+    expected = {"polygons": [0.0, 0.0, 1.0], "polylines": [0.0, 1.0, 0.0],
+                "points": [1.0, 0.0, 0.0]}
+    for name, (lat, lon) in STYLE_PROBES.items():
+        check(is_colour(probe_at(client, lat, lon), expected[name]),
+              f"the {name[:-1]} takes the palette colour for its age")
+
+    # The same again from a file rather than from the built in list. The
+    # fixture ramps black to red between 0 and 100, then red to white to 200.
+    palette = ROOT / "Tests" / "Data" / "Palettes" / "continuous.cpt"
+    client.call("set_view_settings", view_settings={"palette": str(palette)})
+    answer = client.call("get_view_settings")
+    check(answer["view_settings"]["palette"] == str(palette),
+          "the document names the palette file it was given")
+    check(answer["palette_errors"] == [], "which reads without error")
+    lat, lon = STYLE_PROBES["polygons"]
+    check(is_colour(probe_at(client, lat, lon), [1.0, 0.0, 0.0]),
+          "and 100 Ma is the boundary its two ramps share, which is red")
+    lat, lon = STYLE_PROBES["polylines"]
+    check(is_colour(probe_at(client, lat, lon), [0.0, 1.0, 0.0]),
+          "while 300 Ma is past its top, which is the foreground colour")
+
+    # A file the reader cannot make sense of says which lines it could not read
+    # rather than leaving the planet unexplained.
+    broken = ROOT / "Tests" / "Data" / "Palettes" / "malformed.cpt"
+    client.call("set_view_settings", view_settings={"palette": str(broken)})
+    errors = client.call("get_view_settings")["palette_errors"]
+    check(len(errors) == 2 and all(error.startswith("line ") for error in errors),
+          f"a malformed palette reports its lines: {errors}")
+
+
+def run_class_switch_checks(client: AutomationClient) -> None:
+    """Each View menu switch takes its own class off the globe and no other."""
+    client.call("set_view_settings",
+                view_settings={"draw_style": "feature", "hidden_classes": []})
+    for hidden in STYLE_PROBES:
+        client.call("menu", item=hidden)
+        stored = client.call("get_view_settings")["view_settings"]["hidden_classes"]
+        check(stored == [hidden], f"the {hidden} switch is off: {stored}")
+        for name, (lat, lon) in STYLE_PROBES.items():
+            drawn = dominant(probe_at(client, lat, lon)) != ""
+            check(drawn != (name == hidden),
+                  f"{name} {'is gone' if name == hidden else 'is still drawn'} at ({lat}, {lon})")
+        client.call("menu", item=hidden)
+    check(client.call("get_view_settings")["view_settings"]["hidden_classes"] == [],
+          "and every class is back on at the end")
+
+
+def run_styling_round_trip(client: AutomationClient, folder: Path) -> None:
+    """The active style, its colour, its palette and the switches survive the file."""
+    palette = ROOT / "Tests" / "Data" / "Palettes" / "discrete.cpt"
+    edited = {
+        "draw_style": "age",
+        "single_color": [0.3, 0.7, 0.2, 1.0],
+        "palette": str(palette),
+        "hidden_classes": ["points", "topologies"],
+    }
+    client.call("set_view_settings", view_settings=edited)
+    check(client.call("get_document")["document"]["dirty"],
+          "picking a style offers the document for saving")
+
+    saved = folder / "styled.middle-earth"
+    client.call("expect_file_dialog", path=str(saved))
+    client.call("menu", item="save_as")
+    written = json.loads(saved.read_text(encoding="utf-8"))
+    check(written["view"]["draw_style"] == "age", "the file carries the active style")
+
+    client.call("menu", item="new")
+    if client.call("get_dialog")["dialog"] is not None:
+        client.call("dialog", button="Discard")
+    client.call("load", path=str(saved))
+    back = client.call("get_view_settings")["view_settings"]
+    for key, value in edited.items():
+        if key == "single_color":
+            check(all(abs(a - b) < 1e-3 for a, b in zip(back[key], value)),
+                  f"{key} survived the round trip: {back[key]}")
+        else:
+            check(back[key] == value, f"{key} survived the round trip: {back[key]}")
+
+    # Put the switches back on, so the scenarios after this one see everything.
+    client.call("set_view_settings",
+                view_settings={"hidden_classes": [], "draw_style": "feature"})
+
+
 def main(argv: list[str]) -> int:
     port = DEFAULT_PORT
     if argv:
@@ -1628,6 +1792,11 @@ def main(argv: list[str]) -> int:
         folder = Path(tempfile.mkdtemp(prefix="middle-earth-scene-"))
         try:
             run_scene_session(client, folder)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+        folder = Path(tempfile.mkdtemp(prefix="middle-earth-styling-"))
+        try:
+            run_styling_session(client, folder)
         finally:
             shutil.rmtree(folder, ignore_errors=True)
         run_vertex_session(client)
