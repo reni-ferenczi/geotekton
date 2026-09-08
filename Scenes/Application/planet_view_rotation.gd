@@ -6,7 +6,6 @@ var is_dragging: bool
 var is_rotating: bool
 var drag_start_lat: float
 var drag_start_lon: float
-var drag_start_pos: Vector2
 var previous_lat: float
 var previous_lon: float
 
@@ -33,7 +32,7 @@ func handle_dragging(lat: float, lon: float):
 	previous_lon = lon
 
 
-func start_rotating(lat: float, lon: float, pos: Vector2):
+func start_rotating(lat: float, lon: float):
 	print('Start rotating from: ', lat, ', ', lon)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	is_rotating = true

@@ -193,7 +193,7 @@ func _on_planet_input_event_globe(lat: float, lon: float, event: InputEvent) -> 
 		if event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT and Input.is_key_pressed(KEY_CTRL):
 			rotation_handler.start_dragging(lat, lon)
 		elif event.is_pressed() and event.button_index == MOUSE_BUTTON_MIDDLE:
-			rotation_handler.start_rotating(lat, lon, event.position)
+			rotation_handler.start_rotating(lat, lon)
 	if event is InputEventMouseMotion:
 		cursor_moved.emit(lat, lon)
 		if rotation_handler.is_dragging:

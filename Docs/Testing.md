@@ -152,6 +152,12 @@ halves kept the type, the colour, the time range and the keyframes.
 `cli.py` reads the switch list out of `Logic/cli.gd`, so a new switch that
 `--help` forgets to list fails the run.
 
+`Tests/Unit/test_shader_constants.gd` reads `planet.gdshader` as text and holds
+the numbers it carries twice — the Robinson tables, the extent of the Robinson
+sheet, the edge slack and the number of each projection — against
+`MapProjection`. Nothing in either file makes the other follow, so a change to
+one alone fails there rather than as a map drawn slightly wrong.
+
 `self_check.py` runs the runner over `Tests/SelfCheck`, which holds one
 deliberately broken test beside an intact one, and checks that the run fails with
 the broken one reported as a failure and the intact one still passing. That folder
