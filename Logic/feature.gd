@@ -29,6 +29,12 @@ const MINIMUM_VERTICES := {
 # The longest title a feature keeps; anything longer is cut down to it.
 const MAX_TITLE_LENGTH := 100
 
+# Bits of a triangle_edges byte: which of the triangle's three edges, a to b,
+# b to c and c to a, lie on the boundary of the ring.
+const EDGE_AB := 1
+const EDGE_BC := 2
+const EDGE_CA := 4
+
 # Node ID, unique only during the runtime of the application (not persisted)
 var pnid: int = -1
 
@@ -64,6 +70,12 @@ var rings: Array[PackedVector2Array] = []
 # Triangles covering the polygon rings, 3 vertices each, wound so that they face
 # outwards. Derived from rings by rebuild_triangles(), never read from a file.
 var triangles := PackedVector2Array()
+
+# Which edges of each triangle came from the ring rather than from the cut ear
+# clipping made, one byte per triangle, in the same order as triangles. The
+# shader draws the pale rim of a filled polygon along these alone, so the shape
+# is drawn as one rather than as the fan of triangles it was cut into.
+var triangle_edges := PackedByteArray()
 
 # How the node turns over time, sorted by time. A group has these too: its
 # children inherit its motion, which is what takes the place of a GPlates plate
@@ -151,15 +163,51 @@ func vertex_count() -> int:
 
 # Recompute the cached triangles from the rings. Only a polygon has any; the
 # other kinds are drawn and hit tested from their vertices directly.
+#
+# Which edges came from the ring is worked out here, while the ring indices are
+# still to hand, and kept beside the triangles in triangle_edges. Turning a
+# triangle to face outwards swaps two of its vertices, which permutes its edges,
+# so the swap is done on the indices and the edges read off afterwards.
 func rebuild_triangles() -> void:
 	triangles = PackedVector2Array()
+	triangle_edges = PackedByteArray()
 	if geometry_kind != GeometryKind.POLYGON:
 		return
+
 	for ring in rings:
-		var ring_triangles := ear_clip(ring)
-		for i in range(0, ring_triangles.size() - 2, 3):
-			ensure_front_winding(ring_triangles, i)
-		triangles.append_array(ring_triangles)
+		var indices := ear_clip_indices(ring)
+		for i in range(0, indices.size() - 2, 3):
+			var a := indices[i]
+			var b := indices[i + 1]
+			var c := indices[i + 2]
+			if not faces_outwards(ring[a], ring[b], ring[c]):
+				var swapped := b
+				b = c
+				c = swapped
+			triangles.append(ring[a])
+			triangles.append(ring[b])
+			triangles.append(ring[c])
+			triangle_edges.append(
+				(EDGE_AB if _are_neighbours(a, b, ring.size()) else 0)
+				| (EDGE_BC if _are_neighbours(b, c, ring.size()) else 0)
+				| (EDGE_CA if _are_neighbours(c, a, ring.size()) else 0))
+
+
+# Whether two vertices of a ring are next to each other in it, either way round,
+# which is what makes the edge between them part of the boundary.
+static func _are_neighbours(i: int, j: int, size: int) -> bool:
+	return (i + 1) % size == j or (j + 1) % size == i
+
+
+# Whether a triangle is visible from outside the planet: its normal points away
+# from the centre of the sphere. Both Planet.hit_test and the geometry shader
+# require it, and rebuild_triangles() swaps two vertices of any triangle ear
+# clipping produced the other way round.
+static func faces_outwards(a: Vector2, b: Vector2, c: Vector2) -> bool:
+	var pa := _latlon_to_xyz_s(a)
+	var pb := _latlon_to_xyz_s(b)
+	var pc := _latlon_to_xyz_s(c)
+	return (pb - pa).cross(pc - pa).dot((pa + pb + pc) / 3.0) >= 0.0
 
 
 # Add one drawn shape to the feature, adopting the kind when it is the first.
@@ -189,6 +237,7 @@ func clone() -> Feature:
 		node.rings.append(ring.duplicate())
 	# Copied rather than recomputed: every undo step clones the whole tree.
 	node.triangles = triangles.duplicate()
+	node.triangle_edges = triangle_edges.duplicate()
 	node.keyframes = Keyframe.clone_list(keyframes)
 	node.time_range = time_range
 	for child in children:
@@ -335,8 +384,22 @@ static func rings_from_json(data: Array) -> Array[PackedVector2Array]:
 # triangles, 3 vertices each, wound the same way as the polygon that went in.
 # Self-intersecting polygons are not supported.
 static func ear_clip(polygon: PackedVector2Array) -> PackedVector2Array:
-	var n := polygon.size()
 	var result := PackedVector2Array()
+	for index in ear_clip_indices(polygon):
+		result.append(polygon[index])
+	return result
+
+
+# The same triangulation as vertex indices into the ring, three per triangle.
+#
+# The indices are what says which of a triangle's edges came from the ring and
+# which one ear clipping cut: an edge is on the boundary exactly when its two
+# vertices are neighbours in the ring. The vertices alone cannot say, which is
+# why the fill used to be drawn with a white rim around every triangle rather
+# than around the shape. See rebuild_triangles() and Docs/Shader.md.
+static func ear_clip_indices(polygon: PackedVector2Array) -> PackedInt32Array:
+	var n := polygon.size()
+	var result := PackedInt32Array()
 	if n < 3:
 		return result
 
@@ -382,9 +445,9 @@ static func ear_clip(polygon: PackedVector2Array) -> PackedVector2Array:
 				break
 
 		if is_ear:
-			result.append(a)
-			result.append(b)
-			result.append(c)
+			result.append(idx[prev])
+			result.append(idx[i])
+			result.append(idx[next])
 			idx.remove_at(i)
 			if i >= idx.size():
 				i = 0
@@ -393,9 +456,9 @@ static func ear_clip(polygon: PackedVector2Array) -> PackedVector2Array:
 
 	# Output the final remaining triangle
 	if idx.size() == 3:
-		result.append(polygon[idx[0]])
-		result.append(polygon[idx[1]])
-		result.append(polygon[idx[2]])
+		result.append(idx[0])
+		result.append(idx[1])
+		result.append(idx[2])
 
 	return result
 
@@ -411,15 +474,6 @@ static func point_in_triangle(p: Vector2, a: Vector2, b: Vector2, c: Vector2) ->
 
 # Turn the triangle starting at index start so that it faces away from the
 # centre of the sphere, which is what the shader and the hit test require.
-static func ensure_front_winding(verts: PackedVector2Array, start: int) -> void:
-	var a := _latlon_to_xyz_s(verts[start])
-	var b := _latlon_to_xyz_s(verts[start + 1])
-	var c := _latlon_to_xyz_s(verts[start + 2])
-
-	if (b - a).cross(c - a).dot((a + b + c) / 3.0) < 0.0:
-		var tmp := verts[start + 1]
-		verts[start + 1] = verts[start + 2]
-		verts[start + 2] = tmp
 
 
 ### Motion in time

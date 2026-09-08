@@ -79,7 +79,7 @@ func _polygon(rings: Array) -> Feature:
 	return feature
 
 
-# The rule from Feature.ensure_front_winding: the triangle normal must point
+# The rule from Feature.faces_outwards: the triangle normal must point
 # away from the centre of the sphere.
 func _is_front_facing(a: Vector2, b: Vector2, c: Vector2) -> bool:
 	var pa := Feature._latlon_to_xyz_s(a)

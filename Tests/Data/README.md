@@ -21,7 +21,7 @@ It is the fixture for a file the application saved rather than one it had to
 recover.
 
 Every polygon is wound counter-clockwise as seen from outside the sphere, which is what
-`Feature.ensure_front_winding` enforces on the triangles it derives and what both
+`Feature.faces_outwards` enforces on the triangles it derives and what both
 `Planet.hit_test` and the geometry shader require. Note that the naive order
 (-10, -10), (-10, 10), (10, 0) is the wrong way round; the files use
 (-10, -10), (10, 0), (-10, 10).

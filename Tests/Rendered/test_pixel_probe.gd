@@ -41,6 +41,83 @@ func test_an_empty_file_draws_no_craton() -> void:
 	await _check_probe(-3.0, 0.0, "")
 
 
+# GP-0027: a filled polygon used to be drawn with a pale rim around every one of
+# its triangles, so the fan ear clipping cut it into showed through the fill.
+# The rim now follows the ring alone.
+#
+# The probe points are the midpoints of the edges the triangulation cut, read
+# out of the same triangle_edges the shader is given, so the test asks about the
+# exact places the seams used to be rather than a guess at where they were.
+func test_a_polygon_is_filled_without_showing_its_triangles() -> void:
+	await load_sample("craton.middle-earth")
+	var feature := _first_feature()
+	if feature == null:
+		return
+	# The tests share one application, and the ones before this turn the globe.
+	# The craton is centred near (0, 0), so bring it back to face the camera:
+	# away from there the surface is barely lit and its blue reads as dark
+	# rather than as blue at all.
+	await look_at_latlon(0.0, 0.0)
+
+	var image := await capture()
+	var probed := 0
+	for midpoint in _cut_edge_midpoints(feature):
+		# The graticule is drawn on multiples of 15 degrees and is pale too, so
+		# a midpoint sitting on one says nothing about the fill.
+		if _near_graticule(midpoint):
+			continue
+		var screen: Variant = app.planet_view.latlon_to_screen(midpoint.x, midpoint.y)
+		if screen == null:
+			continue
+		var at: Vector2 = screen
+		if at.x < 0.0 or at.y < 0.0 or at.x >= image.get_width() or at.y >= image.get_height():
+			continue
+		probed += 1
+		var color := image.get_pixel(int(at.x), int(at.y))
+		assert_eq(dominant_channel(color), "blue",
+			"the middle of the cut at %s is fill, not a seam: %s" % [midpoint, color])
+
+	assert_true(probed >= 8,
+		"there were cut edges away from the graticule to probe, found %d" % probed)
+
+
+# The midpoints, in world coordinates, of every edge ear clipping cut rather
+# than took from the ring. A cut is shared by the two triangles either side of
+# it, so each midpoint comes back twice; probing it twice costs nothing.
+func _cut_edge_midpoints(feature: Feature) -> PackedVector2Array:
+	var midpoints := PackedVector2Array()
+	var bits := [Feature.EDGE_AB, Feature.EDGE_BC, Feature.EDGE_CA]
+	var m := Feature.world_basis(app.features.root, feature, app.document.current_time)
+	for t in range(feature.triangle_edges.size()):
+		var corners := [
+			feature.triangles[t * 3], feature.triangles[t * 3 + 1], feature.triangles[t * 3 + 2]]
+		for e in range(3):
+			if feature.triangle_edges[t] & bits[e]:
+				continue
+			var middle := Measure.along(corners[e], corners[(e + 1) % 3], 0.5)
+			midpoints.append(Feature.apply_basis(PackedVector2Array([middle]), m)[0])
+	return midpoints
+
+
+# The graticule runs along every fifteenth degree of latitude and longitude.
+func _near_graticule(point: Vector2) -> bool:
+	for value in [point.x, point.y]:
+		if absf(value - roundf(value / 15.0) * 15.0) < 1.5:
+			return true
+	return false
+
+
+func _first_feature() -> Feature:
+	var stack: Array[Feature] = [app.features.root]
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		if not node.is_group:
+			return node
+		stack.append_array(node.children)
+	fail("the sample holds no feature")
+	return null
+
+
 func _check_probe(lat: float, lon: float, expected: String) -> void:
 	await look_at_latlon(lat, lon)
 	var screen: Variant = view().latlon_to_screen(lat, lon)

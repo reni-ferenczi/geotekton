@@ -50,7 +50,7 @@ wider than the drawn width, so a thin line stays easy to pick.
 | `geometry_data` | `sampler2D` | — | Data texture holding the primitives |
 | `geometry_count` | `int` | `0` | Number of primitives to render |
 | `feature_data` | `sampler2D` | — | Where each feature is at the current time |
-| `geometry_edge_width` | `float` | `0.001` | Width of the white rim on a filled triangle |
+| `geometry_edge_width` | `float` | `0.001` | Width of the pale rim along the boundary of a filled polygon |
 | `geometry_line_width` | `float` | `0.012` | Width of a polyline segment |
 | `geometry_point_radius` | `float` | `0.02` | Radius of a multipoint marker |
 
@@ -58,13 +58,19 @@ The widths are chord lengths on the unit sphere, so 0.012 is about 0.7 degrees.
 
 ### Data Texture Layout
 
-The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with **width = primitive count** and **height = 3 rows**:
+The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with **width = primitive count** and **height = 4 rows**:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
 | 0 | lat_a (rad) | lon_a (rad) | lat_b (rad) | lon_b (rad) |
 | 1 | lat_c (rad) | lon_c (rad) | feature | kind |
 | 2 | red | green | blue | alpha |
+| 3 | edge a-b | edge b-c | edge c-a | unused |
+
+Row 3 is 1 where that edge of a triangle came from the ring and 0 where ear
+clipping cut it; see [Edge rendering](#edge-rendering). Only a triangle has
+edges to mark, and only a fragment already inside one fetches the row, so the
+extra texel costs nothing on the fragments that reject the primitive.
 
 Each column stores one primitive, and the shader reads exact texels via
 `texelFetch`. A vertex a kind does not use repeats vertex a, so a fetch never
@@ -74,19 +80,32 @@ rotation that carries them into world space.
 
 ### Edge Rendering
 
-The rim of a filled triangle is antialiased using `smoothstep` over the minimum signed distance to the three great-circle planes:
+A filled polygon carries a pale rim, antialiased using `smoothstep` over the
+signed distance to the great-circle planes of its edges:
 
 ```glsl
 float edge = smoothstep(geometry_edge_width * 0.5, geometry_edge_width, min_dist);
 ```
 
-The rim is white and the fill is the feature colour blended over the Earth. Since
-every triangle carries its own rim, the cuts inside a polygon show as hairlines.
+The rim is white and the fill is the feature colour blended over the Earth.
+
+`min_dist` is the distance to the nearest edge **that came from the ring**, which
+row 3 of the geometry texture says. A polygon is one shape to the person looking
+at it but is drawn as the fan of triangles ear clipping cut it into, so taking
+the nearest of all three edges would draw a rim along every cut and show the
+triangulation through the fill. A triangle in the middle of a large polygon has
+no ring edge at all and draws no rim; one cut from a triangle has all three.
+
+`Feature.rebuild_triangles()` works this out while the ring indices are still to
+hand: an edge is on the boundary exactly when its two vertices are neighbours in
+the ring. It is kept in `Feature.triangle_edges`, one byte per triangle, beside
+the triangles themselves. Until 0.4.0 every triangle drew its own rim, which
+nothing noticed because no sample had more than two; see GP-0027.
 
 ### Winding Order
 
 The half-plane tests assume **counter-clockwise (CCW)** winding, seen from
-outside the sphere. `Feature.ensure_front_winding()` puts every derived triangle
+outside the sphere. `Feature.faces_outwards()` puts every derived triangle
 that way round, whichever way the ring it came from was drawn.
 
 ## Per feature rotation
@@ -172,6 +191,7 @@ uploaded apart:
 |---|---|
 | `primitives` | One dictionary per primitive: `kind`, `verts`, `color`, `feature`, `index` |
 | `features` | The features the primitives belong to, in the order they were met |
+| `primitives[i]["edges"]` | For a triangle, which of its edges came from the ring, as `Feature.EDGE_AB`, `EDGE_BC` and `EDGE_CA` |
 | `starts`, `ends` | Where each feature's primitives sit in `primitives`, as a half open range |
 | `cap_centres`, `cap_cosines` | The bounding cap of each feature, in its own frame |
 | `bases`, `shown` | Where each feature is and whether it is there, at `time` |

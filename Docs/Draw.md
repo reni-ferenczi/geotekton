@@ -132,14 +132,19 @@ The algorithm runs in the 2D lat/lon plane and handles **concave polygons** corr
 ### Winding Order Correction
 
 Ear clipping keeps the winding of the ring it was given, which is whichever way
-round the user happened to click. `Feature.ensure_front_winding()` then turns
-each triangle so that it faces away from the centre of the sphere:
+round the user happened to click. `Feature.rebuild_triangles()` then turns each
+triangle so that it faces away from the centre of the sphere, which
+`Feature.faces_outwards()` answers:
 
 1. The three vertices (lat/lon in degrees) are converted to 3D unit sphere positions.
 2. The cross product of two edges gives the triangle normal.
 3. If the normal points inward (dot product with centroid < 0), two vertices are swapped.
 
-This ensures all triangles are visible from outside the planet regardless of the order the user clicked the vertices.
+This ensures all triangles are visible from outside the planet regardless of the
+order the user clicked the vertices. The swap is made on the ring indices rather
+than on the vertices, because it permutes the triangle's edges and
+`rebuild_triangles()` has to know afterwards which of them came from the ring;
+see [Shader](Shader.md#edge-rendering).
 
 ## Rendering Pipeline
 
