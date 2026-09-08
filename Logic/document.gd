@@ -437,6 +437,13 @@ func _check_vertex(feature: Feature, part: int, index: int, vertex: Vector2,
 	var error := _check_index(feature, part, index, past_the_end)
 	if not error.is_empty():
 		return error
+	return check_coordinates(vertex)
+
+
+# Whether a latitude and longitude pair is on the planet at all. Separate from
+# the vertex checks above because a script sends coordinates for a feature that
+# does not exist yet, so there is no part or index to check them against.
+static func check_coordinates(vertex: Vector2) -> String:
 	if vertex.x < -90.0 or vertex.x > 90.0:
 		return "Latitude %s is outside -90 to 90." % vertex.x
 	if vertex.y < -180.0 or vertex.y > 180.0:
@@ -482,6 +489,17 @@ func load_from_file(file_path: String) -> String:
 	return ""
 
 
+# The document as a file holds it: the feature tree, the view settings and the
+# format version they are written at.
+func to_json() -> Dictionary:
+	return {
+		"application": APPLICATION,
+		"version": Application.VERSION,
+		"features": root.to_json(),
+		"view": view.to_json(),
+	}
+
+
 # Write the document to a file and mark it clean. Returns an empty string on
 # success, otherwise a message describing why the file could not be written.
 func save_to_file(file_path: String) -> String:
@@ -489,12 +507,7 @@ func save_to_file(file_path: String) -> String:
 	# it was picked from and wherever the document was saved before, so a
 	# project and its images can be moved together.
 	view.backdrop_path = relative_backdrop(resolve_backdrop(), file_path)
-	var data := {
-		"application": APPLICATION,
-		"version": Application.VERSION,
-		"features": root.to_json(),
-		"view": view.to_json(),
-	}
+	var data := to_json()
 	var file := FileAccess.open(file_path, FileAccess.WRITE)
 	if file == null:
 		return "Cannot write %s: %s" % [file_path, error_string(FileAccess.get_open_error())]
