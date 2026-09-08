@@ -4,6 +4,7 @@ extends SceneTree
 #   headless: Godot ... -s res://Tests/run_tests.gd -- [--filter=SUBSTRING]
 #   rendered: Godot ... -s res://Tests/run_tests.gd -- --rendered [--filter=SUBSTRING]
 #   --dir=res://... discovers somewhere other than Unit or Rendered.
+#   --scene=res://... hosts a scene other than the application, for the self-check.
 
 const UNIT_DIR := "res://Tests/Unit"
 const RENDERED_DIR := "res://Tests/Rendered"
@@ -41,6 +42,7 @@ class ErrorWatcher extends Logger:
 var rendered: bool = false
 var filter: String = ""
 var directory: String = ""
+var scene_path: String = APPLICATION_SCENE
 var passed: int = 0
 var failed: int = 0
 var watcher := ErrorWatcher.new()
@@ -54,6 +56,8 @@ func _initialize() -> void:
 			filter = arg.trim_prefix("--filter=")
 		elif arg.begins_with("--dir="):
 			directory = arg.trim_prefix("--dir=")
+		elif arg.begins_with("--scene="):
+			scene_path = arg.trim_prefix("--scene=")
 		else:
 			print("Unknown argument: %s" % arg)
 	OS.add_logger(watcher)
@@ -99,9 +103,9 @@ func _folder() -> String:
 
 # Show the application window and check that screen coordinates equal window pixels.
 func _setup_rendered() -> Node:
-	var scene: PackedScene = load(APPLICATION_SCENE)
+	var scene: PackedScene = load(scene_path)
 	if scene == null:
-		_fail_line("setup", "cannot load %s" % APPLICATION_SCENE)
+		_fail_line("setup", "cannot load %s" % scene_path)
 		return null
 
 	var application := scene.instantiate()
