@@ -41,6 +41,7 @@ signal cursor_moved(lat: float, lon: float)
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet
 @onready var camera: Camera3D = %Camera3D
+@onready var world_environment: WorldEnvironment = %WorldEnvironment
 @onready var rotation_handler: PlanetViewRotation = PlanetViewRotation.new(planet)
 
 # True while a tool takes the clicks on the planet for itself: Draw placing
@@ -66,6 +67,18 @@ func _process(_delta: float) -> void:
 	# and longitude it is pointed at, and a map re-projects about them.
 	camera.rotation.z = deg_to_rad(planet.angle)
 	camera.position.y = _camera_offset()
+
+
+### The scene
+
+
+# Draw the scene the way the document asks for. The background and the ambient
+# level are the environment's; the rest of the block belongs to the planet.
+func apply_view_settings(settings: ViewSettings) -> void:
+	var environment := world_environment.environment
+	environment.background_color = settings.background_color
+	environment.ambient_light_energy = settings.ambient
+	planet.apply_view_settings(settings)
 
 
 ### Zoom and camera

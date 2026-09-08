@@ -4,7 +4,11 @@
 [ext_resource type="Script" uid="uid://tfk6s1r5k3be" path="res://Scenes/Application/planet_view.gd" id="1_im7ge"]
 
 [sub_resource type="Environment" id="Environment_ub1o7"]
-background_mode = 2
+background_mode = 1
+background_color = Color(0, 0, 0, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 0.0
 
 [node name="PlanetView" type="SubViewportContainer" unique_id=1414785221]
 anchors_preset = 15
@@ -34,6 +38,7 @@ current = true
 fov = 60.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="SubViewport" unique_id=782277508]
+unique_name_in_owner = true
 environment = SubResource("Environment_ub1o7")
 
 [connection signal="gui_input" from="." to="." method="_on_gui_input"]

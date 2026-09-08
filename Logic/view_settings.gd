@@ -28,6 +28,11 @@ const DEFAULT_BACKDROP_OPACITY := 1.0
 const MIN_SPACING := 1.0
 const MAX_SPACING := 90.0
 
+# How far the light may be lifted above or below the line of sight. Straight
+# above would leave the direction it is turned about undefined, so it stops a
+# degree short of the pole.
+const MAX_ELEVATION := 89.0
+
 # How much light reaches the side facing away from the light. Zero is the black
 # night side the scene has always had; one is a planet with no night at all.
 const MIN_AMBIENT := 0.0
@@ -89,7 +94,7 @@ static func from_json(data: Variant) -> ViewSettings:
 		MIN_SPACING, MAX_SPACING)
 	var light: Variant = data.get("light_direction")
 	if light is Array and (light as Array).size() >= 2:
-		settings.light_direction = Vector2(float(light[0]), float(light[1]))
+		settings.light_direction = clamp_light(Vector2(float(light[0]), float(light[1])))
 	settings.ambient = clampf(
 		float(data.get("ambient", DEFAULT_AMBIENT)), MIN_AMBIENT, MAX_AMBIENT)
 	settings.backdrop_path = str(data.get("backdrop_path", ""))
@@ -103,6 +108,44 @@ static func from_json(data: Variant) -> ViewSettings:
 # is what planet.gdshader counts in: longitude first, then latitude.
 func graticule_split() -> Vector2:
 	return Vector2(360.0 / graticule_spacing, 180.0 / graticule_spacing)
+
+
+### The light
+#
+# The direction is an elevation above the line of sight and an azimuth around
+# it, both in degrees, and it is fixed to the view: (0, 0) shines straight from
+# the camera, which is where the scene has always put the light. The two
+# functions below turn that into a direction in the scene and back, which is how
+# the Light tool takes a drag on the globe and stores what it means.
+
+
+# Which way the light comes from, in the frame the scene is laid out in: +Z is
+# towards the camera, +X to the right and +Y up.
+func light_vector() -> Vector3:
+	var elevation := deg_to_rad(light_direction.x)
+	var azimuth := deg_to_rad(light_direction.y)
+	var cos_elevation := cos(elevation)
+	return Vector3(
+		sin(azimuth) * cos_elevation, sin(elevation), cos(azimuth) * cos_elevation)
+
+
+# The elevation and azimuth of a direction in the scene, which is light_vector()
+# the other way round.
+static func light_from_vector(direction: Vector3) -> Vector2:
+	if direction.length_squared() < 1e-12:
+		return DEFAULT_LIGHT
+	var unit := direction.normalized()
+	return clamp_light(Vector2(
+		rad_to_deg(asin(clampf(unit.y, -1.0, 1.0))),
+		rad_to_deg(atan2(unit.x, unit.z))))
+
+
+# An elevation the light can actually be turned to, and an azimuth in the range
+# every other angle in the application is given in.
+static func clamp_light(direction: Vector2) -> Vector2:
+	return Vector2(
+		clampf(direction.x, -MAX_ELEVATION, MAX_ELEVATION),
+		fposmod(direction.y + 180.0, 360.0) - 180.0)
 
 
 static func _color_to_json(color: Color) -> Array:

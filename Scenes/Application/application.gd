@@ -14,6 +14,9 @@ const ISOLATED_SETTINGS_DIR := "isolated-settings"
 # The Earth texture credited in the About dialog, as listed in README.md.
 const EARTH_TEXTURE_URL := "https://wall.alphacoders.com/big.php?i=11433"
 static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Document.EXTENSION])
+# What a backdrop image may be: the raster formats the engine reads, plus SVG.
+static var IMAGE_FILTERS := PackedStringArray(
+	["*.png, *.jpg, *.jpeg, *.webp, *.svg ; Images"])
 
 # Answers a file dialog without showing one. Set by the automation port so a
 # scripted run can drive Open and Save As; unset in a normal run.
@@ -30,7 +33,7 @@ const SNAP_PIXELS := 12.0
 
 enum FileItem { NEW, OPEN, SAVE, SAVE_AS, PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE }
-enum ViewItem { FEATURES, PROPERTIES, TIMELINE, STATUS_BAR, FULL_SCREEN }
+enum ViewItem { FEATURES, PROPERTIES, TIMELINE, STATUS_BAR, SETTINGS, FULL_SCREEN }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -119,6 +122,9 @@ var default_folder_edit: LineEdit
 var radius_spin: SpinBox
 var marker_spin: SpinBox
 var line_spin: SpinBox
+var view_dialog: AcceptDialog
+# The fields of the View settings dialog, by the name of the setting each edits.
+var view_fields: Dictionary = {}
 var animation_dialog: AcceptDialog
 # The fields of the animation dialog, by the name of the setting each one edits.
 var animation_fields: Dictionary = {}
@@ -186,6 +192,7 @@ func _ready() -> void:
 	segments_spin.value = SmallCircle.DEFAULT_SEGMENTS
 	_apply_outline_scale()
 	_build_view_toolbar()
+	apply_view_settings()
 
 	# The Save and Load buttons of the feature tree toolbar run the File commands
 	features.save_button.pressed.connect(save_document)
@@ -277,6 +284,7 @@ func _build_menus() -> void:
 	view_menu.add_check_item("Timeline", ViewItem.TIMELINE)
 	view_menu.add_check_item("Status Bar", ViewItem.STATUS_BAR)
 	view_menu.add_separator()
+	view_menu.add_item("View Settings...", ViewItem.SETTINGS)
 	view_menu.add_item("Full Screen", ViewItem.FULL_SCREEN, KEY_F11)
 	view_menu.id_pressed.connect(_on_view_menu_id_pressed)
 
@@ -382,6 +390,9 @@ func _on_recent_menu_id_pressed(id: int) -> void:
 func _on_view_menu_id_pressed(id: int) -> void:
 	if id == ViewItem.FULL_SCREEN:
 		_toggle_full_screen()
+		return
+	if id == ViewItem.SETTINGS:
+		show_view_settings()
 		return
 	var panel := _panel_node(id)
 	panel.visible = not panel.visible
@@ -499,7 +510,14 @@ func _on_root_replaced(same_document: bool) -> void:
 	# being left behind.
 	if not same_document:
 		set_active_tool(Tool.MOVE)
+		apply_view_settings()
 	refresh_geometry()
+
+
+# Draw the scene the way the open document asks for. Called when a document
+# arrives and after every change to its view settings.
+func apply_view_settings() -> void:
+	planet_view.apply_view_settings(document.view)
 
 
 func _update_document_labels() -> void:
@@ -577,6 +595,12 @@ func _build_dialogs() -> void:
 	preferences_dialog.add_child(_build_preferences_content())
 	preferences_dialog.confirmed.connect(_on_preferences_confirmed)
 	add_child(preferences_dialog)
+
+	view_dialog = AcceptDialog.new()
+	view_dialog.name = "ViewDialog"
+	view_dialog.title = "View settings"
+	view_dialog.add_child(_build_view_content())
+	add_child(view_dialog)
 
 	animation_dialog = AcceptDialog.new()
 	animation_dialog.name = "AnimationDialog"
@@ -657,6 +681,143 @@ func _preference_spin(form: GridContainer, name: String, text: String,
 
 # How playback walks the timeline: where it starts and ends, how far one frame
 # moves, how fast the frames come, and what happens at the two ends.
+# The scene around the features: what is behind the planet, what is drawn over
+# it, where the light comes from and which image the planet wears. Every field
+# takes effect as it is changed rather than when the dialog is closed, so the
+# planet under it shows what is being chosen.
+func _build_view_content() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "ViewSettings"
+	box.custom_minimum_size = Vector2(460, 0)
+
+	var form := GridContainer.new()
+	form.columns = 2
+	box.add_child(form)
+
+	_view_color(form, "background_color", "Background")
+	_view_check(form, "star_field", "Star field")
+	_view_color(form, "graticule_color", "Graticule")
+	_view_spin(form, "graticule_spacing", "Graticule spacing (°)",
+		ViewSettings.MIN_SPACING, ViewSettings.MAX_SPACING, 1.0)
+	_view_spin(form, "light_elevation", "Light elevation (°)",
+		-ViewSettings.MAX_ELEVATION, ViewSettings.MAX_ELEVATION, 1.0)
+	_view_spin(form, "light_azimuth", "Light azimuth (°)", -180.0, 180.0, 1.0)
+	_view_spin(form, "ambient", "Ambient light",
+		ViewSettings.MIN_AMBIENT, ViewSettings.MAX_AMBIENT, 0.05)
+	_view_check(form, "backdrop_visible", "Backdrop image shown")
+	_view_spin(form, "backdrop_opacity", "Backdrop opacity", 0.0, 1.0, 0.05)
+
+	var label := Label.new()
+	label.text = "Backdrop image"
+	box.add_child(label)
+
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	var edit := LineEdit.new()
+	edit.name = "BackdropPath"
+	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	edit.placeholder_text = "The built in Earth"
+	edit.text_submitted.connect(func(_text: String) -> void: _on_view_field_changed())
+	edit.focus_exited.connect(_on_view_field_changed)
+	row.add_child(edit)
+	view_fields["backdrop_path"] = edit
+
+	var browse := Button.new()
+	browse.name = "BrowseBackdrop"
+	browse.text = "Browse..."
+	browse.pressed.connect(choose_backdrop)
+	row.add_child(browse)
+
+	var clear := Button.new()
+	clear.name = "ClearBackdrop"
+	clear.text = "Clear"
+	clear.pressed.connect(func() -> void:
+		edit.text = ""
+		_on_view_field_changed())
+	row.add_child(clear)
+
+	return box
+
+
+func _view_spin(form: GridContainer, key: String, text: String,
+		low: float, high: float, step: float) -> void:
+	var spin := _preference_spin(form, key.to_pascal_case(), text, low, high, step)
+	spin.value_changed.connect(func(_value: float) -> void: _on_view_field_changed())
+	view_fields[key] = spin
+
+
+func _view_check(form: GridContainer, key: String, text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	form.add_child(label)
+	var check := CheckBox.new()
+	check.name = key.to_pascal_case()
+	check.toggled.connect(func(_pressed: bool) -> void: _on_view_field_changed())
+	form.add_child(check)
+	view_fields[key] = check
+
+
+func _view_color(form: GridContainer, key: String, text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	form.add_child(label)
+	var button := ColorPickerButton.new()
+	button.name = key.to_pascal_case()
+	button.custom_minimum_size = Vector2(140, 28)
+	button.color_changed.connect(func(_color: Color) -> void: _on_view_field_changed())
+	form.add_child(button)
+	view_fields[key] = button
+
+
+# Pick the image the planet wears. It is stored relative to the project file
+# when it sits beside it, so a project and its images can be moved together.
+func choose_backdrop() -> void:
+	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Backdrop image",
+		func(path: String) -> void:
+			view_fields["backdrop_path"].text = Document.relative_backdrop(path, document.path)
+			_on_view_field_changed(),
+		IMAGE_FILTERS)
+
+
+func show_view_settings() -> void:
+	_fill_view_fields()
+	view_dialog.popup_centered()
+
+
+# Put what the document holds into the fields, without firing the signals that
+# would write them straight back.
+func _fill_view_fields() -> void:
+	var settings := document.view
+	view_fields["background_color"].color = settings.background_color
+	view_fields["star_field"].set_pressed_no_signal(settings.star_field)
+	view_fields["graticule_color"].color = settings.graticule_color
+	view_fields["graticule_spacing"].set_value_no_signal(settings.graticule_spacing)
+	view_fields["light_elevation"].set_value_no_signal(settings.light_direction.x)
+	view_fields["light_azimuth"].set_value_no_signal(settings.light_direction.y)
+	view_fields["ambient"].set_value_no_signal(settings.ambient)
+	view_fields["backdrop_visible"].set_pressed_no_signal(settings.backdrop_visible)
+	view_fields["backdrop_opacity"].set_value_no_signal(settings.backdrop_opacity)
+	view_fields["backdrop_path"].text = settings.backdrop_path
+
+
+# One field moved: take the whole block off the dialog and hand it to the
+# document, so the planet follows while the dialog is still open.
+func _on_view_field_changed() -> void:
+	var settings := document.view
+	settings.background_color = view_fields["background_color"].color
+	settings.star_field = view_fields["star_field"].button_pressed
+	settings.graticule_color = view_fields["graticule_color"].color
+	settings.graticule_spacing = view_fields["graticule_spacing"].value
+	settings.light_direction = ViewSettings.clamp_light(Vector2(
+		view_fields["light_elevation"].value, view_fields["light_azimuth"].value))
+	settings.ambient = view_fields["ambient"].value
+	settings.backdrop_visible = view_fields["backdrop_visible"].button_pressed
+	settings.backdrop_opacity = view_fields["backdrop_opacity"].value
+	settings.backdrop_path = view_fields["backdrop_path"].text
+	document.view_edited()
+	apply_view_settings()
+
+
 func _build_animation_content() -> Control:
 	var form := GridContainer.new()
 	form.name = "Animation"
@@ -813,7 +974,8 @@ func _save_panel_visibility() -> void:
 
 # Ask for a file path and call on_path with it. The dialog is the one the
 # platform provides, so nothing happens when it is cancelled.
-func _ask_for_path(mode: int, title: String, on_path: Callable) -> void:
+func _ask_for_path(mode: int, title: String, on_path: Callable,
+		filters: PackedStringArray = FILE_FILTERS) -> void:
 	if file_dialog_hook.is_valid():
 		file_dialog_hook.call(mode, title, on_path)
 		return
@@ -823,7 +985,7 @@ func _ask_for_path(mode: int, title: String, on_path: Callable) -> void:
 		"",
 		false,
 		mode,
-		FILE_FILTERS,
+		filters,
 		func(status: bool, paths: PackedStringArray, _filter: int) -> void:
 			if status and not paths.is_empty():
 				on_path.call(paths[0]),
