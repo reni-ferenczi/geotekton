@@ -148,7 +148,7 @@ is reached with the runner's `--dir=res://...` switch and is never discovered by
 | `empty.middle-earth`      | The root group only, no features.                          |
 | `triangle.middle-earth`   | One red triangle around lat/lon (-3, 0).                   |
 | `craton.middle-earth`     | One blue outline of 21 vertices with a bay, a narrow neck and a close pair, facing the camera. The only sample written in the current format. |
-| `two_cratons.middle-earth` | The red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). |
+| `two_cratons.middle-earth` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
 | `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
 
 `Tests/Data/README.md` lists the probe points and the colour expected at each one.
@@ -193,6 +193,11 @@ The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
 | `triangle`           | `triangle.middle-earth`    | default                    |
 | `two_cratons`        | `two_cratons.middle-earth` | default                    |
 | `two_cratons_tilted` | `two_cratons.middle-earth` | latitude 30, longitude -45 |
+
+The sample those two render holds three features and neither view shows all of
+them: the default one has the green feature as a sliver at the limb, and the
+tilted one carries the blue one off the far side. `Tests/Data/README.md` has the
+pixel counts and says which view to write a check against.
 | `empty`              | `empty.middle-earth`       | default                    |
 | `mixed_geometry`     | `mixed_geometry.middle-earth` | default                 |
 | `craton`             | `craton.middle-earth`      | default                    |

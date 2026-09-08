@@ -44,7 +44,27 @@ Root group `Planet` > group `Cratons` > `Red Triangle`.
 
 ### two_cratons.middle-earth (0.1.0)
 
-The same red triangle plus two more features in the `Cratons` group.
+**Three** features, despite the name: the same red triangle plus two more in the
+`Cratons` group. It was two when it was written and gained the third before the
+name caught up. Renaming it now would leave the ticket record pointing at a file
+that no longer exists, so the name stands as the fixture it grew from rather than
+as a count; see GP-0028. `test_sample_files.gd` holds the full list of titles, so
+what is in the file cannot drift from what is expected of it.
+
+Neither golden scene shows all three. Counting the pixels each colour dominates
+inside the planet view:
+
+| Feature       | `two_cratons` | `two_cratons_tilted`     |
+| ------------- | ------------- | ------------------------ |
+| Red Triangle  | 14,207 px     | 1,195 px                 |
+| Blue Quad     | 4,350 px      | not drawn at all         |
+| Green Moved   | 347 px, 14 wide by 105 tall | 5,700 px   |
+
+In the default view `Green Moved` is a sliver at the limb, 14 pixels across;
+tilting to latitude 30 and longitude -45 brings it out and carries `Blue Quad`
+off the far side. The two scenes cover all three between them, which is what the
+tilted one is for. A rendered check that wants a good look at `Green Moved`
+belongs in the tilted view, and one that wants `Blue Quad` in the default one.
 
 | Probe      | Expected feature | Color                 |
 | ---------- | ---------------- | --------------------- |
