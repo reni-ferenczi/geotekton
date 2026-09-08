@@ -48,6 +48,17 @@ const EXPECTED := {
 			[Vector2(-3, -37), ""],
 		],
 	},
+	"topology.middle-earth": {
+		"version": "0.5.0",
+		"titles": ["Planet", "Plates", "West Points", "East Points", "Boundary"],
+		"hits": [
+			[Vector2(0, -32.5), "Boundary"],
+			[Vector2(0, 17.5), "Boundary"],
+			[Vector2(0, 3), ""],
+			[Vector2(0, -40), "West Points"],
+			[Vector2(0, 40), "East Points"],
+		],
+	},
 	"mixed_geometry.middle-earth": {
 		"version": "0.2.0",
 		"titles": ["Planet", "Shapes", "Red Triangle", "Blue Ridge", "Green Stations"],

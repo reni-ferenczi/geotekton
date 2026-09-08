@@ -19,7 +19,7 @@ static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Docum
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE }
+enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY }
 
 # How near, in window pixels, a click has to be to take hold of a vertex or an
 # edge, and how near a dragged vertex has to come to another before snapping
@@ -51,6 +51,7 @@ const PANEL_KEYS := {
 @onready var vertex_button: Button = %Vertex
 @onready var measure_button: Button = %Measure
 @onready var circle_button: Button = %Circle
+@onready var topology_button: Button = %Topology
 @onready var snap_button: Button = %Snap
 @onready var split_button: Button = %Split
 @onready var kind_selector: OptionButton = %GeometryKind
@@ -159,6 +160,7 @@ func _ready() -> void:
 	vertex_button.pressed.connect(func() -> void: set_active_tool(Tool.VERTEX))
 	measure_button.pressed.connect(func() -> void: set_active_tool(Tool.MEASURE))
 	circle_button.pressed.connect(func() -> void: set_active_tool(Tool.CIRCLE))
+	topology_button.pressed.connect(func() -> void: set_active_tool(Tool.TOPOLOGY))
 	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
 	snap_button.toggled.connect(_on_snap_toggled)
 	split_button.pressed.connect(func() -> void: _report(split_at_selected_vertex()))
@@ -833,6 +835,7 @@ func set_active_tool(tool: Tool) -> void:
 	vertex_button.button_pressed = (tool == Tool.VERTEX)
 	measure_button.button_pressed = (tool == Tool.MEASURE)
 	circle_button.button_pressed = (tool == Tool.CIRCLE)
+	topology_button.button_pressed = (tool == Tool.TOPOLOGY)
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
@@ -889,16 +892,26 @@ func _on_feature_selected(node: Feature) -> void:
 	var is_leaf := node != null and not node.is_group
 	draw_button.disabled = not _can_draw(node)
 	circle_button.disabled = not _can_draw(node)
+	topology_button.disabled = not _can_build_topology(node)
 	_update_kind_selector(node)
 	properties.show_node(node)
 
 	if is_leaf:
+		# A tool that cannot work on what is now selected gives way to Move,
+		# rather than staying armed and swallowing the clicks meant for the
+		# globe. Nothing selected is left alone: rebuilding the tree clears the
+		# selection for a moment before it puts it back.
+		if (active_tool == Tool.DRAW or active_tool == Tool.CIRCLE) and not _can_draw(node):
+			set_active_tool(Tool.MOVE)
+		elif active_tool == Tool.TOPOLOGY and not _can_build_topology(node):
+			set_active_tool(Tool.MOVE)
 		# Auto-select Draw when the feature has no geometry yet
-		if not node.has_geometry() and _can_draw(node):
+		elif not node.has_geometry() and _can_draw(node):
 			set_active_tool(Tool.DRAW)
 	else:
-		# Can't draw on groups or nothing — force Move
-		if active_tool == Tool.DRAW or active_tool == Tool.CIRCLE:
+		# Can't draw or build a topology on groups or nothing — force Move
+		if active_tool == Tool.DRAW or active_tool == Tool.CIRCLE \
+				or active_tool == Tool.TOPOLOGY:
 			set_active_tool(Tool.MOVE)
 
 	_update_move_enabled()
@@ -956,6 +969,17 @@ func _first_allowed_kind() -> int:
 		if not kind_selector.is_item_disabled(index):
 			return index
 	return -1
+
+
+# Whether the Topology tool has something to build on: a feature that is a
+# topology already, or one holding nothing yet whose type allows it to become
+# one. A feature that holds vertices of its own cannot also borrow them.
+func _can_build_topology(node: Feature) -> bool:
+	if node == null or node.is_group:
+		return false
+	if node.has_geometry():
+		return node.geometry_kind == Feature.GeometryKind.TOPOLOGY
+	return FeatureType.allows(node.feature_type, "topology")
 
 
 # Whether the Draw and Circle tools have a kind they may produce on this
@@ -1053,6 +1077,8 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 			_on_measure_input(lat, lon, event)
 		Tool.CIRCLE:
 			_on_circle_input(lat, lon, event)
+		Tool.TOPOLOGY:
+			_on_topology_input(lat, lon, event)
 
 
 # The background behind the globe. A drag of a vertex that ends out there is
@@ -1599,6 +1625,78 @@ func _circle_commit() -> String:
 	return ""
 
 
+### The Topology tool
+#
+# Building a line topology by clicking the features it runs along, in order. A
+# click adds the whole of one part of whatever is under it as a section; a right
+# click takes the last section back. There is nothing to commit: each click is
+# one edit and one undo version, so the boundary is on the globe as it grows.
+#
+# Which section runs which way, and which vertices of a feature a section
+# covers, are set afterwards in the Properties panel; see
+# Docs/Editing.md#line-topologies.
+
+
+func _on_topology_input(lat: float, lon: float, event: InputEvent) -> void:
+	if event is not InputEventMouseButton or not event.is_pressed():
+		return
+	var selected := features.feature_tree.get_selected_node()
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		_report(add_topology_section(selected, Planet.hit_test(lat, lon, geometry),
+			Vector2(lat, lon)))
+	elif event.button_index == MOUSE_BUTTON_RIGHT:
+		_report(remove_last_section(selected))
+
+
+# Give the topology a section along the feature that was clicked. Returns why it
+# could not, or an empty string once it has.
+func add_topology_section(node: Feature, target: Feature, at: Vector2) -> String:
+	if target == null:
+		return "Click a feature to add it to the topology."
+	var problem := document.add_section(node, target, _nearest_part(target, at))
+	if not problem.is_empty():
+		return problem
+	_after_topology_edit()
+	return ""
+
+
+func remove_last_section(node: Feature) -> String:
+	if node == null or node.sections.is_empty():
+		return "There is no section to take back."
+	var problem := document.remove_section(node, node.sections.size() - 1)
+	if not problem.is_empty():
+		return problem
+	_after_topology_edit()
+	return ""
+
+
+# Which part of the clicked feature the click fell on: the one holding the
+# vertex nearest to it. A feature of a single part answers with that part
+# without looking at anything.
+func _nearest_part(target: Feature, at: Vector2) -> int:
+	if target.rings.size() <= 1:
+		return 0
+	var m := Feature.world_basis(features.root, target, document.current_time)
+	var best := 0
+	var best_distance := INF
+	for part in target.rings.size():
+		for vertex in Feature.apply_basis(target.rings[part], m):
+			var distance := Measure.distance(vertex, at, 1.0)
+			if distance < best_distance:
+				best_distance = distance
+				best = part
+	return best
+
+
+# The tree row, the globe and the panel all follow a section being added or
+# taken back, since a topology is a feature like any other once it is resolved.
+func _after_topology_edit() -> void:
+	features.reload()
+	properties.show_node(features.feature_tree.get_selected_node())
+	refresh_geometry()
+	_update_tool_buttons()
+
+
 ### The Measure tool
 #
 # The points that have been clicked, and the great circle distance along them.
@@ -1632,6 +1730,14 @@ func _measure_clear() -> void:
 func _show_measurement(error: String = "") -> void:
 	if not error.is_empty():
 		status_measure.text = error
+		return
+
+	if active_tool == Tool.TOPOLOGY:
+		var building := features.feature_tree.get_selected_node()
+		var count := 0 if building == null else building.sections.size()
+		status_measure.text = "click the features the topology runs along" if count == 0 \
+			else "%d section%s   right click takes the last one back" % [
+				count, "" if count == 1 else "s"]
 		return
 
 	if active_tool == Tool.CIRCLE:
@@ -1768,14 +1874,26 @@ func _resolve_hover() -> bool:
 func refresh_geometry() -> void:
 	geometry = Planet.collect_geometry(features.root, document.current_time)
 	planet_view.planet.set_geometry(geometry)
-	refresh_motion()
+	_refresh_feature_state()
 
 
 # Where the features sit at the current time, without rebuilding the geometry
 # itself. This is what a step of an animation and a drag of the Move tool cost:
 # one small texture, whatever the triangle count is.
+#
+# A topology is the exception: the vertices it draws are the vertices of the
+# features it runs along, so moving the time moves them and the geometry has to
+# be built again. That costs a document holding one the cheap path, which is why
+# it is asked for rather than taken.
 func refresh_motion() -> void:
+	if Topology.holds_any(features.root):
+		refresh_geometry()
+		return
 	geometry.resolve(features.root, document.current_time)
+	_refresh_feature_state()
+
+
+func _refresh_feature_state() -> void:
 	# The features have just moved under a pointer that need not have moved at
 	# all, so the feature it is over is worked out again rather than carried
 	# over. It costs a hit test only while the pointer is on the globe.

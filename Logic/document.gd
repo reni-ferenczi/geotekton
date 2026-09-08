@@ -262,6 +262,81 @@ func split_feature(feature: Feature, part: int, first: int, second: int = -1) ->
 	return ""
 
 
+### Line topologies
+
+# A topology's geometry is the list of sections it names; the vertices it draws
+# are resolved from them whenever the tree or the current time moves. These four
+# are the only things that change the list, and each records one undo version
+# like every other edit. See Logic/topology.gd.
+
+
+# Add a section running along the whole of one part of another feature. The
+# feature becomes a topology when it holds nothing yet; one that already holds
+# vertices of its own is refused, because the two cannot both be its geometry.
+func add_section(feature: Feature, target: Feature, part: int) -> String:
+	if feature == null or feature.is_group:
+		return "Only a feature can be a topology."
+	if feature.has_geometry() and feature.geometry_kind != Feature.GeometryKind.TOPOLOGY:
+		return "%s already holds a %s." % [feature.title, feature.kind_name()]
+	if not FeatureType.allows(feature.feature_type, "topology"):
+		return "A %s cannot be a topology." % FeatureType.label(feature.feature_type)
+	var problem := Topology.section_problem(feature, target)
+	if not problem.is_empty():
+		return problem
+	if part < 0 or part >= target.rings.size():
+		return "%s has no part %d." % [target.title, part + 1]
+
+	feature.geometry_kind = Feature.GeometryKind.TOPOLOGY
+	feature.sections.append(TopologySection.whole_part(target, part))
+	record()
+	return ""
+
+
+func remove_section(feature: Feature, index: int) -> String:
+	var error := _check_section(feature, index)
+	if not error.is_empty():
+		return error
+	feature.sections.remove_at(index)
+	record()
+	return ""
+
+
+# Walk a section the other way round. A boundary is built by clicking one
+# feature after another and the vertices of the next one often run back towards
+# the last, which is what this is for.
+func reverse_section(feature: Feature, index: int) -> String:
+	var error := _check_section(feature, index)
+	if not error.is_empty():
+		return error
+	feature.sections[index].reversed = not feature.sections[index].reversed
+	record()
+	return ""
+
+
+# Which vertices of the section's feature the section runs between, counting
+# from zero. A range beyond the part is not refused here: the feature it names
+# can grow or shrink under it, so Topology.resolve() brings the range back into
+# whatever the part holds at the time it is drawn.
+func set_section_range(feature: Feature, index: int, from_index: int, to_index: int) -> String:
+	var error := _check_section(feature, index)
+	if not error.is_empty():
+		return error
+	if from_index < 0 or to_index < 0:
+		return "Vertices are numbered from 1."
+	feature.sections[index].from_index = from_index
+	feature.sections[index].to_index = to_index
+	record()
+	return ""
+
+
+func _check_section(feature: Feature, index: int) -> String:
+	if feature == null or feature.geometry_kind != Feature.GeometryKind.TOPOLOGY:
+		return "The selected feature is not a topology."
+	if index < 0 or index >= feature.sections.size():
+		return "%s has no section %d." % [feature.title, index + 1]
+	return ""
+
+
 ### Time and motion
 
 # The current time is view state and records no undo version. The keyframes are

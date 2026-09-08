@@ -861,6 +861,166 @@ def run_circle_session(client: AutomationClient) -> None:
           "and leaves the feature without geometry")
 
 
+### The Topology scenario
+
+# Two polylines on the equator, well apart, and the point on each one that is
+# clicked to add it to the topology. A boundary built from them holds one
+# section per line and nothing across the gap between them.
+WEST_LINE = [(0.0, -40.0), (0.0, -30.0), (0.0, -20.0)]
+EAST_LINE = [(0.0, 20.0), (0.0, 30.0), (0.0, 40.0)]
+WEST_CLICK = (0.0, -35.0)
+EAST_CLICK = (0.0, 35.0)
+
+# Where the western line is dragged to at TOPOLOGY_TIME, and how far a resolved
+# vertex may sit from where the line it came from is.
+TOPOLOGY_TIME = 100.0
+MOVED_LONGITUDE = -10.0
+TOPOLOGY_TOLERANCE = 0.5
+
+
+def add_polyline(client: AutomationClient, name: str,
+                 points: list[tuple[float, float]]) -> bool:
+    """Add a named feature and draw one polyline on it."""
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value=name)
+    client.call("set_tool", tool="draw", kind="polyline")
+    if not draw(client, points):
+        return False
+    client.call("key", key="Enter")
+    return True
+
+
+def click_at(client: AutomationClient, at: tuple[float, float]) -> bool:
+    """Click a point of the globe named by latitude and longitude."""
+    screen = client.call("latlon_to_screen", lat=at[0], lon=at[1])["screen"]
+    if not check(screen is not None, f"the point {at} is on the visible hemisphere"):
+        return False
+    client.call("click", x=screen[0], y=screen[1])
+    return True
+
+
+def run_topology_session(client: AutomationClient) -> None:
+    """Build a line topology by clicking two features, then edit and move it."""
+    start_new_document(client)
+    if not add_polyline(client, "West Line", WEST_LINE):
+        return
+    if not add_polyline(client, "East Line", EAST_LINE):
+        return
+
+    # A third feature, holding nothing, becomes the topology.
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Boundary")
+    client.call("set_tool", tool="topology")
+    check(client.call("get_tool")["tool"] == "topology", "the Topology tool is armed")
+
+    if not click_at(client, WEST_CLICK) or not click_at(client, EAST_CLICK):
+        return
+
+    feature = client.call("get_selected")["feature"]
+    check(feature["geometry_kind"] == "topology",
+          f"clicking a feature makes the empty one a topology: {feature['geometry_kind']}")
+    sections = feature.get("sections", [])
+    if not check(len(sections) == 2, f"one section per feature clicked: {len(sections)}"):
+        return
+    check([s["problem"] for s in sections] == ["", ""], "both sections resolve")
+    check(len(feature["rings"]) == 2,
+          "and each becomes a part of its own, so the gap between them is not joined")
+
+    # What a section resolves to is the run of vertices of the feature it names.
+    west_vertices = [tuple(v) for v in sections[0]["vertices"]]
+    check(worst_offset(sections[0]["vertices"], WEST_LINE) < TOPOLOGY_TOLERANCE,
+          f"the first section runs along the western line: {west_vertices}")
+    check(worst_offset(sections[1]["vertices"], EAST_LINE) < TOPOLOGY_TOLERANCE,
+          "and the second along the eastern one")
+
+    # Reversing a section from the panel turns that run round and leaves the
+    # other one alone.
+    client.call("sections", button="Reverse", index=0)
+    sections = client.call("get_selected")["feature"]["sections"]
+    check(sections[0]["reversed"] and not sections[1]["reversed"],
+          "Reverse turns the section that was picked and not the other")
+    check(worst_offset(sections[0]["vertices"], list(reversed(WEST_LINE)))
+          < TOPOLOGY_TOLERANCE,
+          "so its vertices come back the other way round")
+    panel = client.call("get_properties")["properties"]
+    check([row["way"] for row in panel["sections"]] == ["back", "on"],
+          f"and the panel says which way each section runs: {panel['sections']}")
+
+    run_moved_section_checks(client)
+    run_broken_section_checks(client)
+
+
+def run_moved_section_checks(client: AutomationClient) -> None:
+    """A topology follows the feature a section runs along when it moves."""
+    boundary = client.call("get_selected")["feature"]["pnid"]
+
+    # Move the western line at a later time. The drag writes its keyframe there,
+    # so the line is where it was drawn at the present and elsewhere at 100 Ma.
+    client.call("select", title="West Line")
+    check(client.call("get_selected")["feature"]["geometry_kind"] == "polyline",
+          "the western line is selected to be moved")
+    # Selecting a feature the Topology tool cannot build on puts the Move tool
+    # back, so the drag below is a drag rather than another section.
+    check(client.call("get_tool")["tool"] == "move",
+          "the Topology tool gives way to Move on a feature holding vertices")
+
+    # Pin where the line is at the present first. Without a keyframe there, the
+    # one the drag writes would be the only one and would hold at every time.
+    client.call("keyframes", button="Key")
+    client.call("set_time", time=TOPOLOGY_TIME)
+    if not drag(client, 0.0, MOVED_LONGITUDE):
+        return
+    moved = client.call("get_selected")["feature"]["world_rings"][0]
+    check(abs(centroid([moved])[1] - MOVED_LONGITUDE) < TOPOLOGY_TOLERANCE,
+          f"the drag really moved it, to {centroid([moved])[1]:.3f}")
+
+    client.call("select", pnid=boundary)
+    sections = client.call("get_selected")["feature"]["sections"]
+    # The section was reversed, so it holds the moved line back to front.
+    resolved = list(reversed(sections[0]["vertices"]))
+    check(worst_offset(resolved, [tuple(v) for v in moved]) < TOPOLOGY_TOLERANCE,
+          f"at {TOPOLOGY_TIME} Ma the section follows the line it runs along: {resolved}")
+    check(worst_offset(sections[1]["vertices"], EAST_LINE) < TOPOLOGY_TOLERANCE,
+          "while the section whose feature did not move is where it was")
+
+    client.call("set_time", time=0.0)
+    sections = client.call("get_selected")["feature"]["sections"]
+    check(worst_offset(list(reversed(sections[0]["vertices"])), WEST_LINE)
+          < TOPOLOGY_TOLERANCE,
+          "and at the present it is back where the line was drawn")
+
+
+def run_broken_section_checks(client: AutomationClient) -> None:
+    """A section whose feature is deleted is shown as broken, not dropped."""
+    boundary = client.call("get_selected")["feature"]["pnid"]
+    client.call("select", title="West Line")
+    client.call("menu", item="delete")
+
+    client.call("select", pnid=boundary)
+    sections = client.call("get_selected")["feature"]["sections"]
+    if not check(len(sections) == 2, "the deleted feature does not take its section with it"):
+        return
+    check(sections[0]["problem"] != "", f"which is broken instead: {sections[0]['problem']}")
+    check(sections[1]["problem"] == "", "and the other section is untouched")
+    panel = client.call("get_properties")["properties"]
+    check([row["broken"] for row in panel["sections"]] == [True, False],
+          f"the panel marks the broken one: {panel['sections']}")
+
+    # An undo brings the feature back, and the section with it. The uuid is what
+    # makes that work: the tree that comes back is a clone, so nothing the
+    # section could have held on to is the same object.
+    client.call("toolbar", button="Undo")
+    client.call("select", pnid=boundary)
+    sections = client.call("get_selected")["feature"]["sections"]
+    check([s["problem"] for s in sections] == ["", ""],
+          "undoing the deletion mends the broken section")
+
+    # Remove is the way to take a section out on purpose.
+    client.call("sections", button="Remove", index=1)
+    check(len(client.call("get_selected")["feature"]["sections"]) == 1,
+          "Remove takes the picked section out of the topology")
+
+
 ### The Vertex, Measure and Split scenarios
 
 # A triangle around the middle of the default view, large enough that its
@@ -1232,6 +1392,7 @@ def main(argv: list[str]) -> int:
         run_measure_session(client)
         run_split_session(client)
         run_circle_session(client)
+        run_topology_session(client)
     finally:
         if connected:
             try:

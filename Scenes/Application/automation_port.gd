@@ -13,6 +13,7 @@ const TOOL_NAMES := {
 	Application.Tool.VERTEX: "vertex",
 	Application.Tool.MEASURE: "measure",
 	Application.Tool.CIRCLE: "circle",
+	Application.Tool.TOPOLOGY: "topology",
 }
 
 const BUTTONS := {
@@ -331,6 +332,25 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"sections":
+			# The section table of a line topology, driven the way the keyframe
+			# table is: pick a row, then press one of its buttons.
+			if request.has("index"):
+				app.properties.select_section(int(request["index"]))
+			var section_button: Button = {
+				"Reverse": app.properties.reverse_button,
+				"Remove": app.properties.remove_section_button,
+			}.get(str(request.get("button", "")))
+			if section_button == null:
+				return {"ok": false, "error":
+					"no section button called %s" % request.get("button", "")}
+			if section_button.disabled:
+				return {"ok": false, "error":
+					"the %s button is disabled" % request.get("button", "")}
+			section_button.pressed.emit()
+			await _frames(2)
+			return {"ok": true}
+
 		"keyframes":
 			if request.has("index"):
 				app.properties.select_keyframe(int(request["index"]))
@@ -462,6 +482,11 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				if app.circle_button.disabled:
 					return {"ok": false, "error": "the Circle tool needs a feature selected"}
 				app.set_active_tool(Application.Tool.CIRCLE)
+			elif tool_name == "topology":
+				if app.topology_button.disabled:
+					return {"ok": false, "error":
+						"the Topology tool needs a feature that can be a topology"}
+				app.set_active_tool(Application.Tool.TOPOLOGY)
 			elif tool_name == "move":
 				app.set_active_tool(Application.Tool.MOVE)
 			elif not tool_name.is_empty():
@@ -759,8 +784,9 @@ func _feature_to_json(feature: Feature) -> Variant:
 	for ring in feature.rings:
 		world_rings.append(Feature.apply_basis(ring, world))
 	var rotation := feature.rotation_at(time)
-	return {
+	var data := {
 		"pnid": feature.pnid,
+		"uuid": feature.uuid,
 		"title": feature.title,
 		"is_group": feature.is_group,
 		"enabled": feature.enabled,
@@ -776,6 +802,30 @@ func _feature_to_json(feature: Feature) -> Variant:
 		"world_rings": Feature.rings_to_json(world_rings),
 		"triangles": _vertices_to_json(feature.triangles),
 	}
+	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		data["sections"] = _sections_to_json(feature, time)
+	return data
+
+
+# What a line topology names and what each section came to at the current time,
+# so a run can read a broken section without looking at the panel.
+func _sections_to_json(feature: Feature, time: float) -> Array:
+	var resolved := Topology.resolve(app.document.root, feature, time)
+	var list: Array = []
+	for index in feature.sections.size():
+		var section: TopologySection = feature.sections[index]
+		var entry: Dictionary = resolved[index]
+		list.append({
+			"feature": section.feature_uuid,
+			"title": entry["title"],
+			"part": section.part,
+			"from": section.from_index,
+			"to": section.to_index,
+			"reversed": section.reversed,
+			"problem": entry["problem"],
+			"vertices": _vertices_to_json(entry["vertices"]),
+		})
+	return list
 
 
 func _vertices_to_json(vertices: PackedVector2Array) -> Array:
