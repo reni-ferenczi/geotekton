@@ -165,7 +165,7 @@ def _convert_feature(feature) -> Feature | None:
     converted = Feature.new_feature(
         _name(feature), rings, geometry_kind=kind,
         feature_type=_feature_type(feature, kind), uuid=str(uuid4()))
-    converted.color = _plate_color(plate)
+    converted.color = plate_color(plate)
     converted.time_range = _time_range(feature)
     return converted
 
@@ -227,7 +227,7 @@ def _time_range(feature) -> tuple[int, int]:
     return younger, older
 
 
-def _plate_color(plate: int) -> list[float]:
+def plate_color(plate: int) -> list[float]:
     """A colour of the plate's own, which is what GPlates identifies a plate by.
 
     Consecutive plate ids belong to neighbouring plates, so stepping the hue by

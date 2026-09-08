@@ -10,7 +10,7 @@ on every change. `Tests/run.py` starts all of them.
 | `session`  | `python Tests/run.py session`  | A scripted end-to-end session driving the running application over the automation port. |
 | `cli`      | `python Tests/run.py cli`      | What `--version` and `--help` print, from a headless start with no window. |
 | `self-check` | `python Tests/run.py self-check` | The runner itself: that it reports a test which hits a runtime error as a failure, and that it fails a run whose application script did not compile. |
-| `python`   | `uv run Tests/run.py python`   | The scripting package under pytest: the file model, the API against a fake application, and the bridge server. No engine. |
+| `python`   | `uv run Tests/run.py python`   | The scripting package under pytest: the file model, the API against a fake application, the bridge server and the GPlates import. No engine. |
 | `golden`   | `uv run Tests/run.py golden`   | Full window screenshots diffed against reference images. |
 | `all`      | `uv run Tests/run.py all`      | All seven in the order above, stopping at the first failure. |
 | `performance` | `uv run Tests/run.py performance` | The frame time during playback, and what one hit test costs with and without the bounding cap, on a document of a chosen triangle count. Not part of `all`. |
@@ -69,6 +69,15 @@ GDScript tests live in two directories and are discovered by file name:
 `Tests/Python/test_*.py` is the `python` mode: plain pytest over
 `src/middle_earth`, with no engine involved. `pythonpath` and `testpaths` are set
 in `pyproject.toml`, so `uv run pytest` from the project root finds them.
+
+The [import](Import.md) tests are the one place a test reads something this
+repository does not carry. Feature collections and rotation files that mean
+anything are far too large to keep here, so those tests read the ones an
+installed GPlates brings with it, at `GPLATES_GEODATA` or the default install
+directory, and are skipped when there is none. Everything they could check
+without that — the type mapping, the geometry kinds, the time ranges, the
+sampling, the project archive — is checked against data the tests build
+themselves, so a machine with no GPlates still runs almost all of them.
 
 Every method named `test_*` is one test. The runner (`Tests/run_tests.gd`) creates a
 fresh instance of the test class per method, so tests do not share state. Helper
@@ -204,6 +213,14 @@ and that the application carries on. `run_no_python_session` launches a second
 application with `--no-python` and checks it comes up with no interpreter, no
 port and a dead prompt, while the scripts are still listed. See
 [Scripting](Scripting.md).
+
+`run_import_session` writes a GPlates file holding one plate's outline and the
+rotation that moves it, imports it from File > Import and checks the tree it
+built, that the document opens Untitled and unsaved, and that the outline is
+drawn where `pygplates` reconstructs it at fifty million years and where it
+stands at the present day. The probes go by hue rather than by the colour
+itself, because the planet lights what it draws and lets the Earth texture
+through, which lifts every channel towards white. See [Import](Import.md).
 
 `cli.py` reads the switch list out of `Logic/cli.gd`, so a new switch that
 `--help` forgets to list fails the run. It also runs `--help-command` in both of

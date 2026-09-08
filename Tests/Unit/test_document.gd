@@ -233,3 +233,24 @@ func test_a_saved_file_says_its_format_and_keeps_the_time_it_was_given() -> void
 	assert_eq(reloaded.load_from_file(SCRATCH), "", "the written file loads back")
 	assert_close(reloaded.root.children[0].keyframes[0].time, TIME, 1e-9)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+
+
+func test_an_imported_document_opens_untitled_and_unsaved() -> void:
+	# File > Import converts into a scratch file and loads that; what opens is
+	# a document nobody has saved yet rather than one belonging to the scratch.
+	var document := Document.new()
+	assert_eq(document.load_imported(SAMPLE), "", "the file was read")
+	assert_eq(document.path, "", "an imported document has no file of its own")
+	assert_eq(document.display_name(), Document.UNTITLED)
+	assert_true(document.is_dirty(), "and is offered for saving")
+	assert_eq(document.root.child_count(), 1, "the tree it read is there")
+
+
+func test_an_import_that_cannot_be_read_says_so_and_changes_nothing() -> void:
+	var document := Document.new()
+	document.root.children.append(Feature.create_feature("Craton"))
+	document.record()
+	var before := document.root.child_count()
+	assert_true(not document.load_imported("user://no_such_import.middle-earth").is_empty(),
+		"a missing file is reported")
+	assert_eq(document.root.child_count(), before, "and the open document is untouched")

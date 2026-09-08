@@ -206,6 +206,23 @@ def test_a_moving_plate_is_sampled_at_the_step_and_stops_repeating_itself(tmp_pa
     assert times == [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 100.0]
 
 
+def test_a_rotation_sequence_in_the_feature_file_is_used(tmp_path):
+    """One file may hold both, which is what a hand made import fixture does."""
+    both = tmp_path / "both.gpml"
+    pygplates.FeatureCollection([
+        a_feature(geometry=a_polygon()),
+        pygplates.Feature.create_total_reconstruction_sequence(0, 101,
+            pygplates.GpmlIrregularSampling([
+                pygplates.GpmlTimeSample(pygplates.GpmlFiniteRotation(
+                    pygplates.FiniteRotation((90, 0), 0.0)), 0.0),
+                pygplates.GpmlTimeSample(pygplates.GpmlFiniteRotation(
+                    pygplates.FiniteRotation((90, 0), math.radians(20.0))), 100.0)])),
+    ]).write(str(both))
+    document = import_files([both])
+    assert len(document.features) == 1, "the rotation sequence is not a feature of its own"
+    assert [key.time for key in document.groups[1].keyframes][-1] == 100.0
+
+
 def test_no_rotation_file_leaves_every_group_still(tmp_path):
     features = write_features(tmp_path / "features.gpml", [a_feature(geometry=a_polygon())])
     assert all(group.keyframes == [] for group in import_files([features]).groups)

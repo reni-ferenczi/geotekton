@@ -489,6 +489,21 @@ func load_from_file(file_path: String) -> String:
 	return ""
 
 
+# Read a document that was converted from something else. It is loaded like any
+# other file and then cut loose from the one it was read out of: an import has
+# no `.middle-earth` file of its own yet, so it opens Untitled and dirty and
+# Save asks where to put it. See Docs/Import.md.
+func load_imported(file_path: String) -> String:
+	var error := load_from_file(file_path)
+	if error.is_empty():
+		path = ""
+		# The version that was saved is not this document's, which is the same
+		# state a document reaches when its saved version falls off the stack.
+		_saved = -1
+		state_changed.emit()
+	return error
+
+
 # The document as a file holds it: the feature tree, the view settings and the
 # format version they are written at.
 func to_json() -> Dictionary:

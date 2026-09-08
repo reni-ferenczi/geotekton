@@ -930,6 +930,7 @@ func _menu_item(name: String) -> Array:
 		"open": return [app.file_menu, Application.FileItem.OPEN]
 		"save": return [app.file_menu, Application.FileItem.SAVE]
 		"save_as": return [app.file_menu, Application.FileItem.SAVE_AS]
+		"import": return [app.file_menu, Application.FileItem.IMPORT]
 		"preferences": return [app.file_menu, Application.FileItem.PREFERENCES]
 		"quit": return [app.file_menu, Application.FileItem.QUIT]
 		"features": return [app.view_menu, Application.ViewItem.FEATURES]
