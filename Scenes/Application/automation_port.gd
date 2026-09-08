@@ -366,10 +366,32 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"view":
+			var view_button: Button = {
+				"zoom_in": app.zoom_in_button,
+				"zoom_out": app.zoom_out_button,
+				"zoom_reset": app.zoom_reset_button,
+				"rotate_clockwise": app.rotate_clockwise_button,
+				"rotate_anticlockwise": app.rotate_anticlockwise_button,
+				"camera_reset": app.camera_reset_button,
+			}.get(str(request.get("button", "")))
+			if view_button == null:
+				return {"ok": false, "error": "no view button called %s" % request.get("button", "")}
+			view_button.pressed.emit()
+			await _frames(2)
+			return {"ok": true}
+
 		"get_view":
 			var size := DisplayServer.window_get_size()
 			return {
 				"ok": true,
+				"toolbar": {
+					"projection": app.projection_selector.get_item_text(
+						app.projection_selector.selected),
+					"zoom": app.zoom_spin.value,
+					"lat": app.camera_latitude_spin.value,
+					"lon": app.camera_longitude_spin.value,
+				},
 				"lat": app.planet_view.planet.lat,
 				"lon": app.planet_view.planet.lon,
 				"angle": app.planet_view.planet.angle,

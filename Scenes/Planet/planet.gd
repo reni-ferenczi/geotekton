@@ -40,6 +40,8 @@ const MAP_BASIS := Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
 @export var projection: MapProjection.Kind = MapProjection.Kind.RECTANGULAR;
 @export_range(-90, 90, 1.0, "Latitude") var lat: float = 0.0;
 @export_range(-180, 180, 1.0, "Longitude") var lon: float = 0.0;
+# How far the view is turned clockwise about the point it looks at. The camera
+# is what carries it, in PlanetView, so it turns the map and the globe alike.
 @export_range(-180, 180, 1.0, "Angle") var angle: float = 0.0;
 
 @onready var globe = $Globe;
@@ -58,7 +60,7 @@ func _process(_delta: float) -> void:
 	map.visible = show_map
 
 	if globe:
-		globe.rotation = Vector3(deg_to_rad(lat), deg_to_rad(180 - lon), deg_to_rad(angle))
+		globe.rotation = Vector3(deg_to_rad(lat), deg_to_rad(180 - lon), 0.0)
 	_apply_projection()
 
 

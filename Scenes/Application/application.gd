@@ -36,6 +36,9 @@ enum HelpItem { DOCUMENTATION, ABOUT }
 # Item id of the entry that empties the recent file list; above any file index.
 const CLEAR_RECENT_ID := 1000
 
+# Item id of the globe in the projection selector, above every MapProjection.Kind.
+const GLOBE_PROJECTION_ID := 100
+
 # View menu item to the config key remembering whether that panel is shown.
 const PANEL_KEYS := {
 	ViewItem.FEATURES: "panel_features",
@@ -56,6 +59,16 @@ const PANEL_KEYS := {
 @onready var split_button: Button = %Split
 @onready var kind_selector: OptionButton = %GeometryKind
 @onready var segments_spin: SpinBox = %Segments
+@onready var projection_selector: OptionButton = %Projection
+@onready var zoom_spin: SpinBox = %Zoom
+@onready var zoom_in_button: Button = %ZoomIn
+@onready var zoom_out_button: Button = %ZoomOut
+@onready var zoom_reset_button: Button = %ZoomReset
+@onready var camera_latitude_spin: SpinBox = %CameraLatitude
+@onready var camera_longitude_spin: SpinBox = %CameraLongitude
+@onready var rotate_anticlockwise_button: Button = %RotateAnticlockwise
+@onready var rotate_clockwise_button: Button = %RotateClockwise
+@onready var camera_reset_button: Button = %CameraReset
 @onready var menu_bar: MenuBar = %MenuBar
 @onready var left_splitter: HSplitContainer = %LeftSplitter
 @onready var right_splitter: HSplitContainer = %RightSplitter
@@ -172,6 +185,7 @@ func _ready() -> void:
 	segments_spin.max_value = SmallCircle.MAX_SEGMENTS
 	segments_spin.value = SmallCircle.DEFAULT_SEGMENTS
 	_apply_outline_scale()
+	_build_view_toolbar()
 
 	# The Save and Load buttons of the feature tree toolbar run the File commands
 	features.save_button.pressed.connect(save_document)
@@ -210,6 +224,13 @@ func _ready() -> void:
 		_restore_session()
 	_update_document_labels()
 	_on_cursor_moved(NAN, NAN)
+
+
+# The view toolbar follows the view rather than driving it alone: the wheel, a
+# drag of the globe and the automation port all move the camera without going
+# near the fields, and this is what puts the numbers back.
+func _process(_delta: float) -> void:
+	_update_view_toolbar()
 
 
 func _notification(what: int) -> void:
@@ -931,6 +952,68 @@ func _on_feature_selected(node: Feature) -> void:
 
 
 # One entry per kind, with the kind itself as the item id.
+### The view toolbar: what the planet is drawn as, and where the camera stands
+
+
+# How far the view turns for one press of the clockwise or anticlockwise button.
+const ROTATION_STEP := 15.0
+
+
+func _build_view_toolbar() -> void:
+	# The globe first, then the five map projections in MapProjection.Kind's own
+	# order, so the id of an item is the projection it selects and the globe has
+	# an id of its own, above all of them.
+	projection_selector.clear()
+	projection_selector.add_item("Globe", GLOBE_PROJECTION_ID)
+	for kind in MapProjection.NAMES.size():
+		projection_selector.add_item(str(MapProjection.NAMES[kind]), kind)
+	projection_selector.item_selected.connect(_on_projection_selected)
+
+	zoom_in_button.pressed.connect(planet_view.zoom_in)
+	zoom_out_button.pressed.connect(planet_view.zoom_out)
+	zoom_reset_button.pressed.connect(planet_view.reset_zoom)
+	zoom_spin.value_changed.connect(
+		func(value: float) -> void: planet_view.set_zoom(value / 100.0))
+
+	camera_latitude_spin.value_changed.connect(
+		func(value: float) -> void: planet_view.planet.lat = value)
+	camera_longitude_spin.value_changed.connect(
+		func(value: float) -> void: planet_view.planet.lon = value)
+	rotate_clockwise_button.pressed.connect(
+		func() -> void: _turn_view(ROTATION_STEP))
+	rotate_anticlockwise_button.pressed.connect(
+		func() -> void: _turn_view(-ROTATION_STEP))
+	camera_reset_button.pressed.connect(planet_view.reset_camera)
+
+	_update_view_toolbar()
+
+
+func _on_projection_selected(index: int) -> void:
+	var id := projection_selector.get_item_id(index)
+	planet_view.planet.show_map = id != GLOBE_PROJECTION_ID
+	if id != GLOBE_PROJECTION_ID:
+		planet_view.planet.projection = id as MapProjection.Kind
+
+
+func _turn_view(degrees: float) -> void:
+	planet_view.planet.angle = wrapf(planet_view.planet.angle + degrees, -180.0, 180.0)
+
+
+# Put back what the view is actually showing. The wheel, a drag of the globe and
+# the automation port all change it behind the toolbar's back, so the fields are
+# followed rather than trusted; setting a value without firing the signal that
+# would write it straight back is what set_value_no_signal is for.
+func _update_view_toolbar() -> void:
+	var planet := planet_view.planet
+	var id := int(planet.projection) if planet.show_map else GLOBE_PROJECTION_ID
+	var index := projection_selector.get_item_index(id)
+	if projection_selector.selected != index:
+		projection_selector.select(index)
+	zoom_spin.set_value_no_signal(planet_view.zoom * 100.0)
+	camera_latitude_spin.set_value_no_signal(planet.lat)
+	camera_longitude_spin.set_value_no_signal(planet.lon)
+
+
 func _build_kind_selector() -> void:
 	kind_selector.clear()
 	for kind in Feature.KIND_NAMES:

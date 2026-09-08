@@ -62,9 +62,13 @@ var move_on_globe: bool = false
 
 func _process(_delta: float) -> void:
 	camera.fov = _fov_for_view()
+	# The camera is what turns and slides; the globe turns to face the latitude
+	# and longitude it is pointed at, and a map re-projects about them.
+	camera.rotation.z = deg_to_rad(planet.angle)
+	camera.position.y = _camera_offset()
 
 
-### Zoom
+### Zoom and camera
 
 
 func set_zoom(value: float) -> void:
@@ -81,6 +85,35 @@ func zoom_out() -> void:
 
 func reset_zoom() -> void:
 	set_zoom(DEFAULT_ZOOM)
+
+
+# Point the camera back at the middle of the planet, the right way up.
+func reset_camera() -> void:
+	planet.lat = 0.0
+	planet.lon = 0.0
+	planet.angle = 0.0
+
+
+# How far up the camera stands, so that the latitude it is pointed at is in the
+# middle of the view. Only a map needs it: the globe turns to face that latitude
+# and an orthographic map centres its whole hemisphere on it, so both of those
+# leave the camera where the scene puts it.
+#
+# The offset stops where the edge of the sheet would come inside the view, so at
+# zoom 1, with the whole of the sheet on screen, there is nowhere to slide to and
+# the latitude is only worth typing once the view is zoomed in.
+func _camera_offset() -> float:
+	if not planet.show_map or planet.projection == MapProjection.Kind.ORTHOGRAPHIC:
+		return 0.0
+	var extent := MapProjection.extent(planet.projection)
+	var centre := Vector2(planet.lat, planet.lon)
+	var plane = MapProjection.forward(planet.projection, centre, centre)
+	# A latitude the projection does not reach at all, which is what Mercator
+	# answers near a pole; the top of the sheet is as far as the view can go.
+	var wanted: float = signf(planet.lat) * extent if plane == null else plane.y
+	var visible := camera.position.z * tan(deg_to_rad(camera.fov) * 0.5)
+	var room := maxf(extent - visible, 0.0)
+	return clampf(wanted, -room, room)
 
 
 # The field of view that fits what is on screen into the window at the current
