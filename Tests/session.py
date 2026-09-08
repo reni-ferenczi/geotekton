@@ -45,6 +45,14 @@ def project_version() -> str:
     return match.group(1)
 
 
+# How far the other two channels may come up before a colour stops being
+# dominated by one of them. The channels are compared against each other rather
+# than against a fixed level, so a feature that the hover highlight has
+# brightened is still its own colour: green (0.11, 1.0, 0.11) becomes
+# (0.44, 1.0, 0.44) under the highlight and both are green.
+DOMINANT_RATIO = 0.7
+
+
 def dominant(color: list[float]) -> str:
     """The channel a probed pixel is dominated by, empty when none is."""
     red, green, blue = color[0], color[1], color[2]
@@ -53,7 +61,7 @@ def dominant(color: list[float]) -> str:
         ("green", green, (red, blue)),
         ("blue", blue, (red, green)),
     ):
-        if value > 0.5 and max(others) < 0.3:
+        if value > 0.5 and max(others) < value * DOMINANT_RATIO:
             return name
     return ""
 
