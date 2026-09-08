@@ -44,21 +44,9 @@ DEFAULT_VIEW = {
     "projection": 0,
 }
 
-# The scene settings a document carries. Every scene states the whole block for
-# the same reason it states the whole view: so the scenes stay independent of
-# each other and of the order they run in.
-DEFAULT_SETTINGS = {
-    "background_color": [0.0, 0.0, 0.0, 1.0],
-    "star_field": True,
-    "graticule_color": [1.0, 1.0, 1.0, 0.3333],
-    "graticule_spacing": 15.0,
-    "light_direction": [0.0, 0.0],
-    "ambient": 0.0,
-    "backdrop_path": "",
-    "backdrop_opacity": 1.0,
-    "backdrop_visible": True,
-}
-
+# The scene settings a document carries. A scene names only what it wants: a
+# view block is read key by key, so everything it leaves out is the default,
+# which is the scene as it was drawn before any of it was settable.
 BACKDROP = str(ROOT / "Tests" / "Data" / "Backdrops" / "quarters.png")
 
 SCENES = [
@@ -141,7 +129,7 @@ def sample_with_settings(sample: str, settings: dict, temp_dir: Path, name: str)
     if not settings:
         return DATA / sample
     data = json.loads((DATA / sample).read_text(encoding="utf-8"))
-    data["view"] = DEFAULT_SETTINGS | settings
+    data["view"] = settings
     path = temp_dir / f"{name}.middle-earth"
     path.write_text(json.dumps(data, indent="	"), encoding="utf-8")
     return path

@@ -5,7 +5,7 @@ put vertices down, then press Enter to commit them.
 
 ## Tool Selection
 
-The toolbar above the planet view holds six mutually exclusive tool buttons and
+The toolbar above the planet view holds seven mutually exclusive tool buttons and
 a selector for what the Draw tool produces. Only the two this page is about are
 listed here; the rest are in [Editing](Editing.md#tools):
 

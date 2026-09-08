@@ -174,9 +174,6 @@ static func set_view_defaults(settings: ViewSettings) -> void:
 	set_value("view_defaults", settings.to_json())
 
 
-static func clear_view_defaults() -> void:
-	set_value("view_defaults", null)
-
 
 ### Recently opened files
 

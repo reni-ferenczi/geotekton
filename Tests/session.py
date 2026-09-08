@@ -1159,21 +1159,6 @@ def run_wheel_checks(client: AutomationClient) -> None:
               f"and a notch back returns {name} to the whole planet")
 
 
-# The scene as ViewSettings draws it before a document says anything, which is
-# what the preferences are put back to at the end of the scenario.
-DEFAULT_VIEW_SETTINGS = {
-    "background_color": [0.0, 0.0, 0.0, 1.0],
-    "star_field": True,
-    "graticule_color": [1.0, 1.0, 1.0, 0.3333],
-    "graticule_spacing": 15.0,
-    "light_direction": [0.0, 0.0],
-    "ambient": 0.0,
-    "backdrop_path": "",
-    "backdrop_opacity": 1.0,
-    "backdrop_visible": True,
-}
-
-
 def run_scene_session(client: AutomationClient, folder: Path) -> None:
     """The scene settings: saved with the document, dragged on the globe, defaulted."""
     sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
@@ -1291,12 +1276,15 @@ def run_view_default_checks(client: AutomationClient, sample: Path) -> None:
           "and Restore defaults puts the preference back on it")
 
     # Put the preferences back, so the scenarios after this one open the
-    # documents they expect rather than the ones this scenario asked for.
+    # documents they expect rather than the ones this scenario asked for. The
+    # sample was written before there was a view block, so opening it is what
+    # puts the defaults back on the document to be stored.
     client.call("load", path=str(sample))
-    client.call("set_view_settings", button="RestoreDefaults")
-    client.call("set_view_settings", view_settings=DEFAULT_VIEW_SETTINGS)
     client.call("view", projection="globe")
     client.call("set_view_settings", button="SaveAsDefault")
+    restored = client.call("get_preferences")["preferences"]
+    check(restored["default_view"] == "Globe" and restored["view_defaults"]["ambient"] == 0.0,
+          "the preferences are back to what a fresh installation holds")
     client.call("set_view", show_map=False)
 
 

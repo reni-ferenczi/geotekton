@@ -14,9 +14,10 @@ const ISOLATED_SETTINGS_DIR := "isolated-settings"
 # The Earth texture credited in the About dialog, as listed in README.md.
 const EARTH_TEXTURE_URL := "https://wall.alphacoders.com/big.php?i=11433"
 static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Document.EXTENSION])
-# What a backdrop image may be: the raster formats the engine reads, plus SVG.
+# What a backdrop image may be, taken from the formats Backdrop reads rather
+# than listed a second time here.
 static var IMAGE_FILTERS := PackedStringArray(
-	["*.png, *.jpg, *.jpeg, *.webp, *.svg ; Images"])
+	["*.%s ; Images" % ", *.".join(Backdrop.EXTENSIONS)])
 
 # Answers a file dialog without showing one. Set by the automation port so a
 # scripted run can drive Open and Save As; unset in a normal run.
