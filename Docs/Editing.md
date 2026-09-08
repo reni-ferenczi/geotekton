@@ -2,7 +2,7 @@
 
 ## Tools
 
-The toolbar contains six mutually exclusive tool buttons, two switches, a
+The toolbar contains seven mutually exclusive tool buttons, two switches, a
 selector and a number:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
@@ -15,6 +15,8 @@ selector and a number:
   [The Circle tool](#the-circle-tool).
 - **Topology** — Builds a line topology out of the features it runs along; see
   [Line topologies](#line-topologies).
+- **Light** — Drags the light around the globe; see
+  [The Light tool](#the-light-tool). Offered on the globe alone.
 - **Snap** — Whether a dragged vertex jumps onto a nearby one. Only the Vertex
   tool uses it; see [Snapping](#snapping).
 - **Split** — Cuts the selected feature in two at the vertex the Vertex tool is
@@ -26,8 +28,8 @@ selector and a number:
 - **Segments** — How many segments a small circle is cut into when it is
   committed, from 3 to 720.
 
-Only one of Move, Draw, Vertex, Measure, Circle and Topology is active at a
-time. Everything but
+Only one of Move, Draw, Vertex, Measure, Circle, Topology and Light is active at
+a time. Everything but
 Move takes the clicks on the planet for itself, so selecting a feature, moving
 one and the right click menu wait until Move comes back. Rotating the globe with
 the middle button always works.
@@ -303,6 +305,23 @@ Each section becomes a **part of its own**, so nothing is drawn between the end
 of one and the start of the next. A line topology is the stretches it names, and
 a segment across the gap is one no feature ever drew.
 
+## The Light tool
+
+Where the light comes from is a direction in the scene rather than a place on
+the planet, so it is dragged on the globe: press anywhere on it and the light
+shines straight at the point under the pointer, following it until the button is
+let go. A yellow marker sits where the light stands, so the direction is visible
+even where the shading is not.
+
+The direction is fixed to the view, not to the planet, so turning the globe
+carries the terminator across it rather than dragging the light along. A map
+sheet is flat and has no point for the light to shine at, so the tool is offered
+on the globe alone and gives way to Move when a map takes over.
+
+The direction and the ambient level can also be typed on the
+[View settings](#view-settings) dialog, which is what to reach for when the part
+of the globe the light should come from is on the far side.
+
 ## The Measure tool
 
 The Measure tool reports great circle distances in the status bar.
@@ -335,6 +354,37 @@ the dot product of the two points. The dot product of two nearly equal unit
 vectors is 1 to within the rounding of the arithmetic, and taking its arc cosine
 throws most of the digits away — and a short distance is what a measurement
 usually is.
+
+## View settings
+
+**View > View Settings...** opens the scene around the features: what is behind
+the planet, what is drawn over it, where the light comes from and which image
+the planet wears. Every field takes effect as it is changed rather than when the
+dialog is closed, so the planet under it shows what is being chosen.
+
+| Setting | What it does |
+|---------|--------------|
+| Background | The colour behind the planet |
+| Star field | Whether the stars are drawn on it |
+| Graticule | The colour of the grid |
+| Graticule spacing | How far apart its lines are, from 1 to 90 degrees |
+| Light elevation, light azimuth | Where the light comes from, away from the line of sight; `(0, 0)` shines from the camera |
+| Ambient light | How much light reaches the night side; 0 is a black night, 1 no night at all |
+| Backdrop image shown, backdrop opacity | Whether the image is drawn and how much of the Earth it covers |
+| Backdrop image | The image the planet wears, in PNG, JPEG, WebP or SVG |
+
+The settings belong to the document and are saved with it, so a map of a world
+keeps the way its author drew it; see
+[Persistence](Persistence.md#view-settings). They are not on the undo stack.
+
+**Save as default** makes the block, and the view being shown, what File > New
+starts from. **Restore defaults** puts the open document back to them. An
+opened file always wins over the default: what the file says is what that
+document looks like.
+
+An image that cannot be read — moved, renamed, or in a format Middle Earth does
+not read — is not an error the document has to be repaired from. The planet
+keeps the built in Earth and the reason appears under the path.
 
 ## Preferences
 

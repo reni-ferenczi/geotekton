@@ -7,7 +7,7 @@ surface of a sphere, and a yellow outline layer over that.
 ## Base Rendering
 
 - **Earth texture**: sampled from an equirectangular projection via UV
-- **Grid overlay**: longitude/latitude lines with configurable `split` (divisions), `width`, and `color`; pole-aware width correction in globe mode
+- **Grid overlay**: longitude/latitude lines with configurable `split` (divisions), `width`, and `color`; pole-aware width correction in globe mode. The document holds one spacing in degrees and `ViewSettings.graticule_split()` turns it into the divisions the shader counts
 
 The globe carries the equirectangular grid on its own surface, so its UV *is*
 the latitude and longitude of a fragment. A map does not: the shader turns UV
@@ -15,6 +15,59 @@ into a point of the projection's sheet and asks the projection which place of
 the planet is drawn there. Everything after that — the Earth texture, the
 graticule, the features, the outline — is the same code in both views, because
 all of it works in latitude and longitude.
+
+## Lighting and ambient
+
+The planet is a lit surface: the shader writes `ALBEDO` and the engine shades it
+with the `DirectionalLight3D` in `planet.tscn`, so nothing about the light lives
+in the shader itself. What a document says about it is a direction and an
+ambient level, and `Planet.apply_view_settings()` and
+`PlanetView.apply_view_settings()` put the two where the engine reads them:
+
+- **Direction** turns the light. It is stored as an elevation above the line of
+  sight and an azimuth around it, both in degrees, and `(0, 0)` shines straight
+  from the camera, which is where the scene has always put it.
+  `ViewSettings.light_vector()` turns that into a direction in the scene and
+  `light_from_vector()` takes it back, which is how the Light tool stores a
+  drag on the globe.
+- **Ambient** is the environment's `ambient_light_energy`, with the source set
+  to a plain colour. Zero is the black night side the scene has always had; one
+  is a planet with no night at all.
+
+The direction is fixed to the view rather than to the planet, so turning the
+globe carries the terminator across it and a document looks the same whichever
+way it is turned. That is what GPlates does by default too.
+
+## The backdrop image
+
+A document may wear an image in place of the built in Earth.
+`Logic/backdrop.gd` reads it from the file the document names — PNG, JPEG and
+WebP through the engine's own decoders, SVG rasterized to a fixed width — and
+hands the texture to `Planet.set_backdrop()`. The shader blends it over the
+Earth before anything else is drawn, so the graticule, the features and the
+outline all sit on top of it:
+
+```glsl
+vec4 earth = texture(earth_tex, surface_uv);
+if (backdrop_opacity > 0.0) {
+	earth = mix(earth, texture(backdrop_tex, surface_uv), backdrop_opacity);
+}
+```
+
+The image is sampled by the same `surface_uv` as the Earth, so it is an
+equirectangular map of the whole planet, and it follows every projection for
+free.
+
+`backdrop_opacity` is zero — and the texture never sampled — when the document
+names no image, hides the one it names, or names one that cannot be read. A
+document naming an image that has since been moved still opens: the planet keeps
+the built in Earth and `Application.backdrop.error` says why, which the View
+settings dialog shows beside the path and a test reads over the automation port.
+
+| Uniform | Type | Default | Description |
+|---|---|---|---|
+| `backdrop_tex` | `sampler2D` | — | The image the planet wears |
+| `backdrop_opacity` | `float` | `0.0` | How much of it covers the Earth; 0 is none |
 
 ## Map Projections
 

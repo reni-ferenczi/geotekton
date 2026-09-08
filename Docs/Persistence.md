@@ -20,10 +20,12 @@ present whatever time was being looked at before. See [Time](Time.md).
 
 ### Unsaved changes
 
-The undo stack is the only source of the dirty flag. Every edit calls
-`Document.record()`, which stores a clone of the tree; the document remembers
-which of those versions is on disk and is clean exactly while the stack sits on
-it. So undoing back to the last save makes the document clean again, and redoing
+The undo stack is the source of the dirty flag for everything in the tree. Every
+edit calls `Document.record()`, which stores a clone of the tree; the document
+remembers which of those versions is on disk and is clean exactly while the
+stack sits on it. The one thing outside the stack is the
+[view settings](#view-settings) block, which dirties the document through
+`Document.view_edited()` and is cleared by a save like the rest. So undoing back to the last save makes the document clean again, and redoing
 past it makes it dirty again. The stack keeps at most `MAX_UNDO_STEPS` (100)
 versions; once the saved version falls off the bottom the document stays dirty,
 because it can no longer be shown that the tree matches the file.
@@ -58,13 +60,14 @@ opening a window; see [Testing](Testing.md#the-automation-port).
 
 ### Structure
 
-The file is a JSON object with three top-level keys:
+The file is a JSON object with four top-level keys:
 
 ```json
 {
   "application": "middle-earth",
-  "version": "0.5.0",
-  "features": { ... }
+  "version": "0.6.0",
+  "features": { ... },
+  "view": { ... }
 }
 ```
 
@@ -73,6 +76,54 @@ The file is a JSON object with three top-level keys:
 | `application` | Always `"middle-earth"`. Used to validate the file on load.        |
 | `version`     | The application version that produced this file.                   |
 | `features`    | The root group of the feature tree, serialized via `to_json()`.    |
+| `view`        | How the scene around the features is drawn. See [View settings](#view-settings). |
+
+### View settings
+
+`Logic/view_settings.gd` holds the block and reads it back. It belongs to the
+document rather than to whoever is at the keyboard, because a map of a world is
+drawn the way its author chose:
+
+| Key                 | Type              | Default             | What it says |
+|---------------------|-------------------|---------------------|--------------|
+| `background_color`  | `[r, g, b, a]`    | black               | What is behind the planet |
+| `star_field`        | bool              | `true`              | Whether the star field is drawn on it |
+| `graticule_color`   | `[r, g, b, a]`    | white at a third    | The colour of the grid |
+| `graticule_spacing` | degrees, 1 to 90  | `15`                | How far apart its lines are |
+| `light_direction`   | `[elevation, azimuth]` in degrees | `[0, 0]` | Where the light comes from, away from the line of sight |
+| `ambient`           | 0 to 1            | `0`                 | How much light reaches the night side |
+| `backdrop_path`     | string            | `""`                | The image the planet wears, if any |
+| `backdrop_opacity`  | 0 to 1            | `1`                 | How much of the Earth it covers |
+| `backdrop_visible`  | bool              | `true`              | Whether it is drawn at all |
+
+Every key is optional. A block that does not name one gets the default, and a
+value out of range is brought back into it, so a file from a version that knew
+fewer settings still opens; see [0.5.0 to 0.6.0](#050-to-060).
+
+The block is **not on the undo stack**. A view setting says how the document is
+looked at rather than what it holds, so undo goes straight past it to whatever
+the tree last did. It does make the document dirty, since the file is what
+carries it, and `Document.view_edited()` is what says so.
+
+#### The backdrop path
+
+`backdrop_path` is stored relative to the file when the image sits beside it or
+under it, so a project and its images can be moved together, and absolute
+otherwise. `Document.save_to_file()` works that out against the path being
+written, whichever way the image was picked and wherever the document was saved
+before, and `Document.resolve_backdrop()` turns it back into a path to read.
+
+A document naming an image that is not there still opens: the planet keeps the
+built in Earth and the reason is recorded rather than thrown. See
+[Shader](Shader.md#the-backdrop-image).
+
+#### Defaults for new documents
+
+The preferences hold a second copy of the same block, which is what File > New
+starts a document from, together with the view it opens in. The View settings
+dialog writes both with **Save as default** and puts the open document back to
+them with **Restore defaults**. An opened file always wins over the preference:
+the block in the file is what that document says about itself.
 
 ### Feature tree serialization
 
@@ -218,6 +269,12 @@ keyframes, standing still until someone moves it.
 without one is given a fresh id on load, the same way 0.3.0 treated a feature
 without a `feature_type`. Nothing in a file written before 0.5.0 can be naming a
 node, so an id invented on load loses nothing.
+
+#### 0.5.0 to 0.6.0
+
+0.6.0 added the `view` block. There is no migration step for it: a file without
+one gets every default, and the defaults are the scene exactly as it was drawn
+before the block existed, so an older file opens looking the way it always did.
 
 ## The config file
 

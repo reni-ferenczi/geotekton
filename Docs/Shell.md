@@ -56,6 +56,7 @@ adding an item means adding an enum value and one `add_item` line.
 | Properties  |          | Show or hide the properties panel         |
 | Timeline    |          | Show or hide the timeline                 |
 | Status Bar  |          | Show or hide the status bar               |
+| View Settings... |     | The scene around the features; see [Editing](Editing.md#view-settings) |
 | Full Screen | F11      | Enter or leave full screen                |
 
 | Help          | Shortcut | What it does                          |
