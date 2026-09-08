@@ -599,6 +599,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"view_settings": app.document.view.to_json(),
 				# Why the backdrop image is not on the planet, empty while it is.
 				"backdrop_error": app.backdrop.error,
+				# What could not be read of the palette the document names.
+				"palette_errors": Array(app.palette.errors),
 			}
 
 		"set_view_settings":
@@ -607,7 +609,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			# scene follow, and the rest stays as it was.
 			app.show_view_settings()
 			var block: Dictionary = request.get("view_settings", {})
-			var unknown := _fill_view_dialog(block)
+			var problem := _fill_view_dialog(block)
 			var button_name := str(request.get("button", ""))
 			if not button_name.is_empty():
 				var view_button: Button = app.view_dialog.find_child(button_name, true, false)
@@ -616,8 +618,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 					return {"ok": false, "error": "no view settings button called %s" % button_name}
 				view_button.pressed.emit()
 			app.view_dialog.hide()
-			if not unknown.is_empty():
-				return {"ok": false, "error": "no view setting called %s" % unknown}
+			if not problem.is_empty():
+				return {"ok": false, "error": problem}
 			await _frames(2)
 			return {"ok": true}
 
@@ -677,6 +679,11 @@ func _circle_to_json() -> Variant:
 # Drive the View settings fields from a block, one field per setting, and say
 # which key was not one of them. The elevation and the azimuth are two fields of
 # one setting, so a request may name either the pair or one of them.
+# Drive the View settings dialog's own fields from a block, and say what could
+# not be set. Setting a field is not enough on its own: a colour and a selector
+# do not report a change made in code the way a spin box does, so the dialog is
+# told once at the end that its fields have moved, exactly as the last field
+# someone edits by hand would tell it.
 func _fill_view_dialog(block: Dictionary) -> String:
 	var fields: Dictionary = app.view_fields
 	for key in block:
@@ -686,9 +693,27 @@ func _fill_view_dialog(block: Dictionary) -> String:
 			fields["light_elevation"].value = float(pair[0])
 			fields["light_azimuth"].value = float(pair[1])
 			continue
+		if name == "hidden_classes":
+			var problem := _hide_classes(block[key])
+			if not problem.is_empty():
+				return problem
+			continue
+		if name == "palette":
+			# A palette is a built in name or the path of a file, and a path is
+			# not in the list until the document names it, which is what
+			# picking one through the dialog's Load button comes to.
+			app.document.view.palette = str(block[key])
+			app._fill_palette_choices()
+			continue
 		if not fields.has(name):
-			return name
+			return "no view setting called %s" % name
 		var field: Control = fields[name]
+		if field is OptionButton:
+			var button := field as OptionButton
+			Application.select_option(button, str(block[key]))
+			if Application.option_value(button) != str(block[key]):
+				return "%s cannot be set to %s" % [name, block[key]]
+			continue
 		if field is SpinBox:
 			(field as SpinBox).value = float(block[key])
 		elif field is CheckBox:
@@ -700,7 +725,22 @@ func _fill_view_dialog(block: Dictionary) -> String:
 				float(parts[3]) if parts.size() > 3 else 1.0)
 		elif field is LineEdit:
 			(field as LineEdit).text = str(block[key])
-			app._on_view_field_changed()
+	app._on_view_field_changed()
+	return ""
+
+
+# Switch the geometry classes on and off so that the given ones are the hidden
+# ones, through the View menu items themselves.
+func _hide_classes(names: Variant) -> String:
+	if names is not Array:
+		return "hidden_classes must be a list of class names"
+	for name in names:
+		if not Styling.CLASSES.has(str(name)):
+			return "no geometry class called %s" % name
+	for class_id in Styling.CLASSES:
+		var wanted: bool = class_id in (names as Array)
+		if app.document.view.shows_class(class_id) == wanted:
+			app.view_menu.id_pressed.emit(Application.class_menu_id(class_id))
 	return ""
 
 
@@ -801,6 +841,8 @@ func _menu_item(name: String) -> Array:
 		"view_settings": return [app.view_menu, Application.ViewItem.SETTINGS]
 		"full_screen": return [app.view_menu, Application.ViewItem.FULL_SCREEN]
 		"about": return [app.help_menu, Application.HelpItem.ABOUT]
+	if Styling.CLASSES.has(name):
+		return [app.view_menu, Application.class_menu_id(name)]
 	return []
 
 
