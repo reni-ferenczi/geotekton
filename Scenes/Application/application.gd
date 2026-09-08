@@ -18,6 +18,10 @@ static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Docum
 # than listed a second time here.
 static var IMAGE_FILTERS := PackedStringArray(
 	["*.%s ; Images" % ", *.".join(Backdrop.EXTENSIONS)])
+static var PALETTE_FILTERS := PackedStringArray(["*.cpt ; Colour Palette Tables"])
+
+# How finely the palette preview strip samples the palette it draws.
+const PALETTE_PREVIEW_STEPS := 128
 
 # Answers a file dialog without showing one. Set by the automation port so a
 # scripted run can drive Open and Save As; unset in a normal run.
@@ -42,6 +46,10 @@ const CLEAR_RECENT_ID := 1000
 
 # Item id of the globe in the projection selector, above every MapProjection.Kind.
 const GLOBE_PROJECTION_ID := 100
+
+# Where the View menu's geometry class switches start, above every ViewItem.
+# One item per entry of Styling.CLASSES, in that order.
+const CLASS_ITEM_ID := 200
 
 # View menu item to the config key remembering whether that panel is shown.
 const PANEL_KEYS := {
@@ -127,6 +135,10 @@ var line_spin: SpinBox
 var view_dialog: AcceptDialog
 # Why the backdrop image is not on the planet, shown under the path field.
 var backdrop_warning: Label
+# The strip the palette chooser previews the chosen palette with, and why the
+# palette it names could not be read.
+var palette_preview: TextureRect
+var palette_warning: Label
 # The fields of the View settings dialog, by the name of the setting each edits.
 var view_fields: Dictionary = {}
 var animation_dialog: AcceptDialog
@@ -138,6 +150,11 @@ var animation_fields: Dictionary = {}
 # why there is no image when there is none.
 var backdrop := Backdrop.new()
 var _backdrop_path: String = ""
+
+# The palette the open document names, read once and kept for the same reason:
+# rebuilding the geometry must not read a file. `palette.errors` says what could
+# not be read of it.
+var palette := Palette.resolve(Palette.DEFAULT)
 
 # What to do once the unsaved changes prompt has been answered.
 var _pending_action: Callable
@@ -296,6 +313,9 @@ func _build_menus() -> void:
 	view_menu.add_check_item("Timeline", ViewItem.TIMELINE)
 	view_menu.add_check_item("Status Bar", ViewItem.STATUS_BAR)
 	view_menu.add_separator()
+	for class_id in Styling.CLASSES:
+		view_menu.add_check_item(Styling.class_label(class_id), class_menu_id(class_id))
+	view_menu.add_separator()
 	view_menu.add_item("View Settings...", ViewItem.SETTINGS)
 	view_menu.add_item("Full Screen", ViewItem.FULL_SCREEN, KEY_F11)
 	view_menu.id_pressed.connect(_on_view_menu_id_pressed)
@@ -406,6 +426,13 @@ func _on_view_menu_id_pressed(id: int) -> void:
 	if id == ViewItem.SETTINGS:
 		show_view_settings()
 		return
+	if id >= CLASS_ITEM_ID:
+		var class_id := Styling.CLASSES.keys()[id - CLASS_ITEM_ID] as String
+		document.view.hide_class(class_id, document.view.shows_class(class_id))
+		document.view_edited()
+		_update_view_menu_checks()
+		refresh_geometry()
+		return
 	var panel := _panel_node(id)
 	panel.visible = not panel.visible
 	_update_view_menu_checks()
@@ -431,6 +458,14 @@ func _panel_node(item: int) -> Control:
 func _update_view_menu_checks() -> void:
 	for item in PANEL_KEYS:
 		view_menu.set_item_checked(view_menu.get_item_index(item), _panel_node(item).visible)
+	for class_id in Styling.CLASSES:
+		view_menu.set_item_checked(view_menu.get_item_index(class_menu_id(class_id)),
+			document.view.shows_class(class_id))
+
+
+# The View menu item that switches one class of geometry on and off.
+static func class_menu_id(class_id: String) -> int:
+	return CLASS_ITEM_ID + Styling.CLASSES.keys().find(class_id)
 
 
 ### Full screen
@@ -535,10 +570,23 @@ func _on_root_replaced(same_document: bool) -> void:
 # Draw the scene the way the open document asks for. Called when a document
 # arrives and after every change to its view settings.
 func apply_view_settings() -> void:
+	_load_palette()
 	_load_backdrop()
 	planet_view.apply_view_settings(document.view)
+	_update_view_menu_checks()
 	if view_dialog.visible:
 		backdrop_warning.text = backdrop.error
+
+
+# Read the palette the document names, unless it is the one already in hand.
+# A palette that cannot be read is not a failure of the document either: what
+# did parse of it is used and the reasons are pushed as warnings.
+func _load_palette() -> void:
+	if palette.source == document.view.palette:
+		return
+	palette = Palette.resolve(document.view.palette)
+	for problem in palette.errors:
+		push_warning("%s: %s" % [document.view.palette, problem])
 
 
 # Put the image the document names on the planet. The file is read only when the
@@ -744,11 +792,43 @@ func _build_view_content() -> Control:
 		ViewSettings.MIN_AMBIENT, ViewSettings.MAX_AMBIENT, 0.05)
 	_view_check(form, "backdrop_visible", "Backdrop image shown")
 	_view_spin(form, "backdrop_opacity", "Backdrop opacity", 0.0, 1.0, 0.05)
+	_view_option(form, "draw_style", "Draw style", Styling.STYLES)
+	_view_color(form, "single_color", "Single colour")
 
-	var label := Label.new()
-	label.text = "Backdrop image"
-	box.add_child(label)
+	box.add_child(_view_section("Palette"))
+	var palette_row := HBoxContainer.new()
+	box.add_child(palette_row)
+	var palette_choice := OptionButton.new()
+	palette_choice.name = "Palette"
+	palette_choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	palette_choice.item_selected.connect(
+		func(_index: int) -> void: _on_view_field_changed())
+	palette_row.add_child(palette_choice)
+	view_fields["palette"] = palette_choice
 
+	var load_palette := Button.new()
+	load_palette.name = "LoadPalette"
+	load_palette.text = "Load..."
+	load_palette.tooltip_text = "Read a GMT colour palette table from a .cpt file"
+	load_palette.pressed.connect(choose_palette)
+	palette_row.add_child(load_palette)
+
+	# The palette from one end of its range to the other, so what is about to be
+	# drawn with is visible before anything is drawn with it.
+	palette_preview = TextureRect.new()
+	palette_preview.name = "PalettePreview"
+	palette_preview.custom_minimum_size = Vector2(0, 18)
+	palette_preview.stretch_mode = TextureRect.STRETCH_SCALE
+	palette_preview.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	box.add_child(palette_preview)
+
+	palette_warning = Label.new()
+	palette_warning.name = "PaletteWarning"
+	palette_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	palette_warning.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
+	box.add_child(palette_warning)
+
+	box.add_child(_view_section("Backdrop image"))
 	var row := HBoxContainer.new()
 	box.add_child(row)
 	var edit := LineEdit.new()
@@ -794,7 +874,8 @@ func _build_view_content() -> Control:
 		document.view = Config.get_view_defaults()
 		document.view_edited()
 		_fill_view_fields()
-		apply_view_settings())
+		apply_view_settings()
+		refresh_geometry())
 	defaults.add_child(restore)
 
 	backdrop_warning = Label.new()
@@ -811,6 +892,42 @@ func _view_spin(form: GridContainer, key: String, text: String,
 	var spin := _preference_spin(form, key.to_pascal_case(), text, low, high, step)
 	spin.value_changed.connect(func(_value: float) -> void: _on_view_field_changed())
 	view_fields[key] = spin
+
+
+# A selector over a dictionary of id to label. The id rides on the item as its
+# metadata, so what the document stores never depends on what the item is called.
+func _view_option(form: GridContainer, key: String, text: String, entries: Dictionary) -> void:
+	var label := Label.new()
+	label.text = text
+	form.add_child(label)
+	var button := OptionButton.new()
+	button.name = key.to_pascal_case()
+	for id in entries:
+		button.add_item(str(entries[id]))
+		button.set_item_metadata(button.item_count - 1, id)
+	button.item_selected.connect(func(_index: int) -> void: _on_view_field_changed())
+	form.add_child(button)
+	view_fields[key] = button
+
+
+# A heading between two groups of fields on a dialog.
+func _view_section(text: String) -> Control:
+	var label := Label.new()
+	label.text = text
+	return label
+
+
+# The id behind the selected item of a selector built by _view_option().
+static func option_value(button: OptionButton) -> String:
+	return "" if button.selected < 0 else str(button.get_item_metadata(button.selected))
+
+
+# Pick the item carrying an id. Nothing changes when the list does not hold it.
+static func select_option(button: OptionButton, value: String) -> void:
+	for index in button.item_count:
+		if str(button.get_item_metadata(index)) == value:
+			button.select(index)
+			return
 
 
 func _view_check(form: GridContainer, key: String, text: String) -> void:
@@ -846,10 +963,53 @@ func choose_backdrop() -> void:
 		IMAGE_FILTERS)
 
 
+# Pick a GMT colour palette table to draw the feature age style with. Stored as
+# the path it was picked from, beside the built in palettes it joins in the list.
+func choose_palette() -> void:
+	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Colour palette",
+		func(path: String) -> void:
+			document.view.palette = path
+			_fill_palette_choices()
+			_on_view_field_changed(),
+		PALETTE_FILTERS)
+
+
 func show_view_settings() -> void:
 	_fill_view_fields()
 	backdrop_warning.text = backdrop.error
 	view_dialog.popup_centered()
+
+
+# The palettes the chooser offers: the built in ones, and the file the document
+# names when it names one. Rebuilt rather than added to, so switching from one
+# file to another leaves one entry rather than two.
+func _fill_palette_choices() -> void:
+	var choice: OptionButton = view_fields["palette"]
+	choice.clear()
+	for key in Palette.BUILT_IN:
+		choice.add_item(str(Palette.BUILT_IN[key]["name"]))
+		choice.set_item_metadata(choice.item_count - 1, key)
+	var named := document.view.palette
+	if not named.is_empty() and not Palette.BUILT_IN.has(named):
+		choice.add_item(named.get_file())
+		choice.set_item_metadata(choice.item_count - 1, named)
+		choice.set_item_tooltip(choice.item_count - 1, named)
+	select_option(choice, named)
+
+
+# Draw the chosen palette across its whole range, and say underneath what could
+# not be read of it.
+func _show_palette_preview() -> void:
+	var strip := palette.sample(PALETTE_PREVIEW_STEPS)
+	if strip.is_empty():
+		palette_preview.texture = null
+	else:
+		var image := Image.create(strip.size(), 1, false, Image.FORMAT_RGBA8)
+		for x in strip.size():
+			image.set_pixel(x, 0, strip[x])
+		palette_preview.texture = ImageTexture.create_from_image(image)
+	palette_warning.text = "
+".join(Array(palette.errors))
 
 
 # Put what the document holds into the fields, without firing the signals that
@@ -866,6 +1026,10 @@ func _fill_view_fields() -> void:
 	view_fields["backdrop_visible"].set_pressed_no_signal(settings.backdrop_visible)
 	view_fields["backdrop_opacity"].set_value_no_signal(settings.backdrop_opacity)
 	view_fields["backdrop_path"].text = settings.backdrop_path
+	select_option(view_fields["draw_style"], Styling.normalize_style(settings.draw_style))
+	view_fields["single_color"].color = settings.single_color
+	_fill_palette_choices()
+	_show_palette_preview()
 
 
 # One field moved: take the whole block off the dialog and hand it to the
@@ -882,8 +1046,13 @@ func _on_view_field_changed() -> void:
 	settings.backdrop_visible = view_fields["backdrop_visible"].button_pressed
 	settings.backdrop_opacity = view_fields["backdrop_opacity"].value
 	settings.backdrop_path = view_fields["backdrop_path"].text
+	settings.single_color = view_fields["single_color"].color
+	settings.draw_style = option_value(view_fields["draw_style"])
+	settings.palette = option_value(view_fields["palette"])
 	document.view_edited()
 	apply_view_settings()
+	_show_palette_preview()
+	refresh_geometry()
 
 
 func _build_animation_content() -> Control:
@@ -2259,7 +2428,8 @@ func _resolve_hover() -> bool:
 
 
 func refresh_geometry() -> void:
-	geometry = Planet.collect_geometry(features.root, document.current_time)
+	geometry = Planet.collect_geometry(
+		features.root, document.current_time, Styling.of(document.view, palette))
 	planet_view.planet.set_geometry(geometry)
 	_refresh_feature_state()
 

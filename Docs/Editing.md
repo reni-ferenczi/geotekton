@@ -358,9 +358,10 @@ usually is.
 ## View settings
 
 **View > View Settings...** opens the scene around the features: what is behind
-the planet, what is drawn over it, where the light comes from and which image
-the planet wears. Every field takes effect as it is changed rather than when the
-dialog is closed, so the planet under it shows what is being chosen.
+the planet, what is drawn over it, where the light comes from, which image the
+planet wears and what colour the features come out. Every field takes effect as
+it is changed rather than when the dialog is closed, so the planet under it
+shows what is being chosen.
 
 | Setting | What it does |
 |---------|--------------|
@@ -372,6 +373,14 @@ dialog is closed, so the planet under it shows what is being chosen.
 | Ambient light | How much light reaches the night side; 0 is a black night, 1 no night at all |
 | Backdrop image shown, backdrop opacity | Whether the image is drawn and how much of the Earth it covers |
 | Backdrop image | The image the planet wears, in PNG, JPEG, WebP or SVG |
+| Draw style | How a feature's colour is chosen: its own, one colour for everything, its age over the palette, or its type |
+| Single colour | What the single colour style paints with |
+| Palette | A built in colour palette, or one loaded from a `.cpt` file, previewed in the strip under the list |
+
+Which classes of geometry are drawn at all is in the View menu itself, one check
+item each for polygons, polylines, points, small circles and topologies. See
+[Styling](Styling.md) for what is in each class, what the styles resolve to and
+which part of the palette format is read.
 
 The settings belong to the document and are saved with it, so a map of a world
 keeps the way its author drew it; see
@@ -384,7 +393,9 @@ document looks like.
 
 An image that cannot be read — moved, renamed, or in a format Middle Earth does
 not read — is not an error the document has to be repaired from. The planet
-keeps the built in Earth and the reason appears under the path.
+keeps the built in Earth and the reason appears under the path. A palette with a
+line the reader cannot take is treated the same way: what did read is used and
+previewed, and the lines that did not are named under the strip.
 
 ## Preferences
 

@@ -1,0 +1,9 @@
+#
+# A continuous palette: two ramps meeting at 100 without a step.
+# Written by hand as a fixture; see Tests/Data/README.md.
+#
+0	0 0 0		100	255 0 0
+100	255/0/0		200	white
+B	blue
+F	green
+N	128 128 128

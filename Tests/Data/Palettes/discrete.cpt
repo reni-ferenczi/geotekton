@@ -1,0 +1,10 @@
+#
+# A discrete palette: three flat slices, with a gap between the second and
+# the third that nothing covers.
+#
+0	red	10	red	L	;Low
+10	0 255 0	20	0 255 0	;Middle
+30	blue	40	blue	;High
+B	black
+F	white
+N	200 200 200

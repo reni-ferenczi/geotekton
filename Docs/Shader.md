@@ -185,6 +185,10 @@ wider than the drawn width, so a thin line stays easy to pick.
 
 The widths are chord lengths on the unit sphere, so 0.012 is about 0.7 degrees.
 
+The colour a primitive is drawn in is whichever the active draw style gave the
+feature it belongs to, worked out once per feature where the geometry is
+flattened. See [Styling](Styling.md).
+
 ### Data Texture Layout
 
 The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with **width = primitive count** and **height = 4 rows**:
@@ -330,13 +334,21 @@ frame. `resolve(root, time)` fills `bases` and `shown` for a time, walking the
 tree from the root so that each node composes its own rotation with what its
 ancestors gave it.
 
-### `Planet.collect_geometry(root: Feature, time := 0.0) -> Geometry`
+### `Planet.collect_geometry(root: Feature, time := 0.0, styling: Styling = null) -> Geometry`
 
 Walks a Feature tree and flattens the enabled features into primitives. A
 polygon contributes its cached triangles, a polyline the segments between
 consecutive vertices of each ring, and a multipoint one marker per vertex. The
 result is resolved for the given time, so it can be drawn or hit tested
 straight away.
+
+The `styling` says which classes of geometry are drawn at all and what colour
+each feature comes out; without one every feature is drawn in the colour it
+carries, which is what a document said before there were any styles. This is
+the only place either question is asked: a feature whose class is switched off
+is not among the primitives, so it is neither drawn nor hit tested, and the
+colour in row 2 of the geometry texture is whatever the active style resolved
+to. See [Styling](Styling.md).
 
 ### `Planet.set_geometry(geometry: Geometry)`
 

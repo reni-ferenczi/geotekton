@@ -56,7 +56,12 @@ adding an item means adding an enum value and one `add_item` line.
 | Properties  |          | Show or hide the properties panel         |
 | Timeline    |          | Show or hide the timeline                 |
 | Status Bar  |          | Show or hide the status bar               |
-| View Settings... |     | The scene around the features; see [Editing](Editing.md#view-settings) |
+| Polygons    |          | Draw the polygons, or leave them off; see [Styling](Styling.md#the-visibility-switches) |
+| Polylines   |          | The same for the polylines                |
+| Points      |          | The same for the multipoints              |
+| Small Circles |        | The same for the features typed as small circles |
+| Topologies  |          | The same for the line topologies          |
+| View Settings... |     | The scene around the features and how they are coloured; see [Editing](Editing.md#view-settings) |
 | Full Screen | F11      | Enter or leave full screen                |
 
 | Help          | Shortcut | What it does                          |

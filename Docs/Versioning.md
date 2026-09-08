@@ -17,9 +17,11 @@ read as they are: 0.2.0 changed how a feature stores its geometry and reads
 0.1.0 files through `Document.migrate()`; 0.3.0 only added a field and reads a
 0.2.0 file without a step of its own; 0.4.0 replaced the single rotation
 with a list of keyframes and has a step for it; 0.5.0 again only added fields,
-so it too reads the version before it as it stands; and 0.6.0 added the view
+so it too reads the version before it as it stands; 0.6.0 added the view
 settings block, whose defaults are the scene as it was drawn before there was
-one, so a file without it opens looking the way it always did.
+one, so a file without it opens looking the way it always did; and 0.7.0 added
+the styling to that block, whose defaults are likewise how every file was drawn
+before there were any styles.
 
 The first public release will have major version 1.
 
