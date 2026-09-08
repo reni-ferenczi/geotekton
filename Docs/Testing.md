@@ -120,6 +120,12 @@ reason: the Paste button of the feature tree toolbar is greyed out by what the
 clipboard holds, and an unknown clipboard is a 40 by 40 difference in every
 scene.
 
+The styling scenario probes what each draw style paints on the globe, reads a
+palette out of a `.cpt` file and a malformed one out of another, switches each
+class of geometry off through the View menu and checks that only its own class
+left the screen, then saves the document and reads the whole styling back; see
+[Styling](Styling.md).
+
 The circle scenario builds a small circle twice over: from a centre and a point
 on the rim, and from three points on the rim with the centre never clicked. Both
 give the same centre and radius back, the polygon holds one vertex per segment
@@ -185,10 +191,17 @@ is reached with the runner's `--dir=res://...` switch and is never discovered by
 | `Backdrops/quarters.*`    | The same four coloured quarters as a PNG, a JPEG, a WebP and an SVG, for the backdrop image. |
 | `two_cratons.middle-earth` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
 | `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
+| `Palettes/*.cpt`          | A continuous, a discrete, a categorical and a malformed colour palette table. |
 
 `Tests/Data/Backdrops` holds a `.gdignore`, like `Tests/Golden`: the images
 there are read from disk at run time by `Backdrop.load_from()`, never imported
 as project resources, so the engine has no business with them.
+
+`Tests/Unit/test_palette.gd` also reads every `.cpt` file under
+`../gplates/sample-data`, the sibling checkout of the GPlates sources, when it is
+there. They are read where they lie rather than copied in: they are GPL and this
+project is MIT. The fixtures in `Tests/Data/Palettes` use every part of the
+format those files use, so the reader is covered whatever else is on the machine.
 
 `Tests/Data/README.md` lists the probe points and the colour expected at each one.
 Points near the limb of the globe are lit at a glancing angle and read much
@@ -322,8 +335,8 @@ a round trip is also a wait for the screen to catch up.
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
 | `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed. `get_preferences` also reports the `default_view` and the `view_defaults` a new document starts from |
-| `get_view_settings` | `view_settings`, the scene block the open document carries, and `backdrop_error`, why the image it names is not on the planet |
-| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. `button` presses `SaveAsDefault` or `RestoreDefaults` |
+| `get_view_settings` | `view_settings`, the scene block the open document carries, `backdrop_error`, why the image it names is not on the planet, and `palette_errors`, what could not be read of the palette it names |
+| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
 | `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the keyframe markers and the animation settings |
 | `timeline {button}`                  | presses a time control button: `Play`, `Pause`, `Reset`, `Older`, `Younger`, `Configure` |
@@ -341,7 +354,7 @@ a round trip is also a wait for the screen to catch up.
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
-| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `status_bar`, `full_screen`, `about` |
+| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `status_bar`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `small_circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |

@@ -7,6 +7,7 @@
 - [Properties](Properties.md) — Feature types, the Properties panel and the Edit commands
 - [Shader](Shader.md) — Planet shader, lighting, the backdrop image, map projections, feature geometry and the outline overlay
 - [Shell](Shell.md) — The application window: menus, panels, full screen, status bar, preferences and command line
+- [Styling](Styling.md) — The visibility switches, the draw styles, the colour palettes and the CPT reader
 - [Testing](Testing.md) — Test modes, the automation port and golden image comparison
 - [Time](Time.md) — Which way time runs, keyframes, the time control and animation
 - [Versioning](Versioning.md) — Semantic versioning rules and file format migration policy

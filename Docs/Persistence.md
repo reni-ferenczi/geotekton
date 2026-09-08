@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "features": { ... },
   "view": { ... }
 }
@@ -95,10 +95,18 @@ drawn the way its author chose:
 | `backdrop_path`     | string            | `""`                | The image the planet wears, if any |
 | `backdrop_opacity`  | 0 to 1            | `1`                 | How much of the Earth it covers |
 | `backdrop_visible`  | bool              | `true`              | Whether it is drawn at all |
+| `hidden_classes`    | list of names     | `[]`                | Which classes of geometry are switched off |
+| `draw_style`        | string            | `"feature"`         | How a feature's colour is chosen |
+| `single_color`      | `[r, g, b, a]`    | light grey          | What the single colour style paints with |
+| `palette`           | string            | `"age"`             | A built in palette's key, or the path of a `.cpt` file |
+
+The last four are the [styling](Styling.md): which features are drawn and what
+colour they come out.
 
 Every key is optional. A block that does not name one gets the default, and a
 value out of range is brought back into it, so a file from a version that knew
-fewer settings still opens; see [0.5.0 to 0.6.0](#050-to-060).
+fewer settings still opens; see [0.5.0 to 0.6.0](#050-to-060) and
+[0.6.0 to 0.7.0](#060-to-070).
 
 The block is **not on the undo stack**. A view setting says how the document is
 looked at rather than what it holds, so undo goes straight past it to whatever
@@ -275,6 +283,12 @@ node, so an id invented on load loses nothing.
 0.6.0 added the `view` block. There is no migration step for it: a file without
 one gets every default, and the defaults are the scene exactly as it was drawn
 before the block existed, so an older file opens looking the way it always did.
+
+#### 0.6.0 to 0.7.0
+
+0.7.0 added the styling keys to the `view` block. There is no migration step for
+them either: a block without them gets each feature drawn in its own colour with
+every class of geometry shown, which is what every version before 0.7.0 drew.
 
 ## The config file
 
