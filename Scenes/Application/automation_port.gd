@@ -16,10 +16,14 @@ const TOOL_NAMES := {
 	Application.Tool.TOPOLOGY: "topology",
 }
 
+# The wheel is here so a run can zoom the way a person does, with the pointer
+# over the view; a wheel notch is a press and a release like any other button.
 const BUTTONS := {
 	"left": MOUSE_BUTTON_LEFT,
 	"right": MOUSE_BUTTON_RIGHT,
 	"middle": MOUSE_BUTTON_MIDDLE,
+	"wheel_up": MOUSE_BUTTON_WHEEL_UP,
+	"wheel_down": MOUSE_BUTTON_WHEEL_DOWN,
 }
 
 var app: Application

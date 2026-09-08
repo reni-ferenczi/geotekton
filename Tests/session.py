@@ -1098,6 +1098,7 @@ def run_projection_session(client: AutomationClient) -> None:
               f"and the toolbar says {name}")
 
     run_zoom_checks(client)
+    run_wheel_checks(client)
     client.call("set_view", show_map=False, projection=0, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
 
 
@@ -1135,6 +1136,22 @@ def run_zoom_checks(client: AutomationClient) -> None:
     view = client.call("get_view")
     check((view["lat"], view["lon"], view["angle"]) == (0.0, 0.0, 0.0),
           "and the reset puts all three back")
+
+
+def run_wheel_checks(client: AutomationClient) -> None:
+    """The wheel zooms both views, with the pointer over the planet."""
+    for name, request in [
+        ("the globe", {"show_map": False}),
+        ("the map", {"show_map": True, "projection": 0}),
+    ]:
+        client.call("set_view", lat=0.0, lon=0.0, angle=0.0, zoom=1.0, **request)
+        middle = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
+        client.call("click", x=middle[0], y=middle[1], button="wheel_up")
+        zoomed = client.call("get_view")["zoom"]
+        check(zoomed > 1.0, f"a notch of the wheel zooms {name} in: {zoomed}")
+        client.call("click", x=middle[0], y=middle[1], button="wheel_down")
+        check(abs(client.call("get_view")["zoom"] - 1.0) < 1e-6,
+              f"and a notch back returns {name} to the whole planet")
 
 
 def run_vertex_session(client: AutomationClient) -> None:

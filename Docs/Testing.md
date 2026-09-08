@@ -300,7 +300,7 @@ a round trip is also a wait for the screen to catch up.
 | `get_view` / `set_view {lat, lon, angle, zoom, show_map, projection}` | where the camera looks, how far it is zoomed in, and whether the globe or one of the five map projections is drawn. `get_view` also reports the derived `fov`, the `window_size` and what the view toolbar fields read |
 | `view {button}`                      | presses a view toolbar button: `zoom_in`, `zoom_out`, `zoom_reset`, `rotate_clockwise`, `rotate_anticlockwise`, `camera_reset` |
 | `mouse_move {x, y}`                  | moves the mouse                                                  |
-| `click {x, y, button, ctrl}`         | presses and releases a mouse button                              |
+| `click {x, y, button, ctrl}`         | presses and releases a mouse button: `left`, `right`, `middle`, `wheel_up` or `wheel_down` |
 | `press {x, y, button}` / `release {x, y, button}` | half a click each, so a drag can be scripted: press, `mouse_move`, release |
 | `key {key, ctrl, shift}`             | presses and releases a key                                       |
 | `latlon_to_screen {lat, lon}`        | `screen: [x, y]`, or `null` where the view does not draw that place: the far side of the globe, or a latitude the projection leaves off the map |
