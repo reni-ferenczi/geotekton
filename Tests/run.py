@@ -7,6 +7,7 @@ Usage:
     python Tests/run.py cli
     uv run Tests/run.py golden
     uv run Tests/run.py all
+    uv run Tests/run.py performance [--triangles=N] [--budget=MS]
 
 Set the GODOT environment variable to use a different engine binary.
 See Docs/Testing.md.
@@ -24,7 +25,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TESTS = ROOT / "Tests"
 RUNNER = "res://Tests/run_tests.gd"
 
-USAGE = "usage: run.py headless|rendered [--filter=SUBSTRING] | session | cli | golden | all"
+USAGE = ("usage: run.py headless|rendered [--filter=SUBSTRING] | session | cli | golden | all"
+         " | performance [--triangles=N] [--budget=MS]")
 
 
 def godot() -> str:
@@ -82,7 +84,7 @@ def main(argv: list[str]) -> int:
 
     command = argv[0]
     options = argv[1:]
-    if command not in ("headless", "rendered", "session", "cli", "golden", "all"):
+    if command not in ("headless", "rendered", "session", "cli", "golden", "performance", "all"):
         print(f"unknown command: {command}\n{USAGE}", file=sys.stderr)
         return 2
     if import_project() != 0:
@@ -95,6 +97,18 @@ def main(argv: list[str]) -> int:
                 print(f"unknown option: {option}\n{USAGE}", file=sys.stderr)
                 return 2
         return run_godot((["--rendered"] if command == "rendered" else []) + options)
+
+    # A frame time depends on the machine and on what else it is doing, so
+    # performance is run on purpose and is not part of all.
+    if command == "performance":
+        arguments: list[str] = []
+        for option in options:
+            if not option.startswith(("--triangles=", "--budget=")):
+                print(f"unknown option: {option}\n{USAGE}", file=sys.stderr)
+                return 2
+            switch, _, value = option.partition("=")
+            arguments += [switch, value]
+        return run_script("performance.py", arguments)
 
     if options:
         print(f"{command} takes no options\n{USAGE}", file=sys.stderr)

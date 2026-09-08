@@ -56,6 +56,7 @@ follows the feature tree selection, through
 | To (Ma)    | Number             | no         |
 | Geometry   | Label              | no         |
 | Coordinates| Table, Add, Remove | no         |
+| Keyframes  | Table, Key, Delete | yes        |
 
 With nothing selected the panel says so and shows no rows at all, and so does
 the root group, which has no name of its own to change and no switch — the same
@@ -67,8 +68,13 @@ planet view, so the globe would move under the pointer every time the selection
 changed.
 
 The time range is two ages in millions of years before the present, the same
-axis the timeline slider runs on, so `From` is the younger end. Nothing reads
-the range yet; time and motion arrive in a later phase.
+axis the timeline slider runs on, so `From` is the younger end. A feature
+outside it at the current time is neither drawn nor hit tested, and its tree row
+is greyed out. See [Time](Time.md#being-there-at-all).
+
+A group has the keyframe table because a group carries motion its children
+inherit, which is the one thing besides its name and its switch that a group
+has to edit.
 
 ### The coordinate table
 
@@ -82,6 +88,19 @@ be a shape goes with it — three for a polygon, two for a polyline, one for a
 multipoint, as `Feature.MINIMUM_VERTICES` lists them.
 
 With no row picked both buttons work on the last vertex of the last part.
+
+### The keyframe table
+
+One row per keyframe: `Ma`, the time, and `Lon`, `Lat` and `Spin`, the three
+angles [Moving](Moving.md#rotation-representation) names. The row the current
+time sits on is marked, so it is clear whether an edit will land on a keyframe
+or between two of them.
+
+Every cell can be edited, so a keyframe dragged roughly into place with the Move
+tool can be given exact numbers. `Key` holds where the node is now as a keyframe
+at the current time, which is how a keyframe is made without moving anything;
+the rotation it records is the one the keyframes around the current time already
+give, so nothing on the globe moves. `Delete` takes the selected keyframe off.
 
 ### Every edit goes through the document
 
@@ -99,6 +118,9 @@ undo version:
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |
 | `remove_vertex`         | a part or vertex that is not there                 |
+| `set_keyframe`          | nothing; the time it names replaces or is added    |
+| `set_keyframe_time`     | a keyframe that is not there, a time outside 0 to `MAX_TIME`, and a time another keyframe already holds |
+| `set_keyframe_rotation` | a keyframe that is not there                       |
 
 A method that can refuse returns the message saying why and changes nothing;
 the panel puts the widget back and shows the message in an error dialog.

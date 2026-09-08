@@ -10,6 +10,7 @@ Usage:
 """
 
 import json
+import math
 import re
 import shutil
 import sys
@@ -564,6 +565,199 @@ def run_edit_menu_session(client: AutomationClient) -> None:
     check("Blue Ridge" in titles_of(client), "and undo brings it back")
 
 
+# A small triangle around lat/lon (0, 0), with its centroid on the equator so
+# that turning it about the poles keeps it there. The time scenario relies on
+# that: a point on the equator turned about the poles stays on the equator, so
+# the path between two of its positions is a stretch of the equator itself.
+TIME_TRIANGLE = [(-6.0, -6.0), (6.0, -6.0), (0.0, 6.0)]
+
+# The two times the feature is moved at, and the one it is read back at.
+TIME_A = 0.0
+TIME_B = 200.0
+TIME_MIDDLE = 100.0
+
+# Where the anchor is dragged to at each of those times, in longitude. The
+# feature ends up centred on the midpoint of the two at TIME_MIDDLE.
+LONGITUDE_A = 30.0
+LONGITUDE_B = -30.0
+
+# How far off a scripted drag may leave the feature, in degrees. A drag lands on
+# whichever pixel the point rounds to, so it is a pixel or so wide.
+DRAG_TOLERANCE = 1.0
+
+
+def unit(lat: float, lon: float) -> tuple[float, float, float]:
+    """A latitude and longitude in degrees as a point on the unit sphere."""
+    lat_rad, lon_rad = math.radians(lat), math.radians(lon)
+    return (
+        math.cos(lat_rad) * math.cos(lon_rad),
+        math.sin(lat_rad),
+        math.cos(lat_rad) * math.sin(lon_rad),
+    )
+
+
+def centroid(rings: list[list[list[float]]]) -> tuple[float, float]:
+    """The middle of a feature's vertices, as a latitude and longitude."""
+    points = [unit(v[0], v[1]) for ring in rings for v in ring]
+    total = [sum(p[i] for p in points) for i in range(3)]
+    length = math.sqrt(sum(c * c for c in total))
+    x, y, z = (c / length for c in total)
+    return math.degrees(math.asin(y)), math.degrees(math.atan2(z, x))
+
+
+def world_centroid(client: AutomationClient) -> tuple[float, float]:
+    """Where the selected feature sits on the globe at the current time."""
+    return centroid(client.call("get_selected")["feature"]["world_rings"])
+
+
+def drag(client: AutomationClient, to_lat: float, to_lon: float) -> bool:
+    """Drag the selected feature by its middle to a latitude and longitude."""
+    lat, lon = world_centroid(client)
+    grab = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+    target = client.call("latlon_to_screen", lat=to_lat, lon=to_lon)["screen"]
+    if not check(grab is not None and target is not None,
+                 f"the drag from ({lat:.1f}, {lon:.1f}) to ({to_lat}, {to_lon}) is visible"):
+        return False
+    client.call("press", x=grab[0], y=grab[1])
+    client.call("mouse_move", x=target[0], y=target[1])
+    client.call("release", x=target[0], y=target[1])
+    return True
+
+
+def run_time_session(client: AutomationClient) -> None:
+    """Move a feature at two times and read it back between them."""
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", kind="polygon")
+    if not draw(client, TIME_TRIANGLE):
+        return
+    client.call("key", key="Enter")
+    client.call("set_property", field="color", value=[0.0, 1.0, 0.0, 1.0])
+
+    check(client.call("get_selected")["feature"]["keyframes"] == [],
+          "a feature that has never been moved holds no keyframes")
+
+    # Move it at one time and again at another. The first move gives it its
+    # only keyframe, so it stands still everywhere until the second one.
+    client.call("set_time", time=TIME_A)
+    if not drag(client, 0.0, LONGITUDE_A):
+        return
+    keyframes = client.call("get_selected")["feature"]["keyframes"]
+    check([k["time"] for k in keyframes] == [TIME_A],
+          f"the move writes the keyframe at {TIME_A} Ma: {keyframes}")
+
+    client.call("set_time", time=TIME_B)
+    check(abs(world_centroid(client)[1] - LONGITUDE_A) < DRAG_TOLERANCE,
+          "one keyframe holds the feature still at every other time")
+    if not drag(client, 0.0, LONGITUDE_B):
+        return
+    keyframes = client.call("get_selected")["feature"]["keyframes"]
+    check([k["time"] for k in keyframes] == [TIME_A, TIME_B],
+          f"the second move adds a keyframe, sorted by time: {keyframes}")
+
+    # Halfway between the two, the feature is halfway along the equator that
+    # joins the two positions it was left at.
+    client.call("set_time", time=TIME_MIDDLE)
+    lat, lon = world_centroid(client)
+    check(abs(lat) < DRAG_TOLERANCE,
+          f"halfway through, the middle is still on the great circle: latitude {lat:.3f}")
+    middle = (LONGITUDE_A + LONGITUDE_B) / 2.0
+    check(abs(lon - middle) < DRAG_TOLERANCE,
+          f"and halfway between the two longitudes: {lon:.3f}, wanted {middle}")
+    check(min(LONGITUDE_A, LONGITUDE_B) < lon < max(LONGITUDE_A, LONGITUDE_B),
+          "which is between the two positions rather than beyond one of them")
+
+    # And the globe agrees with the numbers.
+    screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+    if check(screen is not None, "the middle is on the visible hemisphere"):
+        color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+        check(dominant(color) == "green",
+              f"a probe at the middle shows the feature colour: {color}")
+
+    run_visibility_checks(client)
+    run_timeline_checks(client)
+
+
+def run_visibility_checks(client: AutomationClient) -> None:
+    """A feature outside its time range is neither drawn nor hit tested."""
+    client.call("set_property", field="time_from", value=0)
+    client.call("set_property", field="time_to", value=1000)
+
+    outside = 1500.0
+    client.call("set_time", time=outside)
+    feature = client.call("get_selected")["feature"]
+    check(not feature["exists_now"], f"the feature is not there at {outside} Ma")
+
+    lat, lon = centroid(feature["world_rings"])
+    screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+    if not check(screen is not None, "where it would be is on the visible hemisphere"):
+        return
+    color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+    check(dominant(color) != "green",
+          f"so the Earth shows through where it would be: {color}")
+    check(client.call("get_features")["features"] is not None, "the tree still lists it")
+
+    # The same probe point, with the time range widened to take that time in.
+    client.call("set_property", field="time_to", value=2000)
+    check(client.call("get_selected")["feature"]["exists_now"],
+          "widening the range brings it back")
+    color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+    check(dominant(color) == "green", f"and the same probe is green again: {color}")
+
+
+def run_timeline_checks(client: AutomationClient) -> None:
+    """The time control: the markers, the step buttons and playback."""
+    client.call("set_animation", animation={
+        "start": 400.0, "end": 0.0, "increment": 100.0,
+        "frames_per_second": 60.0, "loop": False, "land_on_end": True,
+    })
+    timeline = client.call("get_timeline")["timeline"]
+    check(timeline["markers"] == [TIME_A, TIME_B],
+          f"the keyframes of the selected feature are marked: {timeline['markers']}")
+    check(timeline["slider_range"] == [-400.0, 0.0],
+          f"the slider runs from the oldest end on the left: {timeline['slider_range']}")
+
+    client.call("timeline", button="Reset")
+    check(client.call("get_time")["time"] == 400.0, "Reset goes to the start of the animation")
+    check(client.call("get_timeline")["timeline"]["slider"] == -400.0,
+          "and the slider follows the time")
+
+    client.call("timeline", button="Younger")
+    check(client.call("get_time")["time"] == 300.0, "a step towards the younger end")
+    check(client.call("get_timeline")["timeline"]["typed"] == 300.0,
+          "which the typed time field shows as well")
+    client.call("timeline", button="Older")
+    check(client.call("get_time")["time"] == 400.0, "and one back towards the older")
+
+    # A time typed in reaches the slider through the document, the same way a
+    # time set from a script does.
+    client.call("set_time", time=123.0)
+    timeline = client.call("get_timeline")["timeline"]
+    check(timeline["typed"] == 123.0 and timeline["slider"] == -123.0,
+          f"a time set anywhere reaches both the field and the slider: {timeline['slider']}")
+
+    # An animation long enough that it cannot run out between the request that
+    # starts it and the one that stops it.
+    client.call("set_animation", animation={"increment": 1.0, "frames_per_second": 60.0})
+    client.call("timeline", button="Reset")
+    client.call("timeline", button="Play")
+    check(client.call("get_timeline")["timeline"]["playing"], "Play starts the animation")
+    client.call("timeline", button="Pause")
+    check(not client.call("get_timeline")["timeline"]["playing"], "and Pause stops it")
+    check(client.call("get_time")["time"] < 400.0, "having moved the time along the way")
+
+    # Playing to the end without looping stops there rather than wrapping.
+    client.call("set_animation", animation={"increment": 100.0, "frames_per_second": 240.0})
+    client.call("timeline", button="Reset")
+    client.call("timeline", button="Play")
+    for _ in range(20):
+        if not client.call("get_timeline")["timeline"]["playing"]:
+            break
+    check(client.call("get_time")["time"] == 0.0,
+          f"the animation stops on the end time: {client.call('get_time')['time']}")
+    check(not client.call("get_timeline")["timeline"]["playing"], "and stops playing there")
+
+
 def count_features(node: dict) -> int:
     """The number of nodes in a serialized feature tree."""
     return 1 + sum(count_features(child) for child in node.get("children", []))
@@ -596,6 +790,7 @@ def main(argv: list[str]) -> int:
         run_colour_session(client)
         run_globe_menu_session(client)
         run_edit_menu_session(client)
+        run_time_session(client)
     finally:
         if connected:
             try:

@@ -9,7 +9,10 @@ triangles and no geometry kind. They are the fixtures for `Document.migrate()`, 
 recovers the outline those triangles covered, so leave them as they are.
 `mixed_geometry.middle-earth` is written in **0.2.0**. None of them carries a
 `feature_type`, so all four are fixtures for what 0.3.0 does with an older file:
-every feature in one loads unclassified.
+every feature in one loads unclassified. None of them carries `keyframes` either,
+so all four are fixtures for 0.4.0 as well: the one `rotation` a leaf holds
+becomes its keyframe at time zero, and one keyframe holds at every time, so the
+samples sit where they always did whatever the current time is.
 
 Every polygon is wound counter-clockwise as seen from outside the sphere, which is what
 `Feature.ensure_front_winding` enforces on the triangles it derives and what both
@@ -48,10 +51,11 @@ The same red triangle plus two more features in the `Cratons` group.
 triangles it was cut into. The loader puts the quad back together, so what reaches
 the application is one ring of four vertices.
 
-`Green Moved` holds the same vertices as `Red Triangle` with `rotation` `[60, 0, 0]`.
-A positive rotation around Y *decreases* the longitude, so the red probe point (-3, 0)
-moves to (-3, -60). The test derives this with `Feature.apply_rotation` rather than
-trusting the number written here.
+`Green Moved` holds the same vertices as `Red Triangle` with `rotation` `[60, 0, 0]`,
+which loads as the one keyframe at time zero. A positive rotation around Y
+*decreases* the longitude, so the red probe point (-3, 0) moves to (-3, -60). The
+test derives this with `Feature.apply_rotation` rather than trusting the number
+written here.
 
 ### empty.middle-earth (0.1.0)
 

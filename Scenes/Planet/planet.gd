@@ -76,12 +76,64 @@ func _on_map_physics_body_input_event(camera: Node, event: InputEvent, event_pos
 
 ## Feature geometry rendering
 
-# Upload the feature geometry to the planet shader.
-# Each entry: { "kind": Primitive, "verts": Array[Vector2], "color": Color,
-#               "feature": Feature }. A triangle carries three vertices, a
-# segment two and a point one, as Vector2(latitude_deg, longitude_deg).
-func set_geometry(primitives: Array, hovered_feature: Feature = null) -> void:
-	var count := primitives.size()
+
+# The flattened geometry of a feature tree, ready for the shader and for the hit
+# test. The primitives are in each feature's own frame and change only when the
+# tree does; where a feature sits at the current time is one rotation per
+# feature, so a step of an animation re-uploads that small part alone and leaves
+# the vertices where they were put.
+class Geometry extends RefCounted:
+	# One entry per primitive: { "kind": Primitive, "verts": Array of
+	# Vector2(latitude, longitude) in degrees in the feature's own frame,
+	# "color": Color, "feature": Feature, "index": int into features }. Every
+	# primitive of one feature is contiguous, which is what lets the shader and
+	# the hit test look its rotation up once instead of once per primitive.
+	var primitives: Array = []
+
+	# The features the primitives belong to, in the order they were first met.
+	var features: Array[Feature] = []
+	var index_of := {}
+
+	# Where each feature is and whether it is there at all, at the time resolve()
+	# was last called for. One entry per feature, in the same order.
+	var bases: Array[Basis] = []
+	var shown: Array[bool] = []
+	var time: float = 0.0
+
+	func index_for(feature: Feature) -> int:
+		if index_of.has(feature):
+			return int(index_of[feature])
+		var index := features.size()
+		features.append(feature)
+		index_of[feature] = index
+		bases.append(Basis())
+		shown.append(true)
+		return index
+
+	# Work out where every feature sits at a time and whether it is there then.
+	# The tree is walked from the root down so that each node composes its own
+	# rotation with what its ancestors already gave it, which is how a group
+	# carries everything under it along.
+	func resolve(root: Feature, time_: float) -> void:
+		time = time_
+		var stack: Array = [[root, Basis()]]
+		while not stack.is_empty():
+			var entry: Array = stack.pop_back()
+			var node: Feature = entry[0]
+			var m: Basis = (entry[1] as Basis) * node.basis_at(time)
+			if index_of.has(node):
+				var index := int(index_of[node])
+				bases[index] = m
+				shown[index] = node.exists_at(time)
+			for child in node.children:
+				stack.append([child, m])
+
+
+# Upload the feature geometry to the planet shader. Where the features sit and
+# which one the pointer rests on come from set_feature_state() instead, which a
+# frame of an animation calls on its own.
+func set_geometry(geometry: Geometry) -> void:
+	var count := geometry.primitives.size()
 	var globe_mat: ShaderMaterial = globe.get_surface_override_material(0)
 	var map_mat: ShaderMaterial = map.get_surface_override_material(0)
 
@@ -94,7 +146,7 @@ func set_geometry(primitives: Array, hovered_feature: Feature = null) -> void:
 	var img := Image.create(count, 3, false, Image.FORMAT_RGBAF)
 
 	for i in range(count):
-		var primitive: Dictionary = primitives[i]
+		var primitive: Dictionary = geometry.primitives[i]
 		var v: Array = primitive["verts"]
 		var kind: int = primitive["kind"]
 
@@ -104,12 +156,11 @@ func set_geometry(primitives: Array, hovered_feature: Feature = null) -> void:
 			deg_to_rad(v[0].x), deg_to_rad(v[0].y),
 			deg_to_rad(b.x), deg_to_rad(b.y)
 		))
-		# Row 1: (lat_c, lon_c, hovered, kind); c is only used by a triangle
+		# Row 1: (lat_c, lon_c, feature, kind); c is only used by a triangle
 		var c: Vector2 = v[2] if v.size() > 2 else v[0]
-		var hovered := 1.0 if (hovered_feature != null and primitive.get("feature") == hovered_feature) else 0.0
 		img.set_pixel(i, 1, Color(
 			deg_to_rad(c.x), deg_to_rad(c.y),
-			hovered, float(kind)
+			float(primitive["index"]), float(kind)
 		))
 		# Row 2: color (r, g, b, a)
 		img.set_pixel(i, 2, primitive["color"])
@@ -120,11 +171,38 @@ func set_geometry(primitives: Array, hovered_feature: Feature = null) -> void:
 		material.set_shader_parameter("geometry_count", count)
 
 
-# Flatten a feature tree into the primitives that draw it, in world space.
-# A polygon contributes its cached triangles, a polyline the segments between
-# consecutive vertices of each ring, and a multipoint one marker per vertex.
-static func collect_geometry(root: Feature) -> Array:
-	var primitives: Array = []
+# Upload where each feature sits, whether it is there at the current time, and
+# which one the pointer rests on. This is the whole of what one step of an
+# animation changes, so it is three texels per feature rather than three rows
+# per triangle. Call geometry.resolve() for the wanted time first.
+func set_feature_state(geometry: Geometry, hovered_feature: Feature = null) -> void:
+	var count := geometry.features.size()
+	if count == 0:
+		return
+
+	# Data texture: width = feature count, height = 3, 32-bit float RGBA. Each
+	# row carries one column of the rotation, with the hover and the visibility
+	# in the two channels the rotation leaves over.
+	var img := Image.create(count, 3, false, Image.FORMAT_RGBAF)
+	for i in range(count):
+		var m: Basis = geometry.bases[i]
+		var hovered := 1.0 if geometry.features[i] == hovered_feature else 0.0
+		img.set_pixel(i, 0, Color(m.x.x, m.x.y, m.x.z, hovered))
+		img.set_pixel(i, 1, Color(m.y.x, m.y.y, m.y.z, 1.0 if geometry.shown[i] else 0.0))
+		img.set_pixel(i, 2, Color(m.z.x, m.z.y, m.z.z, 0.0))
+
+	var tex := ImageTexture.create_from_image(img)
+	for material in [globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
+		material.set_shader_parameter("feature_data", tex)
+
+
+# Flatten a feature tree into the primitives that draw it, in the frame of each
+# feature. A polygon contributes its cached triangles, a polyline the segments
+# between consecutive vertices of each ring, and a multipoint one marker per
+# vertex. The result is resolved for the given time, so it can be drawn or hit
+# tested straight away; resolve() again to move it to another time.
+static func collect_geometry(root: Feature, time: float = 0.0) -> Geometry:
+	var geometry := Geometry.new()
 	var stack: Array[Feature] = [root]
 	while not stack.is_empty():
 		var node: Feature = stack.pop_back()
@@ -134,37 +212,51 @@ static func collect_geometry(root: Feature) -> Array:
 			stack.append_array(node.children)
 			continue
 
+		var index := geometry.index_for(node)
 		match node.geometry_kind:
 			Feature.GeometryKind.POLYGON:
-				var verts := Feature.apply_rotation(node.triangles, node.rotation_angles)
+				var verts := node.triangles
 				for j in range(0, verts.size() - 2, 3):
-					primitives.append(_primitive(
-						Primitive.TRIANGLE, [verts[j], verts[j + 1], verts[j + 2]], node))
+					geometry.primitives.append(_primitive(
+						Primitive.TRIANGLE, [verts[j], verts[j + 1], verts[j + 2]], node, index))
 			Feature.GeometryKind.POLYLINE:
 				for ring in node.rings:
-					var verts := Feature.apply_rotation(ring, node.rotation_angles)
-					for j in range(verts.size() - 1):
-						primitives.append(_primitive(
-							Primitive.SEGMENT, [verts[j], verts[j + 1]], node))
+					for j in range(ring.size() - 1):
+						geometry.primitives.append(_primitive(
+							Primitive.SEGMENT, [ring[j], ring[j + 1]], node, index))
 			Feature.GeometryKind.MULTIPOINT:
 				for ring in node.rings:
-					for v in Feature.apply_rotation(ring, node.rotation_angles):
-						primitives.append(_primitive(Primitive.POINT, [v], node))
-	return primitives
+					for v in ring:
+						geometry.primitives.append(_primitive(Primitive.POINT, [v], node, index))
+	geometry.resolve(root, time)
+	return geometry
 
 
-static func _primitive(kind: Primitive, verts: Array, node: Feature) -> Dictionary:
-	return {"kind": kind, "verts": verts, "color": node.color, "feature": node}
+static func _primitive(kind: Primitive, verts: Array, node: Feature, index: int) -> Dictionary:
+	return {"kind": kind, "verts": verts, "color": node.color, "feature": node, "index": index}
 
 
 ## Hit test: find which feature covers the given lat/lon point.
 ## Uses the same great-circle tests as the shader, with a click tolerance around
 ## the lines and the point markers. Returns null when nothing is there.
-static func hit_test(lat: float, lon: float, primitives: Array) -> Feature:
+##
+## The primitives are in each feature's own frame, so the point being asked
+## about is carried into that frame rather than the geometry out of it: one
+## rotation of one point per feature instead of one per vertex.
+static func hit_test(lat: float, lon: float, geometry: Geometry) -> Feature:
 	var p := _latlon_to_unit(deg_to_rad(lat), deg_to_rad(lon))
+	var resolved := -1
+	var local := p
 	# Iterate in reverse so topmost (last-drawn) geometry wins
-	for i in range(primitives.size() - 1, -1, -1):
-		var primitive: Dictionary = primitives[i]
+	for i in range(geometry.primitives.size() - 1, -1, -1):
+		var primitive: Dictionary = geometry.primitives[i]
+		var index: int = primitive["index"]
+		if not geometry.shown[index]:
+			continue
+		if index != resolved:
+			resolved = index
+			local = geometry.bases[index].transposed() * p
+
 		var v: Array = primitive["verts"]
 		var a := _latlon_to_unit(deg_to_rad(v[0].x), deg_to_rad(v[0].y))
 
@@ -172,16 +264,16 @@ static func hit_test(lat: float, lon: float, primitives: Array) -> Feature:
 			Primitive.TRIANGLE:
 				var b := _latlon_to_unit(deg_to_rad(v[1].x), deg_to_rad(v[1].y))
 				var c := _latlon_to_unit(deg_to_rad(v[2].x), deg_to_rad(v[2].y))
-				if a.cross(b).normalized().dot(p) > 0.0 \
-					and b.cross(c).normalized().dot(p) > 0.0 \
-					and c.cross(a).normalized().dot(p) > 0.0:
+				if a.cross(b).normalized().dot(local) > 0.0 \
+					and b.cross(c).normalized().dot(local) > 0.0 \
+					and c.cross(a).normalized().dot(local) > 0.0:
 					return primitive["feature"] as Feature
 			Primitive.SEGMENT:
 				var b := _latlon_to_unit(deg_to_rad(v[1].x), deg_to_rad(v[1].y))
-				if arc_distance(a, b, p) <= LINE_HIT_WIDTH:
+				if arc_distance(a, b, local) <= LINE_HIT_WIDTH:
 					return primitive["feature"] as Feature
 			Primitive.POINT:
-				if _chord(a, p) <= POINT_HIT_RADIUS:
+				if _chord(a, local) <= POINT_HIT_RADIUS:
 					return primitive["feature"] as Feature
 	return null
 

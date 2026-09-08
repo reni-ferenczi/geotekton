@@ -4,7 +4,11 @@
 
 Moving a feature rotates its vertices on the sphere rather than shifting lat/lon values directly. This preserves shape at all latitudes — direct lat/lon translation distorts shapes near the poles.
 
-Each leaf feature stores `rotation_angles: Vector3` (degrees) alongside the `rings` its geometry is made of. The rings are never modified during a move; only `rotation_angles` changes.
+A node stores a list of keyframes alongside the `rings` its geometry is made
+of, each one a time and a `Vector3` of degrees. The rings are never modified
+during a move; only the keyframes change. What a node's rotation is at a given
+time, and how a group's reaches the features under it, is in
+[Time](Time.md#keyframes); this document is about the rotation itself.
 
 ---
 
@@ -16,11 +20,19 @@ The rotation is a YXZ Euler decomposition:
 R = Ry(α) · Rx(β) · Rz(γ)
 ```
 
-- `rotation_angles.x` = α (longitude shift, rotation around Y / up axis)
-- `rotation_angles.y` = β (latitude shift, rotation around X / right axis)
-- `rotation_angles.z` = γ (self-rotation, reserved, kept at 0)
+A rotation is a `Vector3` of degrees:
 
-`_build_rotation_basis` and `_decompose_rotation_degrees` in `Logic/feature.gd` convert between `Vector3` degrees and `Basis`.
+- `x` = α (longitude shift, rotation around Y / up axis)
+- `y` = β (latitude shift, rotation around X / right axis)
+- `z` = γ (self-rotation)
+
+The keyframe table of the Properties panel calls the three of them Lon, Lat and
+Spin.
+
+`build_rotation_basis` and `decompose_rotation_degrees` in `Logic/feature.gd`
+convert between `Vector3` degrees and `Basis`. They are public because the
+keyframe interpolation needs them: it converts both ends to quaternions, slerps,
+and converts back.
 
 ### Godot Basis Indexing
 
@@ -60,7 +72,41 @@ xyz = (cos_lat · cos_lon,  sin_lat,  cos_lat · sin_lon)
 
 This convention is self-consistent: `apply_rotation` and `compute_move_rotation` both use it, so rotations compose correctly.
 
-`unapply_rotation` applies the transpose (inverse) of the same matrix, used when committing a new outline on top of a moved craton.
+`unapply_rotation` applies the transpose (inverse) of the same matrix.
+`apply_basis` takes a `Basis` that has already been built, which is what most
+callers have: a node's rotation in the world is composed from its own and its
+ancestors', so it arrives as a matrix rather than as three angles.
+
+Committing a new outline on top of a moved feature goes through the inverse of
+that composed matrix, `Feature.world_basis(root, feature, time).transposed()`,
+so what was clicked in world space is stored in the feature's own frame.
+
+## Moving in time
+
+A drag writes or replaces the keyframe at the current time, and only the release
+records an undo version. Cancelling puts the whole keyframe list back the way it
+was, not just the one rotation, because a drag may have added a keyframe that
+was not there before.
+
+A node inside a group is dragged in the frame its parent gives it. The grabbed
+point and the target are both carried into that frame first, so the rotation
+that comes out is the node's own and the inherited part is neither undone nor
+applied twice:
+
+```gdscript
+var parent_inverse := Feature.world_basis(root, root.find_parent(node), time).transposed()
+var anchor_local := parent_inverse * anchor_world
+var target_local := parent_inverse * target_world
+Keyframe.upsert(node.keyframes, time, Feature.compute_move_rotation(
+    anchor_local, target_local, node.rotation_at(time)))
+```
+
+Conjugating the delta rotation this way maps its axis into the parent's frame
+and leaves its angle alone, which is why the same `compute_move_rotation` works
+for a node at any depth.
+
+A group can be dragged too, since a group carries motion its children inherit.
+The root cannot: turning it would only turn the globe.
 
 ---
 
@@ -70,12 +116,15 @@ This convention is self-consistent: `apply_rotation` and `compute_move_rotation`
 
 1. **LMB press** on globe → physics body input event fires in `planet.gd` → emits `input_event_globe(lat, lon, event)` → `planet_view.gd` emits `move_started(lat, lon)`.
 2. `application.gd._on_move_started` records:
-   - `move_anchor_world` = `Feature._latlon_to_xyz_s(Vector2(lat, lon))`
-   - `move_base_rot` = current `rotation_angles`
+   - `move_anchor_local` = the grabbed point in the frame the parent gives it
+   - `move_base_rot` = the node's own rotation at the current time
+   - `move_base_keyframes` = a copy of the list, for a cancelled drag
 3. **Mouse motion** → physics event fires → `move_to(lat, lon)` emitted.
-4. `_on_move_to` computes `target_world`, calls `Feature.compute_move_rotation`, updates `rotation_angles`, refreshes the display.
-5. **LMB release on globe** → `stop_moving()` — saves undo, keeps new angles.
-6. **LMB release outside globe** → `cancel_moving()` — restores `move_base_rot`.
+4. `_on_move_to` carries the target into the same frame, calls
+   `Feature.compute_move_rotation`, writes the keyframe at the current time and
+   refreshes where the features sit.
+5. **LMB release on globe** → `stop_moving()` — saves undo, keeps the keyframe.
+6. **LMB release outside globe** → `cancel_moving()` — puts the keyframe list back.
 
 ### compute_move_rotation
 
@@ -88,8 +137,8 @@ var angle := acos(clamp(dot(anchor, target), -1, 1))
 var delta := Basis(axis, angle)
 
 # compose: new = delta · base
-var m_new := delta * _build_rotation_basis(base_rot)
-return _decompose_rotation_degrees(m_new)
+var m_new := delta * build_rotation_basis(base_rot)
+return decompose_rotation_degrees(m_new)
 ```
 
 Returns `null` if anchor and target are antipodal (no unique great-circle axis). In that case the caller keeps the previous angles. This is the mechanism that "cancels" the move when the mouse leaves the globe — the last valid angles are retained until LMB release, which either commits (on-globe) or snaps back (off-globe).

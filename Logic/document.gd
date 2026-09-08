@@ -14,14 +14,27 @@ const EXTENSION := ".middle-earth"
 const UNTITLED := "Untitled"
 const MAX_UNDO_STEPS := 100
 
+# The oldest age anything in the application names, in millions of years before
+# present. Older than the Earth, so nothing anyone models runs into it.
+const MAX_TIME := 10000.0
+
 # The feature tree was replaced: rebuild the UI from root.
 signal root_replaced()
 
 # The path, the dirty flag or the undo depth changed: refresh title and buttons.
 signal state_changed()
 
+# The current time moved: redraw at the new time and follow it on the timeline.
+signal time_changed()
+
 var root: Feature
 var path: String = ""
+
+# When everything is drawn, an age in millions of years before present, so a
+# larger number is older and 0 is now. Not part of the document's content: it is
+# where the document is being looked at, so moving it dirties nothing and a file
+# always opens at the present.
+var current_time: float = 0.0
 
 # Recorded versions of the tree, oldest first, and how many of them are applied.
 # The current version is versions[applied - 1]; anything above applied is redo.
@@ -49,6 +62,7 @@ func reset() -> void:
 	record()
 	_saved = applied
 	path = ""
+	set_time(0.0)
 	root_replaced.emit()
 	state_changed.emit()
 
@@ -198,6 +212,74 @@ func remove_vertex(feature: Feature, part: int, index: int) -> String:
 	return ""
 
 
+### Time and motion
+
+# The current time is view state and records no undo version. The keyframes are
+# content and each change to them records one, like every other edit.
+
+
+# Look at the document at another time. Ages run from now to MAX_TIME, so a
+# time outside that is brought back to the nearer end rather than refused.
+func set_time(time: float) -> void:
+	var wanted := clampf(time, 0.0, MAX_TIME)
+	if is_equal_approx(wanted, current_time):
+		return
+	current_time = wanted
+	time_changed.emit()
+
+
+# Give the node the rotation it has at that time, replacing the keyframe already
+# there or adding one. This is what the Move tool commits.
+func set_keyframe(node: Feature, time: float, rotation: Vector3) -> void:
+	Keyframe.upsert(node.keyframes, time, rotation)
+	record()
+
+
+func remove_keyframe(node: Feature, index: int) -> String:
+	var error := _check_keyframe(node, index)
+	if not error.is_empty():
+		return error
+	node.keyframes.remove_at(index)
+	record()
+	return ""
+
+
+# Move a keyframe to another time. Refused when another keyframe is already
+# there, since the two would have to become one and the caller would not know
+# which rotation survived.
+func set_keyframe_time(node: Feature, index: int, time: float) -> String:
+	var error := _check_keyframe(node, index)
+	if not error.is_empty():
+		return error
+	if time < 0.0 or time > MAX_TIME:
+		return "The time %s is outside 0 to %d." % [time, MAX_TIME]
+	var existing := Keyframe.index_at(node.keyframes, time)
+	if existing >= 0 and existing != index:
+		return "There is already a keyframe at %s." % time
+	var rotation: Vector3 = node.keyframes[index].rotation
+	node.keyframes.remove_at(index)
+	Keyframe.upsert(node.keyframes, time, rotation)
+	record()
+	return ""
+
+
+func set_keyframe_rotation(node: Feature, index: int, rotation: Vector3) -> String:
+	var error := _check_keyframe(node, index)
+	if not error.is_empty():
+		return error
+	node.keyframes[index].rotation = rotation
+	record()
+	return ""
+
+
+func _check_keyframe(node: Feature, index: int) -> String:
+	if node == null:
+		return "Nothing is selected."
+	if index < 0 or index >= node.keyframes.size():
+		return "%s has no keyframe %d." % [node.title, index]
+	return ""
+
+
 func _check_index(feature: Feature, part: int, index: int, past_the_end: bool = false) -> String:
 	if part < 0 or part >= feature.rings.size():
 		return "The feature has no part %d." % part
@@ -248,6 +330,7 @@ func load_from_file(file_path: String) -> String:
 	record()
 	_saved = applied
 	path = file_path
+	set_time(0.0)
 	root_replaced.emit()
 	state_changed.emit()
 	return ""
@@ -276,10 +359,14 @@ func save_to_file(file_path: String) -> String:
 # Bring a parsed file up to the format this version writes, based on the
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
-	if _is_older_than(str(data.get("version", "0.1.0")), "0.2.0"):
-		data = data.duplicate(true)
+	var version := str(data.get("version", "0.1.0"))
+	if not _is_older_than(version, "0.4.0"):
+		return data
+	data = data.duplicate(true)
+	if _is_older_than(version, "0.2.0"):
 		data["features"] = _to_0_2_0(data.get("features", {}))
-		data["version"] = "0.2.0"
+	data["features"] = _to_0_4_0(data.get("features", {}))
+	data["version"] = "0.4.0"
 	return data
 
 
@@ -320,6 +407,27 @@ static func _to_0_2_0(node: Variant) -> Variant:
 	node.erase("vertices")
 	node["geometry_kind"] = "polygon"
 	node["rings"] = rings_from_triangles(vertices)
+	return node
+
+
+# Up to 0.3.0 a leaf carried one rotation and nothing moved in time. 0.4.0 keeps
+# a list of keyframes instead, on groups as well as on leaves, and the one
+# rotation becomes the keyframe at time zero: the present, which is where a file
+# written before this was drawn. A group had no rotation to carry over and so
+# arrives without keyframes, standing still until someone moves it.
+static func _to_0_4_0(node: Variant) -> Variant:
+	if node is not Dictionary:
+		return node
+	if node.get("is_group", node.get("type") == "Group"):
+		var children: Array = []
+		for child in node.get("children", []):
+			children.append(_to_0_4_0(child))
+		node["children"] = children
+		return node
+
+	var rotation: Array = node.get("rotation", [0, 0, 0])
+	node.erase("rotation")
+	node["keyframes"] = [{"time": 0.0, "rotation": rotation}]
 	return node
 
 

@@ -56,7 +56,11 @@ const PANEL_KEYS := {
 var document := Document.new()
 
 var active_tool: Tool = Tool.MOVE
-var last_geometry: Array = []
+
+# The feature tree flattened for the shader and the hit test. Rebuilt when the
+# tree changes; where each feature sits at the current time is resolved on it
+# separately, which is all a step of an animation touches.
+var geometry := Planet.Geometry.new()
 var hovered_feature: Feature = null
 
 # True when the application must leave the settings of whoever is at the
@@ -78,6 +82,9 @@ var preferences_dialog: AcceptDialog
 var error_dialog: AcceptDialog
 var restore_session_check: CheckBox
 var default_folder_edit: LineEdit
+var animation_dialog: AcceptDialog
+# The fields of the animation dialog, by the name of the setting each one edits.
+var animation_fields: Dictionary = {}
 
 # What to do once the unsaved changes prompt has been answered.
 var _pending_action: Callable
@@ -112,6 +119,9 @@ func _ready() -> void:
 	properties.rejected.connect(_show_error)
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
+	document.time_changed.connect(_on_time_changed)
+	timeline.attach(document)
+	timeline.configure_requested.connect(_show_animation_dialog)
 	# The Edit menus offer what the feature tree toolbar offers, so they follow
 	# the same signal: the undo depth, the selection and the clipboard all reach
 	# it, which a copy that records no undo version otherwise would not.
@@ -503,6 +513,13 @@ func _build_dialogs() -> void:
 	preferences_dialog.confirmed.connect(_on_preferences_confirmed)
 	add_child(preferences_dialog)
 
+	animation_dialog = AcceptDialog.new()
+	animation_dialog.name = "AnimationDialog"
+	animation_dialog.title = "Animation"
+	animation_dialog.add_child(_build_animation_content())
+	animation_dialog.confirmed.connect(_on_animation_confirmed)
+	add_child(animation_dialog)
+
 
 func _build_about_content() -> Control:
 	var text := RichTextLabel.new()
@@ -545,6 +562,77 @@ func _build_preferences_content() -> Control:
 	box.add_child(restore_session_check)
 
 	return box
+
+
+# How playback walks the timeline: where it starts and ends, how far one frame
+# moves, how fast the frames come, and what happens at the two ends.
+func _build_animation_content() -> Control:
+	var form := GridContainer.new()
+	form.name = "Animation"
+	form.columns = 2
+	form.custom_minimum_size = Vector2(360, 0)
+
+	_animation_spin(form, "start", "Start (Ma)", 0.0, Document.MAX_TIME, 1.0)
+	_animation_spin(form, "end", "End (Ma)", 0.0, Document.MAX_TIME, 1.0)
+	_animation_spin(form, "increment", "Increment (My)", 0.0001, Document.MAX_TIME, 0.0001)
+	_animation_spin(form, "frames_per_second", "Frames per second", 0.1, 240.0, 0.1)
+
+	var loop_check := CheckBox.new()
+	loop_check.name = "Loop"
+	loop_check.text = "Start again at the end"
+	form.add_child(Label.new())
+	form.add_child(loop_check)
+	animation_fields["loop"] = loop_check
+
+	var land_check := CheckBox.new()
+	land_check.name = "LandOnEnd"
+	land_check.text = "Land exactly on the end time"
+	form.add_child(Label.new())
+	form.add_child(land_check)
+	animation_fields["land_on_end"] = land_check
+
+	return form
+
+
+func _animation_spin(form: GridContainer, field: String, text: String,
+		low: float, high: float, step: float) -> void:
+	var spin := SpinBox.new()
+	spin.name = field.to_pascal_case()
+	spin.min_value = low
+	spin.max_value = high
+	spin.step = step
+	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var label := Label.new()
+	label.text = text
+	form.add_child(label)
+	form.add_child(spin)
+	animation_fields[field] = spin
+
+
+func _show_animation_dialog() -> void:
+	var settings := timeline.animation
+	for field in animation_fields:
+		var control: Control = animation_fields[field]
+		if control is SpinBox:
+			(control as SpinBox).value = float(settings.get(field))
+		else:
+			(control as CheckBox).button_pressed = bool(settings.get(field))
+	animation_dialog.popup_centered()
+
+
+func _on_animation_confirmed() -> void:
+	var settings := AnimationSettings.new()
+	for field in animation_fields:
+		var control: Control = animation_fields[field]
+		if control is SpinBox:
+			settings.set(field, (control as SpinBox).value)
+		else:
+			settings.set(field, (control as CheckBox).button_pressed)
+	var problem := settings.problem()
+	if not problem.is_empty():
+		_show_error(problem)
+		return
+	timeline.set_animation(settings)
 
 
 func show_preferences() -> void:
@@ -693,6 +781,7 @@ func _on_feature_selected(node: Feature) -> void:
 			set_active_tool(Tool.MOVE)
 
 	_update_move_enabled()
+	timeline.show_keyframes(node)
 	refresh_geometry()
 
 
@@ -741,46 +830,63 @@ func _first_allowed_kind() -> int:
 ### Move tool
 
 
+# A group can be dragged as well as a feature, because a group carries motion
+# its children inherit. The root is left out: it holds everything, so turning it
+# would only turn the globe, which the view already does.
 func _update_move_enabled() -> void:
 	var selected := features.feature_tree.get_selected_node()
-	var can_move := active_tool == Tool.MOVE and selected != null and not selected.is_group and selected.has_geometry()
-	planet_view.move_enabled = can_move
+	planet_view.move_enabled = active_tool == Tool.MOVE and selected != null \
+		and not selected.is_root and selected.holds_geometry()
 
 
-var move_anchor_world: Vector3
+# The point that was grabbed and the rotation the dragged node had when the drag
+# started, both in the frame its parent gives it, so an inherited rotation is
+# neither undone nor applied twice. The keyframes it started with come back if
+# the drag is cancelled.
+var move_anchor_local: Vector3
 var move_base_rot: Vector3
+var move_parent_inverse := Basis()
+var move_base_keyframes: Array[Keyframe] = []
 
 
 func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 	var selected := features.feature_tree.get_selected_node()
-	if selected == null or selected.is_group:
+	if selected == null or selected.is_root:
 		return
-	move_base_rot = selected.rotation_angles
-	move_anchor_world = Feature._latlon_to_xyz_s(Vector2(anchor_lat, anchor_lon))
+	move_base_keyframes = Keyframe.clone_list(selected.keyframes)
+	move_parent_inverse = Feature.world_basis(
+		features.root, features.root.find_parent(selected), document.current_time).transposed()
+	move_base_rot = selected.rotation_at(document.current_time)
+	move_anchor_local = move_parent_inverse * Feature._latlon_to_xyz_s(Vector2(anchor_lat, anchor_lon))
 
 
+# Dragging writes the keyframe at the current time as it goes, so what is on the
+# globe is what will be committed. Only the release records an undo version.
 func _on_move_to(lat: float, lon: float) -> void:
 	var selected := features.feature_tree.get_selected_node()
-	if selected == null or selected.is_group:
+	if selected == null or selected.is_root:
 		return
-	var target_world := Feature._latlon_to_xyz_s(Vector2(lat, lon))
-	var new_rot: Variant = Feature.compute_move_rotation(move_anchor_world, target_world, move_base_rot)
+	var target_local := move_parent_inverse * Feature._latlon_to_xyz_s(Vector2(lat, lon))
+	var new_rot: Variant = Feature.compute_move_rotation(move_anchor_local, target_local, move_base_rot)
 	if new_rot != null:
-		selected.rotation_angles = new_rot
-		refresh_geometry()
+		Keyframe.upsert(selected.keyframes, document.current_time, new_rot)
+		refresh_motion()
 
 
 func _on_move_ended() -> void:
 	document.record()
 	features.reload()
+	var selected := features.feature_tree.get_selected_node()
+	properties.show_node(selected)
+	timeline.show_keyframes(selected)
 	refresh_geometry()
 
 
 func _on_move_cancelled() -> void:
 	var selected := features.feature_tree.get_selected_node()
-	if selected != null and not selected.is_group:
-		selected.rotation_angles = move_base_rot
-	refresh_geometry()
+	if selected != null and not selected.is_root:
+		selected.keyframes = move_base_keyframes
+	refresh_motion()
 
 
 ### Drawing
@@ -830,8 +936,11 @@ func _outline_commit() -> void:
 	if outline_vertices.size() < int(Feature.MINIMUM_VERTICES[kind]):
 		return
 
-	# The vertices were clicked in world space; a feature keeps its own frame.
-	selected.add_ring(Feature.unapply_rotation(outline_vertices, selected.rotation_angles), kind)
+	# The vertices were clicked in world space; a feature keeps its own frame,
+	# which at the current time is where its keyframes and its groups' put it.
+	var into_local := Feature.world_basis(
+		features.root, selected, document.current_time).transposed()
+	selected.add_ring(Feature.apply_basis(outline_vertices, into_local), kind)
 
 	outline_vertices = PackedVector2Array()
 	document.record()
@@ -868,7 +977,7 @@ func _drawing_outline_style() -> Planet.OutlineStyle:
 
 
 func _on_craton_clicked(lat: float, lon: float) -> void:
-	var hit := Planet.hit_test(lat, lon, last_geometry)
+	var hit := Planet.hit_test(lat, lon, geometry)
 	var selected := features.feature_tree.get_selected_node()
 	print("Craton click: hit=%s (pnid=%d), selected=%s (pnid=%d)" % [
 		hit.title if hit else "null", hit.pnid if hit else -1,
@@ -884,7 +993,7 @@ func _on_craton_clicked(lat: float, lon: float) -> void:
 # A right click offers the Edit commands for whatever is under the pointer,
 # selecting it first so the menu and the feature tree agree on the target.
 func _on_craton_context_menu(lat: float, lon: float) -> void:
-	var hit := Planet.hit_test(lat, lon, last_geometry)
+	var hit := Planet.hit_test(lat, lon, geometry)
 	if hit != null:
 		features.feature_tree.select_node(hit)
 	_update_edit_menu()
@@ -896,18 +1005,27 @@ func _on_craton_context_menu(lat: float, lon: float) -> void:
 func _on_craton_hovered(lat: float, lon: float) -> void:
 	var new_hovered: Feature = null
 	if not is_nan(lat):
-		new_hovered = Planet.hit_test(lat, lon, last_geometry)
+		new_hovered = Planet.hit_test(lat, lon, geometry)
 	if new_hovered != hovered_feature:
 		hovered_feature = new_hovered
-		planet_view.planet.set_geometry(last_geometry, hovered_feature)
+		planet_view.planet.set_feature_state(geometry, hovered_feature)
 
 
 ### Geometry rendering
 
 
 func refresh_geometry() -> void:
-	last_geometry = Planet.collect_geometry(features.root)
-	planet_view.planet.set_geometry(last_geometry, hovered_feature)
+	geometry = Planet.collect_geometry(features.root, document.current_time)
+	planet_view.planet.set_geometry(geometry)
+	refresh_motion()
+
+
+# Where the features sit at the current time, without rebuilding the geometry
+# itself. This is what a step of an animation and a drag of the Move tool cost:
+# one small texture, whatever the triangle count is.
+func refresh_motion() -> void:
+	geometry.resolve(features.root, document.current_time)
+	planet_view.planet.set_feature_state(geometry, hovered_feature)
 	_refresh_selection_outline()
 
 
@@ -929,10 +1047,11 @@ func _refresh_selection_outline() -> void:
 		Feature.GeometryKind.MULTIPOINT:
 			style = Planet.OutlineStyle.POINTS
 
+	var m := Feature.world_basis(features.root, selected, document.current_time)
 	var parts: Array = []
 	for ring in selected.rings:
 		parts.append({
-			"vertices": Feature.apply_rotation(ring, selected.rotation_angles),
+			"vertices": Feature.apply_basis(ring, m),
 			"style": style,
 		})
 	planet_view.planet.set_outline(parts)
@@ -942,10 +1061,21 @@ func _on_program_changed() -> void:
 	refresh_geometry()
 
 
+# Only where things are has changed, so the geometry itself is left alone. The
+# tree greys out whatever is outside its time range and the Properties panel
+# follows the time in its keyframe list.
+func _on_time_changed() -> void:
+	refresh_motion()
+	features.feature_tree.refresh_time(document.current_time)
+	properties.show_time()
+
+
 # An edit made in the Properties panel: the tree row and the globe follow it,
 # and so does the Draw tool, whose kinds depend on the type that may have moved.
 func _on_properties_edited() -> void:
 	features.reload()
-	_update_kind_selector(features.feature_tree.get_selected_node())
+	var selected := features.feature_tree.get_selected_node()
+	_update_kind_selector(selected)
+	timeline.show_keyframes(selected)
 	refresh_geometry()
 

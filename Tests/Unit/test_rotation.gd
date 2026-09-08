@@ -11,8 +11,8 @@ func test_decompose_inverts_build() -> void:
 		Vector3(170, -60, -15),
 		Vector3(0, 0, 0),
 	]:
-		var basis := Feature._build_rotation_basis(angles)
-		var decomposed := Feature._decompose_rotation_degrees(basis)
+		var basis := Feature.build_rotation_basis(angles)
+		var decomposed := Feature.decompose_rotation_degrees(basis)
 		assert_close(decomposed, angles, 1e-4, "decomposition of %s" % angles)
 
 
@@ -40,8 +40,8 @@ func test_gimbal_lock_rebuilds_the_same_basis() -> void:
 	# At beta = 90 the alpha and gamma rotations act on the same axis, so the
 	# decomposition picks gamma = 0 and returns different angles for the same Basis.
 	var angles := Vector3(30, 90, 15)
-	var basis := Feature._build_rotation_basis(angles)
-	var decomposed := Feature._decompose_rotation_degrees(basis)
+	var basis := Feature.build_rotation_basis(angles)
+	var decomposed := Feature.decompose_rotation_degrees(basis)
 	assert_close(decomposed.z, 0.0, 1e-6, "gamma is forced to zero under gimbal lock")
-	assert_true(Feature._build_rotation_basis(decomposed).is_equal_approx(basis),
-		"the rebuilt Basis must match: %s vs %s" % [Feature._build_rotation_basis(decomposed), basis])
+	assert_true(Feature.build_rotation_basis(decomposed).is_equal_approx(basis),
+		"the rebuilt Basis must match: %s vs %s" % [Feature.build_rotation_basis(decomposed), basis])

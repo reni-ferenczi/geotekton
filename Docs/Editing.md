@@ -15,6 +15,9 @@ The toolbar contains two mutually exclusive tool buttons and a selector:
 Each row of the tree carries the title of the feature or group and two buttons:
 a colour swatch, on a feature only, and a switch that enables the node. A
 disabled node is neither drawn nor hit tested, itself and everything under it.
+A row is greyed out while its feature is outside its time range at the current
+time, which is when the globe leaves it out as well; see
+[Time](Time.md#being-there-at-all).
 A right click on the swatch puts the colour back to the one the feature's type
 gives. Everything else about a feature is edited in the
 [Properties](Properties.md) panel.
@@ -25,7 +28,12 @@ them and they were dropped in 0.2.0, files included.
 
 ## Moving Features
 
-When the Move tool is active and a leaf feature with geometry is selected in the feature tree, left-clicking on the globe starts moving that feature.
+When the Move tool is active and something with geometry under it is selected in
+the feature tree, left-clicking on the globe starts moving it. That can be a
+group as well as a leaf feature, because a group carries motion its children
+inherit; only the root is left out. A move writes the keyframe at the current
+time, so moving at two times is what makes something move at all — see
+[Time](Time.md#making-a-keyframe).
 
 ### Input Mapping
 
@@ -47,6 +55,7 @@ When the Move tool is active and a leaf feature with geometry is selected in the
 - Horizontal mouse movement changes longitude, vertical movement changes latitude.
 - Holding the middle mouse button while moving temporarily switches to planet rotation. Releasing it resumes moving the feature. This allows repositioning the view without letting the feature go.
 - Releasing the left mouse button ends the move, restores the cursor, and records an undo version.
+- The keyframe at the current time is written as the drag goes, so what is on the globe during the drag is what the release records. Releasing off the globe puts the keyframe list back the way it was.
 
 ### Auto-select After Drawing
 

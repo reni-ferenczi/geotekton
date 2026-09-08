@@ -105,3 +105,130 @@ func test_the_undo_buffer_stops_growing() -> void:
 	while document.can_undo():
 		document.undo()
 	assert_true(document.is_dirty(), "undoing to the oldest kept version is still dirty")
+
+
+### The current time
+
+# The time is where the document is being looked at, not part of what it holds,
+# so it records no undo version and leaves the dirty flag alone.
+
+
+func test_moving_the_time_leaves_the_document_clean() -> void:
+	var document := Document.new()
+	var moved := [0]
+	document.time_changed.connect(func() -> void: moved[0] += 1)
+
+	document.set_time(750.0)
+	assert_close(document.current_time, 750.0, 1e-9)
+	assert_eq(moved[0], 1, "the move was announced")
+	assert_true(not document.is_dirty(), "looking at another time changes nothing")
+	assert_true(not document.can_undo(), "and records nothing to undo")
+
+	document.set_time(750.0)
+	assert_eq(moved[0], 1, "setting the time it already is announces nothing")
+
+
+func test_the_time_stays_between_the_present_and_the_limit() -> void:
+	var document := Document.new()
+	document.set_time(-50.0)
+	assert_close(document.current_time, 0.0, 1e-9, "there is no time after the present")
+	document.set_time(Document.MAX_TIME + 1000.0)
+	assert_close(document.current_time, Document.MAX_TIME, 1e-9, "nor before the limit")
+
+
+func test_a_document_always_opens_at_the_present() -> void:
+	var document := Document.new()
+	document.set_time(1200.0)
+	assert_eq(document.load_from_file(SAMPLE), "", "the sample file loads")
+	assert_close(document.current_time, 0.0, 1e-9, "opening a file comes back to now")
+
+	document.set_time(1200.0)
+	document.reset()
+	assert_close(document.current_time, 0.0, 1e-9, "and so does a new document")
+
+
+### Keyframes
+
+# These are content: each one records an undo version like every other edit.
+
+
+func test_setting_a_keyframe_records_an_undo_version() -> void:
+	var document := Document.new()
+	var feature := Feature.create_feature("Craton")
+	document.root.children.append(feature)
+	document.record()
+
+	document.set_keyframe(feature, 100.0, Vector3(30, 0, 0))
+	assert_eq(feature.keyframes.size(), 1)
+	assert_true(document.can_undo(), "the keyframe can be undone")
+
+	document.set_keyframe(feature, 100.0, Vector3(45, 0, 0))
+	assert_eq(feature.keyframes.size(), 1, "the same time replaces rather than adds")
+	assert_close(feature.keyframes[0].rotation, Vector3(45, 0, 0), 1e-6)
+
+
+func test_a_keyframe_can_be_moved_but_not_onto_another() -> void:
+	var document := Document.new()
+	var feature := Feature.create_feature("Craton")
+	document.root.children.append(feature)
+	document.set_keyframe(feature, 0.0, Vector3.ZERO)
+	document.set_keyframe(feature, 100.0, Vector3(30, 0, 0))
+
+	assert_eq(document.set_keyframe_time(feature, 1, 50.0), "", "moving it is allowed")
+	assert_close(feature.keyframes[1].time, 50.0, 1e-9)
+	assert_close(feature.keyframes[1].rotation, Vector3(30, 0, 0), 1e-6, "it took its rotation")
+
+	assert_true(not document.set_keyframe_time(feature, 1, 0.0).is_empty(),
+		"moving it onto the other one is refused")
+	assert_eq(feature.keyframes.size(), 2, "and nothing was merged away")
+	assert_true(not document.set_keyframe_time(feature, 1, -1.0).is_empty(),
+		"a time after the present is refused")
+
+
+func test_a_keyframe_moved_past_another_keeps_the_list_sorted() -> void:
+	var document := Document.new()
+	var feature := Feature.create_feature("Craton")
+	document.root.children.append(feature)
+	document.set_keyframe(feature, 0.0, Vector3(1, 0, 0))
+	document.set_keyframe(feature, 100.0, Vector3(2, 0, 0))
+
+	assert_eq(document.set_keyframe_time(feature, 0, 500.0), "")
+	assert_close(feature.keyframes[0].time, 100.0, 1e-9, "the other one is first now")
+	assert_close(feature.keyframes[1].rotation, Vector3(1, 0, 0), 1e-6,
+		"and the moved one is last, still holding its own rotation")
+
+
+func test_a_keyframe_can_be_deleted_and_the_index_is_checked() -> void:
+	var document := Document.new()
+	var feature := Feature.create_feature("Craton")
+	document.root.children.append(feature)
+	document.set_keyframe(feature, 100.0, Vector3(30, 0, 0))
+
+	assert_true(not document.remove_keyframe(feature, 3).is_empty(), "there is no keyframe 3")
+	assert_eq(document.remove_keyframe(feature, 0), "", "the one that is there goes")
+	assert_eq(feature.keyframes.size(), 0)
+	document.undo()
+	assert_eq(document.root.children[0].keyframes.size(), 1, "and undo brings it back")
+
+
+func test_a_saved_file_is_0_4_0_and_keeps_the_time_it_was_given() -> void:
+	# A time with more digits than a 32-bit float can hold, to show that the
+	# keyframe times are written and read as doubles.
+	const TIME := 1234.5678901234
+	var document := Document.new()
+	var feature := Feature.create_feature("Craton")
+	document.root.children.append(feature)
+	document.set_keyframe(feature, TIME, Vector3(30, 0, 0))
+	assert_eq(document.save_to_file(SCRATCH), "", "the document is written")
+
+	var file := FileAccess.open(SCRATCH, FileAccess.READ)
+	var raw: Variant = JSON.parse_string(file.get_as_text())
+	file.close()
+	assert_eq(str(raw["version"]), "0.4.0", "the file says which format it is in")
+	assert_close(float(raw["features"]["children"][0]["keyframes"][0]["time"]), TIME, 1e-9,
+		"the time survives the round trip through the file")
+
+	var reloaded := Document.new()
+	assert_eq(reloaded.load_from_file(SCRATCH), "", "the written file loads back")
+	assert_close(reloaded.root.children[0].keyframes[0].time, TIME, 1e-9)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))

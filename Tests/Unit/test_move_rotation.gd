@@ -10,7 +10,7 @@ func test_maps_anchor_onto_target_without_a_base_rotation() -> void:
 	var result: Variant = Feature.compute_move_rotation(anchor, target, Vector3.ZERO)
 	assert_true(result is Vector3, "a rotation must be found for non-antipodal points")
 	if result is Vector3:
-		var moved := Feature._build_rotation_basis(result) * anchor
+		var moved := Feature.build_rotation_basis(result) * anchor
 		assert_close(moved, target, 1e-4, "the anchor must land on the target")
 
 
@@ -18,7 +18,7 @@ func test_composes_with_a_base_rotation() -> void:
 	# The anchor is given in world space, so the feature's own rotation is already
 	# applied to it. The returned angles replace the base rotation entirely.
 	var base := Vector3(40, -15, 25)
-	var base_basis := Feature._build_rotation_basis(base)
+	var base_basis := Feature.build_rotation_basis(base)
 	var anchor_local := Feature._latlon_to_xyz_s(Vector2(5, -60))
 	var anchor := base_basis * anchor_local
 	var target := Feature._latlon_to_xyz_s(Vector2(60, 10))
@@ -26,7 +26,7 @@ func test_composes_with_a_base_rotation() -> void:
 	var result: Variant = Feature.compute_move_rotation(anchor, target, base)
 	assert_true(result is Vector3, "a rotation must be found for non-antipodal points")
 	if result is Vector3:
-		var moved := Feature._build_rotation_basis(result) * anchor_local
+		var moved := Feature.build_rotation_basis(result) * anchor_local
 		assert_close(moved, target, 1e-4, "the same anchor vertex must land on the target")
 
 

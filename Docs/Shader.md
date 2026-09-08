@@ -49,6 +49,7 @@ wider than the drawn width, so a thin line stays easy to pick.
 |---|---|---|---|
 | `geometry_data` | `sampler2D` | — | Data texture holding the primitives |
 | `geometry_count` | `int` | `0` | Number of primitives to render |
+| `feature_data` | `sampler2D` | — | Where each feature is at the current time |
 | `geometry_edge_width` | `float` | `0.001` | Width of the white rim on a filled triangle |
 | `geometry_line_width` | `float` | `0.012` | Width of a polyline segment |
 | `geometry_point_radius` | `float` | `0.02` | Radius of a multipoint marker |
@@ -62,13 +63,14 @@ The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with 
 | Row | R | G | B | A |
 |---|---|---|---|---|
 | 0 | lat_a (rad) | lon_a (rad) | lat_b (rad) | lon_b (rad) |
-| 1 | lat_c (rad) | lon_c (rad) | hovered | kind |
+| 1 | lat_c (rad) | lon_c (rad) | feature | kind |
 | 2 | red | green | blue | alpha |
 
 Each column stores one primitive, and the shader reads exact texels via
 `texelFetch`. A vertex a kind does not use repeats vertex a, so a fetch never
-reads uninitialised data. `hovered` is 1 while the pointer rests on the feature
-the primitive belongs to, which brightens its fill.
+reads uninitialised data. The vertices are in the frame of the feature the
+primitive belongs to, and `feature` is the column of `feature_data` holding the
+rotation that carries them into world space.
 
 ### Edge Rendering
 
@@ -87,41 +89,97 @@ The half-plane tests assume **counter-clockwise (CCW)** winding, seen from
 outside the sphere. `Feature.ensure_front_winding()` puts every derived triangle
 that way round, whichever way the ring it came from was drawn.
 
-## GDScript API
+## Per feature rotation
 
-### `Planet.set_geometry(primitives: Array, hovered_feature: Feature = null)`
+Rotating every vertex on the processor for every frame of an animation would
+not hold up, so the shader does the turning instead. The geometry texture above
+changes only when the tree does; a second texture holds one rotation per
+feature, and that is the whole of what a step of an animation re-uploads,
+whatever the triangle count is.
 
-Uploads the primitives to the shader. Each entry is a dictionary:
+`feature_data` uses `FORMAT_RGBAF` with **width = feature count** and
+**height = 3 rows**, one column of the rotation per row:
 
-```gdscript
-{
-    "kind": Planet.Primitive.TRIANGLE,
-    "verts": [Vector2(lat_deg, lon_deg), Vector2(...), Vector2(...)],
-    "color": Color(r, g, b, a),
-    "feature": feature,
+| Row | R | G | B | A |
+|---|---|---|---|---|
+| 0 | m00 | m10 | m20 | hovered |
+| 1 | m01 | m11 | m21 | visible |
+| 2 | m02 | m12 | m22 | unused |
+
+`hovered` is 1 while the pointer rests on the feature, which brightens its
+fill. `visible` is 0 while the feature is outside its time range, so it is
+skipped without the geometry texture being rebuilt.
+
+The rotation is the feature's own composed with every group above it, worked
+out from the root down by `Planet.Geometry.resolve()`; see
+[Time](Time.md#groups-carry-motion). A `Basis` in Godot is column-major, so
+`Basis.x`, `.y` and `.z` are the three columns, and `mat3(f0.xyz, f1.xyz,
+f2.xyz)` in the shader is the same matrix.
+
+Every primitive of one feature is contiguous in the geometry texture, so the
+shader fetches the three rows once per feature rather than once per primitive:
+
+```glsl
+int feature = int(row1.z + 0.5);
+if (feature != loaded_feature) {
+    loaded_feature = feature;
+    // three texelFetches, a mat3 and the two flags
 }
 ```
 
-Vertices use **degrees** (latitude in [-90, 90], longitude in [-180, 180]). The method converts to radians, packs into a `FORMAT_RGBAF` image, and sets the `geometry_data` and `geometry_count` parameters on both globe and map shader materials.
+`Planet.hit_test()` follows the same idea from the other end. Rather than
+carrying the geometry into world space, it carries the point being asked about
+into each feature's frame, through the transpose of that same rotation: one
+rotation of one point per feature instead of one per vertex.
 
-Passing an empty array clears everything.
+## GDScript API
 
-### `Planet.collect_geometry(root: Feature) -> Array`
+### `Planet.Geometry`
 
-Static helper that walks a Feature tree and flattens the enabled features into
-primitives, in world space. A polygon contributes its cached triangles, a
-polyline the segments between consecutive vertices of each ring, and a
-multipoint one marker per vertex.
+What a feature tree comes to, held together so that the two textures can be
+uploaded apart:
+
+| Field | What it holds |
+|---|---|
+| `primitives` | One dictionary per primitive: `kind`, `verts`, `color`, `feature`, `index` |
+| `features` | The features the primitives belong to, in the order they were met |
+| `bases`, `shown` | Where each feature is and whether it is there, at `time` |
+
+`verts` are `Vector2(latitude, longitude)` in **degrees**, in the feature's own
+frame. `resolve(root, time)` fills `bases` and `shown` for a time, walking the
+tree from the root so that each node composes its own rotation with what its
+ancestors gave it.
+
+### `Planet.collect_geometry(root: Feature, time := 0.0) -> Geometry`
+
+Walks a Feature tree and flattens the enabled features into primitives. A
+polygon contributes its cached triangles, a polyline the segments between
+consecutive vertices of each ring, and a multipoint one marker per vertex. The
+result is resolved for the given time, so it can be drawn or hit tested
+straight away.
+
+### `Planet.set_geometry(geometry: Geometry)`
+
+Packs the primitives into a `FORMAT_RGBAF` image and sets `geometry_data` and
+`geometry_count` on both the globe and the map material. A geometry with no
+primitives clears everything.
+
+### `Planet.set_feature_state(geometry: Geometry, hovered_feature: Feature = null)`
+
+Packs `bases`, `shown` and the hover into `feature_data`. This is what a step
+of an animation calls, and it is the only thing it calls.
 
 ```gdscript
-var geometry = Planet.collect_geometry(feature_root)
+geometry = Planet.collect_geometry(root, document.current_time)
 planet.set_geometry(geometry)
+planet.set_feature_state(geometry, hovered_feature)
 ```
 
-### `Planet.hit_test(lat, lon, primitives) -> Feature`
+### `Planet.hit_test(lat, lon, geometry) -> Feature`
 
-The same tests on the CPU, walking the array backwards so the topmost primitive
-wins. Returns the feature under the point, or null.
+The same tests on the CPU, walking the primitives backwards so the topmost one
+wins, and skipping whichever features `shown` says are not there. Returns the
+feature under the point, or null.
 
 ## Outline Overlay
 
@@ -197,6 +255,25 @@ At 1080p the sphere may cover ~500K–1M fragments. Combined with the per-triang
 The main bottleneck is the **texture fetches inside the loop** (3 per triangle per fragment) more than the arithmetic. GPU caches help when nearby fragments read the same texels, but at thousands of triangles the loop length itself becomes the limiter.
 
 For this application — continental cratons on a single planet — up to 10,000 triangles are expected, which requires optimization beyond the naive loop.
+
+### Measured
+
+On an AMD Radeon 8060S, at 1800x900, with every feature moving
+(`uv run Tests/run.py performance`):
+
+| Triangles | Frame, standing still | Frame, playing |
+|---|---|---|
+| 1,000 | 16.9 ms | 16.7 ms |
+| 2,000 | 17.0 ms | 16.7 ms |
+| 3,000 | — | 20.4 ms |
+| 4,000 | — | 26.3 ms |
+| 5,000 | 32.3 ms | 34.5 ms |
+
+Sixty frames a second is 16.7 ms, so it holds to about 2,000 triangles and not
+beyond. Playing costs almost nothing over standing still, which is the point of
+keeping the rotation in `feature_data`: what a frame of an animation changes is
+three texels per feature. The limit is the per-fragment loop over the triangles
+themselves, which the strategies below address.
 
 ### Optimization Strategies
 

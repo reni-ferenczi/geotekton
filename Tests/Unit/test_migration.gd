@@ -1,9 +1,10 @@
 extends TestCase
 
-# Document.migrate brings a 0.1.0 file up to 0.2.0: the flat triangle list of
-# each leaf becomes the outline those triangles cover, and the five rule editor
-# switches are dropped. The samples in Tests/Data are still written in 0.1.0,
-# so they are the fixtures for this.
+# Document.migrate brings an older file up to the format this version writes.
+# 0.2.0 turned the flat triangle list of each leaf into the outline those
+# triangles cover and dropped the five rule editor switches; 0.4.0 turned the
+# one rotation a leaf carried into the keyframe at time zero. The samples in
+# Tests/Data are still written in 0.1.0, so they run through both steps.
 
 const DATA_DIR := "res://Tests/Data"
 const OLD_SAMPLES := ["triangle.middle-earth", "two_cratons.middle-earth", "empty.middle-earth"]
@@ -27,7 +28,7 @@ func test_the_samples_keep_the_edges_their_triangles_left_on_the_boundary() -> v
 		var before: Array = []
 		_collect_leaves(raw["features"], before)
 		var migrated := Document.migrate(raw.duplicate(true))
-		assert_eq(str(migrated["version"]), "0.2.0", "%s is migrated to 0.2.0" % file_name)
+		assert_eq(str(migrated["version"]), "0.4.0", "%s is migrated to 0.4.0" % file_name)
 
 		var after: Array = []
 		_collect_leaves(migrated["features"], after)
@@ -81,14 +82,45 @@ func test_a_group_is_migrated_through_its_children() -> void:
 func test_the_oldest_files_called_the_rotation_a_position() -> void:
 	var leaf := _migrate_leaf({
 		"type": "Feature", "title": "Old", "vertices": [], "position": [10.0, 20.0, 30.0]})
-	assert_eq(leaf.get("rotation", []), [10.0, 20.0, 30.0], "the position becomes the rotation")
+	assert_eq(_only_keyframe(leaf).get("rotation", []), [10.0, 20.0, 30.0],
+		"the position becomes the rotation of the keyframe at time zero")
 	assert_true(not leaf.has("position"), "and the old key is gone")
 
 
-func test_a_file_already_at_0_2_0_is_left_alone() -> void:
-	var data := {"version": "0.2.0", "features": {
+func test_the_one_rotation_of_a_0_3_0_leaf_becomes_the_keyframe_at_time_zero() -> void:
+	var leaf := _migrate_0_3_0({
+		"type": "Feature", "title": "Craton", "geometry_kind": "polygon",
+		"rings": [[[0.0, 0.0], [0.0, 10.0], [10.0, 10.0]]], "rotation": [60.0, 0.0, 0.0],
+	})
+	assert_true(not leaf.has("rotation"), "the single rotation is gone")
+	var keyframe := _only_keyframe(leaf)
+	assert_eq(keyframe.get("time", -1.0), 0.0, "the keyframe is at the present")
+	assert_eq(keyframe.get("rotation", []), [60.0, 0.0, 0.0], "and holds what the file said")
+
+	# A feature that came in this way behaves as it did before the phase: one
+	# keyframe holds its rotation whatever time it is asked about.
+	var feature := Feature.from_json(leaf)
+	for time in [0.0, 500.0, 2000.0]:
+		assert_close(feature.rotation_at(time), Vector3(60, 0, 0), 1e-6,
+			"one keyframe holds at %s Ma" % time)
+
+
+func test_a_group_arrives_without_keyframes() -> void:
+	var group := _migrate_0_3_0({
+		"type": "Group", "title": "Planet", "children": [
+			{"type": "Feature", "title": "Craton", "rings": [], "rotation": [1.0, 2.0, 3.0]},
+		],
+	})
+	assert_eq(group.get("keyframes", []), [], "a group had no rotation to carry over")
+	assert_eq(_only_keyframe(group["children"][0]).get("rotation", []), [1.0, 2.0, 3.0],
+		"but the leaf under it did")
+
+
+func test_a_file_already_at_0_4_0_is_left_alone() -> void:
+	var data := {"version": "0.4.0", "features": {
 		"type": "Feature", "title": "New", "geometry_kind": "polyline",
 		"rings": [[[0.0, 0.0], [0.0, 10.0]]],
+		"keyframes": [{"time": 0.0, "rotation": [0.0, 0.0, 0.0]}],
 	}}
 	assert_eq(Document.migrate(data.duplicate(true)), data)
 
@@ -99,6 +131,7 @@ func test_version_ordering() -> void:
 	assert_true(not Document._is_older_than("0.2.0", "0.2.0"))
 	assert_true(not Document._is_older_than("0.2", "0.2.0"))
 	assert_true(not Document._is_older_than("1.0.0", "0.2.0"))
+	assert_true(Document._is_older_than("0.3.0", "0.4.0"))
 
 
 ### Helpers
@@ -106,6 +139,19 @@ func test_version_ordering() -> void:
 
 func _migrate_leaf(leaf: Dictionary) -> Dictionary:
 	return Document.migrate({"version": "0.1.0", "features": leaf})["features"]
+
+
+func _migrate_0_3_0(node: Dictionary) -> Dictionary:
+	return Document.migrate({"version": "0.3.0", "features": node})["features"]
+
+
+# The one keyframe a migrated leaf is expected to carry.
+func _only_keyframe(leaf: Dictionary) -> Dictionary:
+	var list: Array = leaf.get("keyframes", [])
+	if list.size() != 1:
+		fail("expected one keyframe, found %d" % list.size())
+		return {}
+	return list[0]
 
 
 # The edges a triangle soup uses exactly once, as "a|b" with the two vertices

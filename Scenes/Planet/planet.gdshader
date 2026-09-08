@@ -11,15 +11,29 @@ uniform vec2 split = vec2(24.0, 12.0);
 // Feature geometry data texture (filter_nearest for exact texel reads)
 // Layout: width = primitive count, height = 3
 //   Row 0: (lat_a, lon_a, lat_b, lon_b) in radians
-//   Row 1: (lat_c, lon_c, hovered, kind)
+//   Row 1: (lat_c, lon_c, feature, kind)
 //   Row 2: (r, g, b, a) color
 // kind 0 is a triangle (a, b, c), 1 a polyline segment (a, b) and 2 a
-// multipoint marker (a); the unused vertices repeat a.
+// multipoint marker (a); the unused vertices repeat a. The vertices are in the
+// frame of the feature the primitive belongs to, and `feature` is the column of
+// feature_data holding the rotation that carries them into world space.
 uniform sampler2D geometry_data : filter_nearest, repeat_disable;
 uniform int geometry_count = 0;
+
 uniform float geometry_edge_width = 0.001;
 uniform float geometry_line_width = 0.012;
 uniform float geometry_point_radius = 0.02;
+
+// Per feature state at the current time (filter_nearest for exact texel reads)
+// Layout: width = feature count, height = 3
+//   Row 0: (m00, m10, m20, hovered)  -- the first column of the rotation
+//   Row 1: (m01, m11, m21, visible)  -- the second
+//   Row 2: (m02, m12, m22, unused)   -- the third
+// Keeping the rotation here rather than in the vertices is what makes a step of
+// an animation cheap: only these three texels per feature are re-uploaded,
+// whatever the triangle count is. `visible` is 0 while the feature is outside
+// its time range, and `hovered` is 1 while the pointer rests on it.
+uniform sampler2D feature_data : filter_nearest, repeat_disable;
 
 // Outline overlay data texture (filter_nearest for exact texel reads)
 // Layout: width = vertex count, height = 1
@@ -81,13 +95,33 @@ void fragment() {
 	float lon = (UV.x - 0.5) * TAU;
 	vec3 p = latlon_to_unit(vec2(lat, lon));
 
-	// Feature geometry
+	// Feature geometry. Every primitive of one feature follows the last, so the
+	// rotation is fetched once per feature rather than once per primitive.
+	int loaded_feature = -1;
+	mat3 rotation = mat3(1.0);
+	float hovered = 0.0;
+	bool feature_visible = true;
+
 	for (int i = 0; i < geometry_count; i++) {
 		vec4 row0 = texelFetch(geometry_data, ivec2(i, 0), 0);
 		vec4 row1 = texelFetch(geometry_data, ivec2(i, 1), 0);
-		vec4 row2 = texelFetch(geometry_data, ivec2(i, 2), 0);
 
-		vec3 a = latlon_to_unit(row0.xy);
+		int feature = int(row1.z + 0.5);
+		if (feature != loaded_feature) {
+			loaded_feature = feature;
+			vec4 f0 = texelFetch(feature_data, ivec2(feature, 0), 0);
+			vec4 f1 = texelFetch(feature_data, ivec2(feature, 1), 0);
+			vec4 f2 = texelFetch(feature_data, ivec2(feature, 2), 0);
+			rotation = mat3(f0.xyz, f1.xyz, f2.xyz);
+			hovered = f0.w;
+			feature_visible = f1.w > 0.5;
+		}
+		if (!feature_visible) {
+			continue;
+		}
+
+		vec4 row2 = texelFetch(geometry_data, ivec2(i, 2), 0);
+		vec3 a = rotation * latlon_to_unit(row0.xy);
 		int kind = int(row1.w + 0.5);
 
 		// How much of this fragment the primitive covers, and how close it is
@@ -96,8 +130,8 @@ void fragment() {
 		float edge = 1.0;
 
 		if (kind == 0) {
-			vec3 b = latlon_to_unit(row0.zw);
-			vec3 c = latlon_to_unit(row1.xy);
+			vec3 b = rotation * latlon_to_unit(row0.zw);
+			vec3 c = rotation * latlon_to_unit(row1.xy);
 
 			// Great-circle half-plane tests (CCW winding)
 			float d_ab = dot(normalize(cross(a, b)), p);
@@ -110,7 +144,7 @@ void fragment() {
 				edge = smoothstep(geometry_edge_width * 0.5, geometry_edge_width, min_dist);
 			}
 		} else if (kind == 1) {
-			float d = arc_distance(a, latlon_to_unit(row0.zw), p);
+			float d = arc_distance(a, rotation * latlon_to_unit(row0.zw), p);
 			coverage = 1.0 - smoothstep(geometry_line_width * 0.5, geometry_line_width, d);
 		} else {
 			float d = chord(a, p);
@@ -119,8 +153,8 @@ void fragment() {
 
 		if (coverage > 0.0) {
 			vec3 fill = mix(row2.rgb, base, 1.0 - row2.a);
-			// Hover highlight: brighten slightly when row1.z is set
-			if (row1.z > 0.5) {
+			// Hover highlight: brighten slightly while the pointer is on it
+			if (hovered > 0.5) {
 				fill = mix(fill, vec3(1.0), 0.15);
 			}
 			base = mix(base, mix(vec3(1.0), fill, edge), coverage);
