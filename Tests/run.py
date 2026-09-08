@@ -6,6 +6,7 @@ Usage:
     python Tests/run.py session
     python Tests/run.py cli
     python Tests/run.py self-check
+    uv run Tests/run.py python
     uv run Tests/run.py golden
     uv run Tests/run.py all
     uv run Tests/run.py performance [--triangles=N] [--budget=MS]
@@ -27,7 +28,7 @@ TESTS = ROOT / "Tests"
 RUNNER = "res://Tests/run_tests.gd"
 
 USAGE = ("usage: run.py headless|rendered [--filter=SUBSTRING] | session | cli | self-check"
-         " | golden | all | performance [--triangles=N] [--budget=MS]")
+         " | python | golden | all | performance [--triangles=N] [--budget=MS]")
 
 
 def godot() -> str:
@@ -53,6 +54,14 @@ def run_script(name: str, script_args: list[str]) -> int:
     return subprocess.run(command, cwd=ROOT).returncode
 
 
+def run_pytest() -> int:
+    """Run the tests of the scripting package, which need pytest."""
+    if importlib.util.find_spec("pytest") is None:
+        print("python needs pytest, run: uv run Tests/run.py python", file=sys.stderr)
+        return 2
+    return subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=ROOT).returncode
+
+
 def run_golden() -> int:
     """Run the golden image comparison, which needs Pillow."""
     if importlib.util.find_spec("PIL") is None:
@@ -69,6 +78,7 @@ def run_all() -> int:
         ("session", lambda: run_script("session.py", [])),
         ("cli", lambda: run_script("cli.py", [])),
         ("self-check", lambda: run_script("self_check.py", [])),
+        ("python", run_pytest),
         ("golden", run_golden),
     ):
         print(f"=== {name} ===")
@@ -87,7 +97,7 @@ def main(argv: list[str]) -> int:
     command = argv[0]
     options = argv[1:]
     if command not in ("headless", "rendered", "session", "cli", "self-check",
-                       "golden", "performance", "all"):
+                       "python", "golden", "performance", "all"):
         print(f"unknown command: {command}\n{USAGE}", file=sys.stderr)
         return 2
     if import_project() != 0:
@@ -122,6 +132,8 @@ def main(argv: list[str]) -> int:
         return run_script("cli.py", [])
     if command == "self-check":
         return run_script("self_check.py", [])
+    if command == "python":
+        return run_pytest()
     if command == "golden":
         return run_golden()
     return run_all()

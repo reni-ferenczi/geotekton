@@ -45,6 +45,14 @@ def switches() -> list[str]:
     return re.findall(r'\["(--[^"]+)"', block)
 
 
+def script_docstring(name: str) -> str:
+    """The module docstring of a script the project ships, as the catalog reads it."""
+    text = (ROOT / "Scripts" / f"{name}.py").read_text(encoding="utf-8")
+    match = re.search(r'^"""(.*?)"""', text, re.DOTALL)
+    assert match is not None, f"Scripts/{name}.py has no docstring"
+    return match.group(1).strip()
+
+
 def run(*args: str) -> subprocess.CompletedProcess:
     """Start the application headless with the given user arguments."""
     godot = os.environ.get("GODOT", DEFAULT_GODOT)
@@ -66,6 +74,22 @@ def main() -> int:
 
     result = run("--nonsense")
     check(result.returncode != 0, "an unknown switch exits with a failure code")
+
+    # --help-command reads the docstring out of the script file itself, so it
+    # answers before the window opens and without an interpreter.
+    doc = script_docstring("list_features")
+    for form in (["--help-command=list_features"], ["--help-command", "list_features"]):
+        result = run(*form)
+        check(result.returncode == 0,
+              f"{' '.join(form)} exits cleanly, code {result.returncode}")
+        check(doc.splitlines()[0] in result.stdout,
+              f"{' '.join(form)} prints what the script says it does")
+
+    result = run("--help-command=no_such_script")
+    check(result.returncode != 0, "--help-command fails on a script that is not there")
+
+    result = run("--no-python", "--version")
+    check(result.returncode == 0, "--no-python is accepted alongside the other switches")
 
     print(f"{len(failures)} failed" if failures else "all checks passed")
     return 1 if failures else 0

@@ -21,6 +21,7 @@
 [ext_resource type="Texture2D" uid="uid://bu7s3wqnnfknb" path="res://Assets/GodotIcons/Reload.svg" id="19_reload"]
 [ext_resource type="Texture2D" uid="uid://pd4kwykj2jsn" path="res://Assets/GodotIcons/DirectionalLight3D.svg" id="20_toollight"]
 [ext_resource type="Script" uid="uid://slxddfcw6y2" path="res://Scenes/Application/kinematics_panel.gd" id="21_kinematics"]
+[ext_resource type="Script" uid="uid://duylqjxos6ufm" path="res://Scenes/Application/console_panel.gd" id="22_console"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
@@ -283,6 +284,12 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 script = ExtResource("21_kinematics")
+
+[node name="Console" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+script = ExtResource("22_console")
 
 [node name="Timeline" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("4_ew82s")]
 unique_name_in_owner = true

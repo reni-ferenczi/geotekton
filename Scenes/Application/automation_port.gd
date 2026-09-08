@@ -234,6 +234,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"properties": app.properties.visible,
 				"timeline": app.timeline.visible,
 				"kinematics": app.kinematics.visible,
+				"console": app.console.visible,
 				"status_bar": app.status_bar.visible,
 			}}
 
@@ -635,6 +636,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"vertex_marker_scale": Config.get_vertex_marker_scale(),
 				"line_width_scale": Config.get_line_width_scale(),
 				"snap_to_vertices": Config.get_snap_to_vertices(),
+				"python_interpreter": Config.get_python_interpreter(),
+				"script_directories": Config.get_script_directories(),
 			}}
 
 		"set_preferences":
@@ -648,10 +651,101 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				app.marker_spin.value = float(wanted["vertex_marker_scale"])
 			if wanted.has("line_width_scale"):
 				app.line_spin.value = float(wanted["line_width_scale"])
+			if wanted.has("python_interpreter"):
+				app.interpreter_edit.text = str(wanted["python_interpreter"])
+			if wanted.has("script_directories"):
+				var lines := PackedStringArray()
+				for directory in wanted["script_directories"]:
+					lines.append(str(directory))
+				app.script_directories_edit.text = "
+".join(lines)
 			app.preferences_dialog.hide()
 			app.preferences_dialog.confirmed.emit()
 			await _frames(2)
 			return {"ok": true}
+
+		### Python scripting
+
+
+		"get_python":
+			return {"ok": true, "python": {
+				"state": PythonBridge.State.keys()[app.python.state],
+				"reason": app.python.reason,
+				"interpreter": app.python.interpreter,
+				"port": app.python.port,
+				"ready": app.python.is_ready(),
+			}}
+
+		"get_console":
+			return {"ok": true, "console": {
+				"visible": app.console.visible,
+				"prompt": app.console.prompt_label.text,
+				"input": app.console.input.text,
+				"editable": app.console.input.editable,
+				"transcript": app.console.text(),
+				"history": app.console.history,
+			}}
+
+		"console":
+			# One line typed at the prompt, answered when the interpreter has
+			# finished with it, so a run never races the reply.
+			await app.console.submit(str(request.get("line", "")))
+			await _frames(2)
+			return {"ok": true, "transcript": app.console.text(),
+				"prompt": app.console.prompt_label.text}
+
+		"console_clear":
+			app.console.clear()
+			return {"ok": true}
+
+		"console_recall":
+			# The Up and Down arrows at the prompt: a negative step goes back.
+			app.console.step_history(int(request.get("step", -1)))
+			return {"ok": true, "input": app.console.input.text}
+
+		"console_complete":
+			# The Tab key at the prompt, over whatever the request types first.
+			if request.has("source"):
+				app.console.input.text = str(request["source"])
+				app.console.input.caret_column = app.console.input.text.length()
+			var completions: Array = await app.console.complete()
+			await _frames(2)
+			return {"ok": true, "completions": completions,
+				"input": app.console.input.text}
+
+		"get_scripts":
+			var listed: Array = []
+			for entry in app.scripts:
+				listed.append({"name": entry.name, "title": entry.title(),
+					"doc": entry.doc, "path": entry.path})
+			return {"ok": true, "scripts": listed}
+
+		"rescan_scripts":
+			app.rescan_scripts()
+			await _frames(2)
+			return {"ok": true}
+
+		"run_script":
+			# By path, or by the name of a catalog entry, which is what the
+			# Scripts menu runs.
+			var path := str(request.get("path", ""))
+			if path.is_empty():
+				var name := str(request.get("name", ""))
+				var index := -1
+				for i in app.scripts.size():
+					if app.scripts[i].name == name:
+						index = i
+				if index < 0:
+					return {"ok": false, "error": "no script called %s" % name}
+				app.scripts_menu.id_pressed.emit(Application.SCRIPT_ITEM_ID + index)
+			else:
+				app.run_script_file(path)
+			# The script runs through the console, which answers on its own
+			# frames; wait until it has stopped working.
+			while app.console.busy:
+				await _frames(1)
+			await _frames(2)
+			return {"ok": true, "transcript": app.console.text()}
 
 		"quit":
 			quitting = true
@@ -842,7 +936,9 @@ func _menu_item(name: String) -> Array:
 		"properties": return [app.view_menu, Application.ViewItem.PROPERTIES]
 		"timeline": return [app.view_menu, Application.ViewItem.TIMELINE]
 		"kinematics": return [app.view_menu, Application.ViewItem.KINEMATICS]
+		"console": return [app.view_menu, Application.ViewItem.CONSOLE]
 		"status_bar": return [app.view_menu, Application.ViewItem.STATUS_BAR]
+		"run_script": return [app.file_menu, Application.FileItem.RUN_SCRIPT]
 		"view_settings": return [app.view_menu, Application.ViewItem.SETTINGS]
 		"full_screen": return [app.view_menu, Application.ViewItem.FULL_SCREEN]
 		"about": return [app.help_menu, Application.HelpItem.ABOUT]

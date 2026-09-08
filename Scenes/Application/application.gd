@@ -19,6 +19,7 @@ static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Docum
 static var IMAGE_FILTERS := PackedStringArray(
 	["*.%s ; Images" % ", *.".join(Backdrop.EXTENSIONS)])
 static var PALETTE_FILTERS := PackedStringArray(["*.cpt ; Colour Palette Tables"])
+static var SCRIPT_FILTERS := PackedStringArray(["*.py ; Python Scripts"])
 
 # How finely the palette preview strip samples the palette it draws.
 const PALETTE_PREVIEW_STEPS := 128
@@ -36,9 +37,9 @@ enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT }
 const VERTEX_PICK_PIXELS := 12.0
 const SNAP_PIXELS := 12.0
 
-enum FileItem { NEW, OPEN, SAVE, SAVE_AS, PREFERENCES, QUIT }
+enum FileItem { NEW, OPEN, SAVE, SAVE_AS, RUN_SCRIPT, PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE }
-enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, STATUS_BAR, SETTINGS, FULL_SCREEN }
+enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, CONSOLE, STATUS_BAR, SETTINGS, FULL_SCREEN }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -46,6 +47,9 @@ const CLEAR_RECENT_ID := 1000
 
 # Item id of the globe in the projection selector, above every MapProjection.Kind.
 const GLOBE_PROJECTION_ID := 100
+
+# Where the Scripts submenu's entries start, one per catalog entry in order.
+const SCRIPT_ITEM_ID := 2000
 
 # Where the View menu's geometry class switches start, above every ViewItem.
 # One item per entry of Styling.CLASSES, in that order.
@@ -57,6 +61,7 @@ const PANEL_KEYS := {
 	ViewItem.PROPERTIES: "panel_properties",
 	ViewItem.TIMELINE: "panel_timeline",
 	ViewItem.KINEMATICS: "panel_kinematics",
+	ViewItem.CONSOLE: "panel_console",
 	ViewItem.STATUS_BAR: "panel_status_bar",
 }
 
@@ -64,7 +69,7 @@ const PANEL_KEYS := {
 # the kinematics graphs, which are for looking at motion in detail and are
 # asked for from the View menu when they are wanted; the globe is what the rest
 # of the window is for.
-const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false}
+const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false, ViewItem.CONSOLE: false}
 
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
@@ -95,6 +100,7 @@ const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false}
 @onready var properties: Properties = %Properties
 @onready var timeline: Timeline = %Timeline
 @onready var kinematics: KinematicsPanel = %Kinematics
+@onready var console: ConsolePanel = %Console
 @onready var status_bar: Control = %StatusBar
 @onready var status_coordinates: Label = %StatusCoordinates
 @onready var status_measure: Label = %StatusMeasure
@@ -124,7 +130,14 @@ var hovered_lon: float = NAN
 # same shell and its settings go to a scratch folder.
 var isolated: bool = false
 
+# The Python interpreter and the scripts it can be given. Both exist whether or
+# not an interpreter is running: with --no-python the catalog is still listed
+# and the entries simply refuse to run.
+var python: PythonBridge
+var scripts: Array[ScriptCatalog.Entry] = []
+
 var file_menu: PopupMenu
+var scripts_menu: PopupMenu
 var recent_menu: PopupMenu
 var edit_menu: PopupMenu
 var view_menu: PopupMenu
@@ -140,6 +153,8 @@ var default_folder_edit: LineEdit
 var radius_spin: SpinBox
 var marker_spin: SpinBox
 var line_spin: SpinBox
+var interpreter_edit: LineEdit
+var script_directories_edit: TextEdit
 var view_dialog: AcceptDialog
 # Why the backdrop image is not on the planet, shown under the path field.
 var backdrop_warning: Label
@@ -261,6 +276,21 @@ func _ready() -> void:
 
 	leave_full_screen.pressed.connect(_toggle_full_screen)
 
+	# The Python interpreter, started once the console exists so that whatever
+	# it says on the way up has somewhere to go. A test runner hosting this
+	# scene gets no interpreter: nothing in a headless or rendered test speaks
+	# to one, and starting a process per run would only make them slower.
+	python = PythonBridge.new(self)
+	python.name = "PythonBridge"
+	add_child(python)
+	console.attach(python)
+	if not started_on_its_own:
+		python.disable("No interpreter: the application is hosted by a test runner.")
+	elif Cli.no_python(OS.get_cmdline_user_args()):
+		python.disable("Started with --no-python, so there is no interpreter.")
+	else:
+		python.start()
+
 	# Open the test automation port if requested: -- --automation-port=<port>
 	if port != 0:
 		add_child(AutomationPort.new(self, port))
@@ -298,6 +328,12 @@ func _build_menus() -> void:
 	file_menu.add_item("Save", FileItem.SAVE, KEY_MASK_CTRL | KEY_S)
 	file_menu.add_item("Save As...", FileItem.SAVE_AS, KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_S)
 	file_menu.add_separator()
+	file_menu.add_item("Run Script...", FileItem.RUN_SCRIPT)
+	scripts_menu = PopupMenu.new()
+	scripts_menu.name = "Scripts"
+	scripts_menu.id_pressed.connect(_on_scripts_menu_id_pressed)
+	file_menu.add_submenu_node_item("Scripts", scripts_menu)
+	file_menu.add_separator()
 	file_menu.add_item("Preferences...", FileItem.PREFERENCES)
 	file_menu.add_separator()
 	file_menu.add_item("Quit", FileItem.QUIT, KEY_MASK_CTRL | KEY_Q)
@@ -321,6 +357,7 @@ func _build_menus() -> void:
 	view_menu.add_check_item("Properties", ViewItem.PROPERTIES)
 	view_menu.add_check_item("Timeline", ViewItem.TIMELINE)
 	view_menu.add_check_item("Kinematics", ViewItem.KINEMATICS)
+	view_menu.add_check_item("Console", ViewItem.CONSOLE)
 	view_menu.add_check_item("Status Bar", ViewItem.STATUS_BAR)
 	view_menu.add_separator()
 	for class_id in Styling.CLASSES:
@@ -336,6 +373,7 @@ func _build_menus() -> void:
 	help_menu.id_pressed.connect(_on_help_menu_id_pressed)
 
 	_rebuild_recent_menu()
+	rescan_scripts()
 	_update_view_menu_checks()
 	_update_edit_menu()
 
@@ -379,6 +417,7 @@ func _on_file_menu_id_pressed(id: int) -> void:
 		FileItem.OPEN: open_document()
 		FileItem.SAVE: save_document()
 		FileItem.SAVE_AS: save_document_as()
+		FileItem.RUN_SCRIPT: run_script()
 		FileItem.PREFERENCES: show_preferences()
 		FileItem.QUIT: quit_application()
 
@@ -429,6 +468,60 @@ func _on_recent_menu_id_pressed(id: int) -> void:
 		open_path(str(recent[id]))
 
 
+### Python scripting
+#
+# The interpreter is a process this application starts and stops; the console
+# panel and the Scripts menu are what reach it. See Docs/Scripting.md.
+
+
+# Read the configured directories again and rebuild the Scripts submenu. Called
+# once at startup and whenever the directories change.
+func rescan_scripts() -> void:
+	scripts = ScriptCatalog.scan(Config.get_script_directories())
+	scripts_menu.clear()
+	for index in scripts.size():
+		scripts_menu.add_item(scripts[index].title(), SCRIPT_ITEM_ID + index)
+		scripts_menu.set_item_tooltip(scripts_menu.item_count - 1,
+			"%s
+
+%s" % [scripts[index].name, scripts[index].doc])
+	if scripts.is_empty():
+		scripts_menu.add_item("(no scripts found)", SCRIPT_ITEM_ID - 1)
+		scripts_menu.set_item_disabled(scripts_menu.item_count - 1, true)
+
+
+func _on_scripts_menu_id_pressed(id: int) -> void:
+	var index := id - SCRIPT_ITEM_ID
+	if index >= 0 and index < scripts.size():
+		run_script_file(scripts[index].path)
+
+
+# Pick a script file and run it against the open document.
+func run_script() -> void:
+	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Run Script",
+		run_script_file, SCRIPT_FILTERS)
+
+
+# Run one script, showing what it prints in the console. The panel is brought
+# up for it: a script that says something has nowhere else to say it.
+func run_script_file(path: String) -> void:
+	if not python.is_ready():
+		_show_error("Cannot run %s: %s" % [path.get_file(), python.reason])
+		return
+	_show_panel(ViewItem.CONSOLE)
+	console.run_file(path)
+
+
+func _show_panel(item: int) -> void:
+	var panel := _panel_node(item)
+	if panel.visible:
+		return
+	panel.visible = true
+	_update_view_menu_checks()
+	if not isolated:
+		_save_panel_visibility()
+
+
 func _on_view_menu_id_pressed(id: int) -> void:
 	if id == ViewItem.FULL_SCREEN:
 		_toggle_full_screen()
@@ -462,6 +555,7 @@ func _panel_node(item: int) -> Control:
 		ViewItem.PROPERTIES: return properties
 		ViewItem.TIMELINE: return timeline
 		ViewItem.KINEMATICS: return kinematics
+		ViewItem.CONSOLE: return console
 		ViewItem.STATUS_BAR: return status_bar
 	return null
 
@@ -548,7 +642,7 @@ func _load_path(path: String) -> void:
 	if not error.is_empty():
 		_show_error(error)
 		return
-	_remember_file(path)
+	remember_file(path)
 
 
 func _write_to(path: String, after: Callable) -> void:
@@ -556,12 +650,12 @@ func _write_to(path: String, after: Callable) -> void:
 	if not error.is_empty():
 		_show_error(error)
 		return
-	_remember_file(path)
+	remember_file(path)
 	if after.is_valid():
 		after.call()
 
 
-func _remember_file(path: String) -> void:
+func remember_file(path: String) -> void:
 	Config.set_last_directory_from_file(path)
 	Config.add_recent_file(path)
 	_rebuild_recent_menu()
@@ -757,6 +851,28 @@ func _build_preferences_content() -> Control:
 		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
 	line_spin = _preference_spin(form, "LineWidthScale", "Outline line width",
 		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
+
+	# Python: which interpreter runs the scripting bridge and where the scripts
+	# that become menu entries are looked for, one directory per line.
+	box.add_child(_view_section("Python"))
+
+	var interpreter_label := Label.new()
+	interpreter_label.text = "Interpreter"
+	box.add_child(interpreter_label)
+
+	interpreter_edit = LineEdit.new()
+	interpreter_edit.name = "PythonInterpreter"
+	interpreter_edit.placeholder_text = Config.default_interpreter()
+	box.add_child(interpreter_edit)
+
+	var directories_label := Label.new()
+	directories_label.text = "Script directories, one per line"
+	box.add_child(directories_label)
+
+	script_directories_edit = TextEdit.new()
+	script_directories_edit.name = "ScriptDirectories"
+	script_directories_edit.custom_minimum_size = Vector2(0, 72)
+	box.add_child(script_directories_edit)
 
 	return box
 
@@ -1141,6 +1257,9 @@ func show_preferences() -> void:
 	radius_spin.value = Config.get_planet_radius()
 	marker_spin.value = Config.get_vertex_marker_scale()
 	line_spin.value = Config.get_line_width_scale()
+	interpreter_edit.text = Config.get_python_interpreter()
+	script_directories_edit.text = "
+".join(PackedStringArray(Config.get_script_directories()))
 	preferences_dialog.popup_centered()
 
 
@@ -1152,6 +1271,21 @@ func _on_preferences_confirmed() -> void:
 	Config.set_line_width_scale(line_spin.value)
 	_apply_outline_scale()
 	_show_measurement()
+	_apply_python_preferences()
+
+
+# Take up a changed interpreter or script list. The interpreter is only started
+# again when the path actually changed, so closing Preferences does not throw
+# away a console session for nothing.
+func _apply_python_preferences() -> void:
+	Config.set_python_interpreter(interpreter_edit.text.strip_edges())
+	Config.set_script_directories(Array(script_directories_edit.text.split("
+")))
+	rescan_scripts()
+	if python.state != PythonBridge.State.OFF and python.interpreter != Config.get_python_interpreter():
+		var problem := python.start()
+		if not problem.is_empty():
+			console.note(problem)
 
 
 # Give the outline overlay the sizes the preferences ask for.

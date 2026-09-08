@@ -7,3 +7,13 @@ requires-python = ">=3.13"
 dependencies = [
     "pillow",
 ]
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+# The scripting package is not installed into the environment: the application
+# starts it by path, and the tests import it the same way.
+pythonpath = ["src"]
+testpaths = ["Tests/Python"]

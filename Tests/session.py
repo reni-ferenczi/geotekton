@@ -15,6 +15,7 @@ import re
 import shutil
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -1844,6 +1845,255 @@ def run_kinematics_session(client: AutomationClient) -> None:
           "and the same menu item hides the panel again")
 
 
+### Python scripting
+
+
+# How long the interpreter is given to come up before the run gives up on it.
+PYTHON_ATTEMPTS = 120
+PYTHON_DELAY = 0.5
+
+SCRIPT_SOURCE = '''"""Add the craton this run is looking for
+
+Adds one polygon, so a run can tell the script's work from its own.
+"""
+
+uuid = app.add_feature("From the menu", rings=[[(0.0, 0.0), (0.0, 8.0), (8.0, 0.0)]])
+print("added", uuid)
+'''
+
+
+def await_python(client: AutomationClient) -> dict:
+    """Wait until the interpreter is up or has given up, then say which."""
+    state = {}
+    for _ in range(PYTHON_ATTEMPTS):
+        state = client.call("get_python")["python"]
+        if state["state"] in ("READY", "FAILED", "OFF"):
+            return state
+        time.sleep(PYTHON_DELAY)
+    return state
+
+
+def console(client: AutomationClient, line: str) -> str:
+    """Type one line at the prompt and answer with what the transcript gained."""
+    before = client.call("get_console")["console"]["transcript"]
+    after = client.call("console", line=line)["transcript"]
+    return after[len(before):]
+
+
+def run_python_session(client: AutomationClient) -> None:
+    """A console session that builds a moving feature, checked through the port."""
+    state = await_python(client)
+    if not check(state["state"] == "READY", f"the interpreter is running: {state}"):
+        return
+    check(state["port"] > 0, f"it was given a port of its own, {state['port']}")
+    check(client.call("get_console")["console"]["editable"],
+          "the prompt takes typing once the interpreter is up")
+
+    start_new_document(client)
+    client.call("console_clear")
+
+    # Add a feature and move it, entirely from the console.
+    printed = console(client, 'uuid = app.add_feature("Scripted", '
+                              'rings=[[(0.0, 0.0), (0.0, 10.0), (10.0, 0.0)]])')
+    check("Traceback" not in printed, f"adding a feature raised nothing: {printed!r}")
+    printed = console(client, "app.set_keyframe(uuid, 0.0, (0, 0, 0))")
+    check("Traceback" not in printed, f"the first keyframe was written: {printed!r}")
+    printed = console(client, "app.set_keyframe(uuid, 600.0, (-30, 10, 0))")
+    check("Traceback" not in printed, f"the second keyframe was written: {printed!r}")
+
+    # What the port says the document holds now, which is the application's own
+    # answer rather than the script's.
+    features = client.call("get_features")["features"]
+    scripted = [entry for entry in features if entry["title"] == "Scripted"]
+    if check(len(scripted) == 1, f"the port sees the feature the console added: {features}"):
+        client.call("select", title="Scripted")
+        panel = client.call("get_properties")["properties"]
+        check(panel["geometry"].startswith("polygon"),
+              f"drawn as the kind the console asked for: {panel['geometry']!r}")
+        keyframes = panel["keyframes"]
+        check([key["time"] for key in keyframes] == [0.0, 600.0],
+              f"and both keyframes are there, at the times they were set: {keyframes}")
+        check(keyframes[1]["rotation"] == [-30.0, 10.0, 0.0],
+              f"with the rotation the console asked for: {keyframes[1]}")
+
+    # Playing from the console is the timeline playing. It starts from the
+    # oldest end of the animation, since starting at the youngest is standing
+    # on the last frame and playback would stop at once.
+    beginning = client.call("get_timeline")["timeline"]["animation"]["start"]
+    console(client, "app.time = %r" % beginning)
+    console(client, "app.play()")
+    check(client.call("get_timeline")["timeline"]["playing"], "app.play() started the animation")
+    console(client, "app.pause()")
+    check(not client.call("get_timeline")["timeline"]["playing"], "and app.pause() stopped it")
+
+    # An expression prints its value, the way an interpreter does.
+    printed = console(client, "6 * 7")
+    check("42" in printed, f"an expression prints its value: {printed!r}")
+
+    # A statement over two lines: the interpreter says the first is unfinished.
+    console(client, "for i in range(2):")
+    check(client.call("get_console")["console"]["prompt"] == "... ",
+          "an unfinished statement asks for the rest")
+    console(client, "    print('line', i)")
+    printed = console(client, "")
+    check("line 0" in printed and "line 1" in printed,
+          f"and the block runs when it is closed: {printed!r}")
+    check(client.call("get_console")["console"]["prompt"] == ">>> ",
+          "the first prompt comes back")
+
+    # An error is shown and the session carries on.
+    printed = console(client, "1 / 0")
+    check("ZeroDivisionError" in printed, f"an error is shown: {printed!r}")
+    printed = console(client, "'still here'")
+    check("still here" in printed, f"and the session survived it: {printed!r}")
+
+    run_history_checks(client)
+    run_completion_checks(client)
+
+
+def run_history_checks(client: AutomationClient) -> None:
+    """The arrow keys walk back through the lines already typed."""
+    history = client.call("get_console")["console"]["history"]
+    if not check(len(history) > 1, "the console remembers the lines typed"):
+        return
+    check(history[-1] == "'still here'", f"the newest is the line just typed: {history[-1]!r}")
+
+    check(client.call("console_recall", step=-1)["input"] == history[-1],
+          "Up recalls the previous line")
+    check(client.call("console_recall", step=-1)["input"] == history[-2],
+          "and again the one before it")
+    check(client.call("console_recall", step=1)["input"] == history[-1],
+          "Down comes back towards the newest")
+    check(client.call("console_recall", step=1)["input"] == "",
+          "and past the newest the prompt is empty again")
+
+
+def run_completion_checks(client: AutomationClient) -> None:
+    """Completion is served by the interpreter, so it knows the live namespace."""
+    answered = client.call("console_complete", source="app.set_key")
+    check("app.set_keyframe(" in answered["completions"],
+          f"a known method is offered: {answered['completions']}")
+    check(answered["input"] == "app.set_keyframe(",
+          f"and the one answer finishes the word: {answered['input']!r}")
+
+    answered = client.call("console_complete", source="app.add_")
+    check(sorted(answered["completions"]) == ["app.add_feature(", "app.add_group("],
+          f"two answers are both offered: {answered['completions']}")
+    check(answered["input"] == "app.add_", f"and the shared start stays: {answered['input']!r}")
+
+    # A name this session made a moment ago is completed too, which is what
+    # having the interpreter serve the completions buys.
+    console(client, "rodinia_marker = 1")
+    answered = client.call("console_complete", source="rodinia_mar")
+    check(answered["completions"] == ["rodinia_marker"],
+          f"a name from this session is offered: {answered['completions']}")
+
+    client.call("console_complete", source="")
+
+
+def run_script_menu_session(client: AutomationClient, folder: Path) -> None:
+    """A script dropped in a configured directory becomes a menu entry."""
+    script = folder / "add_from_menu.py"
+    script.write_text(SCRIPT_SOURCE, encoding="utf-8")
+    (folder / "undocumented.py").write_text("print('no docstring')\n", encoding="utf-8")
+
+    directories = client.call("get_preferences")["preferences"]["script_directories"]
+    client.call("set_preferences", preferences={"script_directories": directories + [str(folder)]})
+    client.call("rescan_scripts")
+
+    scripts = {entry["name"]: entry for entry in client.call("get_scripts")["scripts"]}
+    if not check("add_from_menu" in scripts, f"the new script is a menu entry: {sorted(scripts)}"):
+        return
+    check(scripts["add_from_menu"]["title"] == "Add the craton this run is looking for",
+          f"named after the first line of its docstring: {scripts['add_from_menu']['title']!r}")
+    check("undocumented" not in scripts, "a script without a docstring is not a command")
+
+    start_new_document(client)
+    client.call("console_clear")
+    before = len(client.call("get_features")["features"])
+    transcript = client.call("run_script", name="add_from_menu")["transcript"]
+    check("Traceback" not in transcript, f"the script ran without an error: {transcript[-200:]!r}")
+    check(client.call("get_panels")["panels"]["console"],
+          "running a script brings the console up to show what it printed")
+
+    features = client.call("get_features")["features"]
+    check(len(features) == before + 1, f"the script added a feature: {len(features)} now")
+    check(any(entry["title"] == "From the menu" for entry in features),
+          f"the one it says it adds: {[entry['title'] for entry in features]}")
+    check("added" in transcript, f"and what it printed is in the console: {transcript[-200:]!r}")
+
+    # Running it by path is what File > Run Script does.
+    client.call("console_clear")
+    transcript = client.call("run_script", path=str(script))["transcript"]
+    check("Traceback" not in transcript, "the same script runs from a path")
+    check(len(client.call("get_features")["features"]) == before + 2,
+          "and adds a second feature")
+
+    client.call("set_preferences", preferences={"script_directories": directories})
+    client.call("rescan_scripts")
+    check("add_from_menu" not in {entry["name"] for entry in client.call("get_scripts")["scripts"]},
+          "taking the directory away takes the entry with it")
+
+
+def run_bad_interpreter_checks(client: AutomationClient) -> None:
+    """A path that is not an interpreter is said so, and the application stays up."""
+    good = client.call("get_preferences")["preferences"]["python_interpreter"]
+    client.call("set_preferences", preferences={"python_interpreter": "C:/no/such/python.exe"})
+
+    state = await_python(client)
+    check(state["state"] == "FAILED", f"the interpreter is reported as failed: {state}")
+    check("C:/no/such/python.exe" in state["reason"],
+          f"the reason names the path: {state['reason']}")
+
+    console_state = client.call("get_console")["console"]
+    check(not console_state["editable"], "the prompt does not take typing with no interpreter")
+    check(state["reason"] in console_state["transcript"],
+          f"and the console says why: {console_state['transcript'][-200:]!r}")
+
+    # The application still answers, which is the point of the check.
+    check(client.call("ping")["ok"], "the application is still running")
+    start_new_document(client)
+    check(client.call("get_document")["document"]["name"] == "Untitled",
+          "and still opens documents")
+
+    client.call("set_preferences", preferences={"python_interpreter": good})
+    check(await_python(client)["state"] == "READY", "a good path brings the interpreter back")
+
+
+def run_no_python_session(port: int) -> None:
+    """--no-python: an application with no interpreter and a dead console."""
+    process = launch_app(port, user_args=["--no-python"])
+    client = AutomationClient(port)
+    try:
+        client.connect()
+        state = client.call("get_python")["python"]
+        check(state["state"] == "OFF", f"--no-python starts without an interpreter: {state}")
+        check(state["port"] == 0, "so no port was taken")
+        check("--no-python" in state["reason"], f"and it says why: {state['reason']}")
+
+        console_state = client.call("get_console")["console"]
+        check(not console_state["editable"], "the prompt is switched off")
+        check(not client.call("get_panels")["panels"]["console"], "and the panel starts hidden")
+
+        # Everything that does not need Python still works.
+        check(client.call("ping")["version"] == project_version(),
+              "the application is otherwise the same")
+        client.call("menu", item="new")
+        titles = [entry["title"] for entry in client.call("get_features")["features"]]
+        check(titles == ["Planet"], f"a new document opens: {titles}")
+        check(len(client.call("get_scripts")["scripts"]) > 0,
+              "the scripts are still listed, they simply cannot be run")
+        client.call("quit")
+    finally:
+        client.close()
+        try:
+            process.wait(timeout=30)
+        except Exception:
+            pass
+        if process.poll() is None:
+            process.kill()
+
+
 def main(argv: list[str]) -> int:
     port = DEFAULT_PORT
     if argv:
@@ -1890,6 +2140,13 @@ def main(argv: list[str]) -> int:
         run_circle_session(client)
         run_topology_session(client)
         run_kinematics_session(client)
+        run_python_session(client)
+        folder = Path(tempfile.mkdtemp(prefix="middle-earth-scripts-"))
+        try:
+            run_script_menu_session(client, folder)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+        run_bad_interpreter_checks(client)
     finally:
         if connected:
             try:
@@ -1903,6 +2160,10 @@ def main(argv: list[str]) -> int:
             pass
         if process.poll() is None:
             process.kill()
+
+    # An application of its own, because --no-python is settled at startup and
+    # the one above was started without it.
+    run_no_python_session(port + 1)
 
     print(f"{len(failures)} failed" if failures else "all checks passed")
     return 1 if failures else 0

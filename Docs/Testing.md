@@ -1,6 +1,6 @@
 # Testing
 
-The test suite has six modes, and one more that is run on purpose rather than
+The test suite has seven modes, and one more that is run on purpose rather than
 on every change. `Tests/run.py` starts all of them.
 
 | Mode       | Command                       | What it covers                                            |
@@ -10,16 +10,22 @@ on every change. `Tests/run.py` starts all of them.
 | `session`  | `python Tests/run.py session`  | A scripted end-to-end session driving the running application over the automation port. |
 | `cli`      | `python Tests/run.py cli`      | What `--version` and `--help` print, from a headless start with no window. |
 | `self-check` | `python Tests/run.py self-check` | The runner itself: that it reports a test which hits a runtime error as a failure, and that it fails a run whose application script did not compile. |
+| `python`   | `uv run Tests/run.py python`   | The scripting package under pytest: the file model, the API against a fake application, and the bridge server. No engine. |
 | `golden`   | `uv run Tests/run.py golden`   | Full window screenshots diffed against reference images. |
-| `all`      | `uv run Tests/run.py all`      | All six in the order above, stopping at the first failure. |
+| `all`      | `uv run Tests/run.py all`      | All seven in the order above, stopping at the first failure. |
 | `performance` | `uv run Tests/run.py performance` | The frame time during playback, and what one hit test costs with and without the bounding cap, on a document of a chosen triangle count. Not part of `all`. |
 
 `headless`, `rendered`, `session`, `cli` and `self-check` run under any Python 3.13
 or newer. `self-check` opens a window for the second of its two cases, the way
-`rendered` does. `golden`
-needs Pillow, so run it through `uv run`; under a plain interpreter without Pillow
-it prints a hint and exits with code 2. `uv run Tests/run.py <mode>` works for every
-mode, so `uv run` is the safe default.
+`rendered` does. `golden` needs Pillow and `python` needs pytest, so run those
+through `uv run`; under a plain interpreter without them each prints a hint and
+exits with code 2. `uv run Tests/run.py <mode>` works for every mode, so `uv run`
+is the safe default.
+
+`session` starts a Python interpreter of its own, because the application it
+launches does. `headless` and `rendered` do not: the application only starts one
+when it is the scene that was started, and a test runner hosting it is not that.
+See [Scripting](Scripting.md).
 
 `headless` and `rendered` accept `--filter=SUBSTRING` to run only the test files
 whose name contains the substring, for example
@@ -60,6 +66,10 @@ GDScript tests live in two directories and are discovered by file name:
   `TestCase` and adds helpers for loading a sample file, turning the globe, reading
   pixels and injecting clicks.
 
+`Tests/Python/test_*.py` is the `python` mode: plain pytest over
+`src/middle_earth`, with no engine involved. `pythonpath` and `testpaths` are set
+in `pyproject.toml`, so `uv run pytest` from the project root finds them.
+
 Every method named `test_*` is one test. The runner (`Tests/run_tests.gd`) creates a
 fresh instance of the test class per method, so tests do not share state. Helper
 methods must not start with `test_` or the runner calls them as tests.
@@ -95,12 +105,13 @@ the Edit menu calls to decide whether Paste is available, reports one whenever
 another process holds the clipboard.
 
 `Tests/session.py`, `Tests/cli.py`, `Tests/self_check.py` and `Tests/golden.py` are
-Python and can also be run on their own:
+Python and can also be run on their own, and so is `Tests/Python` under pytest:
 
 ```
 python Tests/session.py [--port N]
 python Tests/cli.py
 python Tests/self_check.py
+uv run pytest
 uv run Tests/golden.py check|update [--port N]
 ```
 
@@ -179,8 +190,25 @@ off the status bar and checks it against the arc it was told to measure, on two
 planet radii; and `run_split_session` cuts a polygon in two and checks that both
 halves kept the type, the colour, the time range and the keyframes.
 
+The Python scenarios run last against the interpreter the application started.
+`run_python_session` builds a feature and two keyframes entirely from the
+console and then asks the port what the document holds, so the check is the
+application's own answer rather than the script's; it plays and pauses from the
+console, types a block over two lines, walks the history with the arrow keys and
+completes a name the session made a moment before. `run_script_menu_session`
+drops a script in a scratch directory, adds it to the preferences, rescans and
+runs it from the menu and from a path, and checks that a file without a
+docstring is not listed. `run_bad_interpreter_checks` points the preferences at
+a path that is not an interpreter and checks that the reason reaches the console
+and that the application carries on. `run_no_python_session` launches a second
+application with `--no-python` and checks it comes up with no interpreter, no
+port and a dead prompt, while the scripts are still listed. See
+[Scripting](Scripting.md).
+
 `cli.py` reads the switch list out of `Logic/cli.gd`, so a new switch that
-`--help` forgets to list fails the run.
+`--help` forgets to list fails the run. It also runs `--help-command` in both of
+its forms against a script the project ships and checks that what it prints is
+the docstring in the file.
 
 `Tests/Unit/test_shader_constants.gd` reads `planet.gdshader` as text and holds
 the numbers it carries twice — the Robinson tables, the extent of the Robinson
@@ -382,11 +410,19 @@ a round trip is also a wait for the screen to catch up.
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
-| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `kinematics`, `status_bar`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `small_circles` and `topologies`, the geometry class switches |
+| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `small_circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |
-| `get_panels`                         | `panels`, which of the five panels are shown                     |
+| `get_panels`                         | `panels`, which of the six panels are shown                      |
+| `get_python`                         | `python` with the interpreter's `state`, the `reason` it is not running, the `interpreter` path, the `port` it was given and whether it is `ready` |
+| `get_console`                        | `console` with whether the panel is `visible`, the `prompt`, what is typed in it, whether it is `editable`, the whole `transcript` and the `history` |
+| `console {line}`                     | types one line at the prompt and answers when the interpreter has finished with it, with the `transcript` and the `prompt` it left behind |
+| `console_clear`                      | empties the transcript, so a check reads only what came after it |
+| `console_recall {step}`              | the Up and Down arrows at the prompt; answers with the `input` they left |
+| `console_complete {source}`          | types `source` and presses Tab; answers with the `completions` and the `input` |
+| `get_scripts` / `rescan_scripts`     | the script catalog behind File > Scripts, as `name`, `title`, `doc` and `path`, and a reread of the configured directories |
+| `run_script {name\|path}`            | runs one script, by catalog name or by path, and answers when it has finished, with the `transcript` |
 | `get_dialog`                         | `dialog` with `name`, `title`, `text` and `buttons`, or `null`   |
 | `dialog {button}`                    | presses a dialog button by its label                             |
 | `expect_file_dialog {path}`          | answers the next file dialog with a path, or cancels it when empty |

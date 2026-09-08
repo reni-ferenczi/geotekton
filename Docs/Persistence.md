@@ -303,13 +303,15 @@ more than the last change.
 | `restore_session`                  | Whether to reopen the last file on launch            |
 | `window`                           | `x`, `y`, `width`, `height` and `maximized`          |
 | `splitter_left`, `splitter_right`  | The two split offsets                                |
-| `panel_features`, `panel_properties`, `panel_timeline`, `panel_kinematics`, `panel_status_bar` | Which panels are shown. Everything but the kinematics graphs is shown when the file says nothing |
+| `panel_features`, `panel_properties`, `panel_timeline`, `panel_kinematics`, `panel_console`, `panel_status_bar` | Which panels are shown. Everything but the kinematics graphs and the console is shown when the file says nothing |
 | `animation`                        | The playback range, step, frame rate and the two switches |
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |
 | `vertex_marker_scale`, `line_width_scale` | How large the outline overlay is drawn, as multiples of the shader defaults |
 | `snap_to_vertices`                 | Whether a dragged vertex snaps onto a nearby one |
 | `default_view`                     | Which view a new document opens in, by the name the projection selector shows |
 | `view_defaults`                    | The [view settings](#view-settings) block a new document starts from |
+| `python_interpreter`               | Which Python runs the scripting bridge; the project's own `.venv` when unset |
+| `script_directories`               | Where scripts that become menu entries are looked for; the project's `Scripts` folder when unset. An empty list is a choice and stays empty |
 
 ### Recent files
 
