@@ -16,10 +16,14 @@ const TOOL_NAMES := {
 	Application.Tool.TOPOLOGY: "topology",
 }
 
+# The wheel is here so a run can zoom the way a person does, with the pointer
+# over the view; a wheel notch is a press and a release like any other button.
 const BUTTONS := {
 	"left": MOUSE_BUTTON_LEFT,
 	"right": MOUSE_BUTTON_RIGHT,
 	"middle": MOUSE_BUTTON_MIDDLE,
+	"wheel_up": MOUSE_BUTTON_WHEEL_UP,
+	"wheel_down": MOUSE_BUTTON_WHEEL_DOWN,
 }
 
 var app: Application
@@ -366,15 +370,54 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"view":
+			# Picking the projection goes through the selector rather than the
+			# planet, so what is tested is the toolbar a person uses: "globe"
+			# for the globe, or the number of a MapProjection.Kind.
+			if request.has("projection"):
+				var wanted: int = Application.GLOBE_PROJECTION_ID \
+					if str(request["projection"]) == "globe" else int(request["projection"])
+				var item := app.projection_selector.get_item_index(wanted)
+				if item < 0:
+					return {"ok": false, "error": "the selector has no projection %s"
+						% request["projection"]}
+				app.projection_selector.select(item)
+				app.projection_selector.item_selected.emit(item)
+				await _frames(2)
+				return {"ok": true}
+
+			var view_button: Button = {
+				"zoom_in": app.zoom_in_button,
+				"zoom_out": app.zoom_out_button,
+				"zoom_reset": app.zoom_reset_button,
+				"rotate_clockwise": app.rotate_clockwise_button,
+				"rotate_anticlockwise": app.rotate_anticlockwise_button,
+				"camera_reset": app.camera_reset_button,
+			}.get(str(request.get("button", "")))
+			if view_button == null:
+				return {"ok": false, "error": "no view button called %s" % request.get("button", "")}
+			view_button.pressed.emit()
+			await _frames(2)
+			return {"ok": true}
+
 		"get_view":
 			var size := DisplayServer.window_get_size()
 			return {
 				"ok": true,
+				"toolbar": {
+					"projection": app.projection_selector.get_item_text(
+						app.projection_selector.selected),
+					"zoom": app.zoom_spin.value,
+					"lat": app.camera_latitude_spin.value,
+					"lon": app.camera_longitude_spin.value,
+				},
 				"lat": app.planet_view.planet.lat,
 				"lon": app.planet_view.planet.lon,
 				"angle": app.planet_view.planet.angle,
+				"zoom": app.planet_view.zoom,
 				"fov": app.planet_view.camera.fov,
 				"show_map": app.planet_view.planet.show_map,
+				"projection": int(app.planet_view.planet.projection),
 				"window_size": [size.x, size.y],
 			}
 
@@ -388,8 +431,13 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				planet.angle = float(request["angle"])
 			if request.has("show_map"):
 				planet.show_map = bool(request["show_map"])
-			if request.has("fov"):
-				app.planet_view.camera.fov = float(request["fov"])
+			if request.has("projection"):
+				var kind := int(request["projection"])
+				if kind < 0 or kind >= MapProjection.NAMES.size():
+					return {"ok": false, "error": "no projection numbered %d" % kind}
+				planet.projection = kind as MapProjection.Kind
+			if request.has("zoom"):
+				app.planet_view.set_zoom(float(request["zoom"]))
 			await _frames(2)
 			return {"ok": true}
 

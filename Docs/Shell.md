@@ -7,7 +7,7 @@ off or rearranged.
 
 ```
 menu bar
-Features | tools, planet view, timeline | Properties
+Features | tools, view toolbar, planet view, timeline | Properties
 status bar
 ```
 
@@ -19,6 +19,10 @@ never wraps, so a `SplitContainer` cannot give the panel less than they need.
 width it cannot have. Making the toolbar take less — wrapping it, scrolling it, a
 denser icon size, or moving the rare buttons into a menu — is what it would take
 to narrow the panel; see GP-0019.
+
+The middle column has the same floor for the same reason, and its wider row is
+the [view toolbar](Editing.md#the-view-toolbar) rather than the tools: the two
+panels and that row together are what the window has to be wide enough for.
 
 ## Menus
 

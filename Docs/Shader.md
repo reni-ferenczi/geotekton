@@ -9,6 +9,80 @@ surface of a sphere, and a yellow outline layer over that.
 - **Earth texture**: sampled from an equirectangular projection via UV
 - **Grid overlay**: longitude/latitude lines with configurable `split` (divisions), `width`, and `color`; pole-aware width correction in globe mode
 
+The globe carries the equirectangular grid on its own surface, so its UV *is*
+the latitude and longitude of a fragment. A map does not: the shader turns UV
+into a point of the projection's sheet and asks the projection which place of
+the planet is drawn there. Everything after that — the Earth texture, the
+graticule, the features, the outline — is the same code in both views, because
+all of it works in latitude and longitude.
+
+## Map Projections
+
+`Logic/map_projection.gd` holds the five projections in GDScript and
+`planet.gdshader` holds the inverse of each one again in GLSL. Both are needed:
+every fragment of the map goes through the shader's copy and every click goes
+through `MapProjection.inverse()`, and a click and a pixel are supposed to be
+about the same place. `Tests/Rendered/test_projection.gd` probes the pixel at
+the position `MapProjection.forward()` gives a feature, which fails if the two
+ever part company.
+
+### The sheet
+
+Every projection draws on the same sheet: `x` from -1 to 1 across the whole
+width and `y` from `-extent` to `extent`, where the extent is what the
+projection's own aspect ratio asks for. `Planet._apply_projection()` scales the
+map mesh by it, so the mesh is exactly as tall as the projection needs and its
+UV covers the sheet and nothing else:
+
+```glsl
+vec2 plane = vec2((UV.x - 0.5) * 2.0, (0.5 - UV.y) * 2.0 * map_extent);
+```
+
+| Kind | Value | Extent | Aspect | Notes |
+|---|---|---|---|---|
+| Rectangular | 0 | 0.5 | 2:1 | `x = λ/π`, `y = φ/π` |
+| Mercator | 1 | 1.0 | 1:1 | `y = ln(tan(π/4 + φ/2))/π`, which reaches ±1 at 85.05113° |
+| Mollweide | 2 | 0.5 | 2:1 | `2θ + sin 2θ = π sin φ`, then `x = λ cos θ/π`, `y = sin θ/2` |
+| Robinson | 3 | 0.50719 | 1.97:1 | Tabulated every 5°, interpolated linearly |
+| Orthographic | 4 | 1.0 | 1:1 | `x = cos φ sin λ`, `y = cos φ₀ sin φ - sin φ₀ cos φ cos λ` |
+
+`λ` is the longitude from the central meridian and `φ` the latitude. Robinson's
+two tables — the length of each parallel and its distance from the equator —
+appear in both files and have to stay the same in both; the shader interpolates
+them exactly as `MapProjection._robinson_at()` does, so a round trip through the
+table is exact.
+
+### Off the map
+
+Not every point of the sheet is a place on the planet. `MapProjection.inverse()`
+answers `null` and the shader's `map_inverse()` answers a zero third component,
+which the fragment shader turns into a `discard`, so what is behind the map
+shows through:
+
+- outside the Mollweide ellipse and the Robinson outline, where the meridian
+  the arithmetic gives is past ±180°;
+- outside the orthographic disc, where the radius is past 1;
+- the Mercator sheet has no such place, but the projection cannot reach a pole
+  at all, so `forward()` reports latitudes past 85.05113° as not drawn.
+
+A point exactly on the edge comes back a few bits outside it, because a
+`Vector2` holds 32-bit floats, so both files allow `EDGE_SLACK` of 1e-6 past
+each bound and clamp back onto it. Without it a pole would be reported as off
+the map it was just drawn on.
+
+### Uniforms
+
+| Uniform | Type | Default | Description |
+|---|---|---|---|
+| `projection` | `int` | `0` | Which projection, matching `MapProjection.Kind` |
+| `map_extent` | `float` | `0.5` | Half the height of the sheet, matching `MapProjection.extent()` |
+| `map_centre` | `vec2` | `(0, 0)` | Latitude and longitude of the centre, in radians |
+
+`map_centre.y` is the central meridian of every projection; `map_centre.x` is
+the centre of the hemisphere an orthographic projection shows and is unused by
+the other four. `Planet._process()` writes all three from `projection`, `lat`
+and `lon`.
+
 ## Feature Geometry Rendering
 
 A feature is drawn from one of three kinds of primitive, all of which follow
@@ -22,10 +96,12 @@ great circles on the unit sphere:
 
 ### Math
 
-For each fragment, the shader converts UV coordinates to a position on the unit sphere:
+For each fragment, the shader turns the latitude and longitude worked out above
+into a position on the unit sphere. On the globe those two come straight from
+UV; on a map they come from [the projection](#map-projections):
 
 ```
-lat = (0.5 - UV.y) * PI
+lat = (0.5 - UV.y) * PI   // the globe; a map goes through map_inverse()
 lon = (UV.x - 0.5) * TAU
 P   = (cos(lat) * cos(lon), sin(lat), cos(lat) * sin(lon))
 ```
@@ -287,7 +363,7 @@ The outline is composited on top of everything else using yellow color (`vec3(1,
 
 ## Notes
 
-- The UV-to-latlon conversion is the same for both globe (SphereMesh) and map (PlaneMesh) views, so the geometry renders correctly in both modes.
+- The geometry, the outline and the graticule work in latitude and longitude, so a new projection needs its own inverse and nothing else.
 - The data texture approach has no hard size limit — just add more primitives to the array.
 - Performance scales linearly with primitive count — see below.
 

@@ -1,18 +1,13 @@
 extends Node3D
 class_name Planet
 
-signal input_event_outside(event: InputEvent)
-signal input_event_globe(lat: float, lon: float, event: InputEvent)
-signal input_event_map(lat: float, lon: float, event: InputEvent)
-
 # What one entry of the geometry data texture draws. The values are the ones
 # the shader switches on, so they must match the kinds listed in planet.gdshader.
 enum Primitive { TRIANGLE = 0, SEGMENT = 1, POINT = 2 }
 
 # Radius of the globe, in the units planet.tscn is laid out in. The SphereMesh
-# that is drawn and the SphereShape3D that clicks are picked against are both
-# set to it in _ready(), so the surface the pointer meets is the surface the
-# pixel shows.
+# is set to it in _ready(), and PlanetView casts a ray against a sphere of the
+# same radius, so the surface the pointer meets is the surface the pixel shows.
 const GLOBE_RADIUS := 0.5
 
 # How close a click counts as a hit on a polyline or a multipoint, as a chord
@@ -34,21 +29,29 @@ enum OutlineStyle {
 	CLOSED = 3,         # closed, with every segment drawn the same
 }
 
+# The map mesh with the sheet of a projection half a unit tall, which is what a
+# rectangular one wants. Its local x runs across the sheet and its local z down
+# it; _apply_projection() scales that z by the projection's own extent, so the
+# mesh is exactly as tall as the projection draws and its UV covers the sheet
+# and nothing else.
+const MAP_BASIS := Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
+
 @export var show_map: bool = false;
+@export var projection: MapProjection.Kind = MapProjection.Kind.RECTANGULAR;
 @export_range(-90, 90, 1.0, "Latitude") var lat: float = 0.0;
 @export_range(-180, 180, 1.0, "Longitude") var lon: float = 0.0;
+# How far the view is turned clockwise about the point it looks at. The camera
+# is what carries it, in PlanetView, so it turns the map and the globe alike.
 @export_range(-180, 180, 1.0, "Angle") var angle: float = 0.0;
 
 @onready var globe = $Globe;
 @onready var map = $Map;
-@onready var globe_shape: CollisionShape3D = $Globe/GlobePhysicsBody/CollisionShape3D;
 
 
 func _ready() -> void:
 	var sphere: SphereMesh = globe.mesh
 	sphere.radius = GLOBE_RADIUS
 	sphere.height = GLOBE_RADIUS * 2.0
-	(globe_shape.shape as SphereShape3D).radius = GLOBE_RADIUS
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
@@ -57,35 +60,34 @@ func _process(_delta: float) -> void:
 	map.visible = show_map
 
 	if globe:
-		globe.rotation = Vector3(deg_to_rad(lat), deg_to_rad(180 - lon), deg_to_rad(angle))
+		globe.rotation = Vector3(deg_to_rad(lat), deg_to_rad(180 - lon), 0.0)
+	_apply_projection()
 
 
-func _on_background_input_event(camera: Node, event: InputEvent, event_position: Vector3, normal: Vector3, shape_idx: int) -> void:
-	input_event_outside.emit(event)
+# Shape the map mesh for the projection it draws and tell the shader which one
+# that is. The sheet is always two units wide and as tall as the projection asks
+# for, so the fragment shader turns UV into a point of the sheet the same way
+# whatever is selected, and MapProjection.inverse() takes it from there.
+func _apply_projection() -> void:
+	var extent := MapProjection.extent(projection)
+	map.transform = Transform3D(
+		Basis(MAP_BASIS.x, MAP_BASIS.y, MAP_BASIS.z * extent), Vector3.ZERO)
+	var material: ShaderMaterial = map.get_surface_override_material(0)
+	material.set_shader_parameter("projection", int(projection))
+	material.set_shader_parameter("map_extent", extent)
+	material.set_shader_parameter("map_centre", Vector2(deg_to_rad(lat), deg_to_rad(lon)))
 
 
-# The globe and the map both keep their collision bodies whatever is being
-# shown, so both report a pointer that moves over them. Only the one on screen
-# is listened to: the map works out its latitude and longitude by scaling the
-# point, without the bounds a sphere gives, so the hidden one answers with
-# nonsense like 539 degrees of longitude and whoever is listening believes it.
-func _on_globe_physics_body_input_event(camera: Node, event: InputEvent, event_position: Vector3, normal: Vector3, shape_idx: int) -> void:
-	if show_map:
-		return
-	var local_pos = globe.transform.inverse() * event_position
-	var rad = Vector2(local_pos.x, local_pos.z).length()
-	var lat = rad_to_deg(atan2(local_pos.y, rad))
-	var lon = rad_to_deg(atan2(-local_pos.x, -local_pos.z))
-	input_event_globe.emit(lat, lon, event)
+# The map sheet lies in the x-y plane through the middle of the scene, x across
+# it and y up it, which is what MAP_BASIS puts it there for. These two hold the
+# whole of that convention: PlanetView goes through them to turn a click into a
+# point of the sheet and a point of the sheet back into a pixel.
+static func map_to_scene(plane: Vector2) -> Vector3:
+	return Vector3(plane.x, plane.y, 0.0)
 
 
-func _on_map_physics_body_input_event(camera: Node, event: InputEvent, event_position: Vector3, normal: Vector3, shape_idx: int) -> void:
-	if not show_map:
-		return
-	var local_pos = map.transform.inverse() * event_position
-	var lat = local_pos.y * 90
-	var lon = local_pos.x * 180
-	input_event_map.emit(lat, lon, event)
+static func scene_to_map(point: Vector3) -> Vector2:
+	return Vector2(point.x, point.y)
 
 
 ## Feature geometry rendering

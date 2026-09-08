@@ -114,17 +114,20 @@ The root cannot: turning it would only turn the globe.
 
 ### Data flow
 
-1. **LMB press** on globe → physics body input event fires in `planet.gd` → emits `input_event_globe(lat, lon, event)` → `planet_view.gd` emits `move_started(lat, lon)`.
+1. **LMB press** on the planet → `planet_view.gd` works out the latitude and
+   longitude under the pointer with `screen_to_latlon`, emits
+   `input_event_globe(lat, lon, event)` (or `input_event_map` on the map) and
+   then `move_started(lat, lon)`.
 2. `application.gd._on_move_started` records:
    - `move_anchor_local` = the grabbed point in the frame the parent gives it
    - `move_base_rot` = the node's own rotation at the current time
    - `move_base_keyframes` = a copy of the list, for a cancelled drag
-3. **Mouse motion** → physics event fires → `move_to(lat, lon)` emitted.
+3. **Mouse motion** → the same path → `move_to(lat, lon)` emitted.
 4. `_on_move_to` carries the target into the same frame, calls
    `Feature.compute_move_rotation`, writes the keyframe at the current time and
    refreshes where the features sit.
-5. **LMB release on globe** → `stop_moving()` — saves undo, keeps the keyframe.
-6. **LMB release outside globe** → `cancel_moving()` — puts the keyframe list back.
+5. **LMB release on the planet** → `stop_moving()` — saves undo, keeps the keyframe.
+6. **LMB release off the planet** → `cancel_moving()` — puts the keyframe list back.
 
 ### compute_move_rotation
 

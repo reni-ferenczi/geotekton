@@ -351,13 +351,65 @@ The two sizes are multiples of what `planet.gdshader` draws at, from
 chord length on a unit sphere the shader uniform is in; see
 [Shader](Shader.md#outline-uniforms).
 
-## Globe Navigation
+## Navigating the planet
 
-Globe navigation works in every tool unless noted otherwise.
+Navigation works in every tool unless noted otherwise.
 
 | Input | Action |
 |-------|--------|
-| **RMB** on globe | The Edit commands for the feature under the pointer, in the Move tool only |
-| **Ctrl+LMB drag** on globe | Geographic dragging — rotates the globe so the surface follows the cursor |
+| **RMB** on the planet | The Edit commands for the feature under the pointer, in the Move tool only |
+| **Ctrl+LMB drag** on the globe | Geographic dragging — turns the globe so the surface follows the cursor |
 | **MMB drag** | Free rotation — captured mouse rotation of the globe |
-| **Scroll wheel** | Zoom in/out (adjusts camera FOV) |
+| **Scroll wheel** | Zoom in and out |
+
+The two drags turn the globe itself and do nothing on the map, where the
+latitude and longitude fields of the view toolbar move the view instead.
+
+## The view toolbar
+
+The second row of the toolbar says what the planet is drawn as and where the
+camera stands. Everything on it works on both views.
+
+| Control | What it does |
+|---------|--------------|
+| Projection | The globe, or the map in one of five projections |
+| Zoom out, zoom in | One step of the zoom, which is a factor of 1.2 |
+| Zoom | The zoom as a percentage, 100% being the whole planet in view |
+| Zoom reset | Back to 100% |
+| Latitude, longitude | The place the view is centred on |
+| Turn anticlockwise, turn clockwise | Fifteen degrees of the view's own rotation |
+| Camera reset | The middle of the planet, the right way up |
+
+### The projections
+
+`Globe` is the sphere; the other five draw the planet flat, as
+[MapProjection](../Logic/map_projection.gd) defines them and
+[Shader](Shader.md#map-projections) describes the arithmetic.
+
+| Projection | What it looks like | What it does not show |
+|------------|--------------------|-----------------------|
+| Rectangular | Latitude and longitude straight onto a two by one sheet | — |
+| Mercator | A square sheet with the parallels pulled apart towards the poles | Above 85.05° either way, which runs off the sheet |
+| Mollweide | An ellipse, equal area, the meridians curving to the poles | — |
+| Robinson | The compromise outline, flattened poles, straight parallels | — |
+| Orthographic | A disc: the planet as it is seen from far away | The far side |
+
+Where a projection draws nothing — outside the Mollweide ellipse, the corners
+of a Robinson sheet, the far side of an orthographic disc — the sky shows
+through, and the pointer there reports itself off the planet.
+
+### Where the camera looks
+
+The latitude and longitude fields mean the same thing in every view, but each
+view reaches them its own way:
+
+- The **globe** turns to bring that point to the front.
+- **Orthographic** centres its hemisphere on it, which comes to the same thing.
+- The other four projections take the longitude as the **central meridian**,
+  so the sheet is redrawn about it and nothing is ever cut in half at the edge
+  of the view. The latitude slides the camera up the sheet, as far as the edge
+  of it and no further: at 100% the whole sheet is on screen and there is
+  nowhere to slide to, so the latitude only starts to bite once the view is
+  zoomed in.
+
+Turning the view rolls the camera, so it turns the map and the globe alike.
