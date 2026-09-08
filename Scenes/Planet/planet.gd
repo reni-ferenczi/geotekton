@@ -305,7 +305,13 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null) -> v
 #
 # A topology borrows its vertices from other features, so it is resolved for the
 # time first and then flattened like the polyline it is drawn as.
-static func collect_geometry(root: Feature, time: float = 0.0) -> Geometry:
+#
+# The styling says which classes of geometry are drawn at all and what colour a
+# feature comes out; without one every feature is drawn in the colour it carries,
+# which is what a document said before there were any styles. A feature its class
+# is switched off for is left out here, so it is neither drawn nor hit tested.
+static func collect_geometry(root: Feature, time: float = 0.0,
+		styling: Styling = null) -> Geometry:
 	Topology.rebuild_all(root, time)
 	var geometry := Geometry.new()
 	var stack: Array[Feature] = [root]
@@ -316,7 +322,10 @@ static func collect_geometry(root: Feature, time: float = 0.0) -> Geometry:
 		if node.is_group:
 			stack.append_array(node.children)
 			continue
+		if styling != null and not styling.shows(node):
+			continue
 
+		var color := styling.color_of(node) if styling != null else node.color
 		var index := geometry.index_for(node)
 		# A topology is drawn as a polyline: Topology.rebuild() has already put
 		# one run of resolved vertices per section into its rings.
@@ -324,8 +333,8 @@ static func collect_geometry(root: Feature, time: float = 0.0) -> Geometry:
 			Feature.GeometryKind.POLYGON:
 				var verts := node.triangles
 				for j in range(0, verts.size() - 2, 3):
-					var primitive := _primitive(
-						Primitive.TRIANGLE, [verts[j], verts[j + 1], verts[j + 2]], node, index)
+					var primitive := _primitive(Primitive.TRIANGLE,
+						[verts[j], verts[j + 1], verts[j + 2]], node, index, color)
 					var triangle := j / 3
 					if triangle < node.triangle_edges.size():
 						primitive["edges"] = node.triangle_edges[triangle]
@@ -334,19 +343,21 @@ static func collect_geometry(root: Feature, time: float = 0.0) -> Geometry:
 				for ring in node.rings:
 					for j in range(ring.size() - 1):
 						geometry.primitives.append(_primitive(
-							Primitive.SEGMENT, [ring[j], ring[j + 1]], node, index))
+							Primitive.SEGMENT, [ring[j], ring[j + 1]], node, index, color))
 			Feature.GeometryKind.MULTIPOINT:
 				for ring in node.rings:
 					for v in ring:
-						geometry.primitives.append(_primitive(Primitive.POINT, [v], node, index))
+						geometry.primitives.append(
+							_primitive(Primitive.POINT, [v], node, index, color))
 		geometry.ends[index] = geometry.primitives.size()
 	geometry.build_caps(2.0 * asin(maxf(LINE_HIT_WIDTH, POINT_HIT_RADIUS) * 0.5))
 	geometry.resolve(root, time)
 	return geometry
 
 
-static func _primitive(kind: Primitive, verts: Array, node: Feature, index: int) -> Dictionary:
-	return {"kind": kind, "verts": verts, "color": node.color, "feature": node, "index": index}
+static func _primitive(kind: Primitive, verts: Array, node: Feature, index: int,
+		color: Color) -> Dictionary:
+	return {"kind": kind, "verts": verts, "color": color, "feature": node, "index": index}
 
 
 ## Hit test: find which feature covers the given lat/lon point.

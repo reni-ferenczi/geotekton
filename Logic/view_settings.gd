@@ -2,7 +2,8 @@ class_name ViewSettings
 extends RefCounted
 
 # How the scene around the features is drawn: the background, the graticule, the
-# light and the backdrop image on the planet.
+# light and the backdrop image on the planet, along with which classes of
+# geometry are shown at all and what colour the features come out.
 #
 # These belong to a document rather than to whoever is at the keyboard, because
 # a map of a world is drawn the way its author chose, so they are saved with the
@@ -58,6 +59,19 @@ var backdrop_path: String = ""
 var backdrop_opacity: float = DEFAULT_BACKDROP_OPACITY
 var backdrop_visible: bool = true
 
+# The classes of geometry the View menu has switched off, by the names in
+# Styling.CLASSES. Kept as what is hidden rather than what is shown, so an empty
+# list is everything drawn and a class this version has never heard of cannot
+# quietly hide something.
+var hidden_classes: PackedStringArray = PackedStringArray()
+
+# How a feature's colour is chosen, an id in Styling.STYLES, the colour every
+# feature comes out under the single colour style, and the palette the feature
+# age style reads: a key of Palette.BUILT_IN or the path of a `.cpt` file.
+var draw_style: String = Styling.BY_FEATURE
+var single_color: Color = Styling.DEFAULT_SINGLE
+var palette: String = Palette.DEFAULT
+
 
 func clone() -> ViewSettings:
 	return ViewSettings.from_json(to_json())
@@ -74,6 +88,10 @@ func to_json() -> Dictionary:
 		"backdrop_path": backdrop_path,
 		"backdrop_opacity": backdrop_opacity,
 		"backdrop_visible": backdrop_visible,
+		"hidden_classes": Array(hidden_classes),
+		"draw_style": draw_style,
+		"single_color": _color_to_json(single_color),
+		"palette": palette,
 	}
 
 
@@ -101,7 +119,35 @@ static func from_json(data: Variant) -> ViewSettings:
 	settings.backdrop_opacity = clampf(
 		float(data.get("backdrop_opacity", DEFAULT_BACKDROP_OPACITY)), 0.0, 1.0)
 	settings.backdrop_visible = bool(data.get("backdrop_visible", true))
+	var hidden: Variant = data.get("hidden_classes")
+	if hidden is Array:
+		for name in hidden:
+			settings.hide_class(str(name), true)
+	settings.draw_style = Styling.normalize_style(
+		str(data.get("draw_style", Styling.BY_FEATURE)))
+	settings.single_color = _color_from_json(
+		data.get("single_color"), Styling.DEFAULT_SINGLE)
+	settings.palette = str(data.get("palette", Palette.DEFAULT))
 	return settings
+
+
+### Which classes of geometry are drawn
+
+
+func shows_class(class_id: String) -> bool:
+	return not (class_id in hidden_classes)
+
+
+# Switch a class off or back on. A name that is not a class at all is ignored,
+# so a file from a later version cannot hide geometry this one cannot show again.
+func hide_class(class_id: String, hidden: bool) -> void:
+	if not Styling.CLASSES.has(class_id):
+		return
+	var at := hidden_classes.find(class_id)
+	if hidden and at < 0:
+		hidden_classes.append(class_id)
+	elif not hidden and at >= 0:
+		hidden_classes.remove_at(at)
 
 
 # How many divisions of the whole planet the graticule spacing comes to, which
