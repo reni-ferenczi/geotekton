@@ -166,6 +166,11 @@ func _ready() -> void:
 	split_button.pressed.connect(func() -> void: _report(split_at_selected_vertex()))
 	snap_button.button_pressed = Config.get_snap_to_vertices()
 	_build_kind_selector()
+	# The range and the starting value come from SmallCircle, so the scene does
+	# not carry a second copy of what a circle may be cut into.
+	segments_spin.min_value = SmallCircle.MIN_SEGMENTS
+	segments_spin.max_value = SmallCircle.MAX_SEGMENTS
+	segments_spin.value = SmallCircle.DEFAULT_SEGMENTS
 	_apply_outline_scale()
 
 	# The Save and Load buttons of the feature tree toolbar run the File commands
@@ -851,11 +856,12 @@ func snapping() -> bool:
 	return snap_button.button_pressed
 
 
-# The Vertex tool needs a leaf feature that already holds geometry; there is
-# nothing to take hold of otherwise. Measure needs nothing at all.
+# The Vertex tool needs a leaf feature holding vertices of its own; there is
+# nothing to take hold of otherwise, and a topology's vertices belong to the
+# features it runs along. Measure needs nothing at all.
 func _update_tool_buttons() -> void:
 	var selected := features.feature_tree.get_selected_node()
-	var editable := selected != null and not selected.is_group and selected.has_geometry()
+	var editable := selected != null and not selected.is_group and selected.has_own_vertices()
 	vertex_button.disabled = not editable
 	snap_button.disabled = active_tool != Tool.VERTEX
 	split_button.disabled = not _split_problem().is_empty()
@@ -885,7 +891,7 @@ func _on_feature_selected(node: Feature) -> void:
 	# Nothing selected does not: rebuilding the tree clears the selection for a
 	# moment before it puts it back, and a tool that gave up over that would
 	# not survive an undo.
-	var editable := node == null or (not node.is_group and node.has_geometry())
+	var editable := node == null or (not node.is_group and node.has_own_vertices())
 	if active_tool == Tool.VERTEX and not editable:
 		set_active_tool(Tool.MOVE)
 

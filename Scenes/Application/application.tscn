@@ -155,9 +155,6 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(90, 40)
 layout_mode = 2
 tooltip_text = "How many segments a small circle is cut into"
-min_value = 3.0
-max_value = 720.0
-value = 36.0
 suffix = "seg"
 
 [node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("3_hn1gi")]

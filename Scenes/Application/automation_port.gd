@@ -474,7 +474,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			elif tool_name == "vertex":
 				if app.vertex_button.disabled:
 					return {"ok": false, "error":
-						"the Vertex tool needs a feature that holds geometry"}
+						"the Vertex tool needs a feature holding vertices of its own"}
 				app.set_active_tool(Application.Tool.VERTEX)
 			elif tool_name == "measure":
 				app.set_active_tool(Application.Tool.MEASURE)

@@ -2,13 +2,13 @@
 
 ## Tools
 
-The toolbar contains five mutually exclusive tool buttons, two switches and two
-selectors:
+The toolbar contains six mutually exclusive tool buttons, two switches, a
+selector and a number:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
 - **Draw** — Enables drawing on the globe surface. See `Docs/Draw.md` for full details.
 - **Vertex** — Edits the vertices of the selected feature. Needs a leaf feature
-  that already holds geometry; see [The Vertex tool](#the-vertex-tool).
+  holding vertices of its own; see [The Vertex tool](#the-vertex-tool).
 - **Measure** — Reports great circle distances in the status bar; see
   [The Measure tool](#the-measure-tool).
 - **Circle** — Draws a small circle from a centre or through three points; see
@@ -92,8 +92,10 @@ After committing a shape (pressing Enter in the Draw tool), the Move tool is aut
 
 The Vertex tool edits the geometry of the selected feature on the globe itself,
 rather than through the coordinate table of the [Properties](Properties.md)
-panel. It is available once a leaf feature that already holds geometry is
-selected; there is nothing to take hold of otherwise.
+panel. It is available once a leaf feature holding vertices of its own is
+selected; there is nothing to take hold of otherwise, and a
+[line topology](#line-topologies) borrows every vertex it draws from the
+features its sections run along.
 
 | Input | Action |
 |-------|--------|

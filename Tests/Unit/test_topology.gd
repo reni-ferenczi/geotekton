@@ -264,6 +264,25 @@ func test_a_topology_is_drawn_and_measured_as_a_polyline() -> void:
 		"its length is the length of its parts, without the gap between them")
 
 
+# A topology holds geometry but none of it is its own, which is what the Vertex
+# tool, the Split button and the coordinate table all go by: there is nothing
+# there to drag, insert, delete or cut in two.
+func test_a_topology_holds_geometry_but_no_vertices_of_its_own() -> void:
+	var root := _build_tree()
+	var boundary := _boundary(root)
+	Topology.rebuild(root, boundary, 0.0)
+	assert_true(boundary.has_geometry(), "a topology naming sections holds geometry")
+	assert_true(not boundary.has_own_vertices(), "but none of the vertices are its own")
+
+	var west: Feature = root.children[0].children[0]
+	assert_true(west.has_own_vertices(), "while a drawn feature's vertices are")
+
+	var document := Document.new()
+	document.root = root
+	assert_true(not document.split_feature(boundary, 0, 1).is_empty(),
+		"so a topology is refused a split")
+
+
 func test_the_tree_finds_a_node_by_uuid() -> void:
 	var root := _build_tree()
 	var west: Feature = root.children[0].children[0]

@@ -143,7 +143,7 @@ undo version:
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |
 | `remove_vertex`         | a part or vertex that is not there                 |
-| `split_feature`         | a group, a part that is not there, a multipoint, and a cut that would leave half a shape or run outside it |
+| `split_feature`         | a group, a topology, a part that is not there, a multipoint, and a cut that would leave half a shape or run outside it |
 | `set_keyframe`          | nothing; the time it names replaces or is added    |
 | `set_keyframe_time`     | a keyframe that is not there, a time outside 0 to `MAX_TIME`, and a time another keyframe already holds |
 | `set_keyframe_rotation` | a keyframe that is not there                       |

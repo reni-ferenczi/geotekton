@@ -839,7 +839,7 @@ func select_vertex(part: int, index: int) -> void:
 
 
 func _update_vertex_buttons() -> void:
-	var has_geometry := node != null and not node.is_group and node.has_geometry()
+	var has_geometry := node != null and not node.is_group and node.has_own_vertices()
 	add_button.disabled = not has_geometry
 	remove_button.disabled = not has_geometry
 

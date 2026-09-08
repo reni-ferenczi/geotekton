@@ -225,6 +225,8 @@ func remove_vertex(feature: Feature, part: int, index: int) -> String:
 func split_feature(feature: Feature, part: int, first: int, second: int = -1) -> String:
 	if feature == null or feature.is_group:
 		return "Only a feature with geometry can be split."
+	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		return "A topology borrows its vertices, so there is nothing of its own to split."
 	if part < 0 or part >= feature.rings.size():
 		return "The feature has no part %d." % part
 

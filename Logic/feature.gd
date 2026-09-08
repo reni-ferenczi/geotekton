@@ -184,6 +184,13 @@ func has_geometry() -> bool:
 	return false
 
 
+# Whether the feature holds vertices someone can take hold of. A topology holds
+# geometry but borrows every vertex of it from the features its sections run
+# along, so there is nothing there to drag, insert, delete or split.
+func has_own_vertices() -> bool:
+	return has_geometry() and geometry_kind != GeometryKind.TOPOLOGY
+
+
 # Whether anything under this node can be drawn, the node itself included. A
 # group is worth dragging exactly when something inside it would move with it.
 func holds_geometry() -> bool:
