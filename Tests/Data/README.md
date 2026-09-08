@@ -48,6 +48,23 @@ The folder carries a `.gdignore`. The files are read from disk at run time by
 `Backdrop.load_from()`, the way any image on the machine is, and never imported
 as project resources.
 
+## Colour palettes
+
+`Palettes/` holds hand-written `.cpt` fixtures for the GMT colour palette table
+reader in `Logic/palette.gd`, one per shape of palette:
+
+| File               | Contents                                                       |
+| ------------------ | -------------------------------------------------------------- |
+| `continuous.cpt`   | Two ramps meeting at 100 without a step, black to red to white. |
+| `discrete.cpt`     | Three flat slices, with 20 to 30 left uncovered, and an annotation flag and a label to read past. |
+| `categorical.cpt`  | A key, a quoted key with a space in it and a number used as a key. |
+| `malformed.cpt`    | Two good slices around a line that names no colour, and a `B` with nothing after it. |
+
+Between them they use every part of the format the palettes GPlates ships use.
+Those are read where they lie, from `../gplates/sample-data`, rather than copied
+in: they are GPL and this project is MIT. `Tests/Unit/test_palette.gd` checks
+them when that checkout is beside this one and says so when it is not.
+
 ## Probe points
 
 Coordinates are (latitude, longitude) in degrees. `Tests/Unit/test_sample_files.gd`
