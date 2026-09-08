@@ -202,6 +202,7 @@ func _ready() -> void:
 	segments_spin.value = SmallCircle.DEFAULT_SEGMENTS
 	_apply_outline_scale()
 	_build_view_toolbar()
+	_apply_default_view()
 	apply_view_settings()
 
 	# The Save and Load buttons of the feature tree toolbar run the File commands
@@ -450,7 +451,13 @@ func _toggle_full_screen() -> void:
 
 
 func new_document() -> void:
-	_confirm_unsaved_changes(document.reset)
+	_confirm_unsaved_changes(_reset_document)
+
+
+# An empty document, drawn the way the preferences say a new one should be.
+func _reset_document() -> void:
+	document.reset(Config.get_view_defaults())
+	_apply_default_view()
 
 
 func open_document() -> void:
@@ -765,6 +772,29 @@ func _build_view_content() -> Control:
 		edit.text = ""
 		_on_view_field_changed())
 	row.add_child(clear)
+
+	var defaults := HBoxContainer.new()
+	box.add_child(defaults)
+	var remember := Button.new()
+	remember.name = "SaveAsDefault"
+	remember.text = "Save as default"
+	remember.tooltip_text = "Start every new document with these settings"
+	remember.pressed.connect(func() -> void:
+		Config.set_view_defaults(document.view)
+		Config.set_default_view(projection_selector.get_item_text(
+			projection_selector.selected)))
+	defaults.add_child(remember)
+
+	var restore := Button.new()
+	restore.name = "RestoreDefaults"
+	restore.text = "Restore defaults"
+	restore.tooltip_text = "Put this document back to the settings a new one starts with"
+	restore.pressed.connect(func() -> void:
+		document.view = Config.get_view_defaults()
+		document.view_edited()
+		_fill_view_fields()
+		apply_view_settings())
+	defaults.add_child(restore)
 
 	backdrop_warning = Label.new()
 	backdrop_warning.name = "BackdropWarning"
@@ -1188,6 +1218,17 @@ func _build_view_toolbar() -> void:
 	camera_reset_button.pressed.connect(planet_view.reset_camera)
 
 	_update_view_toolbar()
+
+
+# Open in the view the preferences ask for. A name the selector no longer offers
+# is not an error: the globe is what a fresh installation shows.
+func _apply_default_view() -> void:
+	var wanted := Config.get_default_view()
+	for index in projection_selector.item_count:
+		if projection_selector.get_item_text(index) == wanted:
+			projection_selector.select(index)
+			_on_projection_selected(index)
+			return
 
 
 func _on_projection_selected(index: int) -> void:

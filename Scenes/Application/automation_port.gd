@@ -608,6 +608,13 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			app.show_view_settings()
 			var block: Dictionary = request.get("view_settings", {})
 			var unknown := _fill_view_dialog(block)
+			var button_name := str(request.get("button", ""))
+			if not button_name.is_empty():
+				var view_button: Button = app.view_dialog.find_child(button_name, true, false)
+				if view_button == null:
+					app.view_dialog.hide()
+					return {"ok": false, "error": "no view settings button called %s" % button_name}
+				view_button.pressed.emit()
 			app.view_dialog.hide()
 			if not unknown.is_empty():
 				return {"ok": false, "error": "no view setting called %s" % unknown}
@@ -616,6 +623,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 
 		"get_preferences":
 			return {"ok": true, "preferences": {
+				"default_view": Config.get_default_view(),
+				"view_defaults": Config.get_view_defaults().to_json(),
 				"planet_radius_km": Config.get_planet_radius(),
 				"vertex_marker_scale": Config.get_vertex_marker_scale(),
 				"line_width_scale": Config.get_line_width_scale(),
