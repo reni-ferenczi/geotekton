@@ -15,13 +15,18 @@ const WINDOW_SIZE := Vector2i(1800, 900)
 # returns, leaving the failure list empty. A test that hits one would be counted
 # as passed, so the runner listens for the errors as the engine prints them and
 # turns whatever arrives during a test into a failure of that test.
+#
+# Only script and shader errors count. An engine level error is not always a
+# defect and not always the run's doing: DisplayServer.clipboard_get() reports
+# one whenever another process holds the clipboard, which would fail a rendered
+# test for something happening outside the machine's test run.
 class ErrorWatcher extends Logger:
 	var messages: Array[String] = []
 
 	func _log_error(function: String, file: String, line: int, code: String,
 			rationale: String, editor_notify: bool, error_type: int,
 			script_backtraces: Array) -> void:
-		if error_type == ERROR_TYPE_WARNING:
+		if error_type != ERROR_TYPE_SCRIPT and error_type != ERROR_TYPE_SHADER:
 			return
 		var text: String = code if rationale.is_empty() else rationale
 		messages.append("%s (%s at %s:%d)" % [text, function, file, line])

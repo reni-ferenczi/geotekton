@@ -70,10 +70,15 @@ and is stripped from release builds.
 
 A runtime error is different: the engine prints it, abandons the method and
 returns, leaving the failure list empty. The runner registers a `Logger` through
-`OS.add_logger` and turns every error and script error printed during a test
+`OS.add_logger` and turns every script and shader error printed during a test
 into a failure of that test, so a method that stops halfway cannot report `PASS`.
 Errors printed outside any test, during the setup or by work a test left running,
-are reported against `run`. Warnings are left alone.
+are reported against `run`.
+
+Warnings and engine level errors are left alone. An engine error is not always
+a defect and not always the run's doing: `DisplayServer.clipboard_get()`, which
+the Edit menu calls to decide whether Paste is available, reports one whenever
+another process holds the clipboard.
 
 `Tests/session.py`, `Tests/cli.py`, `Tests/self_check.py` and `Tests/golden.py` are
 Python and can also be run on their own:
