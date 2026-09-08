@@ -1,6 +1,6 @@
 # Testing
 
-The test suite has five modes, and one more that is run on purpose rather than
+The test suite has six modes, and one more that is run on purpose rather than
 on every change. `Tests/run.py` starts all of them.
 
 | Mode       | Command                       | What it covers                                            |
@@ -9,11 +9,13 @@ on every change. `Tests/run.py` starts all of them.
 | `rendered` | `python Tests/run.py rendered` | The real application window: what is drawn, where clicks land, screen to world coordinates. |
 | `session`  | `python Tests/run.py session`  | A scripted end-to-end session driving the running application over the automation port. |
 | `cli`      | `python Tests/run.py cli`      | What `--version` and `--help` print, from a headless start with no window. |
+| `self-check` | `python Tests/run.py self-check` | The runner itself: that it reports a test which hits a runtime error as a failure. |
 | `golden`   | `uv run Tests/run.py golden`   | Full window screenshots diffed against reference images. |
-| `all`      | `uv run Tests/run.py all`      | All five in the order above, stopping at the first failure. |
+| `all`      | `uv run Tests/run.py all`      | All six in the order above, stopping at the first failure. |
 | `performance` | `uv run Tests/run.py performance` | The frame time during playback, on a document of a chosen triangle count. Not part of `all`. |
 
-`headless`, `rendered`, `session` and `cli` run under any Python 3.13 or newer. `golden`
+`headless`, `rendered`, `session`, `cli` and `self-check` run under any Python 3.13
+or newer. `golden`
 needs Pillow, so run it through `uv run`; under a plain interpreter without Pillow
 it prints a hint and exits with code 2. `uv run Tests/run.py <mode>` works for every
 mode, so `uv run` is the safe default.
@@ -66,12 +68,25 @@ Assertions collect failures instead of aborting: `assert_true`, `assert_eq`,
 every problem it finds. Never use GDScript's built-in `assert()`, it aborts the run
 and is stripped from release builds.
 
-`Tests/session.py`, `Tests/cli.py` and `Tests/golden.py` are Python and can also be
-run on their own:
+A runtime error is different: the engine prints it, abandons the method and
+returns, leaving the failure list empty. The runner registers a `Logger` through
+`OS.add_logger` and turns every script and shader error printed during a test
+into a failure of that test, so a method that stops halfway cannot report `PASS`.
+Errors printed outside any test, during the setup or by work a test left running,
+are reported against `run`.
+
+Warnings and engine level errors are left alone. An engine error is not always
+a defect and not always the run's doing: `DisplayServer.clipboard_get()`, which
+the Edit menu calls to decide whether Paste is available, reports one whenever
+another process holds the clipboard.
+
+`Tests/session.py`, `Tests/cli.py`, `Tests/self_check.py` and `Tests/golden.py` are
+Python and can also be run on their own:
 
 ```
 python Tests/session.py [--port N]
 python Tests/cli.py
+python Tests/self_check.py
 uv run Tests/golden.py check|update [--port N]
 ```
 
@@ -100,6 +115,12 @@ scene.
 
 `cli.py` reads the switch list out of `Logic/cli.gd`, so a new switch that
 `--help` forgets to list fails the run.
+
+`self_check.py` runs the runner over `Tests/SelfCheck`, which holds one
+deliberately broken test beside an intact one, and checks that the run fails with
+the broken one reported as a failure and the intact one still passing. That folder
+is reached with the runner's `--dir=res://...` switch and is never discovered by
+`headless` or `rendered`.
 
 ## Sample files
 
