@@ -12,6 +12,18 @@ const MOVED_SIZE := Vector2i(1200, 700)
 const MOVED_POSITION := Vector2i(140, 90)
 
 
+# GP-0019: a SplitContainer clamps its offset to what the child needs, so the
+# feature tree panel cannot be narrower than its toolbar, and asking for less
+# than that in the scene would be asking for a width the window never shows.
+# The two are checked against each other here so they cannot part company again.
+func test_each_panel_is_the_width_its_splitter_asks_for() -> void:
+	await load_sample("two_cratons.middle-earth")
+	assert_eq(app.left_splitter.split_offset, app.features.size.x,
+		"the feature tree panel is as wide as its offset asks")
+	assert_eq(app.right_splitter.split_offset, -int(app.properties.size.x),
+		"and the properties panel is too, measured from the right")
+
+
 func test_the_window_and_the_panels_come_back() -> void:
 	assert_true(app.isolated, "a hosted application does not touch the real settings")
 

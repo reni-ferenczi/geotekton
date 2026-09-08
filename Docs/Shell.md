@@ -11,6 +11,15 @@ Features | tools, planet view, timeline | Properties
 status bar
 ```
 
+The two splitters start at 576 px for the feature tree and 320 px for the
+properties panel. The feature tree is the wider of the two because its toolbar
+sets the floor: thirteen buttons and five separators in one `HBoxContainer` that
+never wraps, so a `SplitContainer` cannot give the panel less than they need.
+576 px is what that comes to, and the offset says so rather than asking for a
+width it cannot have. Making the toolbar take less — wrapping it, scrolling it, a
+denser icon size, or moving the rare buttons into a menu — is what it would take
+to narrow the panel; see GP-0019.
+
 ## Menus
 
 `Application._build_menus()` creates the four menus in code and populates them.
