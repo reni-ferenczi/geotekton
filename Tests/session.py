@@ -1761,6 +1761,89 @@ def run_styling_round_trip(client: AutomationClient, folder: Path) -> None:
                 view_settings={"hidden_classes": [], "draw_style": "feature"})
 
 
+### The kinematics scenario
+
+
+MOTION = ROOT / "Tests" / "Data" / "motion.middle-earth"
+
+# The span the graphs are drawn over during the scenario, and the time the
+# cursor is moved to inside it. The scenario states the animation range itself:
+# the graphs span it, and an earlier scenario leaves it somewhere else.
+KINEMATICS_OLDEST = 2000.0
+KINEMATICS_YOUNGEST = 0.0
+CURSOR_TIME = 500.0
+
+# How far the cursor may sit from where the time says it should, in pixels. It
+# is drawn on a whole pixel of a plotting area a few hundred wide.
+CURSOR_TOLERANCE = 1.0
+
+
+def run_kinematics_session(client: AutomationClient) -> None:
+    """The kinematics panel: what it graphs, and how its cursor follows the time."""
+    client.call("load", path=str(MOTION))
+    client.call("set_animation",
+                animation={"start": KINEMATICS_OLDEST, "end": KINEMATICS_YOUNGEST})
+
+    check(not client.call("get_panels")["panels"]["kinematics"],
+          "the graphs are not shown until they are asked for")
+    client.call("menu", item="kinematics")
+    check(client.call("get_panels")["panels"]["kinematics"],
+          "the View menu shows them")
+
+    client.call("select", title="Drifting Craton")
+    graphs = client.call("get_kinematics")["kinematics"]
+    check(graphs["title"] == "Drifting Craton", f"the panel graphs the selection: {graphs['title']}")
+    check(graphs["span"] == [KINEMATICS_OLDEST, KINEMATICS_YOUNGEST],
+          f"over the span the timeline covers: {graphs['span']}")
+    check(len(graphs["samples"]) > 2, f"the path is filled in: {len(graphs['samples'])} samples")
+    check(len(graphs["segments"]) == 2,
+          f"one span per pair of keyframes: {len(graphs['segments'])}")
+    check(graphs["samples"][0]["time"] == KINEMATICS_OLDEST
+          and graphs["samples"][-1]["time"] == KINEMATICS_YOUNGEST,
+          "sampled from the oldest end to the youngest, which is left to right")
+
+    # What the panel says the middle is doing has to agree with where the globe
+    # has actually drawn the feature.
+    lat, lon = world_centroid(client)
+    check(abs(graphs["current"]["lat"] - lat) < 1e-3
+          and abs(graphs["current"]["lon"] - lon) < 1e-3,
+          f"the panel and the globe agree on the middle: {graphs['current']}, ({lat}, {lon})")
+
+    # The rate at the present is the one of the younger of the two spans.
+    younger = min(graphs["segments"], key=lambda segment: segment["to"])
+    check(abs(graphs["current"]["degrees_per_my"] - younger["degrees_per_my"]) < 1e-9,
+          f"and on the rate at the current time: {graphs['current']['degrees_per_my']}")
+
+    # The cursor sits where the time is, measured across the plotting area: the
+    # oldest end on the left, the youngest on the right.
+    check(abs(graphs["cursor"] - graphs["plot_width"]) < CURSOR_TOLERANCE,
+          f"at the present the cursor is at the right hand end: {graphs['cursor']}")
+    client.call("set_time", time=CURSOR_TIME)
+    graphs = client.call("get_kinematics")["kinematics"]
+    fraction = (KINEMATICS_OLDEST - CURSOR_TIME) / (KINEMATICS_OLDEST - KINEMATICS_YOUNGEST)
+    check(abs(graphs["cursor"] - fraction * graphs["plot_width"]) < CURSOR_TOLERANCE,
+          f"and moving the time moves it to that time: {graphs['cursor']}")
+    check(f"{CURSOR_TIME:g} Ma" in graphs["readout"],
+          f"the readout says where the cursor is: {graphs['readout']}")
+
+    # Where the feature is at that time, off the graph, is where the globe has
+    # carried it as well.
+    lat, lon = world_centroid(client)
+    check(abs(graphs["current"]["lat"] - lat) < 1e-3
+          and abs(graphs["current"]["lon"] - lon) < 1e-3,
+          f"the graph followed the time along with the globe: {graphs['current']}")
+
+    client.call("select", title="Plates")
+    empty = client.call("get_kinematics")["kinematics"]
+    check(empty["samples"] == [] and empty["segments"] == [] and empty["current"] == {},
+          f"a group empties the panel: {len(empty['samples'])} samples")
+    check("group" in empty["readout"], f"which says why: {empty['readout']}")
+
+    client.call("menu", item="kinematics")
+    check(not client.call("get_panels")["panels"]["kinematics"],
+          "and the same menu item hides the panel again")
+
+
 def main(argv: list[str]) -> int:
     port = DEFAULT_PORT
     if argv:
@@ -1806,6 +1889,7 @@ def main(argv: list[str]) -> int:
         run_split_session(client)
         run_circle_session(client)
         run_topology_session(client)
+        run_kinematics_session(client)
     finally:
         if connected:
             try:

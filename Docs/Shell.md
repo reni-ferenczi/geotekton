@@ -1,15 +1,20 @@
 # The application window
 
 The window is one `Application` scene (`Scenes/Application/application.tscn`):
-a menu bar, three panels around the planet view, and a status bar. The panels
-are split containers, not docks, so they can be resized and hidden but not torn
-off or rearranged.
+a menu bar, four panels around the planet view, and a status bar. The two
+either side of the view are split containers, not docks, so they can be resized
+and hidden but not torn off or rearranged; the kinematics graphs and the time
+control stack under the view and take the height they ask for.
 
 ```
 menu bar
-Features | tools, view toolbar, planet view, timeline | Properties
+Features | tools, view toolbar, planet view, kinematics, timeline | Properties
 status bar
 ```
+
+Every panel but the kinematics graphs is shown by default. Those are asked for
+from the View menu when they are wanted, since they take their height off the
+planet view; once shown, they are remembered like the rest.
 
 The two splitters start at 576 px for the feature tree and 320 px for the
 properties panel. The feature tree is the wider of the two because its toolbar
@@ -55,6 +60,7 @@ adding an item means adding an enum value and one `add_item` line.
 | Features    |          | Show or hide the feature tree panel       |
 | Properties  |          | Show or hide the properties panel         |
 | Timeline    |          | Show or hide the timeline                 |
+| Kinematics  |          | Show or hide the motion graphs; see [Kinematics](Kinematics.md) |
 | Status Bar  |          | Show or hide the status bar               |
 | Polygons    |          | Draw the polygons, or leave them off; see [Styling](Styling.md#the-visibility-switches) |
 | Polylines   |          | The same for the polylines                |

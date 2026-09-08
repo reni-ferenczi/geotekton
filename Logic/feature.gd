@@ -584,13 +584,22 @@ func exists_at(time: float) -> bool:
 # A group's motion therefore reaches everything under it, which is how a terrane
 # rides on the craton it sits on. The identity when the node is not in the tree.
 static func world_basis(root: Feature, node: Feature, time: float) -> Basis:
-	var chain: Array[Feature] = []
-	if root == null or node == null or not _path_to(root, node, chain):
-		return Basis()
 	var m := Basis()
-	for step in chain:
+	for step in chain_to(root, node):
 		m = m * step.basis_at(time)
 	return m
+
+
+# The nodes from the root down to one of them, both included, or nothing when
+# the node is not in that tree. Everything a node inherits comes from this
+# chain: its rotation, and the keyframe times that rotation changes at.
+static func chain_to(root: Feature, node: Feature) -> Array[Feature]:
+	# _path_to leaves the chain empty when it fails, so a node that is not in
+	# the tree needs no case of its own here.
+	var chain: Array[Feature] = []
+	if root != null and node != null:
+		_path_to(root, node, chain)
+	return chain
 
 
 # Fill chain with the nodes from this one down to the target, both included.

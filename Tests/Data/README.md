@@ -4,7 +4,7 @@ Hand-made `.middle-earth` files used as fixtures by the tests. They are written 
 exact format `Document.save_to_file` produces: tab-indented JSON, keys sorted.
 See `Docs/Persistence.md` for the formats themselves.
 
-Four of the six are fixtures for the older formats. Three are still written in
+Four of the seven are fixtures for the older formats. Three are still written in
 **0.1.0**, where a feature stored a flat list of
 triangles and no geometry kind. They are the fixtures for `Document.migrate()`, which
 recovers the outline those triangles covered, so leave them as they are.
@@ -15,10 +15,12 @@ either, so all four are fixtures for 0.4.0 as well: the one `rotation` a leaf
 holds becomes its keyframe at time zero, and one keyframe holds at every time, so
 the samples sit where they always did whatever the current time is.
 
-The other two are written in the current **0.5.0** and have nothing to migrate.
+The other three are written in a current format and have nothing to migrate.
 `craton.middle-earth` is the fixture for a file the application saved rather
 than one it had to recover: rings, a geometry kind, a feature type, a keyframe
-list and a uuid on every node.
+list and a uuid on every node. `motion.middle-earth` is the one whose keyframe
+list holds more than one keyframe, which is what makes it the fixture for
+motion over time.
 
 `topology.middle-earth` is the fixture for a
 [line topology](../../Docs/Editing.md#line-topologies): two multipoints on the
@@ -180,6 +182,37 @@ it craton-like, not the colour.
 | (13, 6)    | Old Shield       | inside the neck                 |
 | (2, 19)    | nothing          | the mouth of the bay            |
 | (-3, -37)  | nothing          | well clear to the west          |
+
+### motion.middle-earth (0.7.0)
+
+Root group `Planet` > group `Plates` > `Drifting Craton`, the fixture for
+anything about motion over time: the only sample whose feature has more than one
+keyframe, and so the only one whose
+[kinematics graphs](../../Docs/Kinematics.md) have anything in them.
+
+The feature is a red quad spanning latitude -12 to 12 and longitude -12 to 12,
+plain on purpose: what it is for is the three keyframes, not the outline.
+
+| Ma   | Rotation        | Where it puts the middle |
+| ---- | --------------- | ------------------------ |
+| 0    | (0, 0, 0)       | (0, 0), where the vertices are |
+| 600  | (-30, 10, 0)    | east and a little north  |
+| 1400 | (-100, -20, 0)  | further east and south   |
+
+A positive rotation about Y decreases the longitude, so the negative first
+angles carry the quad east. The two spans between the three keyframes turn at
+clearly different rates — the older one is about twice the younger — so the two
+bars of the rate graph cannot be told apart only by where they are.
+`Tests/Unit/test_kinematics.gd` checks that they still differ, and the rest of
+what the file is for is derived rather than written down here.
+
+| Probe     | Expected feature | Colour              |
+| --------- | ---------------- | ------------------- |
+| (-4, 5)   | Drifting Craton  | red, `[1, 0, 0, 1]` |
+| (5, 40)   | nothing          | not red             |
+
+The probes are at the present, where the first keyframe leaves the quad
+unrotated. At any other time it has moved.
 
 ### mixed_geometry.middle-earth (0.2.0)
 

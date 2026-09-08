@@ -14,6 +14,10 @@ class_name Timeline
 # The Configure button was pressed: the application opens the animation dialog.
 signal configure_requested()
 
+# The animation range has changed, so the slider spans something else. The
+# kinematics graphs are drawn over the same span and follow it.
+signal animation_changed()
+
 # How tall the strip of keyframe markers under the slider is.
 const MARKER_HEIGHT := 10
 
@@ -169,6 +173,7 @@ func _apply_animation() -> void:
 	_filling = false
 	_show_time()
 	markers.queue_redraw()
+	animation_changed.emit()
 
 
 func _show_time() -> void:

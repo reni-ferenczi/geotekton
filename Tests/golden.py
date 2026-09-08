@@ -33,8 +33,9 @@ PIXEL_TOLERANCE = 8
 # A scene fails when more than this fraction of its pixels are different.
 MAX_DIFFERENT_FRACTION = 0.002
 
-# Name, sample file, view. Every scene states its whole view, so the scenes stay
-# independent of each other and of the order they run in.
+# Name, sample file, view, the scene settings the document carries, and the
+# steps to take once it is loaded. Every scene states all of it, so the scenes
+# stay independent of each other and of the order they run in.
 DEFAULT_VIEW = {
     "lat": 0.0,
     "lon": 0.0,
@@ -50,38 +51,44 @@ DEFAULT_VIEW = {
 BACKDROP = str(ROOT / "Tests" / "Data" / "Backdrops" / "quarters.png")
 
 SCENES = [
-    ("triangle", "triangle.middle-earth", {}, {}),
-    ("two_cratons", "two_cratons.middle-earth", {}, {}),
-    ("two_cratons_tilted", "two_cratons.middle-earth", {"lat": 30.0, "lon": -45.0}, {}),
-    ("empty", "empty.middle-earth", {}, {}),
+    ("triangle", "triangle.middle-earth", {}, {}, {}),
+    ("two_cratons", "two_cratons.middle-earth", {}, {}, {}),
+    ("two_cratons_tilted", "two_cratons.middle-earth", {"lat": 30.0, "lon": -45.0}, {}, {}),
+    ("empty", "empty.middle-earth", {}, {}, {}),
     # The sample is laid out so that the polygon, the polyline and both markers
     # all fit the default view.
-    ("mixed_geometry", "mixed_geometry.middle-earth", {}, {}),
+    ("mixed_geometry", "mixed_geometry.middle-earth", {}, {}, {}),
     # The one outline shaped like something real, drawn facing the camera so
     # that its bay, its neck and its northern lobe are all in the reference and
     # none of it runs off the limb. See GP-0026.
-    ("craton", "craton.middle-earth", {}, {}),
+    ("craton", "craton.middle-earth", {}, {}, {}),
     # The graticule and the features in each projection, which is what says the
     # inverse in the shader agrees with the one in MapProjection. The sample is
     # the one with features north, south and either side of the middle, so the
     # whole sheet has something on it.
-    ("map_rectangular", "two_cratons.middle-earth", {"show_map": True, "projection": 0}, {}),
-    ("map_mercator", "two_cratons.middle-earth", {"show_map": True, "projection": 1}, {}),
-    ("map_mollweide", "two_cratons.middle-earth", {"show_map": True, "projection": 2}, {}),
-    ("map_robinson", "two_cratons.middle-earth", {"show_map": True, "projection": 3}, {}),
-    ("map_orthographic", "two_cratons.middle-earth", {"show_map": True, "projection": 4}, {}),
+    ("map_rectangular", "two_cratons.middle-earth", {"show_map": True, "projection": 0}, {}, {}),
+    ("map_mercator", "two_cratons.middle-earth", {"show_map": True, "projection": 1}, {}, {}),
+    ("map_mollweide", "two_cratons.middle-earth", {"show_map": True, "projection": 2}, {}, {}),
+    ("map_robinson", "two_cratons.middle-earth", {"show_map": True, "projection": 3}, {}, {}),
+    ("map_orthographic", "two_cratons.middle-earth", {"show_map": True, "projection": 4}, {}, {}),
     # The scene around the features. Every other scene has the star field on and
     # the light straight from the camera, so those two are covered already; what
     # is left is the star field off, the light somewhere else, and the planet
     # wearing an image.
     ("scene_no_stars", "two_cratons.middle-earth", {},
-        {"star_field": False, "background_color": [0.05, 0.02, 0.12, 1.0]}),
-    ("scene_light_east", "empty.middle-earth", {}, {"light_direction": [0.0, 45.0]}),
+        {"star_field": False, "background_color": [0.05, 0.02, 0.12, 1.0]}, {}),
+    ("scene_light_east", "empty.middle-earth", {}, {"light_direction": [0.0, 45.0]}, {}),
     ("scene_light_high", "empty.middle-earth", {},
-        {"light_direction": [55.0, -35.0], "ambient": 0.25}),
-    ("scene_backdrop", "empty.middle-earth", {}, {"backdrop_path": BACKDROP}),
+        {"light_direction": [55.0, -35.0], "ambient": 0.25}, {}),
+    ("scene_backdrop", "empty.middle-earth", {}, {"backdrop_path": BACKDROP}, {}),
     ("scene_backdrop_half", "empty.middle-earth", {},
-        {"backdrop_path": BACKDROP, "backdrop_opacity": 0.5}),
+        {"backdrop_path": BACKDROP, "backdrop_opacity": 0.5}, {}),
+    # The kinematics panel, drawn for a feature that moves. The only scene that
+    # shows that panel and the only one that selects anything: the graphs are
+    # drawn for whatever the feature tree has selected, with the cursor on the
+    # current time.
+    ("kinematics", "motion.middle-earth", {}, {},
+        {"kinematics": True, "select": "Drifting Craton", "time": 500.0}),
 ]
 
 USAGE = "usage: golden.py check|update [--port N]"
@@ -107,15 +114,29 @@ def capture(client: AutomationClient, temp_dir: Path) -> dict[str, Path]:
     # scene. A run states what it is, at the cost of emptying it.
     client.call("set_clipboard", text="")
     shots: dict[str, Path] = {}
-    for name, sample, view, settings in SCENES:
+    for name, sample, view, settings, steps in SCENES:
+        # Loading clears the selection and puts the time back to the present, so
+        # a scene only has to state what it wants beyond that. The kinematics
+        # panel is not part of a document, so every scene says whether it is up.
         client.call("load", path=str(sample_with_settings(sample, settings, temp_dir, name)))
         client.call("set_view", **(DEFAULT_VIEW | view))
+        show_kinematics(client, steps.get("kinematics", False))
+        if "select" in steps:
+            client.call("select", title=steps["select"])
+        if "time" in steps:
+            client.call("set_time", time=steps["time"])
         # The port awaits two frames per command, so this round trip is the wait.
         client.call("get_view")
         path = temp_dir / f"{name}.png"
         client.call("screenshot", path=str(path))
         shots[name] = path
     return shots
+
+
+def show_kinematics(client: AutomationClient, shown: bool) -> None:
+    """Put the kinematics panel up or down, whichever the scene asks for."""
+    if client.call("get_panels")["panels"]["kinematics"] != shown:
+        client.call("menu", item="kinematics")
 
 
 def sample_with_settings(sample: str, settings: dict, temp_dir: Path, name: str) -> Path:
