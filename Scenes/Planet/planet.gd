@@ -273,7 +273,11 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null) -> v
 # between consecutive vertices of each ring, and a multipoint one marker per
 # vertex. The result is resolved for the given time, so it can be drawn or hit
 # tested straight away; resolve() again to move it to another time.
+#
+# A topology borrows its vertices from other features, so it is resolved for the
+# time first and then flattened like the polyline it is drawn as.
 static func collect_geometry(root: Feature, time: float = 0.0) -> Geometry:
+	Topology.rebuild_all(root, time)
 	var geometry := Geometry.new()
 	var stack: Array[Feature] = [root]
 	while not stack.is_empty():
@@ -285,7 +289,9 @@ static func collect_geometry(root: Feature, time: float = 0.0) -> Geometry:
 			continue
 
 		var index := geometry.index_for(node)
-		match node.geometry_kind:
+		# A topology is drawn as a polyline: Topology.rebuild() has already put
+		# one run of resolved vertices per section into its rings.
+		match node.drawn_as():
 			Feature.GeometryKind.POLYGON:
 				var verts := node.triangles
 				for j in range(0, verts.size() - 2, 3):

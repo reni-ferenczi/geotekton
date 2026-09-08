@@ -14,7 +14,7 @@ class_name FeatureType
 # no type at all, cannot arrive holding a kind its type forbids.
 const UNCLASSIFIED := "unclassified"
 
-const ALL_KINDS := ["polygon", "polyline", "multipoint"]
+const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]
 
 # Id to name, allowed geometry kinds and default colour, in the order the type
 # selector lists them.
@@ -25,6 +25,9 @@ const CATALOG := {
 	"coastline": {"name": "Coastline", "kinds": ["polygon", "polyline"], "color": Color.STEEL_BLUE},
 	"ridge": {"name": "Ridge", "kinds": ["polyline"], "color": Color.CRIMSON},
 	"marker": {"name": "Marker", "kinds": ["multipoint"], "color": Color.GOLD},
+	"small_circle": {"name": "Small circle", "kinds": ["polygon", "polyline"],
+		"color": Color.DARK_TURQUOISE},
+	"topology": {"name": "Topology", "kinds": ["topology"], "color": Color.MEDIUM_PURPLE},
 }
 
 

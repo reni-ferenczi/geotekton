@@ -13,8 +13,10 @@ func test_round_trip_keeps_every_field() -> void:
 	_assert_same_tree(original, restored, "root")
 
 
-func test_every_geometry_kind_survives_the_round_trip() -> void:
-	for kind in Feature.KIND_NAMES:
+# Every kind whose vertices are drawn. A topology carries sections instead of
+# rings and is round tripped in Tests/Unit/test_topology.gd.
+func test_every_drawn_geometry_kind_survives_the_round_trip() -> void:
+	for kind in Feature.DRAWN_KINDS:
 		var original := Feature.create_feature("Shape")
 		original.add_ring(PackedVector2Array([
 			Vector2(0, 0), Vector2(0, 10), Vector2(10, 10)]), kind)

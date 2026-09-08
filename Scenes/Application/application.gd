@@ -887,14 +887,14 @@ func _on_feature_selected(node: Feature) -> void:
 		set_active_tool(Tool.MOVE)
 
 	var is_leaf := node != null and not node.is_group
-	draw_button.disabled = not is_leaf
-	circle_button.disabled = not is_leaf
+	draw_button.disabled = not _can_draw(node)
+	circle_button.disabled = not _can_draw(node)
 	_update_kind_selector(node)
 	properties.show_node(node)
 
 	if is_leaf:
 		# Auto-select Draw when the feature has no geometry yet
-		if not node.has_geometry():
+		if not node.has_geometry() and _can_draw(node):
 			set_active_tool(Tool.DRAW)
 	else:
 		# Can't draw on groups or nothing — force Move
@@ -928,26 +928,48 @@ func drawing_kind() -> Feature.GeometryKind:
 
 
 # The kinds the selected feature may be drawn in: what its type allows, and only
-# the kind it already holds once there is geometry to keep consistent.
+# the kind it already holds once there is geometry to keep consistent. A
+# topology is listed, so a feature holding one shows what it is, but never
+# offered: its geometry comes from the features it names rather than from
+# clicks, which is the Topology tool's business.
 func _update_kind_selector(node: Feature) -> void:
 	var is_leaf := node != null and not node.is_group
 	var has_geometry := is_leaf and node.has_geometry()
 	for index in kind_selector.item_count:
-		var kind_name: String = Feature.KIND_NAMES[kind_selector.get_item_id(index)]
-		kind_selector.set_item_disabled(index,
-			is_leaf and not FeatureType.allows(node.feature_type, kind_name))
+		var kind: int = kind_selector.get_item_id(index)
+		var kind_name: String = Feature.KIND_NAMES[kind]
+		kind_selector.set_item_disabled(index, not kind in Feature.DRAWN_KINDS
+			or (is_leaf and not FeatureType.allows(node.feature_type, kind_name)))
 	if has_geometry:
 		kind_selector.select(kind_selector.get_item_index(node.geometry_kind))
 	elif is_leaf and kind_selector.is_item_disabled(kind_selector.selected):
-		kind_selector.select(_first_allowed_kind())
+		var first := _first_allowed_kind()
+		if first >= 0:
+			kind_selector.select(first)
 	kind_selector.disabled = has_geometry or not is_leaf
 
 
+# The first kind the selector still offers, or -1 when it offers none, which is
+# what a type allowing only topologies leaves behind.
 func _first_allowed_kind() -> int:
 	for index in kind_selector.item_count:
 		if not kind_selector.is_item_disabled(index):
 			return index
-	return kind_selector.selected
+	return -1
+
+
+# Whether the Draw and Circle tools have a kind they may produce on this
+# feature: the one it already holds, once it holds any, and otherwise a kind its
+# type allows. A topology is neither, since it is built from other features.
+func _can_draw(node: Feature) -> bool:
+	if node == null or node.is_group:
+		return false
+	if node.has_geometry():
+		return node.geometry_kind in Feature.DRAWN_KINDS
+	for kind in Feature.DRAWN_KINDS:
+		if FeatureType.allows(node.feature_type, Feature.KIND_NAMES[kind]):
+			return true
+	return false
 
 
 ### Move tool
@@ -1560,8 +1582,8 @@ func _circle_commit() -> String:
 	if circle.is_empty():
 		return "Click a centre and a point on the rim, or three points on the rim."
 	var kind: Feature.GeometryKind = drawing_kind()
-	if kind == Feature.GeometryKind.MULTIPOINT:
-		return "A circle becomes a polygon or a polyline, not a multipoint."
+	if not kind in Feature.DRAWN_KINDS or kind == Feature.GeometryKind.MULTIPOINT:
+		return "A circle becomes a polygon or a polyline, not a %s." % Feature.KIND_NAMES[kind]
 
 	# The circle was worked out in world space; a feature keeps its own frame,
 	# which at the current time is where its keyframes and its groups' put it.
@@ -1787,7 +1809,7 @@ func _refresh_selection_outline() -> void:
 		return
 
 	var style := Planet.OutlineStyle.OPEN
-	match selected.geometry_kind:
+	match selected.drawn_as():
 		Feature.GeometryKind.POLYGON:
 			style = Planet.OutlineStyle.CLOSED
 		Feature.GeometryKind.MULTIPOINT:
