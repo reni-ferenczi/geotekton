@@ -35,8 +35,8 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-split_offsets = PackedInt32Array(320)
-split_offset = 320
+split_offsets = PackedInt32Array(576)
+split_offset = 576
 
 [node name="Features" parent="LeftSplitter" instance=ExtResource("2_jkixm")]
 unique_name_in_owner = true
