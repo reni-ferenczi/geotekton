@@ -126,6 +126,12 @@ give the same centre and radius back, the polygon holds one vertex per segment
 and the polyline one more, and every committed vertex is checked against the
 angular radius it was asked for.
 
+The topology scenario builds a line topology by clicking two drawn polylines
+with the Topology tool, reverses one section from the panel, moves one of the
+two at a later time and reads back a resolved geometry that has followed it, and
+then deletes that feature to check that the section is reported as broken rather
+than dropped and that an undo mends it.
+
 The vertex scenarios come last: `run_vertex_session` drags a vertex, inserts one
 on an edge and deletes one, all at a time that has moved the feature away from
 where its vertices are stored, so an edit that forgot to map the click back into
@@ -153,7 +159,8 @@ is reached with the runner's `--dir=res://...` switch and is never discovered by
 | ------------------------- | ---------------------------------------------------------- |
 | `empty.middle-earth`      | The root group only, no features.                          |
 | `triangle.middle-earth`   | One red triangle around lat/lon (-3, 0).                   |
-| `craton.middle-earth`     | One blue outline of 21 vertices with a bay, a narrow neck and a close pair, facing the camera. The only sample written in the current format. |
+| `craton.middle-earth`     | One blue outline of 21 vertices with a bay, a narrow neck and a close pair, facing the camera. Written in the current format. |
+| `topology.middle-earth`   | Two multipoints on the equator and a line topology running along both, with a gap between the two sections. Written in the current format. |
 | `two_cratons.middle-earth` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
 | `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
 
@@ -257,13 +264,14 @@ a round trip is also a wait for the screen to catch up.
 | `load {path}`                        | loads a `.middle-earth` file, absolute path                      |
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
-| `get_selected`                       | `feature` with `pnid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `geometry_kind`, `rings`, `world_rings` and the derived `triangles` |
+| `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a line topology, its `sections` with what each one resolved to |
 | `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets |
 | `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `enabled`, `time_from`, `time_to` |
 | `properties {button, part, index}`   | selects a vertex row and presses `Add` or `Remove` in the panel |
 | `keyframes {button, index}`          | selects a keyframe row and presses `Key` or `Delete` in the panel |
+| `sections {button, index}`            | selects a section row of a line topology and presses `Reverse` or `Remove` in the panel |
 | `get_tool`                           | `tool` (`move`, `draw`, `vertex`, `measure` or `circle`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split`, the Measure tool's `measure_points` and the Circle tool's `circle_points`, `segments` and the `circle` its clicks describe |
-| `set_tool {tool, kind, snap, segments}` | picks the tool, the geometry kind, the snap switch and the segment count, refusing what the toolbar itself would not allow |
+| `set_tool {tool, kind, snap, segments}` | picks the tool (`move`, `draw`, `vertex`, `measure`, `circle` or `topology`), the geometry kind, the snap switch and the segment count, refusing what the toolbar itself would not allow |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
 | `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed |
