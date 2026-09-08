@@ -60,11 +60,16 @@ class AutomationClient:
         self.close()
 
 
-def launch_app(port: int, godot: str | None = None, extra_args: list[str] = ()) -> subprocess.Popen:
-    """Start the application with the automation port open."""
+def launch_app(port: int, godot: str | None = None, extra_args: list[str] = (),
+               user_args: list[str] = ()) -> subprocess.Popen:
+    """Start the application with the automation port open.
+
+    `extra_args` are the engine's own; `user_args` are the application's, which
+    go after the bare -- beside the automation port switch.
+    """
     command = [godot or os.environ.get("GODOT", DEFAULT_GODOT), "--path", str(REPO_ROOT)]
     command += list(extra_args)
-    command += ["--", f"--automation-port={port}"]
+    command += ["--", f"--automation-port={port}"] + list(user_args)
     return subprocess.Popen(command, cwd=str(REPO_ROOT))
 
 

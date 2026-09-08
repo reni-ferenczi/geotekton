@@ -28,6 +28,10 @@ const NOTE_COLOR := Color(1.0, 0.85, 0.35, 1.0)
 
 var bridge: PythonBridge
 
+# The last reason written to the transcript, so a change of state that does not
+# change the reason does not repeat it.
+var _last_note: String = ""
+
 var transcript: RichTextLabel
 var prompt_label: Label
 var input: LineEdit
@@ -96,8 +100,13 @@ func _show_state() -> void:
 	var ready := bridge.is_ready()
 	input.editable = ready
 	input.placeholder_text = "" if ready else bridge.reason
-	if not ready and not bridge.reason.is_empty():
+	# Starting again passes through more than one state, and saying the same
+	# thing twice in a row reads as two things having gone wrong.
+	if not ready and not bridge.reason.is_empty() and bridge.reason != _last_note:
+		_last_note = bridge.reason
 		note(bridge.reason)
+	elif ready:
+		_last_note = ""
 
 
 func _on_wrote(text: String, stream: String) -> void:
