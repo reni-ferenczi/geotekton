@@ -10,8 +10,12 @@ extends RenderedCase
 
 # Two triangles well apart, so their vertices are far enough apart on screen
 # that a snap has to be asked for rather than happening by accident.
-static var FIRST := PackedVector2Array([Vector2(-8, -8), Vector2(8, -8), Vector2(0, 8)])
-static var SECOND := PackedVector2Array([Vector2(-8, 30), Vector2(8, 30), Vector2(0, 46)])
+#
+# Plain constants rather than a static var holding a PackedVector2Array: a
+# static variable in a rendered test crashes the engine on the way out, long
+# after every test has passed. See Docs/Testing.md and GP-0025.
+const FIRST := [Vector2(-8, -8), Vector2(8, -8), Vector2(0, 8)]
+const SECOND := [Vector2(-8, 30), Vector2(8, 30), Vector2(0, 46)]
 
 
 func test_a_vertex_snaps_onto_one_of_another_feature() -> void:
@@ -147,7 +151,7 @@ func _outline_reach(marker: bool) -> Array[int]:
 			Config.set_line_width_scale(scale)
 		app._apply_outline_scale()
 		await frames(2)
-		measured.append(await _yellow_reach(from as Vector2, outwards))
+		measured.append(_yellow_reach(await capture(), from as Vector2, outwards))
 	Config.set_vertex_marker_scale(1.0)
 	Config.set_line_width_scale(1.0)
 	app._apply_outline_scale()
@@ -156,11 +160,15 @@ func _outline_reach(marker: bool) -> Array[int]:
 
 
 # The furthest whole pixel along a direction that is still drawn in the outline
-# colour, starting from a point that is on the outline itself.
-func _yellow_reach(from: Vector2, direction: Vector2) -> int:
+# colour, starting from a point that is on the outline itself. One captured
+# frame is read sixty times rather than sixty frames captured once each.
+func _yellow_reach(image: Image, from: Vector2, direction: Vector2) -> int:
 	var reach := 0
 	for step in range(1, 60):
-		if not _is_yellow(await probe(from + direction * float(step))):
+		var at := from + direction * float(step)
+		if at.x < 0.0 or at.y < 0.0 or at.x >= image.get_width() or at.y >= image.get_height():
+			break
+		if not _is_yellow(image.get_pixel(int(at.x), int(at.y))):
 			break
 		reach = step
 	return reach
@@ -194,7 +202,7 @@ func _two_features() -> Feature:
 	var root: Feature = app.features.root
 	for ring in [FIRST, SECOND]:
 		var feature := Feature.create_feature("Blob %d" % (root.children.size() + 1))
-		feature.add_ring(ring.duplicate(), Feature.GeometryKind.POLYGON)
+		feature.add_ring(PackedVector2Array(ring), Feature.GeometryKind.POLYGON)
 		root.children.append(feature)
 	app.document.record()
 	app.features.reload()

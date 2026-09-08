@@ -63,6 +63,13 @@ Every method named `test_*` is one test. The runner (`Tests/run_tests.gd`) creat
 fresh instance of the test class per method, so tests do not share state. Helper
 methods must not start with `test_` or the runner calls them as tests.
 
+Do not declare a script level `static var` in a rendered test. It makes the
+engine segfault during shutdown, after every test has passed and the summary has
+been printed, so the run fails with nothing to point at. A `const` array of
+`Vector2`, turned into a `PackedVector2Array` where it is used, does the same job
+without it. The file passes when it is the only one being run, which is what
+makes this easy to miss; `Tests/Unit` is unaffected. See GP-0025.
+
 Assertions collect failures instead of aborting: `assert_true`, `assert_eq`,
 `assert_close` and `fail` append to `TestCase.failures`, so one test method reports
 every problem it finds. Never use GDScript's built-in `assert()`, it aborts the run

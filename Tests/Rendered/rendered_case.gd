@@ -39,10 +39,19 @@ func frames(count: int) -> void:
 		await tree.process_frame
 
 
+# The whole window, read once the frame is on screen. A test that wants more
+# than a pixel or two of one frame should take this and read from it, rather
+# than call probe() repeatedly: each call copies the whole window back off the
+# graphics card, and hundreds of those in one run leave the engine crashing on
+# the way out.
+func capture() -> Image:
+	await RenderingServer.frame_post_draw
+	return app.get_viewport().get_texture().get_image()
+
+
 # Colour of a window pixel, read once the frame is on screen.
 func probe(screen: Vector2) -> Color:
-	await RenderingServer.frame_post_draw
-	var image: Image = app.get_viewport().get_texture().get_image()
+	var image := await capture()
 	return image.get_pixel(int(screen.x), int(screen.y))
 
 
