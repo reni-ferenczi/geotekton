@@ -1063,6 +1063,80 @@ EARTH_RADIUS_KM = 6371.0
 SPLIT_POLYGON = [(-8.0, -8.0), (8.0, -8.0), (10.0, 4.0), (0.0, 10.0), (-8.0, 6.0)]
 
 
+def run_projection_session(client: AutomationClient) -> None:
+    """The five map projections, the zoom and the camera, driven from the toolbar."""
+    sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+    client.call("load", path=str(sample))
+    client.call("set_view", lat=0.0, lon=0.0, angle=0.0, zoom=1.0, show_map=False, projection=0)
+
+    lat, lon = RED_TRIANGLE_PROBE
+    for name, request in [
+        ("the globe", {"show_map": False}),
+        ("Rectangular", {"show_map": True, "projection": 0}),
+        ("Mercator", {"show_map": True, "projection": 1}),
+        ("Mollweide", {"show_map": True, "projection": 2}),
+        ("Robinson", {"show_map": True, "projection": 3}),
+        ("Orthographic", {"show_map": True, "projection": 4}),
+    ]:
+        client.call("set_view", **request)
+        client.call("select", title=None)
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        if not check(screen is not None, f"Red Triangle has a place on {name}"):
+            continue
+        # Read the pixel with the pointer somewhere else, so the hover highlight
+        # is not what the colour is being judged on.
+        client.call("mouse_move", x=screen[0] + 200, y=screen[1])
+        color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+        check(dominant(color) == "red", f"and is drawn there on {name}: {color}")
+        back = client.call("screen_to_latlon", x=screen[0], y=screen[1])["latlon"]
+        check(back is not None and abs(back[0] - lat) < 0.5 and abs(back[1] - lon) < 0.5,
+              f"and the pixel says which place it shows on {name}: {back}")
+        client.call("click", x=screen[0], y=screen[1])
+        selected = client.call("get_selected")["feature"]
+        check(selected["title"] == "Red Triangle", f"and a click there selects it on {name}")
+        check(client.call("get_view")["toolbar"]["projection"] == name.replace("the globe", "Globe"),
+              f"and the toolbar says {name}")
+
+    run_zoom_checks(client)
+    client.call("set_view", show_map=False, projection=0, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+
+
+def run_zoom_checks(client: AutomationClient) -> None:
+    """Zoom in, out and reset, and the camera turned and put back."""
+    client.call("set_view", show_map=False, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+    start = client.call("get_view")
+    check(start["zoom"] == 1.0, "the view starts at the whole planet")
+
+    client.call("view", button="zoom_in")
+    zoomed = client.call("get_view")
+    check(abs(zoomed["zoom"] - 1.2) < 1e-6, f"one press of zoom in is a step: {zoomed['zoom']}")
+    check(zoomed["fov"] < start["fov"], "which narrows the field of view")
+    check(zoomed["toolbar"]["zoom"] == 120.0, "and the toolbar reads 120%")
+
+    client.call("view", button="zoom_out")
+    check(abs(client.call("get_view")["zoom"] - 1.0) < 1e-6, "and zoom out is the step back")
+
+    client.call("set_view", zoom=8.0)
+    check(client.call("get_view")["zoom"] == 8.0, "a zoom typed in is the zoom")
+    client.call("view", button="zoom_reset")
+    check(client.call("get_view")["zoom"] == 1.0, "and reset goes back to the whole planet")
+
+    client.call("view", button="rotate_clockwise")
+    check(client.call("get_view")["angle"] == 15.0, "one press turns the view clockwise")
+    client.call("view", button="rotate_anticlockwise")
+    check(client.call("get_view")["angle"] == 0.0, "and one back leaves it where it was")
+
+    client.call("set_view", lat=25.0, lon=-50.0, angle=40.0)
+    view = client.call("get_view")
+    check((view["lat"], view["lon"]) == (25.0, -50.0), "the camera position typed in is read back")
+    check(view["toolbar"]["lat"] == 25.0 and view["toolbar"]["lon"] == -50.0,
+          "and the toolbar fields follow it")
+    client.call("view", button="camera_reset")
+    view = client.call("get_view")
+    check((view["lat"], view["lon"], view["angle"]) == (0.0, 0.0, 0.0),
+          "and the reset puts all three back")
+
+
 def run_vertex_session(client: AutomationClient) -> None:
     """Edit the vertices of a feature that the current time has moved.
 
@@ -1394,6 +1468,7 @@ def main(argv: list[str]) -> int:
         run_globe_menu_session(client)
         run_edit_menu_session(client)
         run_time_session(client)
+        run_projection_session(client)
         run_vertex_session(client)
         run_snap_session(client)
         run_measure_session(client)
