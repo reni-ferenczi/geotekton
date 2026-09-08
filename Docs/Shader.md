@@ -110,6 +110,12 @@ whatever the triangle count is.
 fill. `visible` is 0 while the feature is outside its time range, so it is
 skipped without the geometry texture being rebuilt.
 
+The pointer is not the only thing that ends a hover. A change of the current
+time moves the features under a pointer that need not have moved at all, so
+`Application.refresh_motion()` works out what the pointer is over again, from
+the latitude and longitude it was last reported at, before it uploads the row.
+It costs a hit test only while the pointer is on the globe.
+
 The rotation is the feature's own composed with every group above it, worked
 out from the root down by `Planet.Geometry.resolve()`; see
 [Time](Time.md#groups-carry-motion). A `Basis` in Godot is column-major, so

@@ -63,6 +63,12 @@ var active_tool: Tool = Tool.MOVE
 var geometry := Planet.Geometry.new()
 var hovered_feature: Feature = null
 
+# Where the pointer last was on the globe, NAN when it is off it. Kept so the
+# hover can be worked out again when the features move under a pointer that is
+# standing still, which a change of the current time does.
+var hovered_lat: float = NAN
+var hovered_lon: float = NAN
+
 # True when the application must leave the settings of whoever is at the
 # keyboard alone: a scripted run, or a test runner hosting this scene. The
 # session is then neither restored nor remembered, so every run starts from the
@@ -1003,12 +1009,23 @@ func _on_craton_context_menu(lat: float, lon: float) -> void:
 
 
 func _on_craton_hovered(lat: float, lon: float) -> void:
-	var new_hovered: Feature = null
-	if not is_nan(lat):
-		new_hovered = Planet.hit_test(lat, lon, geometry)
-	if new_hovered != hovered_feature:
-		hovered_feature = new_hovered
+	hovered_lat = lat
+	hovered_lon = lon
+	if _resolve_hover():
 		planet_view.planet.set_feature_state(geometry, hovered_feature)
+
+
+# Work out what the pointer is over from where it last was, and report whether
+# that changed. The caller uploads the feature state, so a caller that is about
+# to upload it anyway pays nothing extra.
+func _resolve_hover() -> bool:
+	var new_hovered: Feature = null
+	if not is_nan(hovered_lat):
+		new_hovered = Planet.hit_test(hovered_lat, hovered_lon, geometry)
+	if new_hovered == hovered_feature:
+		return false
+	hovered_feature = new_hovered
+	return true
 
 
 ### Geometry rendering
@@ -1025,6 +1042,10 @@ func refresh_geometry() -> void:
 # one small texture, whatever the triangle count is.
 func refresh_motion() -> void:
 	geometry.resolve(features.root, document.current_time)
+	# The features have just moved under a pointer that need not have moved at
+	# all, so the feature it is over is worked out again rather than carried
+	# over. It costs a hit test only while the pointer is on the globe.
+	_resolve_hover()
 	planet_view.planet.set_feature_state(geometry, hovered_feature)
 	_refresh_selection_outline()
 

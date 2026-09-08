@@ -67,14 +67,21 @@ func click(screen: Vector2) -> void:
 	await frames(2)
 
 
+# How far the other two channels may come up before a colour stops being
+# dominated by one of them. The channels are compared against each other rather
+# than against a fixed level, so a feature the hover highlight has brightened is
+# still its own colour. Matches DOMINANT_RATIO in Tests/session.py.
+const DOMINANT_RATIO := 0.7
+
+
 # Name of the channel that dominates a probed colour, "" when none does.
 # The craton material is lit, so the pure colours come back tinted.
 func dominant_channel(color: Color) -> String:
-	if color.r > 0.5 and color.g < 0.3 and color.b < 0.3:
+	if color.r > 0.5 and maxf(color.g, color.b) < color.r * DOMINANT_RATIO:
 		return "red"
-	if color.g > 0.5 and color.r < 0.3 and color.b < 0.3:
+	if color.g > 0.5 and maxf(color.r, color.b) < color.g * DOMINANT_RATIO:
 		return "green"
-	if color.b > 0.5 and color.r < 0.3 and color.g < 0.3:
+	if color.b > 0.5 and maxf(color.r, color.g) < color.b * DOMINANT_RATIO:
 		return "blue"
 	return ""
 
