@@ -589,7 +589,12 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			}}
 
 		"get_view_settings":
-			return {"ok": true, "view_settings": app.document.view.to_json()}
+			return {
+				"ok": true,
+				"view_settings": app.document.view.to_json(),
+				# Why the backdrop image is not on the planet, empty while it is.
+				"backdrop_error": app.backdrop.error,
+			}
 
 		"set_view_settings":
 			# The View settings dialog without the dialog: whatever the request

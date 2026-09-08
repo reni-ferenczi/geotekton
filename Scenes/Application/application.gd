@@ -123,11 +123,19 @@ var radius_spin: SpinBox
 var marker_spin: SpinBox
 var line_spin: SpinBox
 var view_dialog: AcceptDialog
+# Why the backdrop image is not on the planet, shown under the path field.
+var backdrop_warning: Label
 # The fields of the View settings dialog, by the name of the setting each edits.
 var view_fields: Dictionary = {}
 var animation_dialog: AcceptDialog
 # The fields of the animation dialog, by the name of the setting each one edits.
 var animation_fields: Dictionary = {}
+
+# The image on the planet, and the path it was read from, so that changing the
+# opacity or the visibility does not read the file again. `backdrop.error` says
+# why there is no image when there is none.
+var backdrop := Backdrop.new()
+var _backdrop_path: String = ""
 
 # What to do once the unsaved changes prompt has been answered.
 var _pending_action: Callable
@@ -517,7 +525,27 @@ func _on_root_replaced(same_document: bool) -> void:
 # Draw the scene the way the open document asks for. Called when a document
 # arrives and after every change to its view settings.
 func apply_view_settings() -> void:
+	_load_backdrop()
 	planet_view.apply_view_settings(document.view)
+	if view_dialog.visible:
+		backdrop_warning.text = backdrop.error
+
+
+# Put the image the document names on the planet. The file is read only when the
+# path it resolves to changes, so dragging the opacity does not read it again.
+#
+# An image that cannot be read is not a failure of the document: the planet
+# keeps the built in Earth, the reason is pushed as a warning and the View
+# settings dialog shows it beside the path.
+func _load_backdrop() -> void:
+	var path := document.resolve_backdrop()
+	if path != _backdrop_path:
+		_backdrop_path = path
+		backdrop = Backdrop.load_from(path)
+		if not backdrop.error.is_empty():
+			push_warning(backdrop.error)
+	planet_view.planet.set_backdrop(backdrop.texture,
+		document.view.backdrop_opacity if document.view.backdrop_visible else 0.0)
 
 
 func _update_document_labels() -> void:
@@ -736,6 +764,12 @@ func _build_view_content() -> Control:
 		_on_view_field_changed())
 	row.add_child(clear)
 
+	backdrop_warning = Label.new()
+	backdrop_warning.name = "BackdropWarning"
+	backdrop_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	backdrop_warning.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
+	box.add_child(backdrop_warning)
+
 	return box
 
 
@@ -781,6 +815,7 @@ func choose_backdrop() -> void:
 
 func show_view_settings() -> void:
 	_fill_view_fields()
+	backdrop_warning.text = backdrop.error
 	view_dialog.popup_centered()
 
 

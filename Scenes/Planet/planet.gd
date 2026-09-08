@@ -95,6 +95,16 @@ func apply_view_settings(settings: ViewSettings) -> void:
 		material.set_shader_parameter("split", settings.graticule_split())
 
 
+# Put an image on the planet in place of the built in Earth, at the opacity the
+# document asks for. A null texture or an opacity of zero leaves the Earth as it
+# is, which is what a document naming no image comes to.
+func set_backdrop(texture: Texture2D, opacity: float) -> void:
+	for material in [
+		globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
+		material.set_shader_parameter("backdrop_tex", texture)
+		material.set_shader_parameter("backdrop_opacity", 0.0 if texture == null else opacity)
+
+
 # The map sheet lies in the x-y plane through the middle of the scene, x across
 # it and y up it, which is what MAP_BASIS puts it there for. These two hold the
 # whole of that convention: PlanetView goes through them to turn a click into a
