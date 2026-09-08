@@ -43,6 +43,9 @@ the two; outside the first and the last the nearer one is held rather than
 extrapolated. A node with one keyframe therefore stands in that one place at
 every time, and a node with none does not move at all.
 
+What a list of keyframes amounts to — where the feature has been and how fast it
+turned — is graphed in the [Kinematics](Kinematics.md) panel.
+
 Every interpolation starts from the two keyframes around the time being asked
 about, never from the frame before it, so a long animation cannot drift away
 from what the keyframes say. Landing exactly on a keyframe gives back what that

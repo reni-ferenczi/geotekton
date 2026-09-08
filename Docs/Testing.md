@@ -160,6 +160,15 @@ two at a later time and reads back a resolved geometry that has followed it, and
 then deletes that feature to check that the section is reported as broken rather
 than dropped and that an undo mends it.
 
+The kinematics scenario shows the panel from the View menu, selects the moving
+feature and checks what the graphs hold: the span they cover, that the path runs
+from the oldest end to the youngest, that there is one rate per pair of
+keyframes, and that the place and the rate at the current time agree with where
+the globe has actually drawn the feature. It then moves the time and checks that
+the cursor lands at that fraction across the plotting area, selects the group to
+check the panel empties, and hides the panel again. See
+[Kinematics](Kinematics.md).
+
 The vertex scenarios come last: `run_vertex_session` drags a vertex, inserts one
 on an edge and deletes one, all at a time that has moved the feature away from
 where its vertices are stored, so an edit that forgot to map the click back into
@@ -202,6 +211,7 @@ the stand-in scene is reached with `--scene=res://...`.
 | `Backdrops/quarters.*`    | The same four coloured quarters as a PNG, a JPEG, a WebP and an SVG, for the backdrop image. |
 | `two_cratons.middle-earth` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
 | `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
+| `motion.middle-earth`     | One red quad with three keyframes, which is the fixture for anything about motion over time. Written in the current format. |
 | `Palettes/*.cpt`          | A continuous, a discrete, a categorical and a malformed colour palette table. |
 
 `Tests/Data/Backdrops` holds a `.gdignore`, like `Tests/Golden`: the images
@@ -269,6 +279,7 @@ The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
 | `scene_light_high`   | `empty.middle-earth`       | the light high to the west, with ambient |
 | `scene_backdrop`     | `empty.middle-earth`       | the backdrop image at full opacity |
 | `scene_backdrop_half`| `empty.middle-earth`       | the same image at half     |
+| `kinematics`         | `motion.middle-earth`      | default, with the kinematics panel up, the feature selected and the time at 500 Ma |
 
 `two_cratons.middle-earth` holds three features and no globe view shows all of
 them: the default one has the green feature as a sliver at the limb, and the
@@ -279,6 +290,11 @@ the pixel counts and says which view to write a check against.
 The five map scenes are what says the inverse projection in the shader agrees
 with the one in `MapProjection`: a graticule drawn through the wrong inverse is
 wrong everywhere at once, which no tolerance hides.
+
+A scene states more than its view: whether the kinematics panel is up, what is
+selected and what the time is. Loading a document clears the selection and puts
+the time back to the present, so a scene only has to name what it wants beyond
+that, and no scene depends on the one before it.
 
 A scene that wants its own view settings is rendered from a copy of the sample
 with the block already in the file, written into the run's temporary folder.
@@ -350,6 +366,7 @@ a round trip is also a wait for the screen to catch up.
 | `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
 | `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the keyframe markers and the animation settings |
+| `get_kinematics`                     | `kinematics`, what the motion graphs hold: the `span` they cover, the `samples` of the path, one entry per `segments` between two keyframes, what both come to at the current time, and where the `cursor` is drawn across the plotting area |
 | `timeline {button}`                  | presses a time control button: `Play`, `Pause`, `Reset`, `Older`, `Younger`, `Configure` |
 | `set_animation {animation}`          | changes the animation settings the dialog holds, refusing what cannot be played; only the keys given are changed |
 | `get_performance`                    | the frame rate, how much there is to draw, and whether it is playing |
