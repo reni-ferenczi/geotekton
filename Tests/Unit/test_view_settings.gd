@@ -134,6 +134,29 @@ func test_a_relative_image_is_found_beside_the_project_wherever_it_is() -> void:
 	assert_eq(document.resolve_backdrop(), "D:/moved/art/earth.png", "and after the folder moved")
 
 
+# Whichever way the path was given, saving stores it relative to the file being
+# written when the image sits beside it, so Save As into the image's own folder
+# is what makes it relative rather than how it was picked.
+func test_saving_beside_the_image_stores_the_path_relative() -> void:
+	var folder := ProjectSettings.globalize_path("user://")
+	var image := folder.path_join("test_view_settings_image.png")
+	var written := Image.create(4, 4, false, Image.FORMAT_RGB8)
+	written.fill(Color.RED)
+	assert_eq(written.save_png(image), OK, "the fixture image is written")
+
+	var document := Document.new()
+	document.view.backdrop_path = image
+	document.view_edited()
+	var path := folder.path_join("test_view_settings_relative.middle-earth")
+	assert_eq(document.save_to_file(path), "", "the document is written beside it")
+	assert_eq(document.view.backdrop_path, "test_view_settings_image.png",
+		"and the path it stored is relative to it")
+	assert_eq(document.resolve_backdrop(), image, "which resolves back to the image")
+
+	DirAccess.remove_absolute(path)
+	DirAccess.remove_absolute(image)
+
+
 func test_an_absolute_image_is_left_where_it_points() -> void:
 	var document := Document.new()
 	document.path = "C:/maps/world/atlas.middle-earth"

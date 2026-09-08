@@ -485,6 +485,10 @@ func load_from_file(file_path: String) -> String:
 # Write the document to a file and mark it clean. Returns an empty string on
 # success, otherwise a message describing why the file could not be written.
 func save_to_file(file_path: String) -> String:
+	# An image beside the file being written is stored relative to it, wherever
+	# it was picked from and wherever the document was saved before, so a
+	# project and its images can be moved together.
+	view.backdrop_path = relative_backdrop(resolve_backdrop(), file_path)
 	var data := {
 		"application": APPLICATION,
 		"version": Application.VERSION,
