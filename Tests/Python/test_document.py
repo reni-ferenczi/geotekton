@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from middle_earth.document import Document, Feature
+from middle_earth.document import CURRENT_VERSION, Document, Feature
 
-from conftest import SAMPLES, sample_paths
+from conftest import ROOT, SAMPLES, sample_paths
 
 
 @pytest.mark.parametrize("path", sample_paths(), ids=lambda p: p.name)
@@ -106,3 +106,9 @@ def test_what_is_written_is_what_godot_writes(tmp_path):
     text = document.dumps()
     assert text == json.dumps(json.loads(text), indent="\t", sort_keys=True)
     assert not text.endswith("\n")
+
+
+def test_the_version_this_package_writes_is_the_application_version():
+    """A document the package builds has to say what the application says."""
+    settings = (ROOT / "project.godot").read_text(encoding="utf-8")
+    assert 'config/version="%s"' % CURRENT_VERSION in settings
