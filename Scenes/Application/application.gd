@@ -649,29 +649,33 @@ func _finish_quit() -> void:
 # opens what comes back. See Docs/Import.md.
 func import_document() -> void:
 	_confirm_unsaved_changes(func() -> void:
-		_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Import",
-			import_path, IMPORT_FILTERS))
+		_ask_for_paths(DisplayServer.FILE_DIALOG_MODE_OPEN_FILES, "Import",
+			import_paths, IMPORT_FILTERS))
 
 
-# Import one GPlates file. The console is brought up because the conversion
+# Import GPlates files: one project, or the feature collection and rotation
+# files a project would name. The console is brought up because the conversion
 # takes seconds and says what it is doing while it runs.
-func import_path(path: String) -> void:
+func import_paths(paths: PackedStringArray) -> void:
+	if paths.is_empty():
+		return
+	var named := ", ".join(Array(paths).map(func(path: String) -> String: return path.get_file()))
 	if not python.is_ready():
-		_show_error("Cannot import %s: %s" % [path.get_file(), python.reason])
+		_show_error("Cannot import %s: %s" % [named, python.reason])
 		return
 	_show_panel(ViewItem.CONSOLE)
 	var scratch := ProjectSettings.globalize_path(IMPORT_SCRATCH)
 	var reply: Dictionary = await python.request(
-		"import_gplates", {"sources": [path], "output": scratch})
+		"import_gplates", {"sources": paths, "output": scratch})
 	if not bool(reply.get("ok", false)):
-		_show_error("Cannot import %s: %s" % [path.get_file(), reply.get("error", "")])
+		_show_error("Cannot import %s: %s" % [named, reply.get("error", "")])
 		return
 	var error := document.load_imported(scratch)
 	DirAccess.remove_absolute(scratch)
 	if not error.is_empty():
 		_show_error(error)
 		return
-	Config.set_last_directory_from_file(path)
+	Config.set_last_directory_from_file(paths[0])
 
 
 func _ask_open_path() -> void:
@@ -1396,12 +1400,20 @@ func _save_panel_visibility() -> void:
 ### File dialogs
 
 
-# Ask for a file path and call on_path with it. The dialog is the one the
-# platform provides, so nothing happens when it is cancelled.
+# Ask for one file path and call on_path with it.
 func _ask_for_path(mode: int, title: String, on_path: Callable,
 		filters: PackedStringArray = FILE_FILTERS) -> void:
+	_ask_for_paths(mode, title, func(paths: PackedStringArray) -> void:
+		on_path.call(paths[0]), filters)
+
+
+# Ask for file paths and call on_paths with them. The dialog is the one the
+# platform provides, so nothing happens when it is cancelled. Only a mode that
+# takes several answers with more than one.
+func _ask_for_paths(mode: int, title: String, on_paths: Callable,
+		filters: PackedStringArray = FILE_FILTERS) -> void:
 	if file_dialog_hook.is_valid():
-		file_dialog_hook.call(mode, title, on_path)
+		file_dialog_hook.call(mode, title, on_paths)
 		return
 	DisplayServer.file_dialog_show(
 		title,
@@ -1412,7 +1424,7 @@ func _ask_for_path(mode: int, title: String, on_path: Callable,
 		filters,
 		func(status: bool, paths: PackedStringArray, _filter: int) -> void:
 			if status and not paths.is_empty():
-				on_path.call(paths[0]),
+				on_paths.call(paths),
 	)
 
 

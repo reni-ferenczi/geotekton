@@ -34,6 +34,11 @@ log = logging.getLogger(__name__)
 # application, so a feature that GPlates says is valid forever stops here.
 MAX_TIME = 10000
 
+# Scenes/Planet/planet.gd. How many triangles, segments and markers the planet
+# draws at once. A global data set is well past it, so the import says so
+# rather than leaving someone wondering why half a planet is missing.
+MAX_PRIMITIVES = 16384
+
 # The GPGIM feature types that have a Middle Earth type of their own. Anything
 # else becomes the unclassified type, which allows every geometry kind, and so
 # does anything whose geometry the type below would not allow — a terrane
@@ -95,9 +100,10 @@ def import_files(paths, *, step: float = 10.0, oldest: float | None = None,
     keyframes are in millions of years, and `oldest` how far back they go; by
     default that is as far as both the rotation model and the features reach.
     """
+    sequence = pygplates.FeatureType.gpml_total_reconstruction_sequence
     collections = _load(paths)
     rotations = [feature for collection in collections for feature in collection
-                 if feature.get_feature_type() == pygplates.FeatureType.gpml_total_reconstruction_sequence]
+                 if feature.get_feature_type() == sequence]
     model = pygplates.RotationModel(pygplates.FeatureCollection(rotations),
                                     default_anchor_plate_id=anchor_plate) if rotations else None
 
@@ -118,8 +124,24 @@ def import_files(paths, *, step: float = 10.0, oldest: float | None = None,
         for feature in plates[plate]:
             group.add(feature)
         root.add(group)
-    log.info("imported %d features on %d plates", sum(map(len, plates.values())), len(plates))
+    features = [feature for group in plates.values() for feature in group]
+    log.info("imported %d features on %d plates", len(features), len(plates))
+    drawn = sum(_primitive_count(feature) for feature in features)
+    if drawn > MAX_PRIMITIVES:
+        log.warning("this is %d triangles, segments and markers, and the planet draws %d "
+                    "of them at once; the rest is in the tree but not on the globe",
+                    drawn, MAX_PRIMITIVES)
     return document
+
+
+def _primitive_count(feature: Feature) -> int:
+    """How many primitives the planet draws this feature with.
+
+    A polygon ring of n vertices is cut into n - 2 triangles, a polyline ring
+    of n into n - 1 segments, and a multipoint into one marker per vertex.
+    """
+    per_ring = {"polygon": -2, "polyline": -1, "multipoint": 0}[feature.geometry_kind]
+    return sum(max(0, len(ring) + per_ring) for ring in feature.rings)
 
 
 def _load(paths) -> list:
@@ -175,7 +197,8 @@ def _name(feature) -> str:
     name = feature.get_name(None)
     if name:
         return name
-    return f"{str(feature.get_feature_type()).split(':')[-1]} {feature.get_reconstruction_plate_id()}"
+    kind = str(feature.get_feature_type()).split(":")[-1]
+    return f"{kind} {feature.get_reconstruction_plate_id()}"
 
 
 def _kind(geometry) -> str:

@@ -210,4 +210,5 @@ class _Transcription:
 
     def file_paths(self, object_id: int) -> list[str]:
         """A sequence of them, which is how a project holds its loaded files."""
-        return [self.file_path(self.child(object_id, _ITEM, i)) for i in range(self.count(object_id))]
+        return [self.file_path(self.child(object_id, _ITEM, index))
+                for index in range(self.count(object_id))]

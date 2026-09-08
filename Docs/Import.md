@@ -1,11 +1,11 @@
 # Importing a GPlates reconstruction
 
-**File > Import...** takes a GPlates project or a feature collection and turns
-it into a Middle Earth document. Nothing goes the other way: the import is one
-way, and what comes out is an ordinary document that is edited, saved and
-animated like any other.
+**File > Import...** takes a GPlates project, or the feature collections and
+rotation files a project would name, and turns them into a Middle Earth
+document. Nothing goes the other way: the import is one way, and what comes out
+is an ordinary document that is edited, saved and animated like any other.
 
-The conversion is Python's. The application picks the file and hands it to the
+The conversion is Python's. The application picks the files and hands them to the
 interpreter over the [scripting bridge](Scripting.md#the-protocol); the
 interpreter reads the GPlates files with `pygplates`, writes a `.middle-earth`
 file and says where it is. What opens is **Untitled and unsaved**, because an
@@ -20,7 +20,10 @@ and says what was found while it runs.
 | Picked                          | What happens                                     |
 | ------------------------------- | ------------------------------------------------ |
 | A `.gproj` project              | The files it names are read, wherever they are now |
-| A `.gpml`, `.gpmlz`, `.rot`, `.grot` or `.shp` | That one file is read              |
+| `.gpml`, `.gpmlz`, `.rot`, `.grot` or `.shp` files | Those files are read           |
+
+The dialog takes several files at once, because a feature collection on its own
+has no motion: the rotation file that moves its plates is picked with it.
 
 A project file is a GPlates Scribe binary archive. It holds no geometry: it
 names the files the session had loaded, and `middle_earth/gproj.py` reads that
@@ -111,6 +114,18 @@ fractions and both infinities where the file format here holds two whole
 numbers. The ends are rounded outwards, so a feature is never shown for less
 time than GPlates says it is there; valid forever into the past stops at
 `Document.MAX_TIME`, and forever into the future stops at the present.
+
+## How much fits
+
+A global data set is more geometry than the planet draws. The coastlines that
+ship with GPlates are 59,490 triangles and the planet draws 16,384 primitives
+at once, so the console says how much there was and how much of it is on the
+globe. The features that are not drawn are still in the tree, still selected,
+still moved and still saved; they are simply not painted. See
+[Shader](Shader.md#measured), and GP-0030 in the workspace ticket list for
+raising the limit.
+
+Importing one region rather than the whole planet is what fits today.
 
 ## What is dropped
 

@@ -2104,12 +2104,8 @@ def run_no_python_session(port: int) -> None:
             process.kill()
 
 
-def write_gplates_file(path: Path) -> None:
-    """A GPlates file holding one plate's outline and the rotation that moves it.
-
-    A feature collection may carry rotation sequences alongside geometry, which
-    is what lets one file stand in for the project a real import would name.
-    """
+def write_gplates_files(folder: Path) -> list[Path]:
+    """One plate's outline and the rotation that moves it, as GPlates holds them."""
     import pygplates
 
     outline = pygplates.Feature(pygplates.FeatureType.create_from_qualified_string("gpml:Coastline"))
@@ -2128,7 +2124,11 @@ def write_gplates_file(path: Path) -> None:
     ]
     rotation = pygplates.Feature.create_total_reconstruction_sequence(
         0, 101, pygplates.GpmlIrregularSampling(samples))
-    pygplates.FeatureCollection([outline, rotation]).write(str(path))
+
+    features, rotations = folder / "plate.gpml", folder / "plate.rot"
+    pygplates.FeatureCollection([outline]).write(str(features))
+    pygplates.FeatureCollection([rotation]).write(str(rotations))
+    return [features, rotations]
 
 
 def run_import_session(client: AutomationClient, folder: Path) -> None:
@@ -2138,11 +2138,12 @@ def run_import_session(client: AutomationClient, folder: Path) -> None:
     sys.path.insert(0, str(ROOT / "src"))
     from middle_earth.gplates import plate_color
 
-    source = folder / "plate.gpml"
-    write_gplates_file(source)
+    sources = write_gplates_files(folder)
 
+    # Import takes several files at once, which is what a feature collection
+    # and the rotation file that moves it need.
     start_new_document(client)
-    client.call("expect_file_dialog", path=str(source))
+    client.call("expect_file_dialog", paths=[str(path) for path in sources])
     client.call("menu", item="import")
 
     # The conversion is a round trip to the interpreter, so it is not done when
@@ -2173,7 +2174,7 @@ def run_import_session(client: AutomationClient, folder: Path) -> None:
           f"typed from the GPML type: {panel['feature_type']!r}")
 
     # Where GPlates puts the middle of that outline at fifty million years.
-    model = pygplates.RotationModel(str(source))
+    model = pygplates.RotationModel(str(sources[1]))
     latitude, longitude = (model.get_rotation(50.0, 101)
                            * pygplates.PointOnSphere((0.0, 0.0))).to_lat_lon()
     check(abs(longitude - 10.0) < 0.01, f"the plate has turned ten degrees by then: {longitude}")

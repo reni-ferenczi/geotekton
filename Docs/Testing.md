@@ -214,9 +214,9 @@ application with `--no-python` and checks it comes up with no interpreter, no
 port and a dead prompt, while the scripts are still listed. See
 [Scripting](Scripting.md).
 
-`run_import_session` writes a GPlates file holding one plate's outline and the
-rotation that moves it, imports it from File > Import and checks the tree it
-built, that the document opens Untitled and unsaved, and that the outline is
+`run_import_session` writes a GPlates feature collection holding one plate's
+outline and a rotation file that moves it, imports both from File > Import and
+checks the tree it built, that the document opens Untitled and unsaved, and that the outline is
 drawn where `pygplates` reconstructs it at fifty million years and where it
 stands at the present day. The probes go by hue rather than by the colour
 itself, because the planet lights what it draws and lets the Earth texture

@@ -463,7 +463,15 @@ On an AMD Radeon 8060S, at 1800x900, with every feature moving
 | 5,000 | 32.3 ms | 34.5 ms |
 
 Sixty frames a second is 16.7 ms, so it holds to about 2,000 triangles and not
-beyond. Playing costs almost nothing over standing still, which is the point of
+beyond. `Planet.MAX_PRIMITIVES` is where that stops being a slow frame and
+becomes no frame at all: the geometry texture is one texel per primitive wide,
+and 16,384 is the widest a desktop device is required to make one. A document
+holding more than that is drawn up to the limit and the rest of its features
+are left out — counted on `Geometry.dropped`, still in the feature tree, and
+still saved. A [GPlates import](Import.md) is the only thing that reaches it
+today; raising the limit is GP-0030 in the workspace ticket list.
+
+Playing costs almost nothing over standing still, which is the point of
 keeping the rotation in `feature_data`: what a frame of an animation changes is
 three texels per feature. The limit is the per-fragment loop over the triangles
 themselves, which the strategies below address.

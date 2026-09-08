@@ -6,7 +6,8 @@ import math
 import pygplates
 import pytest
 
-from middle_earth.gplates import FEATURE_TYPES, decompose_rotation_degrees, import_files, import_project
+from middle_earth.gplates import (FEATURE_TYPES, decompose_rotation_degrees, import_files,
+                                  import_project)
 
 from conftest import geodata
 from test_gproj import _project_bytes
