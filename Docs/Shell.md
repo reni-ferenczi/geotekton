@@ -3,18 +3,18 @@
 The window is one `Application` scene (`Scenes/Application/application.tscn`):
 a menu bar, four panels around the planet view, and a status bar. The two
 either side of the view are split containers, not docks, so they can be resized
-and hidden but not torn off or rearranged; the kinematics graphs and the time
-control stack under the view and take the height they ask for.
+and hidden but not torn off or rearranged; the kinematics graphs, the console
+and the time control stack under the view and take the height they ask for.
 
 ```
 menu bar
-Features | tools, view toolbar, planet view, kinematics, timeline | Properties
+Features | tools, view toolbar, planet view, kinematics, console, timeline | Properties
 status bar
 ```
 
-Every panel but the kinematics graphs is shown by default. Those are asked for
-from the View menu when they are wanted, since they take their height off the
-planet view; once shown, they are remembered like the rest.
+Every panel but the kinematics graphs and the console is shown by default. Those
+two are asked for from the View menu when they are wanted, since they take their
+height off the planet view; once shown, they are remembered like the rest.
 
 The two splitters start at 576 px for the feature tree and 320 px for the
 properties panel. The feature tree is the wider of the two because its toolbar
@@ -42,6 +42,8 @@ adding an item means adding an enum value and one `add_item` line.
 | Open Recent     |                | The remembered files, newest first, and Clear    |
 | Save            | Ctrl+S         | Write to the document path, asking for one only when it has none |
 | Save As...      | Ctrl+Shift+S   | Always ask for a path                            |
+| Run Script...   |                | Pick a Python file and run it; see [Scripting](Scripting.md) |
+| Scripts         |                | One entry per documented script in the configured folders |
 | Preferences...  |                | The preferences dialog                           |
 | Quit            | Ctrl+Q         | Close, after asking about unsaved changes        |
 
@@ -61,6 +63,7 @@ adding an item means adding an enum value and one `add_item` line.
 | Properties  |          | Show or hide the properties panel         |
 | Timeline    |          | Show or hide the timeline                 |
 | Kinematics  |          | Show or hide the motion graphs; see [Kinematics](Kinematics.md) |
+| Console     |          | Show or hide the Python prompt; see [Scripting](Scripting.md) |
 | Status Bar  |          | Show or hide the status bar               |
 | Polygons    |          | Draw the polygons, or leave them off; see [Styling](Styling.md#the-visibility-switches) |
 | Polylines   |          | The same for the polylines                |
@@ -111,7 +114,7 @@ the open file.
 
 ## Preferences
 
-One page so far, in the dialog under File > Preferences:
+In the dialog under File > Preferences:
 
 - **Default folder for Open and Save** — where the file dialogs start, the same
   setting the dialogs update as files are opened and saved.
@@ -124,6 +127,10 @@ One page so far, in the dialog under File > Preferences:
 - **Vertex marker size** and **Outline line width** — how large the outline
   overlay draws the vertices of the selected feature and the lines between them,
   as multiples of what the shader draws at.
+- **Interpreter** and **Script directories**, under a Python heading — which
+  Python runs the scripting bridge and where the scripts that become menu
+  entries are looked for. Leaving the interpreter empty means the project's own
+  `.venv`; see [Scripting](Scripting.md#preferences).
 
 All of them are written to the config file described in
 [Persistence](Persistence.md#the-config-file). So is the state of the Snap
@@ -138,6 +145,8 @@ it:
 ```
 MiddleEarth -- --version
 MiddleEarth -- --help
+MiddleEarth -- --help-command=list_features
+MiddleEarth -- --no-python
 MiddleEarth -- --automation-port=45455
 ```
 
@@ -145,5 +154,12 @@ MiddleEarth -- --automation-port=45455
 new switch appears in `--help` by being added to `SWITCHES`. `--help` and
 `--version` print and exit before the application scene is built; run them with
 `--headless` for output alone, with no window at all. An unrecognized switch is
-reported and exits with code 2. `--automation-port` is described in
+reported and exits with code 2.
+
+`--help-command NAME` prints the docstring of one script and exits, taking its
+name attached with an equals sign or as the next argument. It reads the file
+rather than the interpreter, so it answers without starting one. `--no-python`
+starts the application with no interpreter at all: the console is up but dead,
+and the scripts are still listed and simply cannot be run. Both are described in
+[Scripting](Scripting.md). `--automation-port` is described in
 [Testing](Testing.md#the-automation-port).
