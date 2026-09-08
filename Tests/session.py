@@ -1638,7 +1638,8 @@ def probe_at(client: AutomationClient, lat: float, lon: float) -> list[float]:
 STYLE_PROBES = {"polygons": (-3.0, 0.0), "polylines": (0.0, 40.0), "points": (-30.0, -30.0)}
 
 # The colour an unclassified feature takes under the feature type style, which
-# is what everything in the sample is until something gives it a type.
+# is what everything in the sample is until something gives it a type. Chocolate,
+# as FeatureType.CATALOG gives it in Logic/feature_type.gd.
 UNCLASSIFIED_COLOUR = [0.82, 0.41, 0.12]
 
 

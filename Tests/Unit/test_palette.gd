@@ -1,6 +1,6 @@
 extends TestCase
 
-# The GMT colour palette table reader in Logic/color_palette.gd: which lines it
+# The GMT colour palette table reader in Logic/palette.gd: which lines it
 # takes, what colour a value comes out as, and what it says about a line it
 # cannot read.
 

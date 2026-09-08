@@ -75,10 +75,6 @@ static func class_label(class_id: String) -> String:
 	return str(CLASSES.get(class_id, class_id))
 
 
-static func style_label(style_id: String) -> String:
-	return str(STYLES.get(style_id, style_id))
-
-
 # The style as it can be used, so an id from a file or a script that names no
 # style becomes the one every document started with rather than no colour at all.
 static func normalize_style(style_id: String) -> String:
