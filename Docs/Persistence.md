@@ -303,7 +303,7 @@ more than the last change.
 | `restore_session`                  | Whether to reopen the last file on launch            |
 | `window`                           | `x`, `y`, `width`, `height` and `maximized`          |
 | `splitter_left`, `splitter_right`  | The two split offsets                                |
-| `panel_features`, `panel_properties`, `panel_timeline`, `panel_status_bar` | Which panels are shown |
+| `panel_features`, `panel_properties`, `panel_timeline`, `panel_kinematics`, `panel_status_bar` | Which panels are shown. Everything but the kinematics graphs is shown when the file says nothing |
 | `animation`                        | The playback range, step, frame rate and the two switches |
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |
 | `vertex_marker_scale`, `line_width_scale` | How large the outline overlay is drawn, as multiples of the shader defaults |

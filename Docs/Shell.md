@@ -1,9 +1,10 @@
 # The application window
 
 The window is one `Application` scene (`Scenes/Application/application.tscn`):
-a menu bar, three panels around the planet view, and a status bar. The panels
-are split containers, not docks, so they can be resized and hidden but not torn
-off or rearranged.
+a menu bar, four panels around the planet view, and a status bar. The two
+either side of the view are split containers, not docks, so they can be resized
+and hidden but not torn off or rearranged; the kinematics graphs and the time
+control stack under the view and take the height they ask for.
 
 ```
 menu bar

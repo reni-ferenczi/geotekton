@@ -382,11 +382,11 @@ a round trip is also a wait for the screen to catch up.
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
-| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `status_bar`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `small_circles` and `topologies`, the geometry class switches |
+| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `save`, `save_as`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `kinematics`, `status_bar`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `small_circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |
-| `get_panels`                         | `panels`, which of the four panels are shown                     |
+| `get_panels`                         | `panels`, which of the five panels are shown                     |
 | `get_dialog`                         | `dialog` with `name`, `title`, `text` and `buttons`, or `null`   |
 | `dialog {button}`                    | presses a dialog button by its label                             |
 | `expect_file_dialog {path}`          | answers the next file dialog with a path, or cancels it when empty |
