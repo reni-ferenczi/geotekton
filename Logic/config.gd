@@ -149,6 +149,32 @@ static func set_snap_to_vertices(enabled: bool) -> void:
 	set_value("snap_to_vertices", enabled)
 
 
+### The view
+#
+# What a new document starts from: the scene settings it is given, and which
+# view it opens in. The settings themselves belong to a document and are saved
+# with it; these are only the values a document that has said nothing yet gets.
+
+
+# The name the projection selector shows for the view a new document opens in.
+# A name no longer in the selector falls back to the globe.
+static func get_default_view() -> String:
+	return str(get_value("default_view", "Globe"))
+
+
+static func set_default_view(name: String) -> void:
+	set_value("default_view", name)
+
+
+static func get_view_defaults() -> ViewSettings:
+	return ViewSettings.from_json(get_value("view_defaults"))
+
+
+static func set_view_defaults(settings: ViewSettings) -> void:
+	set_value("view_defaults", settings.to_json())
+
+
+
 ### Recently opened files
 
 

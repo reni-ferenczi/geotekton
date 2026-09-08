@@ -14,6 +14,7 @@ const TOOL_NAMES := {
 	Application.Tool.MEASURE: "measure",
 	Application.Tool.CIRCLE: "circle",
 	Application.Tool.TOPOLOGY: "topology",
+	Application.Tool.LIGHT: "light",
 }
 
 # The wheel is here so a run can zoom the way a person does, with the pointer
@@ -535,6 +536,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 					return {"ok": false, "error":
 						"the Topology tool needs a feature that can be a topology"}
 				app.set_active_tool(Application.Tool.TOPOLOGY)
+			elif tool_name == "light":
+				if app.light_button.disabled:
+					return {"ok": false, "error": "the light is dragged on the globe"}
+				app.set_active_tool(Application.Tool.LIGHT)
 			elif tool_name == "move":
 				app.set_active_tool(Application.Tool.MOVE)
 			elif not tool_name.is_empty():
@@ -588,8 +593,38 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"file": app.status_file.text,
 			}}
 
+		"get_view_settings":
+			return {
+				"ok": true,
+				"view_settings": app.document.view.to_json(),
+				# Why the backdrop image is not on the planet, empty while it is.
+				"backdrop_error": app.backdrop.error,
+			}
+
+		"set_view_settings":
+			# The View settings dialog without the dialog: whatever the request
+			# names is changed through the same fields, which is what makes the
+			# scene follow, and the rest stays as it was.
+			app.show_view_settings()
+			var block: Dictionary = request.get("view_settings", {})
+			var unknown := _fill_view_dialog(block)
+			var button_name := str(request.get("button", ""))
+			if not button_name.is_empty():
+				var view_button: Button = app.view_dialog.find_child(button_name, true, false)
+				if view_button == null:
+					app.view_dialog.hide()
+					return {"ok": false, "error": "no view settings button called %s" % button_name}
+				view_button.pressed.emit()
+			app.view_dialog.hide()
+			if not unknown.is_empty():
+				return {"ok": false, "error": "no view setting called %s" % unknown}
+			await _frames(2)
+			return {"ok": true}
+
 		"get_preferences":
 			return {"ok": true, "preferences": {
+				"default_view": Config.get_default_view(),
+				"view_defaults": Config.get_view_defaults().to_json(),
 				"planet_radius_km": Config.get_planet_radius(),
 				"vertex_marker_scale": Config.get_vertex_marker_scale(),
 				"line_width_scale": Config.get_line_width_scale(),
@@ -637,6 +672,36 @@ func _circle_to_json() -> Variant:
 		"radius": circle[1],
 		"ring": _points_to_json(app.circle_ring()),
 	}
+
+
+# Drive the View settings fields from a block, one field per setting, and say
+# which key was not one of them. The elevation and the azimuth are two fields of
+# one setting, so a request may name either the pair or one of them.
+func _fill_view_dialog(block: Dictionary) -> String:
+	var fields: Dictionary = app.view_fields
+	for key in block:
+		var name := str(key)
+		if name == "light_direction":
+			var pair: Array = block[key]
+			fields["light_elevation"].value = float(pair[0])
+			fields["light_azimuth"].value = float(pair[1])
+			continue
+		if not fields.has(name):
+			return name
+		var field: Control = fields[name]
+		if field is SpinBox:
+			(field as SpinBox).value = float(block[key])
+		elif field is CheckBox:
+			(field as CheckBox).button_pressed = bool(block[key])
+		elif field is ColorPickerButton:
+			var parts: Array = block[key]
+			(field as ColorPickerButton).color = Color(
+				float(parts[0]), float(parts[1]), float(parts[2]),
+				float(parts[3]) if parts.size() > 3 else 1.0)
+		elif field is LineEdit:
+			(field as LineEdit).text = str(block[key])
+			app._on_view_field_changed()
+	return ""
 
 
 func _points_to_json(points: PackedVector2Array) -> Array:
@@ -733,6 +798,7 @@ func _menu_item(name: String) -> Array:
 		"properties": return [app.view_menu, Application.ViewItem.PROPERTIES]
 		"timeline": return [app.view_menu, Application.ViewItem.TIMELINE]
 		"status_bar": return [app.view_menu, Application.ViewItem.STATUS_BAR]
+		"view_settings": return [app.view_menu, Application.ViewItem.SETTINGS]
 		"full_screen": return [app.view_menu, Application.ViewItem.FULL_SCREEN]
 		"about": return [app.help_menu, Application.HelpItem.ABOUT]
 	return []

@@ -46,6 +46,8 @@ const MAP_BASIS := Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
 
 @onready var globe = $Globe;
 @onready var map = $Map;
+@onready var background: MeshInstance3D = $Background;
+@onready var sun: DirectionalLight3D = $DirectionalLight3D;
 
 
 func _ready() -> void:
@@ -76,6 +78,31 @@ func _apply_projection() -> void:
 	material.set_shader_parameter("projection", int(projection))
 	material.set_shader_parameter("map_extent", extent)
 	material.set_shader_parameter("map_centre", Vector2(deg_to_rad(lat), deg_to_rad(lon)))
+
+
+# How the scene around the features is drawn: the star field behind the planet,
+# the graticule over it and where the light comes from. The rest of the block —
+# the background colour and the ambient level — belongs to the environment,
+# which PlanetView owns; see PlanetView.apply_view_settings().
+func apply_view_settings(settings: ViewSettings) -> void:
+	background.visible = settings.star_field
+	# The light shines along its own -Z, so it faces the direction the light
+	# travels in, which is the way it comes from turned round.
+	sun.basis = Basis.looking_at(-settings.light_vector(), Vector3.UP)
+	for material in [
+		globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
+		material.set_shader_parameter("color", settings.graticule_color)
+		material.set_shader_parameter("split", settings.graticule_split())
+
+
+# Put an image on the planet in place of the built in Earth, at the opacity the
+# document asks for. A null texture or an opacity of zero leaves the Earth as it
+# is, which is what a document naming no image comes to.
+func set_backdrop(texture: Texture2D, opacity: float) -> void:
+	for material in [
+		globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
+		material.set_shader_parameter("backdrop_tex", texture)
+		material.set_shader_parameter("backdrop_opacity", 0.0 if texture == null else opacity)
 
 
 # The map sheet lies in the x-y plane through the middle of the scene, x across

@@ -211,7 +211,7 @@ func test_a_keyframe_can_be_deleted_and_the_index_is_checked() -> void:
 	assert_eq(document.root.children[0].keyframes.size(), 1, "and undo brings it back")
 
 
-func test_a_saved_file_is_0_4_0_and_keeps_the_time_it_was_given() -> void:
+func test_a_saved_file_says_its_format_and_keeps_the_time_it_was_given() -> void:
 	# A time with more digits than a 32-bit float can hold, to show that the
 	# keyframe times are written and read as doubles.
 	const TIME := 1234.5678901234
@@ -224,7 +224,8 @@ func test_a_saved_file_is_0_4_0_and_keeps_the_time_it_was_given() -> void:
 	var file := FileAccess.open(SCRATCH, FileAccess.READ)
 	var raw: Variant = JSON.parse_string(file.get_as_text())
 	file.close()
-	assert_eq(str(raw["version"]), "0.5.0", "the file says which format it is in")
+	assert_eq(str(raw["version"]), Application.VERSION,
+		"the file says which format it is in")
 	assert_close(float(raw["features"]["children"][0]["keyframes"][0]["time"]), TIME, 1e-9,
 		"the time survives the round trip through the file")
 

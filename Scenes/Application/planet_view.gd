@@ -41,6 +41,7 @@ signal cursor_moved(lat: float, lon: float)
 @onready var viewport: SubViewport = %SubViewport
 @onready var planet: Planet = %Planet
 @onready var camera: Camera3D = %Camera3D
+@onready var world_environment: WorldEnvironment = %WorldEnvironment
 @onready var rotation_handler: PlanetViewRotation = PlanetViewRotation.new(planet)
 
 # True while a tool takes the clicks on the planet for itself: Draw placing
@@ -66,6 +67,18 @@ func _process(_delta: float) -> void:
 	# and longitude it is pointed at, and a map re-projects about them.
 	camera.rotation.z = deg_to_rad(planet.angle)
 	camera.position.y = _camera_offset()
+
+
+### The scene
+
+
+# Draw the scene the way the document asks for. The background and the ambient
+# level are the environment's; the rest of the block belongs to the planet.
+func apply_view_settings(settings: ViewSettings) -> void:
+	var environment := world_environment.environment
+	environment.background_color = settings.background_color
+	environment.ambient_light_energy = settings.ambient
+	planet.apply_view_settings(settings)
 
 
 ### Zoom and camera
@@ -304,6 +317,26 @@ func _latlon_to_view(lat: float, lon: float) -> Variant:
 	if camera.is_position_behind(world):
 		return null
 	return camera.unproject_position(world)
+
+
+# The direction from the middle of the planet out through a point on the globe,
+# in the frame the scene is laid out in, or null when the near side does not
+# reach that point. Only the globe has one: a map sheet is flat, so a point of
+# it says nothing about which way the planet faces there. The Light tool drags
+# along this, since the light is given as a direction in the scene.
+func globe_direction(lat: float, lon: float) -> Variant:
+	if planet.show_map:
+		return null
+	var scene = _latlon_to_scene(lat, lon)
+	return null if scene == null else (scene as Vector3).normalized()
+
+
+# Which point of the globe a direction in the scene points at, which is
+# globe_direction() the other way round.
+func direction_to_latlon(direction: Vector3) -> Vector2:
+	var local: Vector3 = planet.globe.transform.affine_inverse().basis * direction
+	var rad := Vector2(local.x, local.z).length()
+	return Vector2(rad_to_deg(atan2(local.y, rad)), rad_to_deg(atan2(-local.x, -local.z)))
 
 
 # Where a point of the planet sits in the scene, in the planet's own frame, or

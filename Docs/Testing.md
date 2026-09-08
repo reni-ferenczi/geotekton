@@ -133,6 +133,14 @@ disagree fails on the pixel and one the shader draws differently fails on the
 click. It then steps the zoom in and out, types one in, resets it, turns the
 view each way and resets the camera, checking the toolbar fields follow.
 
+The scene scenario edits every setting of the scene block, saves the document,
+reads it back and checks each one survived, with the backdrop image beside the
+project so the path in the file is the relative one. It then drags the light
+with the Light tool and probes that the planet is brightest under where the drag
+ended, and finally stores the block as the default, checks that a new document
+starts from it and that an opened file wins over it, and puts the preferences
+back so the scenarios after it open the documents they expect.
+
 The topology scenario builds a line topology by clicking two drawn polylines
 with the Topology tool, reverses one section from the panel, moves one of the
 two at a later time and reads back a resolved geometry that has followed it, and
@@ -174,8 +182,13 @@ is reached with the runner's `--dir=res://...` switch and is never discovered by
 | `triangle.middle-earth`   | One red triangle around lat/lon (-3, 0).                   |
 | `craton.middle-earth`     | One blue outline of 21 vertices with a bay, a narrow neck and a close pair, facing the camera. Written in the current format. |
 | `topology.middle-earth`   | Two multipoints on the equator and a line topology running along both, with a gap between the two sections. Written in the current format. |
+| `Backdrops/quarters.*`    | The same four coloured quarters as a PNG, a JPEG, a WebP and an SVG, for the backdrop image. |
 | `two_cratons.middle-earth` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
 | `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
+
+`Tests/Data/Backdrops` holds a `.gdignore`, like `Tests/Golden`: the images
+there are read from disk at run time by `Backdrop.load_from()`, never imported
+as project resources, so the engine has no business with them.
 
 `Tests/Data/README.md` lists the probe points and the colour expected at each one.
 Points near the limb of the globe are lit at a glancing angle and read much
@@ -227,6 +240,11 @@ The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
 | `map_mollweide`      | `two_cratons.middle-earth` | the map, Mollweide         |
 | `map_robinson`       | `two_cratons.middle-earth` | the map, Robinson          |
 | `map_orthographic`   | `two_cratons.middle-earth` | the map, orthographic      |
+| `scene_no_stars`     | `two_cratons.middle-earth` | the star field off, over a blue background |
+| `scene_light_east`   | `empty.middle-earth`       | the light 45° to the east  |
+| `scene_light_high`   | `empty.middle-earth`       | the light high to the west, with ambient |
+| `scene_backdrop`     | `empty.middle-earth`       | the backdrop image at full opacity |
+| `scene_backdrop_half`| `empty.middle-earth`       | the same image at half     |
 
 `two_cratons.middle-earth` holds three features and no globe view shows all of
 them: the default one has the green feature as a sliver at the limb, and the
@@ -237,6 +255,12 @@ the pixel counts and says which view to write a check against.
 The five map scenes are what says the inverse projection in the shader agrees
 with the one in `MapProjection`: a graticule drawn through the wrong inverse is
 wrong everywhere at once, which no tolerance hides.
+
+A scene that wants its own view settings is rendered from a copy of the sample
+with the block already in the file, written into the run's temporary folder.
+Setting them through the dialog would leave the document dirty, and a dirty
+document writes a marker into the title and the status bar, which would be the
+only difference between half the references.
 
 A run launches the application once, loads and renders every scene and compares the
 screenshots with the references. Two images are compared per pixel on the largest
@@ -297,7 +321,9 @@ a round trip is also a wait for the screen to catch up.
 | `set_tool {tool, kind, snap, segments}` | picks the tool (`move`, `draw`, `vertex`, `measure`, `circle` or `topology`), the geometry kind, the snap switch and the segment count, refusing what the toolbar itself would not allow |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
-| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed |
+| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed. `get_preferences` also reports the `default_view` and the `view_defaults` a new document starts from |
+| `get_view_settings` | `view_settings`, the scene block the open document carries, and `backdrop_error`, why the image it names is not on the planet |
+| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. `button` presses `SaveAsDefault` or `RestoreDefaults` |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
 | `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the keyframe markers and the animation settings |
 | `timeline {button}`                  | presses a time control button: `Play`, `Pause`, `Reset`, `Older`, `Younger`, `Configure` |

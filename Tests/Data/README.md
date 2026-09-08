@@ -35,6 +35,19 @@ Every polygon is wound counter-clockwise as seen from outside the sphere, which 
 (-10, -10), (-10, 10), (10, 0) is the wrong way round; the files use
 (-10, -10), (10, 0), (-10, 10).
 
+## Backdrop images
+
+`Backdrops/` holds the fixtures for the image a document wears in place of the
+built in Earth: the same picture as `quarters.png`, `quarters.jpg`,
+`quarters.webp` and `quarters.svg`. Each is 64 by 32, split into four solid
+quarters — red north-west, green north-east, blue south-west, yellow south-east
+— so a probe says which part of the image landed where on the planet and a
+format that arrived upside down or mirrored fails.
+
+The folder carries a `.gdignore`. The files are read from disk at run time by
+`Backdrop.load_from()`, the way any image on the machine is, and never imported
+as project resources.
+
 ## Probe points
 
 Coordinates are (latitude, longitude) in degrees. `Tests/Unit/test_sample_files.gd`

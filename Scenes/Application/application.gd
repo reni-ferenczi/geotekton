@@ -14,12 +14,16 @@ const ISOLATED_SETTINGS_DIR := "isolated-settings"
 # The Earth texture credited in the About dialog, as listed in README.md.
 const EARTH_TEXTURE_URL := "https://wall.alphacoders.com/big.php?i=11433"
 static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Document.EXTENSION])
+# What a backdrop image may be, taken from the formats Backdrop reads rather
+# than listed a second time here.
+static var IMAGE_FILTERS := PackedStringArray(
+	["*.%s ; Images" % ", *.".join(Backdrop.EXTENSIONS)])
 
 # Answers a file dialog without showing one. Set by the automation port so a
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY }
+enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT }
 
 # How near, in window pixels, a click has to be to take hold of a vertex or an
 # edge, and how near a dragged vertex has to come to another before snapping
@@ -30,7 +34,7 @@ const SNAP_PIXELS := 12.0
 
 enum FileItem { NEW, OPEN, SAVE, SAVE_AS, PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE }
-enum ViewItem { FEATURES, PROPERTIES, TIMELINE, STATUS_BAR, FULL_SCREEN }
+enum ViewItem { FEATURES, PROPERTIES, TIMELINE, STATUS_BAR, SETTINGS, FULL_SCREEN }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -55,6 +59,7 @@ const PANEL_KEYS := {
 @onready var measure_button: Button = %Measure
 @onready var circle_button: Button = %Circle
 @onready var topology_button: Button = %Topology
+@onready var light_button: Button = %Light
 @onready var snap_button: Button = %Snap
 @onready var split_button: Button = %Split
 @onready var kind_selector: OptionButton = %GeometryKind
@@ -119,9 +124,20 @@ var default_folder_edit: LineEdit
 var radius_spin: SpinBox
 var marker_spin: SpinBox
 var line_spin: SpinBox
+var view_dialog: AcceptDialog
+# Why the backdrop image is not on the planet, shown under the path field.
+var backdrop_warning: Label
+# The fields of the View settings dialog, by the name of the setting each edits.
+var view_fields: Dictionary = {}
 var animation_dialog: AcceptDialog
 # The fields of the animation dialog, by the name of the setting each one edits.
 var animation_fields: Dictionary = {}
+
+# The image on the planet, and the path it was read from, so that changing the
+# opacity or the visibility does not read the file again. `backdrop.error` says
+# why there is no image when there is none.
+var backdrop := Backdrop.new()
+var _backdrop_path: String = ""
 
 # What to do once the unsaved changes prompt has been answered.
 var _pending_action: Callable
@@ -174,6 +190,7 @@ func _ready() -> void:
 	measure_button.pressed.connect(func() -> void: set_active_tool(Tool.MEASURE))
 	circle_button.pressed.connect(func() -> void: set_active_tool(Tool.CIRCLE))
 	topology_button.pressed.connect(func() -> void: set_active_tool(Tool.TOPOLOGY))
+	light_button.pressed.connect(func() -> void: set_active_tool(Tool.LIGHT))
 	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
 	snap_button.toggled.connect(_on_snap_toggled)
 	split_button.pressed.connect(func() -> void: _report(split_at_selected_vertex()))
@@ -186,6 +203,8 @@ func _ready() -> void:
 	segments_spin.value = SmallCircle.DEFAULT_SEGMENTS
 	_apply_outline_scale()
 	_build_view_toolbar()
+	_apply_default_view()
+	apply_view_settings()
 
 	# The Save and Load buttons of the feature tree toolbar run the File commands
 	features.save_button.pressed.connect(save_document)
@@ -277,6 +296,7 @@ func _build_menus() -> void:
 	view_menu.add_check_item("Timeline", ViewItem.TIMELINE)
 	view_menu.add_check_item("Status Bar", ViewItem.STATUS_BAR)
 	view_menu.add_separator()
+	view_menu.add_item("View Settings...", ViewItem.SETTINGS)
 	view_menu.add_item("Full Screen", ViewItem.FULL_SCREEN, KEY_F11)
 	view_menu.id_pressed.connect(_on_view_menu_id_pressed)
 
@@ -383,6 +403,9 @@ func _on_view_menu_id_pressed(id: int) -> void:
 	if id == ViewItem.FULL_SCREEN:
 		_toggle_full_screen()
 		return
+	if id == ViewItem.SETTINGS:
+		show_view_settings()
+		return
 	var panel := _panel_node(id)
 	panel.visible = not panel.visible
 	_update_view_menu_checks()
@@ -429,7 +452,13 @@ func _toggle_full_screen() -> void:
 
 
 func new_document() -> void:
-	_confirm_unsaved_changes(document.reset)
+	_confirm_unsaved_changes(_reset_document)
+
+
+# An empty document, drawn the way the preferences say a new one should be.
+func _reset_document() -> void:
+	document.reset(Config.get_view_defaults())
+	_apply_default_view()
 
 
 func open_document() -> void:
@@ -499,7 +528,34 @@ func _on_root_replaced(same_document: bool) -> void:
 	# being left behind.
 	if not same_document:
 		set_active_tool(Tool.MOVE)
+		apply_view_settings()
 	refresh_geometry()
+
+
+# Draw the scene the way the open document asks for. Called when a document
+# arrives and after every change to its view settings.
+func apply_view_settings() -> void:
+	_load_backdrop()
+	planet_view.apply_view_settings(document.view)
+	if view_dialog.visible:
+		backdrop_warning.text = backdrop.error
+
+
+# Put the image the document names on the planet. The file is read only when the
+# path it resolves to changes, so dragging the opacity does not read it again.
+#
+# An image that cannot be read is not a failure of the document: the planet
+# keeps the built in Earth, the reason is pushed as a warning and the View
+# settings dialog shows it beside the path.
+func _load_backdrop() -> void:
+	var path := document.resolve_backdrop()
+	if path != _backdrop_path:
+		_backdrop_path = path
+		backdrop = Backdrop.load_from(path)
+		if not backdrop.error.is_empty():
+			push_warning(backdrop.error)
+	planet_view.planet.set_backdrop(backdrop.texture,
+		document.view.backdrop_opacity if document.view.backdrop_visible else 0.0)
 
 
 func _update_document_labels() -> void:
@@ -577,6 +633,12 @@ func _build_dialogs() -> void:
 	preferences_dialog.add_child(_build_preferences_content())
 	preferences_dialog.confirmed.connect(_on_preferences_confirmed)
 	add_child(preferences_dialog)
+
+	view_dialog = AcceptDialog.new()
+	view_dialog.name = "ViewDialog"
+	view_dialog.title = "View settings"
+	view_dialog.add_child(_build_view_content())
+	add_child(view_dialog)
 
 	animation_dialog = AcceptDialog.new()
 	animation_dialog.name = "AnimationDialog"
@@ -657,6 +719,173 @@ func _preference_spin(form: GridContainer, name: String, text: String,
 
 # How playback walks the timeline: where it starts and ends, how far one frame
 # moves, how fast the frames come, and what happens at the two ends.
+# The scene around the features: what is behind the planet, what is drawn over
+# it, where the light comes from and which image the planet wears. Every field
+# takes effect as it is changed rather than when the dialog is closed, so the
+# planet under it shows what is being chosen.
+func _build_view_content() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "ViewSettings"
+	box.custom_minimum_size = Vector2(460, 0)
+
+	var form := GridContainer.new()
+	form.columns = 2
+	box.add_child(form)
+
+	_view_color(form, "background_color", "Background")
+	_view_check(form, "star_field", "Star field")
+	_view_color(form, "graticule_color", "Graticule")
+	_view_spin(form, "graticule_spacing", "Graticule spacing (°)",
+		ViewSettings.MIN_SPACING, ViewSettings.MAX_SPACING, 1.0)
+	_view_spin(form, "light_elevation", "Light elevation (°)",
+		-ViewSettings.MAX_ELEVATION, ViewSettings.MAX_ELEVATION, 1.0)
+	_view_spin(form, "light_azimuth", "Light azimuth (°)", -180.0, 180.0, 1.0)
+	_view_spin(form, "ambient", "Ambient light",
+		ViewSettings.MIN_AMBIENT, ViewSettings.MAX_AMBIENT, 0.05)
+	_view_check(form, "backdrop_visible", "Backdrop image shown")
+	_view_spin(form, "backdrop_opacity", "Backdrop opacity", 0.0, 1.0, 0.05)
+
+	var label := Label.new()
+	label.text = "Backdrop image"
+	box.add_child(label)
+
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	var edit := LineEdit.new()
+	edit.name = "BackdropPath"
+	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	edit.placeholder_text = "The built in Earth"
+	edit.text_submitted.connect(func(_text: String) -> void: _on_view_field_changed())
+	edit.focus_exited.connect(_on_view_field_changed)
+	row.add_child(edit)
+	view_fields["backdrop_path"] = edit
+
+	var browse := Button.new()
+	browse.name = "BrowseBackdrop"
+	browse.text = "Browse..."
+	browse.pressed.connect(choose_backdrop)
+	row.add_child(browse)
+
+	var clear := Button.new()
+	clear.name = "ClearBackdrop"
+	clear.text = "Clear"
+	clear.pressed.connect(func() -> void:
+		edit.text = ""
+		_on_view_field_changed())
+	row.add_child(clear)
+
+	var defaults := HBoxContainer.new()
+	box.add_child(defaults)
+	var remember := Button.new()
+	remember.name = "SaveAsDefault"
+	remember.text = "Save as default"
+	remember.tooltip_text = "Start every new document with these settings"
+	remember.pressed.connect(func() -> void:
+		Config.set_view_defaults(document.view)
+		Config.set_default_view(projection_selector.get_item_text(
+			projection_selector.selected)))
+	defaults.add_child(remember)
+
+	var restore := Button.new()
+	restore.name = "RestoreDefaults"
+	restore.text = "Restore defaults"
+	restore.tooltip_text = "Put this document back to the settings a new one starts with"
+	restore.pressed.connect(func() -> void:
+		document.view = Config.get_view_defaults()
+		document.view_edited()
+		_fill_view_fields()
+		apply_view_settings())
+	defaults.add_child(restore)
+
+	backdrop_warning = Label.new()
+	backdrop_warning.name = "BackdropWarning"
+	backdrop_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	backdrop_warning.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
+	box.add_child(backdrop_warning)
+
+	return box
+
+
+func _view_spin(form: GridContainer, key: String, text: String,
+		low: float, high: float, step: float) -> void:
+	var spin := _preference_spin(form, key.to_pascal_case(), text, low, high, step)
+	spin.value_changed.connect(func(_value: float) -> void: _on_view_field_changed())
+	view_fields[key] = spin
+
+
+func _view_check(form: GridContainer, key: String, text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	form.add_child(label)
+	var check := CheckBox.new()
+	check.name = key.to_pascal_case()
+	check.toggled.connect(func(_pressed: bool) -> void: _on_view_field_changed())
+	form.add_child(check)
+	view_fields[key] = check
+
+
+func _view_color(form: GridContainer, key: String, text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	form.add_child(label)
+	var button := ColorPickerButton.new()
+	button.name = key.to_pascal_case()
+	button.custom_minimum_size = Vector2(140, 28)
+	button.color_changed.connect(func(_color: Color) -> void: _on_view_field_changed())
+	form.add_child(button)
+	view_fields[key] = button
+
+
+# Pick the image the planet wears. It is stored relative to the project file
+# when it sits beside it, so a project and its images can be moved together.
+func choose_backdrop() -> void:
+	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Backdrop image",
+		func(path: String) -> void:
+			view_fields["backdrop_path"].text = Document.relative_backdrop(path, document.path)
+			_on_view_field_changed(),
+		IMAGE_FILTERS)
+
+
+func show_view_settings() -> void:
+	_fill_view_fields()
+	backdrop_warning.text = backdrop.error
+	view_dialog.popup_centered()
+
+
+# Put what the document holds into the fields, without firing the signals that
+# would write them straight back.
+func _fill_view_fields() -> void:
+	var settings := document.view
+	view_fields["background_color"].color = settings.background_color
+	view_fields["star_field"].set_pressed_no_signal(settings.star_field)
+	view_fields["graticule_color"].color = settings.graticule_color
+	view_fields["graticule_spacing"].set_value_no_signal(settings.graticule_spacing)
+	view_fields["light_elevation"].set_value_no_signal(settings.light_direction.x)
+	view_fields["light_azimuth"].set_value_no_signal(settings.light_direction.y)
+	view_fields["ambient"].set_value_no_signal(settings.ambient)
+	view_fields["backdrop_visible"].set_pressed_no_signal(settings.backdrop_visible)
+	view_fields["backdrop_opacity"].set_value_no_signal(settings.backdrop_opacity)
+	view_fields["backdrop_path"].text = settings.backdrop_path
+
+
+# One field moved: take the whole block off the dialog and hand it to the
+# document, so the planet follows while the dialog is still open.
+func _on_view_field_changed() -> void:
+	var settings := document.view
+	settings.background_color = view_fields["background_color"].color
+	settings.star_field = view_fields["star_field"].button_pressed
+	settings.graticule_color = view_fields["graticule_color"].color
+	settings.graticule_spacing = view_fields["graticule_spacing"].value
+	settings.light_direction = ViewSettings.clamp_light(Vector2(
+		view_fields["light_elevation"].value, view_fields["light_azimuth"].value))
+	settings.ambient = view_fields["ambient"].value
+	settings.backdrop_visible = view_fields["backdrop_visible"].button_pressed
+	settings.backdrop_opacity = view_fields["backdrop_opacity"].value
+	settings.backdrop_path = view_fields["backdrop_path"].text
+	document.view_edited()
+	apply_view_settings()
+
+
 func _build_animation_content() -> Control:
 	var form := GridContainer.new()
 	form.name = "Animation"
@@ -813,7 +1042,8 @@ func _save_panel_visibility() -> void:
 
 # Ask for a file path and call on_path with it. The dialog is the one the
 # platform provides, so nothing happens when it is cancelled.
-func _ask_for_path(mode: int, title: String, on_path: Callable) -> void:
+func _ask_for_path(mode: int, title: String, on_path: Callable,
+		filters: PackedStringArray = FILE_FILTERS) -> void:
 	if file_dialog_hook.is_valid():
 		file_dialog_hook.call(mode, title, on_path)
 		return
@@ -823,7 +1053,7 @@ func _ask_for_path(mode: int, title: String, on_path: Callable) -> void:
 		"",
 		false,
 		mode,
-		FILE_FILTERS,
+		filters,
 		func(status: bool, paths: PackedStringArray, _filter: int) -> void:
 			if status and not paths.is_empty():
 				on_path.call(paths[0]),
@@ -855,6 +1085,8 @@ func set_active_tool(tool: Tool) -> void:
 		_measure_clear()
 	if active_tool == Tool.CIRCLE and tool != Tool.CIRCLE:
 		circle_points = PackedVector2Array()
+	if active_tool == Tool.LIGHT and tool != Tool.LIGHT:
+		_light_dragging = false
 	active_tool = tool
 	move_button.button_pressed = (tool == Tool.MOVE)
 	draw_button.button_pressed = (tool == Tool.DRAW)
@@ -862,6 +1094,7 @@ func set_active_tool(tool: Tool) -> void:
 	measure_button.button_pressed = (tool == Tool.MEASURE)
 	circle_button.button_pressed = (tool == Tool.CIRCLE)
 	topology_button.button_pressed = (tool == Tool.TOPOLOGY)
+	light_button.button_pressed = (tool == Tool.LIGHT)
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
@@ -988,6 +1221,17 @@ func _build_view_toolbar() -> void:
 	_update_view_toolbar()
 
 
+# Open in the view the preferences ask for. A name the selector no longer offers
+# is not an error: the globe is what a fresh installation shows.
+func _apply_default_view() -> void:
+	var wanted := Config.get_default_view()
+	for index in projection_selector.item_count:
+		if projection_selector.get_item_text(index) == wanted:
+			projection_selector.select(index)
+			_on_projection_selected(index)
+			return
+
+
 func _on_projection_selected(index: int) -> void:
 	var id := projection_selector.get_item_id(index)
 	planet_view.planet.show_map = id != GLOBE_PROJECTION_ID
@@ -1005,6 +1249,12 @@ func _turn_view(degrees: float) -> void:
 # would write it straight back is what set_value_no_signal is for.
 func _update_view_toolbar() -> void:
 	var planet := planet_view.planet
+	# The light is dragged on the globe, and a map sheet has nowhere to drag it,
+	# so the tool is offered on the globe alone and gives way to Move when a map
+	# takes over, rather than staying armed and swallowing the clicks.
+	light_button.disabled = planet.show_map
+	if planet.show_map and active_tool == Tool.LIGHT:
+		set_active_tool(Tool.MOVE)
 	var id := int(planet.projection) if planet.show_map else GLOBE_PROJECTION_ID
 	var index := projection_selector.get_item_index(id)
 	if projection_selector.selected != index:
@@ -1168,16 +1418,22 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 			_on_circle_input(lat, lon, event)
 		Tool.TOPOLOGY:
 			_on_topology_input(lat, lon, event)
+		Tool.LIGHT:
+			_on_light_input(lat, lon, event)
 
 
 # The background behind the globe. A drag of a vertex that ends out there is
 # still a release, and letting it pass would leave the vertex stuck to the
 # pointer.
 func _on_planet_input_outside(event: InputEvent) -> void:
-	if active_tool != Tool.VERTEX or event is not InputEventMouseButton:
+	if event is not InputEventMouseButton:
 		return
-	if event.button_index == MOUSE_BUTTON_LEFT and event.is_released():
+	if event.button_index != MOUSE_BUTTON_LEFT or not event.is_released():
+		return
+	if active_tool == Tool.VERTEX:
 		_vertex_commit_drag()
+	elif active_tool == Tool.LIGHT:
+		_light_dragging = false
 
 
 func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
@@ -1786,6 +2042,48 @@ func _after_topology_edit() -> void:
 	_update_tool_buttons()
 
 
+### The Light tool
+#
+# Where the light comes from is a direction in the scene rather than a place on
+# the planet, so it is dragged on the globe: the point under the pointer is the
+# point the light shines straight at. A map sheet is flat and has no such point,
+# so the tool waits for the globe.
+
+
+# True while the light is being dragged, so that the whole drag moves it and not
+# only the press that started it.
+var _light_dragging: bool = false
+
+
+func _on_light_input(lat: float, lon: float, event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_light_dragging = event.is_pressed()
+		if event.is_pressed():
+			_point_light_at(lat, lon)
+	elif event is InputEventMouseMotion and _light_dragging:
+		_point_light_at(lat, lon)
+
+
+func _point_light_at(lat: float, lon: float) -> void:
+	var direction = planet_view.globe_direction(lat, lon)
+	if direction == null:
+		return
+	document.view.light_direction = ViewSettings.light_from_vector(direction)
+	document.view_edited()
+	apply_view_settings()
+	if view_dialog.visible:
+		_fill_view_fields()
+	_refresh_selection_outline()
+
+
+# Where the light stands on the globe, so the tool can mark it. Null while a map
+# is being shown, where the light has no place to be marked at.
+func _light_marker() -> Variant:
+	if planet_view.planet.show_map:
+		return null
+	return planet_view.direction_to_latlon(document.view.light_vector())
+
+
 ### The Measure tool
 #
 # The points that have been clicked, and the great circle distance along them.
@@ -2001,6 +2299,15 @@ func _refresh_selection_outline() -> void:
 	# Enter would commit is on the globe before it is committed.
 	if active_tool == Tool.CIRCLE:
 		planet_view.planet.set_outline(_circle_outline())
+		return
+	# The Light tool marks where the light stands, so the direction being dragged
+	# is somewhere rather than only shown by the shading it produces.
+	if active_tool == Tool.LIGHT:
+		var marker = _light_marker()
+		planet_view.planet.set_outline([] if marker == null else [{
+			"vertices": PackedVector2Array([marker]),
+			"style": Planet.OutlineStyle.POINTS,
+		}])
 		return
 	# The Measure tool draws the path it has been given instead, so the points
 	# clicked and the line between them are visible while the distance is read.
