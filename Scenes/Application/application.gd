@@ -38,7 +38,7 @@ const SNAP_PIXELS := 12.0
 
 enum FileItem { NEW, OPEN, SAVE, SAVE_AS, PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE }
-enum ViewItem { FEATURES, PROPERTIES, TIMELINE, STATUS_BAR, SETTINGS, FULL_SCREEN }
+enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, STATUS_BAR, SETTINGS, FULL_SCREEN }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -56,8 +56,15 @@ const PANEL_KEYS := {
 	ViewItem.FEATURES: "panel_features",
 	ViewItem.PROPERTIES: "panel_properties",
 	ViewItem.TIMELINE: "panel_timeline",
+	ViewItem.KINEMATICS: "panel_kinematics",
 	ViewItem.STATUS_BAR: "panel_status_bar",
 }
+
+# The panels a configuration that says nothing shows. Everything is shown but
+# the kinematics graphs, which are for looking at motion in detail and are
+# asked for from the View menu when they are wanted; the globe is what the rest
+# of the window is for.
+const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false}
 
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
@@ -87,6 +94,7 @@ const PANEL_KEYS := {
 @onready var right_splitter: HSplitContainer = %RightSplitter
 @onready var properties: Properties = %Properties
 @onready var timeline: Timeline = %Timeline
+@onready var kinematics: KinematicsPanel = %Kinematics
 @onready var status_bar: Control = %StatusBar
 @onready var status_coordinates: Label = %StatusCoordinates
 @onready var status_measure: Label = %StatusMeasure
@@ -192,6 +200,7 @@ func _ready() -> void:
 	document.time_changed.connect(_on_time_changed)
 	timeline.attach(document)
 	timeline.configure_requested.connect(_show_animation_dialog)
+	kinematics.attach(document, timeline)
 	# The Edit menus offer what the feature tree toolbar offers, so they follow
 	# the same signal: the undo depth, the selection and the clipboard all reach
 	# it, which a copy that records no undo version otherwise would not.
@@ -311,6 +320,7 @@ func _build_menus() -> void:
 	view_menu.add_check_item("Features", ViewItem.FEATURES)
 	view_menu.add_check_item("Properties", ViewItem.PROPERTIES)
 	view_menu.add_check_item("Timeline", ViewItem.TIMELINE)
+	view_menu.add_check_item("Kinematics", ViewItem.KINEMATICS)
 	view_menu.add_check_item("Status Bar", ViewItem.STATUS_BAR)
 	view_menu.add_separator()
 	for class_id in Styling.CLASSES:
@@ -451,6 +461,7 @@ func _panel_node(item: int) -> Control:
 		ViewItem.FEATURES: return features
 		ViewItem.PROPERTIES: return properties
 		ViewItem.TIMELINE: return timeline
+		ViewItem.KINEMATICS: return kinematics
 		ViewItem.STATUS_BAR: return status_bar
 	return null
 
@@ -1177,7 +1188,8 @@ func _restore_session() -> void:
 	right_splitter.split_offset = int(Config.get_value("splitter_right", right_splitter.split_offset))
 
 	for item in PANEL_KEYS:
-		_panel_node(item).visible = bool(Config.get_value(PANEL_KEYS[item], true))
+		_panel_node(item).visible = bool(Config.get_value(
+			PANEL_KEYS[item], PANEL_SHOWN_BY_DEFAULT.get(item, true)))
 	_update_view_menu_checks()
 
 	if not bool(Config.get_value("restore_session", true)):
@@ -1294,6 +1306,16 @@ func _update_tool_buttons() -> void:
 ### Feature selection
 
 
+# The panels that follow whatever is selected: what the node is, where its
+# keyframes sit under the timeline, and how it has moved. Called when the
+# selection changes and after an edit that changed the geometry or the motion of
+# what is already selected.
+func _show_selection(node: Feature) -> void:
+	properties.show_node(node)
+	timeline.show_keyframes(node)
+	kinematics.show_node(node)
+
+
 func _on_feature_selected(node: Feature) -> void:
 	# Clear any in-progress outline when switching features
 	if not outline_vertices.is_empty():
@@ -1323,7 +1345,7 @@ func _on_feature_selected(node: Feature) -> void:
 	circle_button.disabled = not _can_draw(node)
 	topology_button.disabled = not _can_build_topology(node)
 	_update_kind_selector(node)
-	properties.show_node(node)
+	_show_selection(node)
 
 	if is_leaf:
 		# A tool that cannot work on what is now selected gives way to Move,
@@ -1345,7 +1367,6 @@ func _on_feature_selected(node: Feature) -> void:
 
 	_update_move_enabled()
 	_update_tool_buttons()
-	timeline.show_keyframes(node)
 	refresh_geometry()
 	_show_measurement()
 
@@ -1553,9 +1574,7 @@ func _on_move_to(lat: float, lon: float) -> void:
 func _on_move_ended() -> void:
 	document.record()
 	features.reload()
-	var selected := features.feature_tree.get_selected_node()
-	properties.show_node(selected)
-	timeline.show_keyframes(selected)
+	_show_selection(features.feature_tree.get_selected_node())
 	refresh_geometry()
 
 
@@ -1977,7 +1996,7 @@ func delete_selected_vertex() -> String:
 func _after_vertex_edit() -> void:
 	features.reload()
 	refresh_geometry()
-	properties.show_node(features.feature_tree.get_selected_node())
+	_show_selection(features.feature_tree.get_selected_node())
 	_update_tool_buttons()
 
 
@@ -2206,7 +2225,7 @@ func _nearest_part(target: Feature, at: Vector2) -> int:
 # taken back, since a topology is a feature like any other once it is resolved.
 func _after_topology_edit() -> void:
 	features.reload()
-	properties.show_node(features.feature_tree.get_selected_node())
+	_show_selection(features.feature_tree.get_selected_node())
 	refresh_geometry()
 	_update_tool_buttons()
 
@@ -2529,5 +2548,6 @@ func _on_properties_edited() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	_update_kind_selector(selected)
 	timeline.show_keyframes(selected)
+	kinematics.show_node(selected)
 	refresh_geometry()
 

@@ -233,6 +233,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"features": app.features.visible,
 				"properties": app.properties.visible,
 				"timeline": app.timeline.visible,
+				"kinematics": app.kinematics.visible,
 				"status_bar": app.status_bar.visible,
 			}}
 
@@ -317,6 +318,9 @@ func _dispatch(request: Dictionary) -> Dictionary:
 
 		"get_timeline":
 			return {"ok": true, "timeline": _timeline().to_json()}
+
+		"get_kinematics":
+			return {"ok": true, "kinematics": app.kinematics.to_json()}
 
 		"timeline":
 			var error := _timeline().press(str(request.get("button", "")))
@@ -837,6 +841,7 @@ func _menu_item(name: String) -> Array:
 		"features": return [app.view_menu, Application.ViewItem.FEATURES]
 		"properties": return [app.view_menu, Application.ViewItem.PROPERTIES]
 		"timeline": return [app.view_menu, Application.ViewItem.TIMELINE]
+		"kinematics": return [app.view_menu, Application.ViewItem.KINEMATICS]
 		"status_bar": return [app.view_menu, Application.ViewItem.STATUS_BAR]
 		"view_settings": return [app.view_menu, Application.ViewItem.SETTINGS]
 		"full_screen": return [app.view_menu, Application.ViewItem.FULL_SCREEN]
