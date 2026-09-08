@@ -766,6 +766,101 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(not client.call("get_timeline")["timeline"]["playing"], "and stops playing there")
 
 
+### The Circle scenario
+
+
+def angular_distance(a: tuple[float, float], b: tuple[float, float]) -> float:
+    """The angle between two lat/lon points, in degrees."""
+    lat_a, lat_b = math.radians(a[0]), math.radians(b[0])
+    half_lat = math.sin((lat_b - lat_a) / 2.0)
+    half_lon = math.sin(math.radians(b[1] - a[1]) / 2.0)
+    h = half_lat ** 2 + math.cos(lat_a) * math.cos(lat_b) * half_lon ** 2
+    return math.degrees(2.0 * math.asin(math.sqrt(min(1.0, h))))
+
+
+# The circle the scenario builds: a centre near the middle of the default view
+# and a radius wide enough to click accurately but well inside the hemisphere.
+CIRCLE_CENTRE = (0.0, 0.0)
+CIRCLE_RADIUS = 15.0
+CIRCLE_SEGMENTS = 12
+
+# How far a vertex may sit from the radius it was asked for. The clicks go
+# through the globe, so what comes back is a point picked on the sphere rather
+# than the number that was typed.
+CIRCLE_TOLERANCE = 0.5
+
+
+def build_circle(client: AutomationClient, kind: str, points: list[tuple[float, float]]) -> dict:
+    """Start a document, click the points with the Circle tool and commit."""
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", kind=kind)
+    client.call("set_tool", tool="circle", segments=CIRCLE_SEGMENTS)
+    check(client.call("get_tool")["tool"] == "circle", f"the Circle tool is armed ({kind})")
+    if not draw(client, points):
+        return {}
+    return client.call("get_tool")
+
+
+def run_circle_session(client: AutomationClient) -> None:
+    """A small circle from a centre and a rim point, and one through three points."""
+    rim = (CIRCLE_CENTRE[0] + CIRCLE_RADIUS, CIRCLE_CENTRE[1])
+    tool = build_circle(client, "polygon", [CIRCLE_CENTRE, rim])
+    if not tool:
+        return
+    if check(tool["circle"] is not None, "two clicks describe a circle"):
+        centre = tuple(tool["circle"]["centre"])
+        check(angular_distance(centre, CIRCLE_CENTRE) < CIRCLE_TOLERANCE,
+              f"its centre is where the first click landed: {centre}")
+        check(abs(tool["circle"]["radius"] - CIRCLE_RADIUS) < CIRCLE_TOLERANCE,
+              f"its radius reaches the second click: {tool['circle']['radius']:.4f}")
+
+    client.call("key", key="Enter")
+    feature = client.call("get_selected")["feature"]
+    if check(len(feature["rings"]) == 1, "the circle is committed as one part"):
+        ring = feature["rings"][0]
+        check(len(ring) == CIRCLE_SEGMENTS,
+              f"a polygon holds one vertex per segment: {len(ring)}")
+        worst = max(abs(angular_distance(tuple(v), CIRCLE_CENTRE) - CIRCLE_RADIUS) for v in ring)
+        check(worst < CIRCLE_TOLERANCE,
+              f"every vertex sits the radius from the centre, within {worst:.4f} degrees")
+    check(client.call("get_selected")["feature"]["geometry_kind"] == "polygon",
+          "and the feature is a polygon")
+
+    # A polyline of the same segment count draws the whole circle, so it repeats
+    # its first vertex at the end.
+    tool = build_circle(client, "polyline", [CIRCLE_CENTRE, rim])
+    if tool:
+        client.call("key", key="Enter")
+        feature = client.call("get_selected")["feature"]
+        if check(len(feature["rings"]) == 1, "the polyline circle is committed as one part"):
+            check(len(feature["rings"][0]) == CIRCLE_SEGMENTS + 1,
+                  f"and holds a vertex more than it has segments: {len(feature['rings'][0])}")
+
+    # Three points on the rim describe the same circle, without its centre ever
+    # being clicked.
+    on_rim = [
+        (CIRCLE_CENTRE[0] + CIRCLE_RADIUS, CIRCLE_CENTRE[1]),
+        (CIRCLE_CENTRE[0] - CIRCLE_RADIUS, CIRCLE_CENTRE[1]),
+        (CIRCLE_CENTRE[0], CIRCLE_CENTRE[1] + CIRCLE_RADIUS),
+    ]
+    tool = build_circle(client, "polygon", on_rim)
+    if not tool:
+        return
+    if check(tool["circle"] is not None, "three clicks describe a circle"):
+        centre = tuple(tool["circle"]["centre"])
+        check(angular_distance(centre, CIRCLE_CENTRE) < CIRCLE_TOLERANCE,
+              f"whose centre was never clicked: {centre}")
+        check(abs(tool["circle"]["radius"] - CIRCLE_RADIUS) < CIRCLE_TOLERANCE,
+              f"and whose radius is the one the points were taken from: "
+              f"{tool['circle']['radius']:.4f}")
+
+    client.call("key", key="Escape")
+    check(client.call("get_tool")["circle"] is None, "Escape drops the clicked points")
+    check(client.call("get_selected")["feature"]["rings"] == [],
+          "and leaves the feature without geometry")
+
+
 ### The Vertex, Measure and Split scenarios
 
 # A triangle around the middle of the default view, large enough that its
@@ -1136,6 +1231,7 @@ def main(argv: list[str]) -> int:
         run_snap_session(client)
         run_measure_session(client)
         run_split_session(client)
+        run_circle_session(client)
     finally:
         if connected:
             try:

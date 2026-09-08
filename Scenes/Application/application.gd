@@ -19,7 +19,7 @@ static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Docum
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, DRAW, VERTEX, MEASURE }
+enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE }
 
 # How near, in window pixels, a click has to be to take hold of a vertex or an
 # edge, and how near a dragged vertex has to come to another before snapping
@@ -50,9 +50,11 @@ const PANEL_KEYS := {
 @onready var draw_button: Button = %Draw
 @onready var vertex_button: Button = %Vertex
 @onready var measure_button: Button = %Measure
+@onready var circle_button: Button = %Circle
 @onready var snap_button: Button = %Snap
 @onready var split_button: Button = %Split
 @onready var kind_selector: OptionButton = %GeometryKind
+@onready var segments_spin: SpinBox = %Segments
 @onready var menu_bar: MenuBar = %MenuBar
 @onready var left_splitter: HSplitContainer = %LeftSplitter
 @onready var right_splitter: HSplitContainer = %RightSplitter
@@ -156,6 +158,8 @@ func _ready() -> void:
 	draw_button.pressed.connect(func() -> void: set_active_tool(Tool.DRAW))
 	vertex_button.pressed.connect(func() -> void: set_active_tool(Tool.VERTEX))
 	measure_button.pressed.connect(func() -> void: set_active_tool(Tool.MEASURE))
+	circle_button.pressed.connect(func() -> void: set_active_tool(Tool.CIRCLE))
+	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
 	snap_button.toggled.connect(_on_snap_toggled)
 	split_button.pressed.connect(func() -> void: _report(split_at_selected_vertex()))
 	snap_button.button_pressed = Config.get_snap_to_vertices()
@@ -821,11 +825,14 @@ func set_active_tool(tool: Tool) -> void:
 		_let_every_vertex_go()
 	if active_tool == Tool.MEASURE and tool != Tool.MEASURE:
 		_measure_clear()
+	if active_tool == Tool.CIRCLE and tool != Tool.CIRCLE:
+		circle_points = PackedVector2Array()
 	active_tool = tool
 	move_button.button_pressed = (tool == Tool.MOVE)
 	draw_button.button_pressed = (tool == Tool.DRAW)
 	vertex_button.button_pressed = (tool == Tool.VERTEX)
 	measure_button.button_pressed = (tool == Tool.MEASURE)
+	circle_button.button_pressed = (tool == Tool.CIRCLE)
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
@@ -881,6 +888,7 @@ func _on_feature_selected(node: Feature) -> void:
 
 	var is_leaf := node != null and not node.is_group
 	draw_button.disabled = not is_leaf
+	circle_button.disabled = not is_leaf
 	_update_kind_selector(node)
 	properties.show_node(node)
 
@@ -890,7 +898,7 @@ func _on_feature_selected(node: Feature) -> void:
 			set_active_tool(Tool.DRAW)
 	else:
 		# Can't draw on groups or nothing — force Move
-		if active_tool == Tool.DRAW:
+		if active_tool == Tool.DRAW or active_tool == Tool.CIRCLE:
 			set_active_tool(Tool.MOVE)
 
 	_update_move_enabled()
@@ -1021,6 +1029,8 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 			_on_vertex_input(lat, lon, event)
 		Tool.MEASURE:
 			_on_measure_input(lat, lon, event)
+		Tool.CIRCLE:
+			_on_circle_input(lat, lon, event)
 
 
 # The background behind the globe. A drag of a vertex that ends out there is
@@ -1078,6 +1088,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			if event.keycode == KEY_ESCAPE:
 				_measure_clear()
 				_refresh_selection_outline()
+			else:
+				return
+		Tool.CIRCLE:
+			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				_report(_circle_commit())
+			elif event.keycode == KEY_ESCAPE:
+				circle_points = PackedVector2Array()
+				_refresh_selection_outline()
+				_show_measurement()
 			else:
 				return
 		_:
@@ -1458,6 +1477,106 @@ func split_at_selected_vertex() -> String:
 	return ""
 
 
+### The Circle tool
+#
+# A small circle, drawn as a preview and committed as a polygon or a polyline of
+# a chosen number of segments. Two clicks are a centre and a point on the rim;
+# three are three points the circle passes through. Which one is meant follows
+# from how many points have been clicked, so there is no mode to pick: the
+# preview shows what the clicks so far describe and a third click changes it
+# from the one construction to the other.
+
+# The points clicked so far, in world coordinates.
+var circle_points := PackedVector2Array()
+
+
+func _on_circle_input(lat: float, lon: float, event: InputEvent) -> void:
+	if event is not InputEventMouseButton or not event.is_pressed():
+		return
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		if circle_points.size() >= 3:
+			circle_points = PackedVector2Array()
+		circle_points.append(Vector2(lat, lon))
+	elif event.button_index == MOUSE_BUTTON_RIGHT and not circle_points.is_empty():
+		circle_points.remove_at(circle_points.size() - 1)
+	else:
+		return
+	_refresh_selection_outline()
+	_show_measurement()
+
+
+# The circle the clicked points describe, as [centre, angular radius], or an
+# empty array while they describe none.
+func circle_from_points() -> Array:
+	if circle_points.size() == 2:
+		var radius := SmallCircle.radius_to(circle_points[0], circle_points[1])
+		return [] if radius < 1e-6 else [circle_points[0], radius]
+	if circle_points.size() == 3:
+		return SmallCircle.through(circle_points[0], circle_points[1], circle_points[2])
+	return []
+
+
+# How many segments the circle is cut into, as the toolbar has it.
+func circle_segments() -> int:
+	return int(segments_spin.value)
+
+
+# Whether the circle closes on itself. A polygon does; a polyline is left open
+# and repeats its first vertex, so it draws the whole circle either way.
+func _circle_is_closed() -> bool:
+	return drawing_kind() == Feature.GeometryKind.POLYGON
+
+
+# The circle being previewed, in world coordinates, or an empty ring.
+func circle_ring() -> PackedVector2Array:
+	var circle := circle_from_points()
+	if circle.is_empty():
+		return PackedVector2Array()
+	return SmallCircle.vertices(circle[0], circle[1], circle_segments(), _circle_is_closed())
+
+
+# The clicked points as markers, with the circle they describe over them.
+func _circle_outline() -> Array:
+	var parts: Array = []
+	if not circle_points.is_empty():
+		parts.append({"vertices": circle_points, "style": Planet.OutlineStyle.POINTS})
+	var ring := circle_ring()
+	if not ring.is_empty():
+		parts.append({
+			"vertices": ring,
+			"style": Planet.OutlineStyle.CLOSED if _circle_is_closed()
+				else Planet.OutlineStyle.OPEN,
+		})
+	return parts
+
+
+# Give the selected feature the circle being previewed. Returns why it could not
+# be, or an empty string once it has been.
+func _circle_commit() -> String:
+	var selected := features.feature_tree.get_selected_node()
+	if selected == null or selected.is_group:
+		return "Select a feature to draw the circle on."
+	var circle := circle_from_points()
+	if circle.is_empty():
+		return "Click a centre and a point on the rim, or three points on the rim."
+	var kind: Feature.GeometryKind = drawing_kind()
+	if kind == Feature.GeometryKind.MULTIPOINT:
+		return "A circle becomes a polygon or a polyline, not a multipoint."
+
+	# The circle was worked out in world space; a feature keeps its own frame,
+	# which at the current time is where its keyframes and its groups' put it.
+	var into_local := Feature.world_basis(
+		features.root, selected, document.current_time).transposed()
+	selected.add_ring(Feature.apply_basis(circle_ring(), into_local), kind)
+
+	circle_points = PackedVector2Array()
+	document.record()
+	features.reload()
+	refresh_geometry()
+	set_active_tool(Tool.MOVE)
+	return ""
+
+
 ### The Measure tool
 #
 # The points that have been clicked, and the great circle distance along them.
@@ -1491,6 +1610,13 @@ func _measure_clear() -> void:
 func _show_measurement(error: String = "") -> void:
 	if not error.is_empty():
 		status_measure.text = error
+		return
+
+	if active_tool == Tool.CIRCLE:
+		var circle := circle_from_points()
+		status_measure.text = "click a centre and the rim, or three points on the rim" 			if circle.is_empty() else "centre %.2f° %.2f°   radius %s   %d segments" % [
+				(circle[0] as Vector2).x, (circle[0] as Vector2).y,
+				SmallCircle.format_radius(circle[1]), circle_segments()]
 		return
 
 	var radius := Config.get_planet_radius()
@@ -1641,6 +1767,11 @@ func refresh_motion() -> void:
 func _refresh_selection_outline() -> void:
 	# Don't overwrite the drawing outline
 	if not outline_vertices.is_empty():
+		return
+	# The Circle tool draws the circle its clicks describe, so what pressing
+	# Enter would commit is on the globe before it is committed.
+	if active_tool == Tool.CIRCLE:
+		planet_view.planet.set_outline(_circle_outline())
 		return
 	# The Measure tool draws the path it has been given instead, so the points
 	# clicked and the line between them are visible while the distance is read.

@@ -120,6 +120,12 @@ reason: the Paste button of the feature tree toolbar is greyed out by what the
 clipboard holds, and an unknown clipboard is a 40 by 40 difference in every
 scene.
 
+The circle scenario builds a small circle twice over: from a centre and a point
+on the rim, and from three points on the rim with the centre never clicked. Both
+give the same centre and radius back, the polygon holds one vertex per segment
+and the polyline one more, and every committed vertex is checked against the
+angular radius it was asked for.
+
 The vertex scenarios come last: `run_vertex_session` drags a vertex, inserts one
 on an edge and deletes one, all at a time that has moved the feature away from
 where its vertices are stored, so an edit that forgot to map the click back into
@@ -256,8 +262,8 @@ a round trip is also a wait for the screen to catch up.
 | `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `enabled`, `time_from`, `time_to` |
 | `properties {button, part, index}`   | selects a vertex row and presses `Add` or `Remove` in the panel |
 | `keyframes {button, index}`          | selects a keyframe row and presses `Key` or `Delete` in the panel |
-| `get_tool`                           | `tool` (`move`, `draw`, `vertex` or `measure`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, and the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split` and the Measure tool's `measure_points` |
-| `set_tool {tool, kind, snap}`        | picks the tool, the geometry kind and the snap switch, refusing what the toolbar itself would not allow |
+| `get_tool`                           | `tool` (`move`, `draw`, `vertex`, `measure` or `circle`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split`, the Measure tool's `measure_points` and the Circle tool's `circle_points`, `segments` and the `circle` its clicks describe |
+| `set_tool {tool, kind, snap, segments}` | picks the tool, the geometry kind, the snap switch and the segment count, refusing what the toolbar itself would not allow |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
 | `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed |

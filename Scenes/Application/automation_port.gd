@@ -12,6 +12,7 @@ const TOOL_NAMES := {
 	Application.Tool.DRAW: "draw",
 	Application.Tool.VERTEX: "vertex",
 	Application.Tool.MEASURE: "measure",
+	Application.Tool.CIRCLE: "circle",
 }
 
 const BUTTONS := {
@@ -437,6 +438,9 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"split_from": _vertex_to_json(app.split_from),
 				"can_split": not app.split_button.disabled,
 				"measure_points": _points_to_json(app.measure_points),
+				"circle_points": _points_to_json(app.circle_points),
+				"circle": _circle_to_json(),
+				"segments": app.circle_segments(),
 				"status_measure": app.status_measure.text}
 
 		"set_tool":
@@ -454,10 +458,16 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				app.set_active_tool(Application.Tool.VERTEX)
 			elif tool_name == "measure":
 				app.set_active_tool(Application.Tool.MEASURE)
+			elif tool_name == "circle":
+				if app.circle_button.disabled:
+					return {"ok": false, "error": "the Circle tool needs a feature selected"}
+				app.set_active_tool(Application.Tool.CIRCLE)
 			elif tool_name == "move":
 				app.set_active_tool(Application.Tool.MOVE)
 			elif not tool_name.is_empty():
 				return {"ok": false, "error": "unknown tool: %s" % tool_name}
+			if request.has("segments"):
+				app.segments_spin.value = float(request["segments"])
 			if request.has("snap"):
 				app.snap_button.button_pressed = bool(request["snap"])
 				app.snap_button.toggled.emit(app.snap_button.button_pressed)
@@ -541,6 +551,19 @@ func _dispatch(request: Dictionary) -> Dictionary:
 
 func _vertex_to_json(vertex: Vector2i) -> Variant:
 	return null if vertex == Application.NO_VERTEX else [vertex.x, vertex.y]
+
+
+# The circle the Circle tool has been given, and the ring it would commit, so a
+# run can read back what the preview is drawing without looking at the screen.
+func _circle_to_json() -> Variant:
+	var circle: Array = app.circle_from_points()
+	if circle.is_empty():
+		return null
+	return {
+		"centre": [(circle[0] as Vector2).x, (circle[0] as Vector2).y],
+		"radius": circle[1],
+		"ring": _points_to_json(app.circle_ring()),
+	}
 
 
 func _points_to_json(points: PackedVector2Array) -> Array:
