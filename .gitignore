@@ -231,7 +231,7 @@ mono_crash.*.json
 # Project
 
 # Tests
-# Screenshots written next to a golden reference when a comparison fails,
-# and the texture import files the engine makes for them, see GP-0018.
+# Screenshots written next to a golden reference when a comparison fails. The
+# engine no longer imports anything in that folder, so there are no .import
+# files to ignore beside them; see Tests/Golden/.gdignore and GP-0018.
 Tests/Golden/*.actual.png
-Tests/Golden/*.actual.png.import

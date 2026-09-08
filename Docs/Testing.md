@@ -177,6 +177,12 @@ absolute channel difference: a pixel counts as different above `PIXEL_TOLERANCE`
 its pixels differ. A failing scene writes its screenshot next to the reference as
 `Tests/Golden/<scene>.actual.png`, which is git-ignored.
 
+`Tests/Golden` holds a `.gdignore`, so the engine leaves the whole folder
+alone. The references are read by `Tests/golden.py` in Python and never by the
+engine, and without it every one of them would be imported as a texture, with a
+`.png.import` file beside it and a compressed copy under `.godot/imported` that
+churned whenever the references were regenerated.
+
 Every `check` run ends with a negative control: the fresh `triangle` screenshot is
 compared with the `empty` reference and has to fail. If that comparison ever
 passes, the diff has gone blind and the whole run fails, whatever the scenes said.
