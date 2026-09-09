@@ -35,7 +35,7 @@ whose name contains the substring, for example
 one frame at 60 frames a second). See [Frame time](#frame-time).
 
 Set the `GODOT` environment variable to use an engine binary other than
-`C:\Tools\Godot\Godot_v4.6.2-stable_win64_console.exe`.
+`C:\Tools\Godot\Godot_v4.7.2-stable_win64_console.exe`.
 
 ## Fresh checkout
 
@@ -45,7 +45,7 @@ script class cache; without it the textures, scenes and `class_name` scripts are
 missing. Only when running Godot by hand, do it once yourself:
 
 ```
-C:\Tools\Godot\Godot_v4.6.2-stable_win64_console.exe --headless --path . --import --quit
+C:\Tools\Godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . --import --quit
 ```
 
 ## The principle
