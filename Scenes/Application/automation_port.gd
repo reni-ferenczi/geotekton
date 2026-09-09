@@ -33,7 +33,7 @@ var port: int
 # The last file dialog the application asked for, consumed by get_file_dialog.
 var last_file_dialog: Variant = null
 # The path the next file dialog answers with, empty when it is cancelled.
-var file_dialog_reply: String = ""
+var file_dialog_reply: PackedStringArray = PackedStringArray()
 var file_dialog_expected: bool = false
 
 var server := TCPServer.new()
@@ -260,7 +260,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true}
 
 		"expect_file_dialog":
-			file_dialog_reply = str(request.get("path", ""))
+			file_dialog_reply = PackedStringArray()
+			for path in request.get("paths", [request.get("path", "")]):
+				if not str(path).is_empty():
+					file_dialog_reply.append(str(path))
 			file_dialog_expected = true
 			return {"ok": true}
 
@@ -930,6 +933,7 @@ func _menu_item(name: String) -> Array:
 		"open": return [app.file_menu, Application.FileItem.OPEN]
 		"save": return [app.file_menu, Application.FileItem.SAVE]
 		"save_as": return [app.file_menu, Application.FileItem.SAVE_AS]
+		"import": return [app.file_menu, Application.FileItem.IMPORT]
 		"preferences": return [app.file_menu, Application.FileItem.PREFERENCES]
 		"quit": return [app.file_menu, Application.FileItem.QUIT]
 		"features": return [app.view_menu, Application.ViewItem.FEATURES]
@@ -990,15 +994,15 @@ func _press_dialog_button(dialog: AcceptDialog, label: String) -> bool:
 
 # Stands in for the native file dialog while a script is driving the
 # application: it records the request and answers it with the expected path.
-func _on_file_dialog(mode: int, title: String, on_path: Callable) -> void:
+func _on_file_dialog(mode: int, title: String, on_paths: Callable) -> void:
 	last_file_dialog = {"mode": mode, "title": title}
 	if not file_dialog_expected:
 		return
 	file_dialog_expected = false
-	var path := file_dialog_reply
-	file_dialog_reply = ""
-	if not path.is_empty():
-		on_path.call(path)
+	var paths := file_dialog_reply
+	file_dialog_reply = PackedStringArray()
+	if not paths.is_empty():
+		on_paths.call(paths)
 
 
 func _collect_features(node: Feature, depth: int, list: Array) -> void:

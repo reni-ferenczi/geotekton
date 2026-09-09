@@ -174,7 +174,10 @@ path that is not an interpreter is said so in the console and in the panel, and
 the application carries on without one.
 
 The interpreter needs no packages installed: the bridge is started by path and
-puts its own folder on the import path. Python 3.13 or newer.
+puts its own folder on the import path. Python 3.13 or newer. The one thing
+that does need a package is File > Import, which reads GPlates files with
+`pygplates`; without it the import says so and everything else carries on. See
+[Import](Import.md).
 
 ## The protocol
 
@@ -212,6 +215,7 @@ it.
 | `eval`     | `source`   | `incomplete`, `traceback`            |
 | `complete` | `source`   | `completions`                        |
 | `run_file` | `path`     | `traceback`                          |
+| `import_gplates` | `sources`, `output` | `features`, `output`      |
 | `quit`     |            | Ends the session                     |
 
 A script that raises is not a failure of the bridge: the reply is `ok` with the
@@ -241,6 +245,8 @@ interpreter that will not start and one that is killed mid session.
 | `src/middle_earth/document.py`           | The file format                           |
 | `src/middle_earth/api.py`                | `App`, the running document               |
 | `src/middle_earth/bridge.py`             | The server, the console session, completion |
+| `src/middle_earth/gplates.py`            | The GPlates conversion; see [Import](Import.md) |
+| `src/middle_earth/gproj.py`              | The GPlates project archive               |
 | `src/middle_earth/__main__.py`           | What the application starts               |
 | `Logic/script_catalog.gd`                | Reading docstrings out of script files    |
 | `Scenes/Application/python_bridge.gd`    | The application's half of the protocol    |

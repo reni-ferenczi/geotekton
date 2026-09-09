@@ -26,6 +26,11 @@ from typing import Any, Iterator
 APPLICATION = "middle-earth"
 EXTENSION = ".middle-earth"
 
+# What a document this package writes from scratch says it is. It follows
+# `application/config/version` in `project.godot`, which is what the
+# application writes, and a test holds the two together.
+CURRENT_VERSION = "0.7.0"
+
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.82, 0.41, 0.12, 1.0]
 DEFAULT_TIME_RANGE = [0, 2000]

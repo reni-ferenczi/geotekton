@@ -211,3 +211,40 @@ def test_the_bridge_stops_when_the_application_goes_away():
 def test_quit_ends_the_session(peer):
     assert peer.request("quit")["ok"]
     assert not peer.bridge.running
+
+
+### Importing a GPlates reconstruction
+
+
+def test_an_import_writes_a_document_and_says_what_it_found(peer, tmp_path):
+    from middle_earth.document import Document
+    from test_gplates import a_feature, a_polygon, write_features
+
+    features = write_features(tmp_path / "features.gpml", [a_feature(geometry=a_polygon())])
+    output = tmp_path / "imported.middle-earth"
+    reply = peer.request("import_gplates", sources=[str(features)], output=str(output))
+    assert reply["ok"] and reply["features"] == 1
+    assert [feature.title for feature in Document.load(output).features] == ["Somewhere"]
+    assert "imported 1 features on 1 plates" in "".join(peer.output)
+
+
+def test_an_import_of_a_file_that_is_not_there_is_refused(peer, tmp_path):
+    reply = peer.request("import_gplates", sources=[str(tmp_path / "gone.gpml")],
+                         output=str(tmp_path / "out.middle-earth"))
+    assert reply["ok"] and reply["features"] == 0
+
+
+def test_an_import_with_nowhere_to_write_is_refused(peer, tmp_path):
+    reply = peer.request("import_gplates", sources=[str(tmp_path / "features.gpml")])
+    assert not reply["ok"]
+    assert "output" in reply["error"]
+
+
+def test_an_import_that_cannot_write_says_why(peer, tmp_path):
+    from test_gplates import a_feature, a_polygon, write_features
+
+    features = write_features(tmp_path / "features.gpml", [a_feature(geometry=a_polygon())])
+    reply = peer.request("import_gplates", sources=[str(features)],
+                         output=str(tmp_path / "no" / "such" / "place.middle-earth"))
+    assert not reply["ok"]
+    assert "FileNotFoundError" in reply["error"]

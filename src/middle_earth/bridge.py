@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import codeop
 import json
+import logging
 import re
 import rlcompleter
 import socket
@@ -169,6 +170,9 @@ class Bridge:
             return {"ok": True, "completions": self.complete(str(request.get("source", "")))}
         if command == "run_file":
             return self.run_file(str(request.get("path", "")))
+        if command == "import_gplates":
+            return self.import_gplates([str(source) for source in request.get("sources", [])],
+                                       str(request.get("output", "")))
         if command == "quit":
             self.running = False
             return {"ok": True}
@@ -205,6 +209,39 @@ class Bridge:
             return {"ok": True, "traceback": self._format_syntax_error()}
         namespace = dict(self.namespace, __name__="__main__", __file__=str(file))
         return {"ok": True, "traceback": self._execute(compiled, namespace)}
+
+    def import_gplates(self, sources: list[str], output: str) -> dict:
+        """Convert GPlates files into a document and write it where asked.
+
+        The conversion needs pygplates, which the rest of the package does not,
+        so it is imported here: an interpreter without it still runs scripts and
+        serves the console, and only this command says what is missing.
+        """
+        if not sources or not output:
+            return {"ok": False, "error": "an import needs sources and an output path"}
+        try:
+            from middle_earth.gplates import import_files, import_project
+        except ImportError as error:
+            return {"ok": False, "error": "the GPlates import needs pygplates: %s" % error}
+
+        # An import takes seconds, so what it finds is said while it runs.
+        logger = logging.getLogger("middle_earth.gplates")
+        handler = logging.StreamHandler(OutputStream(self._emit, "stdout"))
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logger.addHandler(handler)
+        level, logger.level = logger.level, logging.INFO
+        try:
+            if len(sources) == 1 and sources[0].lower().endswith(".gproj"):
+                document = import_project(sources[0])
+            else:
+                document = import_files(sources)
+            document.save(output)
+        except Exception as error:
+            return {"ok": False, "error": "%s: %s" % (type(error).__name__, error)}
+        finally:
+            logger.removeHandler(handler)
+            logger.level = level
+        return {"ok": True, "output": output, "features": len(document.features)}
 
     def _execute(self, compiled, namespace: dict) -> str:
         """Run compiled code with its output going to the console."""

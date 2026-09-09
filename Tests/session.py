@@ -9,6 +9,7 @@ Usage:
     python Tests/session.py [--port N]
 """
 
+import colorsys
 import json
 import math
 import re
@@ -52,6 +53,15 @@ def project_version() -> str:
 # brightened is still its own colour: green (0.11, 1.0, 0.11) becomes
 # (0.44, 1.0, 0.44) under the highlight and both are green.
 DOMINANT_RATIO = 0.7
+
+
+# A feature whose colour is not dominated by one channel is recognised by its
+# hue instead. The planet lights what it draws and lets the Earth texture
+# through, which lifts every channel towards white and so washes the saturation
+# out; the hue is what comes through that unchanged.
+def hue_and_saturation(color: list[float]) -> tuple[float, float]:
+    hue, saturation, _ = colorsys.rgb_to_hsv(color[0], color[1], color[2])
+    return hue, saturation
 
 
 def dominant(color: list[float]) -> str:
@@ -2094,6 +2104,104 @@ def run_no_python_session(port: int) -> None:
             process.kill()
 
 
+def write_gplates_files(folder: Path) -> list[Path]:
+    """One plate's outline and the rotation that moves it, as GPlates holds them."""
+    import pygplates
+
+    outline = pygplates.Feature(pygplates.FeatureType.create_from_qualified_string("gpml:Coastline"))
+    outline.set_geometry(pygplates.PolygonOnSphere([(-15, -15), (-15, 15), (15, 15), (15, -15)]))
+    outline.set_reconstruction_plate_id(101)
+    outline.set_valid_time(600, 0)
+    outline.set_name("Imported Plate")
+
+    # Twenty degrees about the north pole by 100 Ma, so the outline is ten
+    # degrees east of where it started when the time is set to fifty.
+    samples = [
+        pygplates.GpmlTimeSample(pygplates.GpmlFiniteRotation(
+            pygplates.FiniteRotation((90, 0), 0.0)), 0.0),
+        pygplates.GpmlTimeSample(pygplates.GpmlFiniteRotation(
+            pygplates.FiniteRotation((90, 0), math.radians(20.0))), 100.0),
+    ]
+    rotation = pygplates.Feature.create_total_reconstruction_sequence(
+        0, 101, pygplates.GpmlIrregularSampling(samples))
+
+    features, rotations = folder / "plate.gpml", folder / "plate.rot"
+    pygplates.FeatureCollection([outline]).write(str(features))
+    pygplates.FeatureCollection([rotation]).write(str(rotations))
+    return [features, rotations]
+
+
+def run_import_session(client: AutomationClient, folder: Path) -> None:
+    """File > Import on a GPlates file, then look for the plate where it should be."""
+    import pygplates
+
+    sys.path.insert(0, str(ROOT / "src"))
+    from middle_earth.gplates import plate_color
+
+    sources = write_gplates_files(folder)
+
+    # Import takes several files at once, which is what a feature collection
+    # and the rotation file that moves it need.
+    start_new_document(client)
+    client.call("expect_file_dialog", paths=[str(path) for path in sources])
+    client.call("menu", item="import")
+
+    # The conversion is a round trip to the interpreter, so it is not done when
+    # the menu item returns. The tree holds the root group and nothing else
+    # until it is.
+    titles: list = []
+    for _ in range(120):
+        titles = [entry["title"] for entry in client.call("get_features")["features"]]
+        if len(titles) > 1:
+            break
+        time.sleep(0.5)
+
+    check(titles == ["Planet", "Plate 101", "Imported Plate"],
+          f"the import puts the feature under a group named after its plate: {titles}")
+
+    document = client.call("get_document")["document"]
+    check(document["path"] == "", f"an import has no file of its own: {document['path']!r}")
+    check(document["dirty"], "and is offered for saving")
+
+    client.call("select", title="Plate 101")
+    keyframes = client.call("get_properties")["properties"]["keyframes"]
+    check(len(keyframes) >= 2, f"the plate group carries the sampled rotation: {len(keyframes)}")
+
+    client.call("select", title="Imported Plate")
+    panel = client.call("get_properties")["properties"]
+    check(panel["geometry"].startswith("polygon"), f"drawn as a polygon: {panel['geometry']!r}")
+    check(panel["feature_type"] == "coastline",
+          f"typed from the GPML type: {panel['feature_type']!r}")
+
+    # Where GPlates puts the middle of that outline at fifty million years.
+    model = pygplates.RotationModel(str(sources[1]))
+    latitude, longitude = (model.get_rotation(50.0, 101)
+                           * pygplates.PointOnSphere((0.0, 0.0))).to_lat_lon()
+    check(abs(longitude - 10.0) < 0.01, f"the plate has turned ten degrees by then: {longitude}")
+
+    # Probing where the outline is, and where it is not, at both times. The
+    # plate is drawn in a colour of its own, which is how GPlates tells one
+    # plate from another; see Docs/Import.md.
+    client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+    wanted, _ = hue_and_saturation(plate_color(101))
+
+    def is_plate(lat: float, lon: float) -> bool:
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        assert screen is not None, f"lat/lon ({lat}, {lon}) is off the visible hemisphere"
+        color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+        hue, saturation = hue_and_saturation(color)
+        return saturation > 0.15 and min(abs(hue - wanted), 1.0 - abs(hue - wanted)) < 0.03
+
+    client.call("set_time", time=50.0)
+    check(is_plate(latitude, longitude),
+          "at fifty the plate is drawn in its own colour where GPlates reconstructs it")
+    check(not is_plate(0.0, -10.0), "and is no longer where it stood at the present day")
+
+    client.call("set_time", time=0.0)
+    check(is_plate(0.0, -10.0), "at the present day it stands where GPlates draws it then")
+    check(not is_plate(0.0, -20.0), "and stops where its outline stops")
+
+
 def main(argv: list[str]) -> int:
     port = DEFAULT_PORT
     if argv:
@@ -2141,6 +2249,11 @@ def main(argv: list[str]) -> int:
         run_topology_session(client)
         run_kinematics_session(client)
         run_python_session(client)
+        folder = Path(tempfile.mkdtemp(prefix="middle-earth-import-"))
+        try:
+            run_import_session(client, folder)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
         folder = Path(tempfile.mkdtemp(prefix="middle-earth-scripts-"))
         try:
             run_script_menu_session(client, folder)

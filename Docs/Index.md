@@ -2,6 +2,7 @@
 
 - [Draw](Draw.md) — Drawing polygons, polylines and multipoints on the planet surface
 - [Editing](Editing.md) — The tools, the feature tree rows, editing vertices, splitting, measuring, small circles, line topologies, the light, the view settings, navigating the planet and the view toolbar
+- [Import](Import.md) — Bringing a GPlates project, or its feature collections and rotations, in as a document
 - [Kinematics](Kinematics.md) — The motion graphs: where a feature has been and how fast it turns
 - [Moving](Moving.md) — Craton movement implementation: rotation math, Basis indexing, mouse tracking
 - [Persistence](Persistence.md) — The document, saving and loading, the file format, the view settings and the settings file

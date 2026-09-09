@@ -20,6 +20,15 @@ static var IMAGE_FILTERS := PackedStringArray(
 	["*.%s ; Images" % ", *.".join(Backdrop.EXTENSIONS)])
 static var PALETTE_FILTERS := PackedStringArray(["*.cpt ; Colour Palette Tables"])
 static var SCRIPT_FILTERS := PackedStringArray(["*.py ; Python Scripts"])
+# What File > Import takes: a GPlates project, or the feature collection and
+# rotation files a project would name. See Docs/Import.md.
+static var IMPORT_FILTERS := PackedStringArray([
+	"*.gproj ; GPlates Projects",
+	"*.gpml, *.gpmlz, *.rot, *.grot, *.shp ; GPlates Feature Collections"])
+
+# Where an import is written before it is opened. The document is cut loose
+# from it straight after, so this is scratch space rather than a save.
+const IMPORT_SCRATCH := "user://imported.middle-earth"
 
 # How finely the palette preview strip samples the palette it draws.
 const PALETTE_PREVIEW_STEPS := 128
@@ -37,7 +46,7 @@ enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT }
 const VERTEX_PICK_PIXELS := 12.0
 const SNAP_PIXELS := 12.0
 
-enum FileItem { NEW, OPEN, SAVE, SAVE_AS, RUN_SCRIPT, PREFERENCES, QUIT }
+enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, RUN_SCRIPT, PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, CONSOLE, STATUS_BAR, SETTINGS, FULL_SCREEN }
 enum HelpItem { DOCUMENTATION, ABOUT }
@@ -324,6 +333,7 @@ func _build_menus() -> void:
 	recent_menu.name = "OpenRecent"
 	recent_menu.id_pressed.connect(_on_recent_menu_id_pressed)
 	file_menu.add_submenu_node_item("Open Recent", recent_menu)
+	file_menu.add_item("Import...", FileItem.IMPORT)
 	file_menu.add_separator()
 	file_menu.add_item("Save", FileItem.SAVE, KEY_MASK_CTRL | KEY_S)
 	file_menu.add_item("Save As...", FileItem.SAVE_AS, KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_S)
@@ -415,6 +425,7 @@ func _on_file_menu_id_pressed(id: int) -> void:
 	match id:
 		FileItem.NEW: new_document()
 		FileItem.OPEN: open_document()
+		FileItem.IMPORT: import_document()
 		FileItem.SAVE: save_document()
 		FileItem.SAVE_AS: save_document_as()
 		FileItem.RUN_SCRIPT: run_script()
@@ -631,6 +642,40 @@ func _finish_quit() -> void:
 	if not isolated:
 		_save_session()
 	get_tree().quit()
+
+
+# Bring a GPlates reconstruction in as a new document. The conversion is
+# Python's: the application picks the file, hands it to the interpreter and
+# opens what comes back. See Docs/Import.md.
+func import_document() -> void:
+	_confirm_unsaved_changes(func() -> void:
+		_ask_for_paths(DisplayServer.FILE_DIALOG_MODE_OPEN_FILES, "Import",
+			import_paths, IMPORT_FILTERS))
+
+
+# Import GPlates files: one project, or the feature collection and rotation
+# files a project would name. The console is brought up because the conversion
+# takes seconds and says what it is doing while it runs.
+func import_paths(paths: PackedStringArray) -> void:
+	if paths.is_empty():
+		return
+	var named := ", ".join(Array(paths).map(func(path: String) -> String: return path.get_file()))
+	if not python.is_ready():
+		_show_error("Cannot import %s: %s" % [named, python.reason])
+		return
+	_show_panel(ViewItem.CONSOLE)
+	var scratch := ProjectSettings.globalize_path(IMPORT_SCRATCH)
+	var reply: Dictionary = await python.request(
+		"import_gplates", {"sources": paths, "output": scratch})
+	if not bool(reply.get("ok", false)):
+		_show_error("Cannot import %s: %s" % [named, reply.get("error", "")])
+		return
+	var error := document.load_imported(scratch)
+	DirAccess.remove_absolute(scratch)
+	if not error.is_empty():
+		_show_error(error)
+		return
+	Config.set_last_directory_from_file(paths[0])
 
 
 func _ask_open_path() -> void:
@@ -1355,12 +1400,20 @@ func _save_panel_visibility() -> void:
 ### File dialogs
 
 
-# Ask for a file path and call on_path with it. The dialog is the one the
-# platform provides, so nothing happens when it is cancelled.
+# Ask for one file path and call on_path with it.
 func _ask_for_path(mode: int, title: String, on_path: Callable,
 		filters: PackedStringArray = FILE_FILTERS) -> void:
+	_ask_for_paths(mode, title, func(paths: PackedStringArray) -> void:
+		on_path.call(paths[0]), filters)
+
+
+# Ask for file paths and call on_paths with them. The dialog is the one the
+# platform provides, so nothing happens when it is cancelled. Only a mode that
+# takes several answers with more than one.
+func _ask_for_paths(mode: int, title: String, on_paths: Callable,
+		filters: PackedStringArray = FILE_FILTERS) -> void:
 	if file_dialog_hook.is_valid():
-		file_dialog_hook.call(mode, title, on_path)
+		file_dialog_hook.call(mode, title, on_paths)
 		return
 	DisplayServer.file_dialog_show(
 		title,
@@ -1371,7 +1424,7 @@ func _ask_for_path(mode: int, title: String, on_path: Callable,
 		filters,
 		func(status: bool, paths: PackedStringArray, _filter: int) -> void:
 			if status and not paths.is_empty():
-				on_path.call(paths[0]),
+				on_paths.call(paths),
 	)
 
 

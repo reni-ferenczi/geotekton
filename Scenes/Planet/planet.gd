@@ -125,6 +125,15 @@ static func scene_to_map(point: Vector3) -> Vector2:
 # tree does; where a feature sits at the current time is one rotation per
 # feature, so a step of an animation re-uploads that small part alone and leaves
 # the vertices where they were put.
+# How many primitives one document is drawn with. The geometry texture is one
+# texel per primitive wide and 16384 is the widest a desktop device is required
+# to make one, so past this the texture cannot be created at all. The shader
+# also loops over every primitive for every fragment, so a frame is long before
+# then; see Docs/Shader.md#measured. Whatever does not fit is left out rather
+# than the window standing still, and the feature tree still holds all of it.
+const MAX_PRIMITIVES := 16384
+
+
 class Geometry extends RefCounted:
 	# One entry per primitive: { "kind": Primitive, "verts": Array of
 	# Vector2(latitude, longitude) in degrees in the feature's own frame,
@@ -136,6 +145,9 @@ class Geometry extends RefCounted:
 	# The features the primitives belong to, in the order they were first met.
 	var features: Array[Feature] = []
 	var index_of := {}
+
+	# How many features were left out because MAX_PRIMITIVES was reached.
+	var dropped: int = 0
 
 	# Where each feature's primitives sit in the list, as a half open range.
 	# Every primitive of one feature is contiguous, so the hit test can walk one
@@ -324,6 +336,11 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 			continue
 		if styling != null and not styling.shows(node):
 			continue
+		# A feature is drawn whole or not at all, so what it needs is counted
+		# before any of it is added. A later, smaller feature may still fit.
+		if geometry.primitives.size() + _primitive_count(node) > MAX_PRIMITIVES:
+			geometry.dropped += 1
+			continue
 
 		var color := styling.color_of(node) if styling != null else node.color
 		var index := geometry.index_for(node)
@@ -353,6 +370,23 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 	geometry.build_caps(2.0 * asin(maxf(LINE_HIT_WIDTH, POINT_HIT_RADIUS) * 0.5))
 	geometry.resolve(root, time)
 	return geometry
+
+
+# How many primitives a feature is drawn with, without building them: a polygon
+# ring of n vertices is cut into n - 2 triangles, a polyline ring of n into
+# n - 1 segments, and a multipoint into one marker per vertex.
+static func _primitive_count(node: Feature) -> int:
+	var total := 0
+	match node.drawn_as():
+		Feature.GeometryKind.POLYGON:
+			total = node.triangles.size() / 3
+		Feature.GeometryKind.POLYLINE:
+			for ring in node.rings:
+				total += maxi(0, ring.size() - 1)
+		Feature.GeometryKind.MULTIPOINT:
+			for ring in node.rings:
+				total += ring.size()
+	return total
 
 
 static func _primitive(kind: Primitive, verts: Array, node: Feature, index: int,
