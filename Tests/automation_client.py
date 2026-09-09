@@ -7,7 +7,7 @@ import subprocess
 import time
 from pathlib import Path
 
-DEFAULT_GODOT = r"C:\Tools\Godot\Godot_v4.6.2-stable_win64_console.exe"
+DEFAULT_GODOT = r"C:\Tools\Godot\Godot_v4.7.2-stable_win64_console.exe"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 

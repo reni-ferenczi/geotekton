@@ -6,11 +6,13 @@ extends TestCase
 const RENDERED_DIR := "res://Tests/Rendered"
 
 
-# GP-0025: a script level static variable in a rendered test makes the engine
-# segfault during shutdown, after every test has passed and the summary has been
-# printed, so the run fails with nothing to point at. It takes two such scripts
-# to show, and the file passes when it is the only one being run, which is why
-# this is worth catching here instead of waiting for someone to hit it.
+# GP-0025: a script level static variable in a rendered test breaks the engine's
+# shutdown, after every test has passed and the summary has been printed. On
+# Godot 4.6.2 that was a segfault, so the run failed with nothing to point at;
+# on 4.7.2 the engine survives but still reports leaked objects and resources.
+# It takes two such scripts to show, and the file is quiet when it is the only
+# one being run, which is why this is worth catching here instead of waiting for
+# someone to hit it.
 #
 # The headless tests are unaffected: Tests/Unit/test_hit_test.gd has declared one
 # since Phase 2. A const array of Vector2, turned into a PackedVector2Array
