@@ -83,12 +83,15 @@ Every method named `test_*` is one test. The runner (`Tests/run_tests.gd`) creat
 fresh instance of the test class per method, so tests do not share state. Helper
 methods must not start with `test_` or the runner calls them as tests.
 
-Do not declare a script level `static var` in a rendered test. It makes the
-engine segfault during shutdown, after every test has passed and the summary has
-been printed, so the run fails with nothing to point at. A `const` array of
-`Vector2`, turned into a `PackedVector2Array` where it is used, does the same job
-without it. The file passes when it is the only one being run, which is what
-makes this easy to miss; `Tests/Unit` is unaffected. See GP-0025.
+Do not declare a script level `static var` in a rendered test. On Godot 4.6.2 it
+made the engine segfault during shutdown, after every test had passed and the
+summary had been printed, so the run failed with nothing to point at. Godot 4.7.2
+no longer crashes, but the teardown is still wrong: the same file leaks 168
+`ObjectDB` instances and 38 resources, which the engine reports as errors on its
+way out. A `const` array of `Vector2`, turned into a `PackedVector2Array` where it
+is used, does the same job without any of it. The file is quiet when it is the
+only one being run, which is what makes this easy to miss; `Tests/Unit` is
+unaffected. See GP-0025.
 
 Assertions collect failures instead of aborting: `assert_true`, `assert_eq`,
 `assert_close` and `fail` append to `TestCase.failures`, so one test method reports

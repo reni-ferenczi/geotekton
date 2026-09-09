@@ -12,8 +12,9 @@ extends RenderedCase
 # that a snap has to be asked for rather than happening by accident.
 #
 # Plain constants rather than a static var holding a PackedVector2Array: a
-# static variable in a rendered test crashes the engine on the way out, long
-# after every test has passed. See Docs/Testing.md and GP-0025.
+# static variable in a rendered test leaks objects and resources on the way out,
+# long after every test has passed, and crashed the engine outright before
+# Godot 4.7.2. See Docs/Testing.md and GP-0025.
 const FIRST := [Vector2(-8, -8), Vector2(8, -8), Vector2(0, 8)]
 const SECOND := [Vector2(-8, 30), Vector2(8, 30), Vector2(0, 46)]
 
