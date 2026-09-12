@@ -325,23 +325,26 @@ of the globe the light should come from is on the far side.
 
 ## The Measure tool
 
-The Measure tool reports great circle distances in the status bar.
+The Measure tool measures the great circle distance between two points.
 
 | Input | Action |
 |-------|--------|
-| **LMB** on the globe | Add a point to the path being measured |
+| **LMB** on the globe | The first point, then the second; a third starts the next measurement from where it fell |
 | **RMB** or **Ctrl+Z** | Take the last point back |
 | **Ctrl+Y** | Put it back |
 | **Escape** | Start again with no points |
 
-With two or more points the status bar shows the last segment and the total
-along the whole path. With none it says so. Outside the Measure tool the same
-field shows the length along the selected feature's geometry: around the outline
-of a polygon, along a polyline, and nothing for a multipoint, whose vertices are
-separate markers rather than a path.
+A measurement is one segment: it is a measuring tool, not a drawing tool. With
+two points the distance is written in the status bar and beside the line
+itself, a little up and to the right of its midpoint, where it follows the
+camera and hides while the midpoint is round the back of the globe or off the
+map. With fewer than two the status bar says what to click. Outside the
+Measure tool the same field shows the length along the selected feature's
+geometry: around the outline of a polygon, along a polyline, and nothing for a
+multipoint, whose vertices are separate markers rather than a path.
 
-The points are drawn in the same yellow outline overlay the Draw tool uses, so
-the path being measured is visible while it is read.
+The two points and the line between them are drawn in the same yellow outline
+overlay the Draw tool uses.
 
 ### The planet radius
 

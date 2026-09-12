@@ -1562,6 +1562,39 @@ def run_measure_session(client: AutomationClient) -> None:
     shown = client.call("get_status")["status"]["measure"]
     check(f"{wanted:.1f} km" in shown, f"the status bar shows {wanted:.1f} km: {shown}")
 
+    # The same number sits beside the line, just up and right of its midpoint.
+    label = client.call("get_tool")["measure_label"]
+    check(label["visible"] and label["text"] == shown,
+          f"the distance is written beside the line: {label}")
+    middle = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
+    dx, dy = label["screen"][0] - middle[0], label["screen"][1] - middle[1]
+    check(0.0 < dx < 40.0 and -60.0 < dy < 0.0,
+          f"and it sits up and to the right of the midpoint: {dx:.0f}, {dy:.0f}")
+
+    # Turn the midpoint round the back of the globe and the label goes with it.
+    client.call("set_view", lat=0.0, lon=180.0)
+    check(not client.call("get_tool")["measure_label"]["visible"],
+          "the label is hidden while the midpoint is round the back")
+    client.call("set_view", lat=0.0, lon=0.0)
+    check(client.call("get_tool")["measure_label"]["visible"], "and back when it is in view")
+
+    # A third click is the start of the next measurement, not a longer path.
+    third = client.call("latlon_to_screen", lat=10.0, lon=0.0)["screen"]
+    client.call("click", x=third[0], y=third[1])
+    tool = client.call("get_tool")
+    check(len(tool["measure_points"]) == 1, f"a third click starts over: {tool['measure_points']}")
+    check(not tool["measure_label"]["visible"], "with no segment to label yet")
+    for lat, lon in MEASURE_POINTS:
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        client.call("click", x=screen[0], y=screen[1])
+    client.call("set_tool", tool="move")
+    check(not client.call("get_tool")["measure_label"]["visible"],
+          "leaving the tool takes the label away")
+    client.call("set_tool", tool="measure")
+    for lat, lon in MEASURE_POINTS:
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        client.call("click", x=screen[0], y=screen[1])
+
     # Another planet. The radius is a whole number of kilometres, which is the
     # step the preference is edited in.
     other = 3000.0
