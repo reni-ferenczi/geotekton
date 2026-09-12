@@ -210,7 +210,8 @@ fourth starts again.
 | Input | Action |
 |-------|--------|
 | **LMB** on the globe | Add a point; the fourth starts a new circle |
-| **RMB** | Take the last point back |
+| **RMB** or **Ctrl+Z** | Take the last point back |
+| **Ctrl+Y** | Put it back |
 | **Enter** | Commit the circle to the selected feature |
 | **Escape** | Start again with no points |
 
@@ -329,7 +330,8 @@ The Measure tool reports great circle distances in the status bar.
 | Input | Action |
 |-------|--------|
 | **LMB** on the globe | Add a point to the path being measured |
-| **RMB** | Take the last point back |
+| **RMB** or **Ctrl+Z** | Take the last point back |
+| **Ctrl+Y** | Put it back |
 | **Escape** | Start again with no points |
 
 With two or more points the status bar shows the last segment and the total

@@ -329,6 +329,62 @@ def run_drawing_session(client: AutomationClient) -> None:
               f"undo removes the committed geometry ({kind})")
 
 
+def run_point_undo_session(client: AutomationClient) -> None:
+    """Ctrl+Z takes back the last point a tool holds and Ctrl+Y puts it back.
+
+    The document's own stack is reached only once no point is held; without
+    that, Ctrl+Z halfway through a shape undid the creation of the feature it
+    was being drawn on (GP-0041).
+    """
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", kind="polygon")
+    depth = client.call("get_document")["document"]["undo_depth"]
+    points = DRAWINGS["polygon"]
+    if not draw(client, points):
+        return
+
+    client.call("key", key="Z", ctrl=True)
+    client.call("key", key="Z", ctrl=True)
+    held = client.call("get_tool")["drawing_vertices"]
+    check(held == len(points) - 2, f"Ctrl+Z twice takes two vertices back: {held} held")
+    client.call("key", key="Y", ctrl=True)
+    held = client.call("get_tool")["drawing_vertices"]
+    check(held == len(points) - 1, f"Ctrl+Y puts one of them back: {held} held")
+    check(client.call("get_document")["document"]["undo_depth"] == depth,
+          "and the document's undo stack is untouched by either")
+
+    # A new click forgets what was taken back, so Ctrl+Y has nothing to put down.
+    if draw(client, points[-1:]):
+        client.call("key", key="Y", ctrl=True)
+        held = client.call("get_tool")["drawing_vertices"]
+        check(held == len(points), f"a click forgets the vertex taken back: {held} held")
+
+    # With the outline empty, Undo is the document's again.
+    client.call("key", key="Escape")
+    client.call("menu", item="undo")
+    check(client.call("get_document")["document"]["undo_depth"] == depth - 1,
+          "with nothing held, Edit > Undo reaches the document")
+    client.call("menu", item="redo")
+
+    # The Circle and Measure tools hold their points the same way.
+    for tool, field in (("circle", "circle_points"), ("measure", "measure_points")):
+        # Redo put the feature back but not the selection.
+        client.call("select", title="Feature")
+        client.call("set_tool", tool=tool)
+        if not draw(client, points[:2]):
+            continue
+        client.call("key", key="Z", ctrl=True)
+        held = len(client.call("get_tool")[field])
+        check(held == 1, f"Ctrl+Z takes a {tool} point back: {held} held")
+        client.call("key", key="Y", ctrl=True)
+        held = len(client.call("get_tool")[field])
+        check(held == 2, f"Ctrl+Y puts the {tool} point back: {held} held")
+        check(client.call("get_document")["document"]["undo_depth"] == depth,
+              f"and the document's stack is untouched by the {tool} tool")
+    client.call("set_tool", tool="move")
+
+
 def run_escape_session(client: AutomationClient) -> None:
     """Escape throws the shape being drawn away without touching the feature."""
     start_new_document(client)
@@ -2223,6 +2279,7 @@ def main(argv: list[str]) -> int:
         finally:
             shutil.rmtree(folder, ignore_errors=True)
         run_drawing_session(client)
+        run_point_undo_session(client)
         run_escape_session(client)
         run_properties_session(client)
         run_coordinate_session(client)

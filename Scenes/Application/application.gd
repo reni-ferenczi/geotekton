@@ -436,8 +436,8 @@ func _on_file_menu_id_pressed(id: int) -> void:
 func _on_edit_menu_id_pressed(id: int) -> void:
 	var selected := features.feature_tree.get_selected_node()
 	match id:
-		EditItem.UNDO: features.undo()
-		EditItem.REDO: features.redo()
+		EditItem.UNDO: undo()
+		EditItem.REDO: redo()
 		EditItem.CUT: features._on_cut_pressed()
 		EditItem.COPY: features._on_copy_pressed()
 		EditItem.PASTE: features._on_paste_pressed()
@@ -454,8 +454,8 @@ func _update_edit_menu() -> void:
 	var is_node := selected != null and not selected.is_root
 	var pasteable := Document.APPLICATION in DisplayServer.clipboard_get()
 	var disabled := {
-		EditItem.UNDO: not document.can_undo(),
-		EditItem.REDO: not document.can_redo(),
+		EditItem.UNDO: not document.can_undo() and _tool_points().is_empty(),
+		EditItem.REDO: not document.can_redo() and taken_back.is_empty(),
 		EditItem.CUT: not is_node,
 		EditItem.COPY: not is_node,
 		EditItem.PASTE: not pasteable,
@@ -1444,6 +1444,7 @@ func _on_cursor_moved(lat: float, lon: float) -> void:
 
 
 func set_active_tool(tool: Tool) -> void:
+	taken_back = PackedVector2Array()
 	if active_tool == Tool.DRAW and tool != Tool.DRAW:
 		_outline_cancel()
 	if active_tool == Tool.VERTEX and tool != Tool.VERTEX:
@@ -1811,6 +1812,81 @@ func _on_planet_input_outside(event: InputEvent) -> void:
 		_light_dragging = false
 
 
+### Undo and redo
+#
+# A tool that takes clicks before it commits them — the shape being drawn, the
+# points of a circle, the ends of a measurement — holds them outside the
+# document, so the document's undo stack knows nothing about them. Ctrl+Z while
+# a tool holds points takes the last one back rather than undoing the previous
+# edit under the half drawn shape, and Ctrl+Y puts it back; a right click is the
+# same take back. With nothing held, both reach the document. The feature tree
+# toolbar's own buttons go straight to the document, since the tree is not
+# where drawing happens. See Docs/Draw.md.
+
+# The points taken back and not put back yet, oldest first. Forgotten as soon as
+# anything else changes the points: a new click, a commit, a cancel, a change
+# of tool.
+var taken_back := PackedVector2Array()
+
+
+func undo() -> void:
+	var points := _tool_points()
+	if points.is_empty():
+		features.undo()
+		return
+	taken_back.append(points[points.size() - 1])
+	points.remove_at(points.size() - 1)
+	_set_tool_points(points)
+
+
+func redo() -> void:
+	if taken_back.is_empty():
+		features.redo()
+		return
+	var points := _tool_points()
+	points.append(taken_back[taken_back.size() - 1])
+	taken_back.remove_at(taken_back.size() - 1)
+	_set_tool_points(points)
+
+
+# One more point for the active tool, from a click.
+func _place_point(point: Vector2) -> void:
+	var points := _tool_points()
+	points.append(point)
+	taken_back = PackedVector2Array()
+	_set_tool_points(points)
+
+
+# The points the active tool holds before it commits them; none for a tool
+# that takes no clicks of that kind.
+func _tool_points() -> PackedVector2Array:
+	match active_tool:
+		Tool.DRAW:
+			return outline_vertices
+		Tool.CIRCLE:
+			return circle_points
+		Tool.MEASURE:
+			return measure_points
+	return PackedVector2Array()
+
+
+# Give the active tool its points and show them the way that tool does.
+func _set_tool_points(points: PackedVector2Array) -> void:
+	match active_tool:
+		Tool.DRAW:
+			outline_vertices = points
+			_refresh_outline()
+		Tool.CIRCLE:
+			circle_points = points
+			_refresh_selection_outline()
+			_show_measurement()
+		Tool.MEASURE:
+			measure_points = points
+			_refresh_selection_outline()
+			_show_measurement()
+	_update_edit_menu()
+
+
 func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 	if event is not InputEventMouseButton or not event.is_pressed():
 		return
@@ -1820,12 +1896,9 @@ func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 		return
 
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		outline_vertices.append(Vector2(lat, lon))
-		_refresh_outline()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		if not outline_vertices.is_empty():
-			outline_vertices.remove_at(outline_vertices.size() - 1)
-			_refresh_outline()
+		_place_point(Vector2(lat, lon))
+	elif event.button_index == MOUSE_BUTTON_RIGHT and not outline_vertices.is_empty():
+		undo()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -1863,6 +1936,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_report(_circle_commit())
 			elif event.keycode == KEY_ESCAPE:
 				circle_points = PackedVector2Array()
+				taken_back = PackedVector2Array()
 				_refresh_selection_outline()
 				_show_measurement()
 			else:
@@ -1901,6 +1975,7 @@ func _outline_commit() -> void:
 
 func _outline_cancel() -> void:
 	outline_vertices = PackedVector2Array()
+	taken_back = PackedVector2Array()
 	_refresh_selection_outline()
 
 
@@ -2264,13 +2339,9 @@ func _on_circle_input(lat: float, lon: float, event: InputEvent) -> void:
 	if event.button_index == MOUSE_BUTTON_LEFT:
 		if circle_points.size() >= 3:
 			circle_points = PackedVector2Array()
-		circle_points.append(Vector2(lat, lon))
+		_place_point(Vector2(lat, lon))
 	elif event.button_index == MOUSE_BUTTON_RIGHT and not circle_points.is_empty():
-		circle_points.remove_at(circle_points.size() - 1)
-	else:
-		return
-	_refresh_selection_outline()
-	_show_measurement()
+		undo()
 
 
 # The circle the clicked points describe, as [centre, angular radius], or an
@@ -2472,17 +2543,14 @@ func _on_measure_input(_lat: float, _lon: float, event: InputEvent) -> void:
 	if event is not InputEventMouseButton or not event.is_pressed():
 		return
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		measure_points.append(Vector2(_lat, _lon))
+		_place_point(Vector2(_lat, _lon))
 	elif event.button_index == MOUSE_BUTTON_RIGHT and not measure_points.is_empty():
-		measure_points.remove_at(measure_points.size() - 1)
-	else:
-		return
-	_refresh_selection_outline()
-	_show_measurement()
+		undo()
 
 
 func _measure_clear() -> void:
 	measure_points = PackedVector2Array()
+	taken_back = PackedVector2Array()
 	_show_measurement()
 
 
