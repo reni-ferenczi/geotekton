@@ -53,7 +53,8 @@ selected feature.
 | Input | Action |
 |-------|--------|
 | **LMB** | Place the next vertex on the globe surface |
-| **RMB** | Undo the last placed vertex (pop from outline) |
+| **RMB** or **Ctrl+Z** | Take the last placed vertex back |
+| **Ctrl+Y** | Put the last vertex taken back down again |
 | **Enter** | Commit the vertices to the feature |
 | **Escape** | Cancel the current outline, discard all placed vertices |
 | **MMB** | Planet rotation (always available, unchanged) |
@@ -70,6 +71,14 @@ While placing vertices, the shader renders a **live preview overlay** in yellow:
 
 This preview is ephemeral — it is not saved to the feature until Enter is pressed.
 
+The vertices are not in the document either, so Undo and Redo work on them
+while any are held: Ctrl+Z takes the last one back and Ctrl+Y puts it down
+again, and the document's own undo stack is reached only once the outline is
+empty. Without this, Ctrl+Z halfway through a shape would undo the creation of
+the very feature being drawn on. The vertices taken back are forgotten by the
+next click, a commit, Escape or a change of tool. The Circle and Measure tools
+hold their points the same way.
+
 Outside drawing, the same overlay traces the geometry of the selected feature:
 one part per ring, closed for a polygon, open for a polyline, markers alone for
 a multipoint.
@@ -80,7 +89,8 @@ a multipoint.
 2. Activate the Draw tool (or let it auto-activate for empty features).
 3. Choose the geometry kind, while the feature is still empty.
 4. **Left-click** on the globe to place vertices in order.
-5. Use **right-click** to undo mistakes (removes the last vertex).
+5. Use **right-click** or **Ctrl+Z** to take the last vertex back, and
+   **Ctrl+Y** to put it down again.
 6. Press **Enter** to commit them, once the kind has enough of them.
 7. Repeat to add more parts to the same feature, or select a different feature.
 
