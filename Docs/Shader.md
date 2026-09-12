@@ -189,6 +189,23 @@ The colour a primitive is drawn in is whichever the active draw style gave the
 feature it belongs to, worked out once per feature where the geometry is
 flattened. See [Styling](Styling.md).
 
+### Colour space
+
+A `Color` holds sRGB values: the numbers the colour picker shows and the file
+stores. The shader writes `ALBEDO` in linear light and the renderer encodes the
+frame to sRGB on the way out, so a colour packed as it stands is lifted along
+the transfer curve — 0.5 grey came out at 0.74 before GP-0032 — while the Earth
+texture, declared `source_color`, was decoded properly. `Planet.set_geometry()`
+therefore packs `Color.srgb_to_linear()` into row 2, and
+`Planet.apply_view_settings()` does the same for the graticule colour. The
+outline yellow is unaffected, since 0 and 1 map onto themselves.
+
+The shader also sets `SPECULAR` to zero. The default specular term brightens
+every lit fragment towards white on top of the albedo, which is not what a
+flat map of a planet should do. With the light shining from the camera a
+feature therefore comes out at exactly the colour it was given, which is what
+the rendered and scripted colour checks compare against.
+
 ### Data Texture Layout
 
 The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with **width = primitive count** and **height = 4 rows**:
