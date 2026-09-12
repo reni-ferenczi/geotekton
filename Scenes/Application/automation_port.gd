@@ -953,6 +953,8 @@ func _menu_item(name: String) -> Array:
 		"about": return [app.help_menu, Application.HelpItem.ABOUT]
 		"skip_older": return [app.time_menu, Application.TimeItem.OLDER]
 		"skip_younger": return [app.time_menu, Application.TimeItem.YOUNGER]
+		"keyframe_older": return [app.time_menu, Application.TimeItem.OLDER_KEYFRAME]
+		"keyframe_younger": return [app.time_menu, Application.TimeItem.YOUNGER_KEYFRAME]
 	if Styling.CLASSES.has(name):
 		return [app.view_menu, Application.class_menu_id(name)]
 	return []

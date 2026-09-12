@@ -765,6 +765,7 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(client.call("get_time")["time"] == 400.0, "and Time > Skip Older comes back")
     client.call("key", key="PageUp")
     check(client.call("get_time")["time"] == 400.0, "a skip never leaves the animation range")
+    run_keyframe_jump_checks(client)
 
     # A time typed in reaches the slider through the document, the same way a
     # time set from a script does.
@@ -772,6 +773,9 @@ def run_timeline_checks(client: AutomationClient) -> None:
     timeline = client.call("get_timeline")["timeline"]
     check(timeline["typed"] == 123.0 and timeline["slider"] == -123.0,
           f"a time set anywhere reaches both the field and the slider: {timeline['slider']}")
+
+    client.call("set_animation", animation={"start": 400.0})
+    client.call("timeline", button="Reset")
 
     # Slow enough that it cannot run out between the request that starts it and
     # the one that stops it: a request waits two frames, and at 50 My a second a
@@ -803,6 +807,37 @@ def run_timeline_checks(client: AutomationClient) -> None:
     client.call("timeline", button="Pause")
     check(client.call("get_time")["time"] > 300.0,
           f"Play from the end starts over: {client.call('get_time')['time']}")
+
+
+def run_keyframe_jump_checks(client: AutomationClient) -> None:
+    """The keyframe marks are clickable and the >> and << buttons walk them."""
+    # The feature holds keyframes at TIME_A and TIME_B, the present and 200 Ma.
+    client.call("set_time", time=123.456)
+    client.call("timeline", button="YoungerKeyframe")
+    check(client.call("get_time")["time"] == TIME_A,
+          f"the younger keyframe button lands on {TIME_A}: {client.call('get_time')['time']}")
+    client.call("menu", item="keyframe_older")
+    check(client.call("get_time")["time"] == TIME_B,
+          f"Time > Older Keyframe lands on {TIME_B}: {client.call('get_time')['time']}")
+    client.call("key", key="PageUp", ctrl=True)
+    check(client.call("get_time")["time"] == TIME_B,
+          "and there is no older keyframe to go on to")
+    timeline = client.call("get_timeline")["timeline"]
+    check(not timeline["playing"], "a jump is not playback")
+
+    # A click on a mark lands on the keyframe exactly, whatever the digits.
+    client.call("set_time", time=333.0)
+    marks = client.call("get_timeline")["timeline"]["marker_screen"]
+    if check(len(marks) == 2, f"both keyframes are marked on the strip: {marks}"):
+        for time, x, y in marks:
+            client.call("click", x=x, y=y)
+            check(client.call("get_time")["time"] == time,
+                  f"clicking the mark at {x:.0f} lands on {time} Ma exactly: {client.call('get_time')['time']}")
+        # Between two marks there is nothing to click on.
+        (time_a, x_a, y_a), (time_b, x_b, _) = marks
+        client.call("set_time", time=333.0)
+        client.call("click", x=(x_a + x_b) / 2.0, y=y_a)
+        check(client.call("get_time")["time"] == 333.0, "a click between the marks does nothing")
 
 
 ### The Circle scenario

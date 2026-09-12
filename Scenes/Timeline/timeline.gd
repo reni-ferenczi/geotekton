@@ -18,11 +18,20 @@ signal configure_requested()
 # kinematics graphs are drawn over the same span and follow it.
 signal animation_changed()
 
-# How tall the strip of keyframe markers under the slider is.
+# How tall the strip of keyframe markers under the slider is, and how far
+# either side of a mark a click still lands on it, in pixels.
 const MARKER_HEIGHT := 10
+const MARKER_PICK_PIXELS := 4.0
+
+# What the strip says when the pointer is not on a mark.
+const MARKERS_TOOLTIP := "The keyframes of the selected feature; click one to go there"
 
 # The keyframe markers of the selected node, and the current time among them.
 const MARKER_COLOR := Color(1.0, 0.85, 0.2, 1.0)
+
+# How close to a keyframe's time the current time counts as being on it, so
+# that a jump from a keyframe goes to the next one rather than back to itself.
+const TIME_EPSILON := 1e-9
 const CURSOR_COLOR := Color(1.0, 1.0, 1.0, 0.6)
 
 var document: Document
@@ -41,6 +50,8 @@ var pause_button: Button
 var reset_button: Button
 var older_button: Button
 var younger_button: Button
+var older_keyframe_button: Button
+var younger_keyframe_button: Button
 var configure_button: Button
 
 var playing: bool = false
@@ -86,6 +97,9 @@ func _build() -> void:
 	controls.name = "Controls"
 	box.add_child(controls)
 
+	older_keyframe_button = _control_button(
+		controls, "OlderKeyframe", "<<", "The next keyframe towards the older end (Ctrl+Page Up)")
+	older_keyframe_button.pressed.connect(jump_keyframe.bind(true))
 	older_button = _control_button(controls, "Older", "<", "One skip towards the older end (Page Up)")
 	older_button.pressed.connect(step.bind(true))
 	play_button = _control_button(controls, "Play", "Play", "Run the animation")
@@ -94,6 +108,9 @@ func _build() -> void:
 	pause_button.pressed.connect(pause)
 	younger_button = _control_button(controls, "Younger", ">", "One skip towards the younger end (Page Down)")
 	younger_button.pressed.connect(step.bind(false))
+	younger_keyframe_button = _control_button(
+		controls, "YoungerKeyframe", ">>", "The next keyframe towards the younger end (Ctrl+Page Down)")
+	younger_keyframe_button.pressed.connect(jump_keyframe.bind(false))
 
 	skip_spin = SpinBox.new()
 	skip_spin.name = "Skip"
@@ -144,9 +161,10 @@ func _build() -> void:
 	markers = Control.new()
 	markers.name = "Markers"
 	markers.custom_minimum_size = Vector2(0, MARKER_HEIGHT)
-	markers.tooltip_text = "The keyframes of the selected feature"
+	markers.tooltip_text = MARKERS_TOOLTIP
 	markers.draw.connect(_draw_markers)
 	markers.resized.connect(markers.queue_redraw)
+	markers.gui_input.connect(_on_markers_input)
 	box.add_child(markers)
 
 
@@ -194,6 +212,7 @@ func _show_time() -> void:
 	time_spin.set_value_no_signal(document.current_time)
 	_filling = false
 	markers.queue_redraw()
+	_update_buttons()
 
 
 func _on_slider_moved(value: float) -> void:
@@ -277,6 +296,71 @@ func _process(delta: float) -> void:
 func _update_buttons() -> void:
 	play_button.disabled = playing
 	pause_button.disabled = not playing
+	older_keyframe_button.disabled = _keyframe_beyond(true) == null
+	younger_keyframe_button.disabled = _keyframe_beyond(false) == null
+
+
+### Jumping between keyframes
+
+
+# The nearest keyframe of the marked node beyond the current time in the given
+# direction, or null when there is none that way.
+func _keyframe_beyond(towards_older: bool) -> Keyframe:
+	if marked == null or document == null:
+		return null
+	var found: Keyframe = null
+	for keyframe in marked.keyframes:
+		var beyond := keyframe.time > document.current_time + TIME_EPSILON if towards_older \
+			else keyframe.time < document.current_time - TIME_EPSILON
+		if not beyond:
+			continue
+		if found == null or absf(keyframe.time - document.current_time) \
+				< absf(found.time - document.current_time):
+			found = keyframe
+	return found
+
+
+# Land on the next keyframe of the marked node in that direction, exactly.
+func jump_keyframe(towards_older: bool) -> void:
+	var keyframe := _keyframe_beyond(towards_older)
+	if keyframe == null:
+		return
+	pause()
+	document.set_time(keyframe.time)
+
+
+# A click on a mark lands the time on that keyframe exactly, which is what the
+# marks are for; typing the time would need every digit of it.
+func _on_markers_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		var under := _keyframe_at_x(event.position.x)
+		markers.tooltip_text = MARKERS_TOOLTIP if under == null else "%s Ma" % under.time
+		return
+	if event is not InputEventMouseButton or not event.pressed \
+			or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var keyframe := _keyframe_at_x(event.position.x)
+	if keyframe == null:
+		return
+	pause()
+	document.set_time(keyframe.time)
+	markers.accept_event()
+
+
+# The marked keyframe whose mark is nearest this x across the strip and within
+# reach of it, or null.
+func _keyframe_at_x(x: float) -> Keyframe:
+	var span := oldest() - youngest()
+	if marked == null or span <= 0.0:
+		return null
+	var found: Keyframe = null
+	var nearest := MARKER_PICK_PIXELS + 1.0
+	for keyframe in marked.keyframes:
+		var distance := absf(_marker_x(keyframe.time, span) - x)
+		if distance <= MARKER_PICK_PIXELS and distance < nearest:
+			nearest = distance
+			found = keyframe
+	return found
 
 
 ### Keyframe markers
@@ -287,6 +371,7 @@ func _update_buttons() -> void:
 func show_keyframes(node: Feature) -> void:
 	marked = node
 	markers.queue_redraw()
+	_update_buttons()
 
 
 func _draw_markers() -> void:
@@ -335,6 +420,7 @@ func to_json() -> Dictionary:
 		"playing": playing,
 		"skip": skip(),
 		"markers": _markers_to_json(),
+		"marker_screen": _marker_screen_to_json(),
 		"animation": animation.to_json(),
 	}
 
@@ -347,6 +433,23 @@ func _markers_to_json() -> Array:
 	return times
 
 
+# Where each mark is in the window, as [time, x, y], so a scripted run can click
+# one the way a person does.
+func _marker_screen_to_json() -> Array:
+	var marks: Array = []
+	var span := oldest() - youngest()
+	if marked == null or span <= 0.0:
+		return marks
+	var origin := markers.get_global_rect().position
+	for keyframe in marked.keyframes:
+		# A mark at either end of the range sits on the edge of the strip, and
+		# the edge pixel itself is outside the control; a pixel in from it is
+		# still within reach of the mark.
+		var x := clampf(_marker_x(keyframe.time, span), 1.0, markers.size.x - 1.0)
+		marks.append([keyframe.time, origin.x + x, origin.y + markers.size.y / 2.0])
+	return marks
+
+
 # Press one of the buttons the way a person would, for the scripted session.
 func press(button_name: String) -> String:
 	var button: Button = {
@@ -355,6 +458,8 @@ func press(button_name: String) -> String:
 		"Reset": reset_button,
 		"Older": older_button,
 		"Younger": younger_button,
+		"OlderKeyframe": older_keyframe_button,
+		"YoungerKeyframe": younger_keyframe_button,
 		"Configure": configure_button,
 	}.get(button_name)
 	if button == null:
