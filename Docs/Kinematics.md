@@ -37,10 +37,9 @@ middle of the outline rather than of the area inside it; for the shapes anyone
 draws the two are close, and this one is also defined for a polyline and for a
 multipoint, which have no area at all.
 
-**Where it is** at a time is that point carried through the rotation the world
-sees: the feature's own keyframes composed with those of every group above it.
-A terrane inside a craton group is therefore graphed where the craton has put
-it, not where its own keyframes alone would. See [Time](Time.md#groups-carry-motion).
+**Where it is** at a time is that point carried through the rotation the
+feature's own keyframes give it, which is the rotation the world sees; a group
+above it moves nothing. See [Time](Time.md#groups-do-not-move).
 
 **The rate** is worked out between one keyframe time and the next: the single
 turn that carries where the node stands at one to where it stands at the other,
@@ -61,10 +60,8 @@ distances from the same rotation; see
 A rate has no direction. A turn back the way it came is as fast as the turn out,
 and the bar for that span is as tall.
 
-The times the rate can change at are the keyframe times of the node **and of
-every group above it**, since a group's motion reaches everything under it. A
-feature with two keyframes of its own inside a group with two of its own has up
-to three spans, not one.
+The times the rate can change at are the feature's keyframe times: a feature
+with three keyframes has two spans.
 
 ## What has no graph
 

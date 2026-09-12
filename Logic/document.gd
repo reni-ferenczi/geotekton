@@ -373,9 +373,15 @@ func set_time(time: float) -> void:
 
 # Give the node the rotation it has at that time, replacing the keyframe already
 # there or adding one. This is what the Move tool commits.
-func set_keyframe(node: Feature, time: float, rotation: Vector3) -> void:
+# A group carries no motion, so only a leaf takes a keyframe.
+func set_keyframe(node: Feature, time: float, rotation: Vector3) -> String:
+	if node == null:
+		return "Nothing is selected."
+	if node.is_group:
+		return "%s is a group and does not move; keyframes belong to features." % node.title
 	Keyframe.upsert(node.keyframes, time, rotation)
 	record()
+	return ""
 
 
 func remove_keyframe(node: Feature, index: int) -> String:
@@ -418,6 +424,8 @@ func set_keyframe_rotation(node: Feature, index: int, rotation: Vector3) -> Stri
 func _check_keyframe(node: Feature, index: int) -> String:
 	if node == null:
 		return "Nothing is selected."
+	if node.is_group:
+		return "%s is a group and has no keyframes." % node.title
 	if index < 0 or index >= node.keyframes.size():
 		return "%s has no keyframe %d." % [node.title, index]
 	return ""
@@ -571,14 +579,62 @@ func resolve_backdrop() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.4.0"):
+	if not _is_older_than(version, "0.8.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
 		data["features"] = _to_0_2_0(data.get("features", {}))
-	data["features"] = _to_0_4_0(data.get("features", {}))
-	data["version"] = "0.4.0"
+	if _is_older_than(version, "0.4.0"):
+		data["features"] = _to_0_4_0(data.get("features", {}))
+	data["features"] = _to_0_8_0(data.get("features", {}), [])
+	data["version"] = "0.8.0"
 	return data
+
+
+# Up to 0.7.0 a group had keyframes and everything under it inherited them.
+# 0.8.0 took motion off groups: only a leaf moves. Every leaf under a moving
+# group gets the composition of the chain's rotations as keyframes of its own,
+# sampled at every time any keyframe along the chain sits at, so what was drawn
+# at each of those times is drawn there still. Between two of them a slerp of
+# the composed rotations is not the composition of the slerps, so a file with
+# group motion may differ slightly between keyframes. The group's own list is
+# dropped. `chain` is the keyframe lists of the moving groups above the node,
+# root first.
+static func _to_0_8_0(node: Variant, chain: Array) -> Variant:
+	if node is not Dictionary:
+		return node
+	var is_group: bool = node.get("is_group", node.get("type") == "Group")
+	var own := Keyframe.list_from_json(node.get("keyframes", []))
+	if is_group:
+		var below := chain.duplicate()
+		if not own.is_empty():
+			below.append(own)
+		node.erase("keyframes")
+		var children: Array = []
+		for child in node.get("children", []):
+			children.append(_to_0_8_0(child, below))
+		node["children"] = children
+		return node
+	if chain.is_empty():
+		return node
+	var times := PackedFloat64Array()
+	for list in chain:
+		for keyframe in list:
+			if not times.has(keyframe.time):
+				times.append(keyframe.time)
+	for keyframe in own:
+		if not times.has(keyframe.time):
+			times.append(keyframe.time)
+	times.sort()
+	var baked: Array[Keyframe] = []
+	for time in times:
+		var m := Basis()
+		for list in chain:
+			m = m * Feature.build_rotation_basis(Keyframe.interpolate(list, time))
+		m = m * Feature.build_rotation_basis(Keyframe.interpolate(own, time))
+		baked.append(Keyframe.create(time, Feature.decompose_rotation_degrees(m)))
+	node["keyframes"] = Keyframe.list_to_json(baked)
+	return node
 
 
 # True when version a was released before version b. Missing or unparsable

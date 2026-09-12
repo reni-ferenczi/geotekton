@@ -57,10 +57,9 @@ them and they were dropped in 0.2.0, files included.
 
 ## Moving Features
 
-When the Move tool is active and something with geometry under it is selected in
-the feature tree, left-clicking on the globe starts moving it. That can be a
-group as well as a leaf feature, because a group carries motion its children
-inherit; only the root is left out. A move writes the keyframe at the current
+When the Move tool is active and a feature holding geometry is selected in the
+feature tree, left-clicking on the globe starts moving it. A group cannot be
+moved, since a group carries no motion. A move writes the keyframe at the current
 time, so moving at two times is what makes something move at all — see
 [Time](Time.md#making-a-keyframe).
 
@@ -119,8 +118,8 @@ to hit whatever the view is zoomed to; the reach is
 ### Editing a feature that has moved
 
 A feature keeps its vertices in its own frame, before the rotation its keyframes
-and its groups' give it at the current time; see
-[Time](Time.md#groups-carry-motion). The Vertex tool therefore maps every click
+give it at the current time; see
+[Time](Time.md#keyframes). The Vertex tool therefore maps every click
 back into that frame, through the inverse of
 `Feature.world_basis(root, feature, time)`.
 

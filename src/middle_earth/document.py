@@ -29,7 +29,7 @@ EXTENSION = ".middle-earth"
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
-CURRENT_VERSION = "0.7.0"
+CURRENT_VERSION = "0.8.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.82, 0.41, 0.12, 1.0]
@@ -160,7 +160,13 @@ class Feature:
         return [Keyframe(entry) for entry in self.data.get("keyframes", [])]
 
     def set_keyframe(self, time: float, rotation) -> Keyframe:
-        """Write the keyframe at this time, replacing one already there."""
+        """Write the keyframe at this time, replacing one already there.
+
+        Only a feature moves: a group is organization and carries no motion,
+        since 0.8.0.
+        """
+        if self.is_group:
+            raise ValueError(f"{self.title!r} is a group and does not move")
         x, y, z = rotation
         entry = {"time": float(time), "rotation": [float(x), float(y), float(z)]}
         keyframes = self.data.setdefault("keyframes", [])
@@ -237,7 +243,6 @@ class Feature:
             "title": title,
             "enabled": True,
             "is_group": True,
-            "keyframes": [],
             "children": [],
         })
 

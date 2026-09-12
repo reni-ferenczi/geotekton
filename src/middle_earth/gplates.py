@@ -3,10 +3,9 @@
 GPlates keeps a reconstruction in two halves: feature collections holding
 present day geometry, each feature naming the plate it rides on, and rotation
 files saying where every plate was at every time. Middle Earth keeps motion on
-the tree instead, so the import puts one group per plate at the root, gives the
-group the plate's rotation sampled into keyframes, and hangs the plate's
-features under it. A group's motion reaches everything below it, which is what
-GPlates builds out of plate ids and a rotation tree.
+each feature, so the import samples every plate's rotation into keyframes and
+writes the same list onto each feature that rides on that plate. The features
+are grouped by plate for the tree's sake alone; a group carries no motion.
 
 Nothing is reconstructed here. The geometry is written down as GPlates holds
 it, at present day, and the keyframes are what move it, so the imported
@@ -119,9 +118,10 @@ def import_files(paths, *, step: float = 10.0, oldest: float | None = None,
     span = _span(rotations, plates, oldest)
     for plate in sorted(plates):
         group = Feature.new_group(f"Plate {plate}", uuid=str(uuid4()))
-        for keyframe in _keyframes(model, plate, step, span):
-            group.set_keyframe(*keyframe)
+        keyframes = _keyframes(model, plate, step, span)
         for feature in plates[plate]:
+            for keyframe in keyframes:
+                feature.set_keyframe(*keyframe)
             group.add(feature)
         root.add(group)
     features = [feature for group in plates.values() for feature in group]

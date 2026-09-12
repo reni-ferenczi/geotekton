@@ -51,16 +51,21 @@ about, never from the frame before it, so a long animation cannot drift away
 from what the keyframes say. Landing exactly on a keyframe gives back what that
 keyframe holds, without passing through a quaternion on the way.
 
-### Groups carry motion
+### Groups do not move
 
-A group has keyframes too, and everything under it inherits them. A node's
-rotation in the world is its own composed with every ancestor's, resolved from
-the root down (`Feature.world_basis()`), so a terrane placed inside a craton
-group rides on the craton and turns further by whatever it does itself. This
-takes the place of the plate circuit GPlates builds out of plate ids and a
-rotation tree; here the tree is the one already on screen.
+A group is organization: it holds features and other groups, and carries no
+motion. A feature's rotation in the world is its own keyframes and nothing more
+(`Feature.world_basis()`), wherever it sits in the tree, so moving a feature
+from one group to another changes nothing about where it is. What rides on
+what is a **coupling** between two features over a span of the timeline, which
+GP-0046 adds, and that is what takes the place of the plate circuit GPlates
+builds out of plate ids and a rotation tree.
 
-The root group is included, so keyframes on it turn everything at once.
+Up to 0.7.0 a group had keyframes and everything under it inherited them. A
+file from then still opens: the composition of every moving group above a
+feature is folded into the feature's own keyframes, sampled at every keyframe
+time along the chain, so it is drawn where it was at each of those times; see
+[Persistence](Persistence.md#070-to-080).
 
 ### Precision
 
@@ -81,8 +86,8 @@ during the drag is what the release records. Moving at one time and again at
 another is all it takes to make something move; see
 [Moving](Moving.md#moving-in-time).
 
-A group can be dragged as well, because a group carries motion. The root cannot:
-turning it would only turn the globe, which the view already does.
+A group cannot be dragged: it carries no motion, so there would be nothing for
+the drag to write.
 
 The **Properties panel** lists the keyframes of whatever is selected, in a table
 of the time and the three angles, with the row the current time sits on marked.

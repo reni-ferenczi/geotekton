@@ -41,8 +41,7 @@ static func can_graph(node: Feature) -> bool:
 
 
 # Where the middle of a feature is at a time, as a latitude and a longitude in
-# degrees. The rotation is the one the world sees, so a feature inside a group
-# that moves is carried by it; see Feature.world_basis().
+# degrees, carried through the rotation its keyframes give it.
 static func position_at(root: Feature, node: Feature, time: float) -> Vector2:
 	return Feature._xyz_to_latlon_s(Feature.world_basis(root, node, time) * centroid(node))
 
@@ -64,15 +63,14 @@ static func path(root: Feature, node: Feature, oldest: float, youngest: float,
 	return result
 
 
-# Every time the motion of a node can change: the keyframe times of the node
-# itself and of the groups above it, since a group's motion reaches everything
-# under it. Sorted youngest first, without repeats.
-static func motion_times(root: Feature, node: Feature) -> PackedFloat64Array:
+# Every time the motion of a node can change: its keyframe times, sorted
+# youngest first. Nothing above it in the tree moves it.
+static func motion_times(_root: Feature, node: Feature) -> PackedFloat64Array:
 	var times := PackedFloat64Array()
-	for step in Feature.chain_to(root, node):
-		for keyframe in step.keyframes:
-			if not times.has(keyframe.time):
-				times.append(keyframe.time)
+	if node == null:
+		return times
+	for keyframe in node.keyframes:
+		times.append(keyframe.time)
 	times.sort()
 	return times
 

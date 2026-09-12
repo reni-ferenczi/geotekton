@@ -3,8 +3,9 @@ extends TestCase
 # Document.migrate brings an older file up to the format this version writes.
 # 0.2.0 turned the flat triangle list of each leaf into the outline those
 # triangles cover and dropped the five rule editor switches; 0.4.0 turned the
-# one rotation a leaf carried into the keyframe at time zero. The samples in
-# Tests/Data are still written in 0.1.0, so they run through both steps.
+# one rotation a leaf carried into the keyframe at time zero; 0.8.0 folded the
+# keyframes of groups into the leaves under them. The samples in Tests/Data are
+# still written in 0.1.0, so they run through every step.
 
 const DATA_DIR := "res://Tests/Data"
 const OLD_SAMPLES := ["triangle.middle-earth", "two_cratons.middle-earth", "empty.middle-earth"]
@@ -28,7 +29,7 @@ func test_the_samples_keep_the_edges_their_triangles_left_on_the_boundary() -> v
 		var before: Array = []
 		_collect_leaves(raw["features"], before)
 		var migrated := Document.migrate(raw.duplicate(true))
-		assert_eq(str(migrated["version"]), "0.4.0", "%s is migrated to 0.4.0" % file_name)
+		assert_eq(str(migrated["version"]), "0.8.0", "%s is migrated to 0.8.0" % file_name)
 
 		var after: Array = []
 		_collect_leaves(migrated["features"], after)
@@ -116,13 +117,70 @@ func test_a_group_arrives_without_keyframes() -> void:
 		"but the leaf under it did")
 
 
-func test_a_file_already_at_0_4_0_is_left_alone() -> void:
+func test_a_leaf_at_0_4_0_under_no_moving_group_is_left_alone() -> void:
 	var data := {"version": "0.4.0", "features": {
 		"type": "Feature", "title": "New", "geometry_kind": "polyline",
 		"rings": [[[0.0, 0.0], [0.0, 10.0]]],
 		"keyframes": [{"time": 0.0, "rotation": [0.0, 0.0, 0.0]}],
 	}}
-	assert_eq(Document.migrate(data.duplicate(true)), data)
+	var migrated := Document.migrate(data.duplicate(true))
+	assert_eq(migrated["features"], data["features"], "the leaf is as it was")
+	assert_eq(migrated["version"], "0.8.0", "at the current version")
+
+
+### 0.7.0 to 0.8.0: groups stop carrying motion
+
+
+func test_a_moving_group_is_folded_into_its_leaves() -> void:
+	# The group turns 30 degrees about the poles and the terrane 20 of its own,
+	# both by 100 Ma, which up to 0.7.0 put the terrane at 50 degrees then.
+	var migrated := Document.migrate({"version": "0.7.0", "features": {
+		"type": "Group", "title": "Planet", "children": [{
+			"type": "Group", "title": "Craton",
+			"keyframes": [
+				{"time": 0.0, "rotation": [0.0, 0.0, 0.0]},
+				{"time": 100.0, "rotation": [30.0, 0.0, 0.0]}],
+			"children": [{
+				"type": "Feature", "title": "Terrane", "rings": [],
+				"keyframes": [
+					{"time": 0.0, "rotation": [0.0, 0.0, 0.0]},
+					{"time": 100.0, "rotation": [20.0, 0.0, 0.0]}],
+			}],
+		}],
+	}})
+	var craton: Dictionary = migrated["features"]["children"][0]
+	assert_true(not craton.has("keyframes"), "the group's keyframes are gone")
+	var terrane: Dictionary = craton["children"][0]
+	var times: Array = []
+	for keyframe in terrane["keyframes"]:
+		times.append(keyframe["time"])
+	assert_eq(times, [0.0, 100.0], "the terrane keeps its keyframe times")
+	assert_close(Vector3(terrane["keyframes"][1]["rotation"][0], 0.0, 0.0), Vector3(50, 0, 0), 1e-6,
+		"and holds where the group had put it at 100 Ma: %s" % [terrane["keyframes"][1]])
+
+
+func test_a_still_leaf_takes_its_moving_group_s_keyframes() -> void:
+	var migrated := Document.migrate({"version": "0.7.0", "features": {
+		"type": "Group", "title": "Planet",
+		"keyframes": [{"time": 200.0, "rotation": [0.0, 45.0, 0.0]}],
+		"children": [{"type": "Feature", "title": "Rider", "rings": [], "keyframes": []}],
+	}})
+	var rider: Dictionary = migrated["features"]["children"][0]
+	assert_eq(rider["keyframes"].size(), 1, "one keyframe, from the root's one")
+	assert_close(rider["keyframes"][0]["time"], 200.0, 1e-9)
+	var rotation: Array = rider["keyframes"][0]["rotation"]
+	assert_close(Vector3(rotation[0], rotation[1], rotation[2]), Vector3(0, 45, 0), 1e-6,
+		"and it is the root's rotation")
+	assert_true(not migrated["features"].has("keyframes"), "the root has none any more")
+
+
+func test_a_leaf_under_a_still_group_is_left_alone() -> void:
+	var leaf := {"type": "Feature", "title": "Alone", "rings": [],
+		"keyframes": [{"time": 0.0, "rotation": [1.0, 2.0, 3.0]}]}
+	var migrated := Document.migrate({"version": "0.7.0", "features": {
+		"type": "Group", "title": "Planet", "keyframes": [], "children": [leaf.duplicate(true)],
+	}})
+	assert_eq(migrated["features"]["children"][0], leaf, "nothing above it moved, so it is as it was")
 
 
 func test_version_ordering() -> void:

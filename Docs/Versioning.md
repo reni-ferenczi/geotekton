@@ -19,9 +19,10 @@ read as they are: 0.2.0 changed how a feature stores its geometry and reads
 with a list of keyframes and has a step for it; 0.5.0 again only added fields,
 so it too reads the version before it as it stands; 0.6.0 added the view
 settings block, whose defaults are the scene as it was drawn before there was
-one, so a file without it opens looking the way it always did; and 0.7.0 added
+one, so a file without it opens looking the way it always did; 0.7.0 added
 the styling to that block, whose defaults are likewise how every file was drawn
-before there were any styles.
+before there were any styles; and 0.8.0 took motion off groups and folds the
+keyframes of a moving group into the leaves under it, which has a step.
 
 The first public release will have major version 1.
 

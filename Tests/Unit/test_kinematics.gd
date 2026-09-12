@@ -83,7 +83,9 @@ func test_every_sample_is_where_the_keyframes_put_the_feature() -> void:
 			"the sample at %s Ma" % sample["time"])
 
 
-func test_a_feature_inside_a_moving_group_is_carried_by_it() -> void:
+# Since 0.8.0 a group carries no motion, so a feature that never moves of its
+# own stands still whatever is written on the group above it.
+func test_a_feature_inside_a_group_is_not_carried_by_it() -> void:
 	var feature := _feature([Vector2(-10, -10), Vector2(10, 0), Vector2(-10, 10)])
 	var group := Feature.create_group("Plates")
 	group.children.append(feature)
@@ -94,12 +96,10 @@ func test_a_feature_inside_a_moving_group_is_carried_by_it() -> void:
 	root.children.append(group)
 
 	var samples := Kinematics.path(root, feature, 500.0, 0.0, 3)
-	var wanted := Feature._xyz_to_latlon_s(
-		Feature.world_basis(root, feature, 500.0) * Kinematics.centroid(feature))
-	assert_close(Vector2(samples[0]["lat"], samples[0]["lon"]), wanted, 1e-4,
-		"the group's rotation reaches the feature under it")
-	assert_true(absf(float(samples[0]["lon"]) - float(samples[2]["lon"])) > 1.0,
-		"a feature of its own that never moves still has a path")
+	var still := Feature._xyz_to_latlon_s(Kinematics.centroid(feature))
+	for sample in samples:
+		assert_close(Vector2(sample["lat"], sample["lon"]), still, 1e-4,
+			"the feature stands where its own keyframes, none, leave it")
 
 
 func test_a_span_that_is_not_a_span_has_no_path() -> void:
@@ -163,7 +163,7 @@ func test_the_rate_is_read_off_the_span_the_time_falls_in() -> void:
 		1e-9, "the peak is the faster of the two")
 
 
-func test_the_times_a_node_turns_at_include_the_ones_it_inherits() -> void:
+func test_the_times_a_node_turns_at_are_its_own_keyframe_times() -> void:
 	var feature := _moving_feature()
 	var group := Feature.create_group("Plates")
 	group.children.append(feature)
@@ -174,10 +174,9 @@ func test_the_times_a_node_turns_at_include_the_ones_it_inherits() -> void:
 	root.children.append(group)
 
 	assert_eq(str(Kinematics.motion_times(root, feature)),
-		str(PackedFloat64Array([0.0, 250.0, 750.0, 1000.0])),
-		"its own keyframes and the group's, sorted, youngest first")
-	assert_eq(Kinematics.segments(root, feature, RADIUS).size(), 3,
-		"which is one span more than either list makes on its own")
+		str(PackedFloat64Array([0.0, 1000.0])),
+		"its own keyframes, sorted, youngest first; the group's do not count")
+	assert_eq(Kinematics.segments(root, feature, RADIUS).size(), 1, "so one span")
 
 
 ### The sample file
