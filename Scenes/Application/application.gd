@@ -713,7 +713,11 @@ func _on_root_replaced(same_document: bool) -> void:
 	# being left behind.
 	if not same_document:
 		set_active_tool(Tool.MOVE)
-		apply_view_settings()
+	# The version carries the view settings as well as the tree, so the scene
+	# and the dialog showing it follow every step of the stack.
+	apply_view_settings()
+	if view_dialog.visible:
+		_fill_view_fields()
 	refresh_geometry()
 
 
@@ -1120,7 +1124,12 @@ func _view_color(form: GridContainer, key: String, text: String) -> void:
 	var button := ColorPickerButton.new()
 	button.name = key.to_pascal_case()
 	button.custom_minimum_size = Vector2(140, 28)
-	button.color_changed.connect(func(_color: Color) -> void: _on_view_field_changed())
+	# The picker sends a colour for every drag of its cursor. The scene takes
+	# them all, so what is being picked is visible, but only the colour left
+	# when the picker closes reaches the undo stack, the way the feature colour
+	# picker of the Properties panel does it.
+	button.color_changed.connect(func(_color: Color) -> void: _on_view_field_changed(false))
+	button.popup_closed.connect(_on_view_field_changed)
 	form.add_child(button)
 	view_fields[key] = button
 
@@ -1205,8 +1214,10 @@ func _fill_view_fields() -> void:
 
 
 # One field moved: take the whole block off the dialog and hand it to the
-# document, so the planet follows while the dialog is still open.
-func _on_view_field_changed() -> void:
+# document, so the planet follows while the dialog is still open. Every field
+# commit is one undo version; a colour being dragged in a picker is applied
+# without one until the picker closes.
+func _on_view_field_changed(commit: bool = true) -> void:
 	var settings := document.view
 	settings.background_color = view_fields["background_color"].color
 	settings.star_field = view_fields["star_field"].button_pressed
@@ -1221,7 +1232,8 @@ func _on_view_field_changed() -> void:
 	settings.single_color = view_fields["single_color"].color
 	settings.draw_style = option_value(view_fields["draw_style"])
 	settings.palette = option_value(view_fields["palette"])
-	document.view_edited()
+	if commit:
+		document.view_edited()
 	apply_view_settings()
 	_show_palette_preview()
 	refresh_geometry()
@@ -2425,11 +2437,16 @@ func _after_topology_edit() -> void:
 var _light_dragging: bool = false
 
 
+# The light follows the pointer for the whole drag and the release records one
+# undo version for all of it, the way a feature drag does.
 func _on_light_input(lat: float, lon: float, event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_light_dragging = event.is_pressed()
 		if event.is_pressed():
+			_light_dragging = true
 			_point_light_at(lat, lon)
+		elif _light_dragging:
+			_light_dragging = false
+			document.view_edited()
 	elif event is InputEventMouseMotion and _light_dragging:
 		_point_light_at(lat, lon)
 
@@ -2439,7 +2456,6 @@ func _point_light_at(lat: float, lon: float) -> void:
 	if direction == null:
 		return
 	document.view.light_direction = ViewSettings.light_from_vector(direction)
-	document.view_edited()
 	apply_view_settings()
 	if view_dialog.visible:
 		_fill_view_fields()

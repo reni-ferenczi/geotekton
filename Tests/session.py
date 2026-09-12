@@ -1233,6 +1233,7 @@ def run_light_tool_checks(client: AutomationClient) -> None:
     start = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
     target = (20.0, -40.0)
     end = client.call("latlon_to_screen", lat=target[0], lon=target[1])["screen"]
+    versions = undo_depth(client)
     client.call("press", x=start[0], y=start[1])
     client.call("mouse_move", x=end[0], y=end[1])
     client.call("release", x=end[0], y=end[1])
@@ -1240,6 +1241,11 @@ def run_light_tool_checks(client: AutomationClient) -> None:
     stored = client.call("get_view_settings")["view_settings"]["light_direction"]
     check(abs(stored[0] - target[0]) < 0.1 and abs(stored[1] - target[1]) < 0.1,
           f"the drag put the light at {stored}")
+    check(undo_depth(client) == versions + 1, "the whole light drag is one undo step")
+    client.call("menu", item="undo")
+    back = client.call("get_view_settings")["view_settings"]["light_direction"]
+    check(back == [0.0, 0.0], f"undo puts the light back where it was: {back}")
+    client.call("menu", item="redo")
 
     client.call("mouse_move", x=10, y=10)
     lit = luminance(client.call("get_pixel", x=end[0], y=end[1])["color"])
