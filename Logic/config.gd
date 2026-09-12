@@ -141,6 +141,22 @@ static func set_line_width_scale(scale: float) -> void:
 	set_value("line_width_scale", clampf(scale, MIN_SCALE, MAX_SCALE))
 
 
+# How far the timeline's step buttons and their shortcuts jump, in millions of
+# years. A number beside the buttons rather than a dialog setting, since it is
+# changed on the spot: 50 for laying out an animation, 10 for one feature's
+# movement, and back.
+const DEFAULT_SKIP := 50.0
+const MIN_SKIP := 0.0001
+
+
+static func get_skip_increment() -> float:
+	return maxf(float(get_value("skip_increment", DEFAULT_SKIP)), MIN_SKIP)
+
+
+static func set_skip_increment(increment: float) -> void:
+	set_value("skip_increment", maxf(increment, MIN_SKIP))
+
+
 static func get_snap_to_vertices() -> bool:
 	return bool(get_value("snap_to_vertices", true))
 

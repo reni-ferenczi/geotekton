@@ -790,9 +790,9 @@ def run_visibility_checks(client: AutomationClient) -> None:
 def run_timeline_checks(client: AutomationClient) -> None:
     """The time control: the markers, the step buttons and playback."""
     client.call("set_animation", animation={
-        "start": 400.0, "end": 0.0, "increment": 100.0,
-        "frames_per_second": 60.0, "loop": False, "land_on_end": True,
+        "start": 400.0, "end": 0.0, "speed": 50.0, "loop": False,
     })
+    client.call("set_skip", skip=100.0)
     timeline = client.call("get_timeline")["timeline"]
     check(timeline["markers"] == [TIME_A, TIME_B],
           f"the keyframes of the selected feature are marked: {timeline['markers']}")
@@ -805,11 +805,22 @@ def run_timeline_checks(client: AutomationClient) -> None:
           "and the slider follows the time")
 
     client.call("timeline", button="Younger")
-    check(client.call("get_time")["time"] == 300.0, "a step towards the younger end")
+    check(client.call("get_time")["time"] == 300.0, "a skip towards the younger end")
     check(client.call("get_timeline")["timeline"]["typed"] == 300.0,
           "which the typed time field shows as well")
     client.call("timeline", button="Older")
     check(client.call("get_time")["time"] == 400.0, "and one back towards the older")
+
+    # The skip is a number beside the buttons, changed on the spot, and the two
+    # shortcuts jump by it wherever the focus is.
+    client.call("set_skip", skip=10.0)
+    check(client.call("get_timeline")["timeline"]["skip"] == 10.0, "the skip box takes a new value")
+    client.call("key", key="PageDown")
+    check(client.call("get_time")["time"] == 390.0, "Page Down skips towards the younger end by it")
+    client.call("menu", item="skip_older")
+    check(client.call("get_time")["time"] == 400.0, "and Time > Skip Older comes back")
+    client.call("key", key="PageUp")
+    check(client.call("get_time")["time"] == 400.0, "a skip never leaves the animation range")
 
     # A time typed in reaches the slider through the document, the same way a
     # time set from a script does.
@@ -818,18 +829,21 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(timeline["typed"] == 123.0 and timeline["slider"] == -123.0,
           f"a time set anywhere reaches both the field and the slider: {timeline['slider']}")
 
-    # An animation long enough that it cannot run out between the request that
-    # starts it and the one that stops it.
-    client.call("set_animation", animation={"increment": 1.0, "frames_per_second": 60.0})
+    # Slow enough that it cannot run out between the request that starts it and
+    # the one that stops it: a request waits two frames, and at 50 My a second a
+    # frame is a fraction of a million years.
+    client.call("set_animation", animation={"speed": 50.0})
     client.call("timeline", button="Reset")
     client.call("timeline", button="Play")
     check(client.call("get_timeline")["timeline"]["playing"], "Play starts the animation")
     client.call("timeline", button="Pause")
+    moved = 400.0 - client.call("get_time")["time"]
     check(not client.call("get_timeline")["timeline"]["playing"], "and Pause stops it")
-    check(client.call("get_time")["time"] < 400.0, "having moved the time along the way")
+    check(0.0 < moved < 50.0,
+          f"having moved the time on by less than a second's worth: {moved} My")
 
     # Playing to the end without looping stops there rather than wrapping.
-    client.call("set_animation", animation={"increment": 100.0, "frames_per_second": 240.0})
+    client.call("set_animation", animation={"speed": 100000.0})
     client.call("timeline", button="Reset")
     client.call("timeline", button="Play")
     for _ in range(20):
@@ -838,6 +852,13 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(client.call("get_time")["time"] == 0.0,
           f"the animation stops on the end time: {client.call('get_time')['time']}")
     check(not client.call("get_timeline")["timeline"]["playing"], "and stops playing there")
+
+    # Play at the end starts again from the beginning.
+    client.call("set_animation", animation={"speed": 50.0})
+    client.call("timeline", button="Play")
+    client.call("timeline", button="Pause")
+    check(client.call("get_time")["time"] > 300.0,
+          f"Play from the end starts over: {client.call('get_time')['time']}")
 
 
 ### The Circle scenario

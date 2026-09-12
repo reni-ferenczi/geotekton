@@ -74,6 +74,11 @@ adding an item means adding an enum value and one `add_item` line.
 | View Settings... |     | The scene around the features and how they are coloured; see [Editing](Editing.md#view-settings) |
 | Full Screen | F11      | Enter or leave full screen                |
 
+| Time         | Shortcut  | What it does                              |
+| ------------ | --------- | ----------------------------------------- |
+| Skip Older   | Page Up   | The timeline's `<` button: one skip towards the older end; see [Time](Time.md#the-time-control) |
+| Skip Younger | Page Down | The `>` button: one skip towards the younger end |
+
 | Help          | Shortcut | What it does                          |
 | ------------- | -------- | ------------------------------------- |
 | Documentation | F1       | Open the `Docs` folder on GitHub      |

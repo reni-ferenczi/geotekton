@@ -1,81 +1,58 @@
 extends TestCase
 
-# AnimationSettings: the times playback steps through, for a range, a step size
-# and the two switches at the ends. Times are ages, so the usual animation runs
-# from a large start down to an end of zero.
+# AnimationSettings: where playback reaches after some seconds at a speed, for a
+# range and the loop switch. Times are ages, so the usual animation runs from a
+# large start down to an end of zero.
 
 
 func test_the_usual_animation_counts_down_to_the_present() -> void:
 	var settings := _settings(100.0, 0.0, 25.0)
-	assert_eq(_times(settings), [100.0, 75.0, 50.0, 25.0, 0.0])
+	assert_close(settings.advance(100.0, 1.0), 75.0, 1e-9)
+	assert_close(settings.advance(75.0, 2.0), 25.0, 1e-9)
 
 
 func test_an_animation_can_run_the_other_way() -> void:
 	var settings := _settings(0.0, 100.0, 25.0)
-	assert_eq(_times(settings), [0.0, 25.0, 50.0, 75.0, 100.0])
+	assert_close(settings.advance(0.0, 1.0), 25.0, 1e-9)
 
 
-func test_the_last_frame_lands_on_the_end_when_the_step_does_not_divide_the_range() -> void:
+func test_playback_never_passes_the_end() -> void:
 	var settings := _settings(100.0, 0.0, 30.0)
-	settings.land_on_end = true
-	assert_eq(_times(settings), [100.0, 70.0, 40.0, 10.0, 0.0],
-		"a short last step reaches the end exactly")
+	assert_close(settings.advance(10.0, 1.0), 0.0, 1e-9, "the last second is cut short")
+	assert_true(settings.reached_end(0.0), "and that is the end")
+	assert_true(not settings.reached_end(10.0), "which 10 Ma is not")
 
 
-func test_without_landing_on_the_end_it_stops_at_the_last_whole_step() -> void:
-	var settings := _settings(100.0, 0.0, 30.0)
-	settings.land_on_end = false
-	assert_eq(_times(settings), [100.0, 70.0, 40.0, 10.0], "the end time is never shown")
-
-
-func test_a_step_that_divides_the_range_needs_no_extra_frame() -> void:
-	var settings := _settings(100.0, 0.0, 25.0)
-	for land in [true, false]:
-		settings.land_on_end = land
-		assert_eq(_times(settings), [100.0, 75.0, 50.0, 25.0, 0.0],
-			"landing on the end changes nothing when the step already does")
-
-
-func test_the_frames_are_multiples_of_the_step_and_not_a_running_total() -> void:
-	# A tenth cannot be written exactly in binary, so adding it up two thousand
-	# times drifts. Every frame is worked out from the start on its own.
-	var settings := _settings(200.0, 0.0, 0.1)
-	var times := settings.times()
-	assert_eq(times.size(), 2001)
-	assert_close(times[2000], 0.0, 1e-12, "the last frame is exactly the end")
-	assert_close(times[1000], 100.0, 1e-12, "and the middle one is exactly halfway")
-
-
-func test_a_range_of_no_length_is_one_frame() -> void:
-	assert_eq(_times(_settings(50.0, 50.0, 10.0)), [50.0])
-
-
-func test_the_frame_rate_says_how_long_a_frame_is_shown() -> void:
+func test_a_slow_frame_moves_the_time_further() -> void:
+	# The time is moved by the seconds the last frame took, so the animation
+	# reaches the end at the same moment however the frames are spaced.
 	var settings := _settings(100.0, 0.0, 10.0)
-	settings.frames_per_second = 25.0
-	assert_close(settings.frame_seconds(), 0.04, 1e-9)
-	assert_eq(_times(settings).size(), 11,
-		"the frame rate does not change which times are shown")
+	var by_tenths := 100.0
+	for i in 10:
+		by_tenths = settings.advance(by_tenths, 0.1)
+	assert_close(by_tenths, settings.advance(100.0, 1.0), 1e-9)
 
 
-func test_looping_does_not_change_the_frames_it_loops_over() -> void:
+func test_a_range_of_no_length_is_already_at_its_end() -> void:
+	var settings := _settings(50.0, 50.0, 10.0)
+	assert_close(settings.advance(50.0, 1.0), 50.0, 1e-9)
+	assert_true(settings.reached_end(50.0))
+
+
+func test_looping_does_not_change_how_the_time_moves() -> void:
 	var settings := _settings(100.0, 0.0, 25.0)
-	var once := _times(settings)
+	var once := settings.advance(100.0, 1.0)
 	settings.loop = true
-	assert_eq(_times(settings), once,
-		"a loop is the same list again, so the list itself is unchanged")
+	assert_close(settings.advance(100.0, 1.0), once, 1e-9,
+		"a loop is the same run again, so one second is the same second")
 
 
 func test_settings_that_cannot_be_played_say_why() -> void:
 	var settings := _settings(100.0, 0.0, 10.0)
 	assert_eq(settings.problem(), "", "the defaults are playable")
 
-	settings.increment = 0.0
-	assert_true(not settings.problem().is_empty(), "a step of nothing never arrives")
-
-	settings = _settings(100.0, 0.0, 10.0)
-	settings.frames_per_second = 0.0
-	assert_true(not settings.problem().is_empty(), "no frames a second never arrives either")
+	settings.speed = 0.0
+	assert_true(not settings.problem().is_empty(), "no speed never arrives")
 
 	settings = _settings(Document.MAX_TIME + 1.0, 0.0, 10.0)
 	assert_true(not settings.problem().is_empty(), "a start older than the limit")
@@ -83,15 +60,13 @@ func test_settings_that_cannot_be_played_say_why() -> void:
 
 func test_the_settings_round_trip_through_the_config_file() -> void:
 	var settings := _settings(1234.5, 12.5, 2.5)
-	settings.frames_per_second = 30.0
 	settings.loop = true
-	settings.land_on_end = false
 	var back := AnimationSettings.from_json(settings.to_json())
 	assert_eq(back.to_json(), settings.to_json())
 
 
 func test_settings_that_do_not_add_up_are_read_as_the_defaults() -> void:
-	var back := AnimationSettings.from_json({"increment": -5.0})
+	var back := AnimationSettings.from_json({"speed": -5.0})
 	assert_eq(back.to_json(), AnimationSettings.new().to_json(),
 		"a file nobody could play falls back to what a fresh install has")
 
@@ -102,19 +77,22 @@ func test_missing_keys_keep_their_own_default() -> void:
 	assert_close(back.start, AnimationSettings.DEFAULTS["start"], 1e-9, "and the rest as it was")
 
 
+func test_the_keys_an_older_version_wrote_are_left_unread() -> void:
+	# Up to 0.7.0 playback stepped by an increment at a frame rate. Those keys
+	# say nothing about a speed, so a file holding them plays at the default.
+	var back := AnimationSettings.from_json({
+		"start": 400.0, "increment": 10.0, "frames_per_second": 24.0, "land_on_end": true})
+	assert_close(back.start, 400.0, 1e-9, "what still means something is read")
+	assert_close(back.speed, AnimationSettings.DEFAULTS["speed"], 1e-9)
+	assert_true(not back.to_json().has("increment"), "and the old keys are not written back")
+
+
 ### Helpers
 
 
-func _settings(start: float, end: float, increment: float) -> AnimationSettings:
+func _settings(start: float, end: float, speed: float) -> AnimationSettings:
 	var settings := AnimationSettings.new()
 	settings.start = start
 	settings.end = end
-	settings.increment = increment
+	settings.speed = speed
 	return settings
-
-
-func _times(settings: AnimationSettings) -> Array:
-	var times: Array = []
-	for time in settings.times():
-		times.append(time)
-	return times
