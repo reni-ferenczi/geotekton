@@ -363,4 +363,7 @@ void fragment() {
 
 	ALBEDO = base;
 	ALPHA = 1.0;
+	// A matte surface: the default specular term would lift every colour
+	// towards white under the light, on top of what the albedo says.
+	SPECULAR = 0.0;
 }

@@ -91,7 +91,8 @@ func apply_view_settings(settings: ViewSettings) -> void:
 	sun.basis = Basis.looking_at(-settings.light_vector(), Vector3.UP)
 	for material in [
 		globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
-		material.set_shader_parameter("color", settings.graticule_color)
+		# Linearized for the same reason the feature colours are; see set_geometry().
+		material.set_shader_parameter("color", settings.graticule_color.srgb_to_linear())
 		material.set_shader_parameter("split", settings.graticule_split())
 
 
@@ -257,8 +258,11 @@ func set_geometry(geometry: Geometry) -> void:
 			deg_to_rad(c.x), deg_to_rad(c.y),
 			float(primitive["index"]), float(kind)
 		))
-		# Row 2: color (r, g, b, a)
-		img.set_pixel(i, 2, primitive["color"])
+		# Row 2: color (r, g, b, a). A Color holds sRGB values, the numbers the
+		# picker shows; the shader writes ALBEDO in linear light and the renderer
+		# encodes to sRGB on the way out, so the colour is linearized here or it
+		# comes out paler than it was picked. See Docs/Shader.md#colour-space.
+		img.set_pixel(i, 2, (primitive["color"] as Color).srgb_to_linear())
 		# Row 3: which of a triangle's three edges lie on the boundary of the
 		# ring, so the rim follows the shape rather than the triangles it was
 		# cut into. Nothing but a triangle has edges to mark.

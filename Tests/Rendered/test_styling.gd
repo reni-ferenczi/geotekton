@@ -13,11 +13,12 @@ const POLYGON := Vector2(-3.0, 0.0)
 const POLYLINE := Vector2(0.0, 40.0)
 const POINT := Vector2(-30.0, -30.0)
 
-# How far a probed colour may be from the one asked for, once both are
-# normalized. The window is written back in sRGB and the planet is lit, so a
-# probe is the colour through a curve and a brightness; normalizing takes both
-# out and leaves the colour itself.
-const COLOR_TOLERANCE := 0.05
+# How far a probed pixel may be from the colour asked for, per channel, in the
+# sRGB values both are in. The probe is aimed straight at the place with the
+# light shining from the camera, so the lit colour is the picked one and there
+# is no brightness to allow for: a colour that comes out paler is a defect
+# (GP-0032), not a tolerance.
+const COLOR_TOLERANCE := 0.03
 
 
 func test_each_feature_is_drawn_in_its_own_colour() -> void:
@@ -195,18 +196,9 @@ func _check(at: Vector2, expected: Color, what: String) -> void:
 		"%s at %s reads %s, not %s (off by %.3f)" % [what, at, color, expected, difference])
 
 
-# How far a probed pixel is from the colour it was meant to be. The window
-# carries sRGB, so the probe is linearized first, and both are then divided by
-# their own largest channel, which takes the brightness of the light out of the
-# comparison and leaves the colour.
+# How far a probed pixel is from the colour it was meant to be: the largest
+# channel difference, both colours as the sRGB values the window and the
+# picker hold them in.
 func _difference(probed: Color, expected: Color) -> float:
-	var left := _normalized(probed.srgb_to_linear())
-	var right := _normalized(expected)
-	return maxf(maxf(absf(left.r - right.r), absf(left.g - right.g)), absf(left.b - right.b))
-
-
-func _normalized(color: Color) -> Color:
-	var largest := maxf(color.r, maxf(color.g, color.b))
-	if largest < 1e-4:
-		return Color(0.0, 0.0, 0.0)
-	return Color(color.r / largest, color.g / largest, color.b / largest)
+	return maxf(maxf(absf(probed.r - expected.r), absf(probed.g - expected.g)),
+		absf(probed.b - expected.b))

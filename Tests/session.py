@@ -1705,30 +1705,16 @@ def count_features(node: dict) -> int:
 ### The styling scenario
 
 
-def linear(value: float) -> float:
-    """One sRGB channel back in linear light, which is what the shader was given."""
-    return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
-
-
-def normalized(color) -> tuple[float, float, float]:
-    """A colour divided by its own largest channel, so brightness drops out."""
-    largest = max(color[0], color[1], color[2])
-    if largest < 1e-4:
-        return (0.0, 0.0, 0.0)
-    return tuple(channel / largest for channel in color[:3])
-
-
-# How far a probed pixel may be from the colour asked for, once the window's
-# sRGB and the light on the planet are taken out of it. Matches
+# How far a probed pixel may be from the colour asked for, per channel. The
+# probe faces the camera and so does the light, so the lit colour is the picked
+# one and a paler pixel is a defect rather than lighting (GP-0032). Matches
 # COLOR_TOLERANCE in Tests/Rendered/test_styling.gd.
-COLOR_TOLERANCE = 0.05
+COLOR_TOLERANCE = 0.03
 
 
 def is_colour(probed: list[float], expected: list[float]) -> bool:
     """Whether a probed pixel is the colour it was meant to be drawn in."""
-    left = normalized([linear(channel) for channel in probed])
-    right = normalized(expected)
-    return all(abs(a - b) < COLOR_TOLERANCE for a, b in zip(left, right))
+    return all(abs(a - b) < COLOR_TOLERANCE for a, b in zip(probed[:3], expected[:3]))
 
 
 def probe_at(client: AutomationClient, lat: float, lon: float) -> list[float]:
