@@ -2543,6 +2543,10 @@ func _on_measure_input(_lat: float, _lon: float, event: InputEvent) -> void:
 	if event is not InputEventMouseButton or not event.is_pressed():
 		return
 	if event.button_index == MOUSE_BUTTON_LEFT:
+		# A measurement is one segment. A third click starts the next one from
+		# where it fell, so a run of measurements is click, click, click.
+		if measure_points.size() >= 2:
+			measure_points = PackedVector2Array()
 		_place_point(Vector2(_lat, _lon))
 	elif event.button_index == MOUSE_BUTTON_RIGHT and not measure_points.is_empty():
 		undo()
@@ -2578,14 +2582,17 @@ func _show_measurement(error: String = "") -> void:
 		return
 
 	var radius := Config.get_planet_radius()
+	if active_tool == Tool.MEASURE and measure_points.size() >= 2:
+		var distance := Measure.format_km(
+			Measure.distance(measure_points[0], measure_points[1], radius))
+		status_measure.text = distance
+		# The same number beside the line itself, at its midpoint.
+		var middle := Measure.along(measure_points[0], measure_points[1], 0.5)
+		planet_view.show_measurement(distance, middle.x, middle.y)
+		return
+	planet_view.hide_measurement()
 	if active_tool == Tool.MEASURE:
-		if measure_points.size() < 2:
-			status_measure.text = "click two points to measure"
-			return
-		var last := Measure.distance(measure_points[measure_points.size() - 2],
-			measure_points[measure_points.size() - 1], radius)
-		status_measure.text = "%s   total %s" % [Measure.format_km(last),
-			Measure.format_km(Measure.path_length(measure_points, radius))]
+		status_measure.text = "click two points to measure"
 		return
 
 	var selected := features.feature_tree.get_selected_node()
