@@ -144,8 +144,7 @@ def measure(client: AutomationClient, budget_ms: float) -> bool:
     still = report("standing still", sample_frames(client))
 
     client.call("set_animation", animation={
-        "start": 400.0, "end": 0.0, "increment": 2.0,
-        "frames_per_second": 240.0, "loop": True, "land_on_end": True,
+        "start": 400.0, "end": 0.0, "speed": 480.0, "loop": True,
     })
     client.call("timeline", button="Reset")
     client.call("timeline", button="Play")

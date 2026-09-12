@@ -49,6 +49,7 @@ const SNAP_PIXELS := 12.0
 enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, RUN_SCRIPT, PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, CONSOLE, STATUS_BAR, SETTINGS, FULL_SCREEN }
+enum TimeItem { OLDER, YOUNGER }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -150,6 +151,7 @@ var scripts_menu: PopupMenu
 var recent_menu: PopupMenu
 var edit_menu: PopupMenu
 var view_menu: PopupMenu
+var time_menu: PopupMenu
 var help_menu: PopupMenu
 # The Edit commands again, on a right click on the globe.
 var globe_menu: PopupMenu
@@ -377,6 +379,13 @@ func _build_menus() -> void:
 	view_menu.add_item("Full Screen", ViewItem.FULL_SCREEN, KEY_F11)
 	view_menu.id_pressed.connect(_on_view_menu_id_pressed)
 
+	# The skips the timeline's < and > buttons make, as menu items so that their
+	# shortcuts work wherever the focus is.
+	time_menu = _add_menu("Time")
+	time_menu.add_item("Skip Older", TimeItem.OLDER, KEY_PAGEUP)
+	time_menu.add_item("Skip Younger", TimeItem.YOUNGER, KEY_PAGEDOWN)
+	time_menu.id_pressed.connect(_on_time_menu_id_pressed)
+
 	help_menu = _add_menu("Help")
 	help_menu.add_item("Documentation", HelpItem.DOCUMENTATION, KEY_F1)
 	help_menu.add_item("About Middle Earth", HelpItem.ABOUT)
@@ -552,6 +561,12 @@ func _on_view_menu_id_pressed(id: int) -> void:
 	_update_view_menu_checks()
 	if not isolated:
 		_save_panel_visibility()
+
+
+func _on_time_menu_id_pressed(id: int) -> void:
+	match id:
+		TimeItem.OLDER: timeline.step(true)
+		TimeItem.YOUNGER: timeline.step(false)
 
 
 func _on_help_menu_id_pressed(id: int) -> void:
@@ -1235,8 +1250,7 @@ func _build_animation_content() -> Control:
 
 	_animation_spin(form, "start", "Start (Ma)", 0.0, Document.MAX_TIME, 1.0)
 	_animation_spin(form, "end", "End (Ma)", 0.0, Document.MAX_TIME, 1.0)
-	_animation_spin(form, "increment", "Increment (My)", 0.0001, Document.MAX_TIME, 0.0001)
-	_animation_spin(form, "frames_per_second", "Frames per second", 0.1, 240.0, 0.1)
+	_animation_spin(form, "speed", "Speed (My per second)", 0.001, Document.MAX_TIME, 0.001)
 
 	var loop_check := CheckBox.new()
 	loop_check.name = "Loop"
@@ -1244,13 +1258,6 @@ func _build_animation_content() -> Control:
 	form.add_child(Label.new())
 	form.add_child(loop_check)
 	animation_fields["loop"] = loop_check
-
-	var land_check := CheckBox.new()
-	land_check.name = "LandOnEnd"
-	land_check.text = "Land exactly on the end time"
-	form.add_child(Label.new())
-	form.add_child(land_check)
-	animation_fields["land_on_end"] = land_check
 
 	return form
 

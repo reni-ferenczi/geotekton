@@ -304,7 +304,8 @@ more than the last change.
 | `window`                           | `x`, `y`, `width`, `height` and `maximized`          |
 | `splitter_left`, `splitter_right`  | The two split offsets                                |
 | `panel_features`, `panel_properties`, `panel_timeline`, `panel_kinematics`, `panel_console`, `panel_status_bar` | Which panels are shown. Everything but the kinematics graphs and the console is shown when the file says nothing |
-| `animation`                        | The playback range, step, frame rate and the two switches |
+| `animation`                        | The playback range, the speed and the loop switch    |
+| `skip_increment`                   | How far the timeline's `<` and `>` buttons jump, in millions of years |
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |
 | `vertex_marker_scale`, `line_width_scale` | How large the outline overlay is drawn, as multiples of the shader defaults |
 | `snap_to_vertices`                 | Whether a dragged vertex snaps onto a nearby one |

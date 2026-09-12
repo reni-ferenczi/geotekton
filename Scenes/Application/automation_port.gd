@@ -333,6 +333,11 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"set_skip":
+			_timeline().skip_spin.value = float(request.get("skip", Config.DEFAULT_SKIP))
+			await _frames(2)
+			return {"ok": true, "skip": _timeline().skip()}
+
 		"set_animation":
 			# The animation dialog without the dialog: whatever the request
 			# names is changed, the rest stays as it was.
@@ -946,6 +951,8 @@ func _menu_item(name: String) -> Array:
 		"view_settings": return [app.view_menu, Application.ViewItem.SETTINGS]
 		"full_screen": return [app.view_menu, Application.ViewItem.FULL_SCREEN]
 		"about": return [app.help_menu, Application.HelpItem.ABOUT]
+		"skip_older": return [app.time_menu, Application.TimeItem.OLDER]
+		"skip_younger": return [app.time_menu, Application.TimeItem.YOUNGER]
 	if Styling.CLASSES.has(name):
 		return [app.view_menu, Application.class_menu_id(name)]
 	return []

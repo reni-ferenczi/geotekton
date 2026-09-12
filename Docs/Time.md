@@ -106,8 +106,9 @@ The panel under the globe, `Scenes/Timeline/timeline.gd`:
 
 | Control        | What it does                                            |
 | -------------- | ------------------------------------------------------- |
-| `<` and `>`    | One increment towards the older or the younger end       |
-| Play           | Run the animation from where the time is                 |
+| `<` and `>`    | One skip towards the older or the younger end, by the number beside them |
+| The skip       | How far `<` and `>` jump, in millions of years; 50 to start with, remembered between runs |
+| Play           | Run the animation from where the time is, or from the start when it is at the end |
 | Pause          | Stop where it is                                         |
 | Reset          | Back to the start of the animation, stopped              |
 | The number     | Type a time                                              |
@@ -115,13 +116,20 @@ The panel under the globe, `Scenes/Timeline/timeline.gd`:
 | The slider     | Drag the time; taking hold of it takes over from playback |
 | The strip below| A mark for each keyframe of the selected node, and one for the current time |
 
+The skip is for moving about while editing. Someone laying out an animation
+in 50 My steps and then working on one feature's movement in 10 My steps
+types 10 into the box, and nothing about the document or the animation
+changes with it. **Page Up** and **Page Down** make the same two skips from
+the keyboard, wherever the focus is; they are the Time menu's items, which is
+what gives a shortcut that reach. A skip never leaves the animation range.
+
 The slider holds the negative of the time, which is what puts the oldest end on
 the left: a slider always grows to the right and an age grows into the past. It
 spans the animation range, so configuring a different range lays it out again.
 
 ## The animation
 
-The dialog behind `Configure...` sets six things, kept in the config file
+The dialog behind `Configure...` sets four things, kept in the config file
 (`Logic/animation_settings.gd`) because they say how fast someone likes to
 watch rather than anything about the planet:
 
@@ -129,20 +137,25 @@ watch rather than anything about the planet:
 | ------------------ | ------- | -------------------------------------------- |
 | Start (Ma)         | 2000    | Where playback begins                        |
 | End (Ma)           | 0       | Where it ends                                |
-| Increment (My)     | 10      | How far one frame moves, always positive     |
-| Frames per second  | 24      | How fast the frames come                     |
+| Speed (My per second) | 50   | How far the time moves in a second of watching, always positive |
 | Start again at the end | off | Loop instead of stopping                     |
-| Land exactly on the end time | on | Add a short last step when the increment does not divide the range |
 
-The direction comes from the two ends, not from the sign of the increment:
-start above end counts down, which is the usual way round.
+The direction comes from the two ends, not from the sign of the speed: start
+above end counts down, which is the usual way round. The default takes the
+default range in forty seconds.
 
-`AnimationSettings.times()` gives the times the animation steps through. Each
-one is a whole number of increments from the start rather than the one before it
-plus an increment, so two thousand frames of a tenth of a million years still
-land exactly on the end. Playback walks that list, so no frame time is ever
-accumulated; only the pacing depends on the wall clock, and a slow machine
-catches up rather than falling behind.
+Playback is continuous. Every rendered frame moves the time on by the seconds
+the frame before it took, times the speed (`AnimationSettings.advance()`), so
+between two keyframes what is on the globe is the interpolation the keyframes
+already give, linear in time, with no steps to see. Nothing is accumulated
+beyond the time itself: a slow frame moves further, and the end is reached at
+the same moment on any machine. The last step is cut short at the end, where
+playback stops or, with the loop on, starts again from the beginning.
+
+Up to 0.7.0 playback stepped through a list of frames an increment apart at a
+frame rate, and the `<` and `>` buttons stepped by the same increment. A config
+file from then still opens: the keys playback no longer reads are left alone
+and the speed starts at its default.
 
 ## What a frame costs
 

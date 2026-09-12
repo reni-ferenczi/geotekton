@@ -2,7 +2,7 @@ extends PanelContainer
 class_name Timeline
 
 # The time control under the globe: where the document is being looked at, and
-# the playback that walks it through an animation. Time is an age in millions of
+# the playback that runs it through an animation. Time is an age in millions of
 # years before present, so the slider runs from the oldest time on the left to 0
 # on the right and an animation normally plays from left to right. See
 # Docs/Time.md.
@@ -35,6 +35,7 @@ var animation := AnimationSettings.new()
 var slider: HSlider
 var markers: Control
 var time_spin: SpinBox
+var skip_spin: SpinBox
 var play_button: Button
 var pause_button: Button
 var reset_button: Button
@@ -42,11 +43,6 @@ var older_button: Button
 var younger_button: Button
 var configure_button: Button
 
-# The times playback steps through, and where in them it is. Built when play is
-# pressed, so a change to the settings takes effect at the next play.
-var frames := PackedFloat64Array()
-var frame_index: int = -1
-var seconds_on_this_frame: float = 0.0
 var playing: bool = false
 
 # The node whose keyframes are marked under the slider, null for none.
@@ -68,6 +64,7 @@ func attach(document_: Document) -> void:
 	document = document_
 	document.time_changed.connect(_show_time)
 	animation = AnimationSettings.load_settings()
+	skip_spin.set_value_no_signal(Config.get_skip_increment())
 	_apply_animation()
 
 
@@ -89,14 +86,27 @@ func _build() -> void:
 	controls.name = "Controls"
 	box.add_child(controls)
 
-	older_button = _control_button(controls, "Older", "<", "One step towards the older end")
+	older_button = _control_button(controls, "Older", "<", "One skip towards the older end (Page Up)")
 	older_button.pressed.connect(step.bind(true))
 	play_button = _control_button(controls, "Play", "Play", "Run the animation")
 	play_button.pressed.connect(play)
 	pause_button = _control_button(controls, "Pause", "Pause", "Stop where it is")
 	pause_button.pressed.connect(pause)
-	younger_button = _control_button(controls, "Younger", ">", "One step towards the younger end")
+	younger_button = _control_button(controls, "Younger", ">", "One skip towards the younger end (Page Down)")
 	younger_button.pressed.connect(step.bind(false))
+
+	skip_spin = SpinBox.new()
+	skip_spin.name = "Skip"
+	skip_spin.min_value = Config.MIN_SKIP
+	skip_spin.max_value = Document.MAX_TIME
+	skip_spin.step = 0.0001
+	skip_spin.value = Config.DEFAULT_SKIP
+	skip_spin.suffix = "My"
+	skip_spin.custom_minimum_size = Vector2(100, 0)
+	skip_spin.tooltip_text = "How far the < and > buttons jump, in millions of years"
+	skip_spin.value_changed.connect(_on_skip_changed)
+	controls.add_child(skip_spin)
+
 	reset_button = _control_button(controls, "Reset", "Reset", "Back to the start of the animation")
 	reset_button.pressed.connect(reset)
 
@@ -210,9 +220,10 @@ func play() -> void:
 	var problem := animation.problem()
 	if not problem.is_empty():
 		return
-	frames = animation.times()
-	frame_index = _frame_at(document.current_time)
-	seconds_on_this_frame = 0.0
+	# Playing again from the end is playing from the start; anywhere else
+	# carries on from where the slider was left.
+	if animation.reached_end(document.current_time):
+		document.set_time(animation.start)
 	playing = true
 	set_process(true)
 	_update_buttons()
@@ -227,55 +238,40 @@ func pause() -> void:
 # Back to the start of the animation, stopped.
 func reset() -> void:
 	pause()
-	frame_index = -1
 	if document != null:
 		document.set_time(animation.start)
 
 
-# One step of the animation towards the older or the younger end.
+# One skip towards the older or the younger end, by the number beside the
+# buttons, kept inside the animation range.
 func step(towards_older: bool) -> void:
 	if document == null:
 		return
 	pause()
-	var delta := absf(animation.increment) * (1.0 if towards_older else -1.0)
+	var delta := skip() * (1.0 if towards_older else -1.0)
 	document.set_time(clampf(document.current_time + delta, youngest(), oldest()))
 
 
+func skip() -> float:
+	return skip_spin.value
+
+
+func _on_skip_changed(value: float) -> void:
+	Config.set_skip_increment(value)
+
+
+# Move the time on by however long the last frame took. Nothing is accumulated
+# beyond the time itself: the frame after a slow one moves further, and the
+# animation reaches the end at the same moment on any machine.
 func _process(delta: float) -> void:
 	if not playing:
 		return
-	seconds_on_this_frame += delta
-	var per_frame := animation.frame_seconds()
-	# A slow machine catches up rather than falling behind, but the times
-	# themselves come from the list, so no frame time is ever accumulated.
-	while seconds_on_this_frame >= per_frame:
-		seconds_on_this_frame -= per_frame
-		if not _advance():
-			return
-
-
-# Show the next frame. False once the animation has run out and does not loop.
-func _advance() -> bool:
-	frame_index += 1
-	if frame_index >= frames.size():
-		if not animation.loop:
-			frame_index = frames.size() - 1
+	document.set_time(animation.advance(document.current_time, delta))
+	if animation.reached_end(document.current_time):
+		if animation.loop:
+			document.set_time(animation.start)
+		else:
 			pause()
-			return false
-		frame_index = 0
-	document.set_time(frames[frame_index])
-	return true
-
-
-# Which frame a time belongs to: the last one at or before it in playing order,
-# so pressing play carries on from where the slider was left rather than
-# jumping back to the start.
-func _frame_at(time: float) -> int:
-	for i in range(frames.size() - 1, -1, -1):
-		var reached := frames[i] >= time if animation.start > animation.end else frames[i] <= time
-		if reached:
-			return i
-	return -1
 
 
 func _update_buttons() -> void:
@@ -337,7 +333,7 @@ func to_json() -> Dictionary:
 		"slider_range": [slider.min_value, slider.max_value],
 		"typed": time_spin.value,
 		"playing": playing,
-		"frame": frame_index,
+		"skip": skip(),
 		"markers": _markers_to_json(),
 		"animation": animation.to_json(),
 	}
