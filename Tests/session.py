@@ -329,6 +329,62 @@ def run_drawing_session(client: AutomationClient) -> None:
               f"undo removes the committed geometry ({kind})")
 
 
+def run_point_undo_session(client: AutomationClient) -> None:
+    """Ctrl+Z takes back the last point a tool holds and Ctrl+Y puts it back.
+
+    The document's own stack is reached only once no point is held; without
+    that, Ctrl+Z halfway through a shape undid the creation of the feature it
+    was being drawn on (GP-0041).
+    """
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", kind="polygon")
+    depth = client.call("get_document")["document"]["undo_depth"]
+    points = DRAWINGS["polygon"]
+    if not draw(client, points):
+        return
+
+    client.call("key", key="Z", ctrl=True)
+    client.call("key", key="Z", ctrl=True)
+    held = client.call("get_tool")["drawing_vertices"]
+    check(held == len(points) - 2, f"Ctrl+Z twice takes two vertices back: {held} held")
+    client.call("key", key="Y", ctrl=True)
+    held = client.call("get_tool")["drawing_vertices"]
+    check(held == len(points) - 1, f"Ctrl+Y puts one of them back: {held} held")
+    check(client.call("get_document")["document"]["undo_depth"] == depth,
+          "and the document's undo stack is untouched by either")
+
+    # A new click forgets what was taken back, so Ctrl+Y has nothing to put down.
+    if draw(client, points[-1:]):
+        client.call("key", key="Y", ctrl=True)
+        held = client.call("get_tool")["drawing_vertices"]
+        check(held == len(points), f"a click forgets the vertex taken back: {held} held")
+
+    # With the outline empty, Undo is the document's again.
+    client.call("key", key="Escape")
+    client.call("menu", item="undo")
+    check(client.call("get_document")["document"]["undo_depth"] == depth - 1,
+          "with nothing held, Edit > Undo reaches the document")
+    client.call("menu", item="redo")
+
+    # The Circle and Measure tools hold their points the same way.
+    for tool, field in (("circle", "circle_points"), ("measure", "measure_points")):
+        # Redo put the feature back but not the selection.
+        client.call("select", title="Feature")
+        client.call("set_tool", tool=tool)
+        if not draw(client, points[:2]):
+            continue
+        client.call("key", key="Z", ctrl=True)
+        held = len(client.call("get_tool")[field])
+        check(held == 1, f"Ctrl+Z takes a {tool} point back: {held} held")
+        client.call("key", key="Y", ctrl=True)
+        held = len(client.call("get_tool")[field])
+        check(held == 2, f"Ctrl+Y puts the {tool} point back: {held} held")
+        check(client.call("get_document")["document"]["undo_depth"] == depth,
+              f"and the document's stack is untouched by the {tool} tool")
+    client.call("set_tool", tool="move")
+
+
 def run_escape_session(client: AutomationClient) -> None:
     """Escape throws the shape being drawn away without touching the feature."""
     start_new_document(client)
@@ -1254,6 +1310,7 @@ def run_light_tool_checks(client: AutomationClient) -> None:
     start = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
     target = (20.0, -40.0)
     end = client.call("latlon_to_screen", lat=target[0], lon=target[1])["screen"]
+    versions = undo_depth(client)
     client.call("press", x=start[0], y=start[1])
     client.call("mouse_move", x=end[0], y=end[1])
     client.call("release", x=end[0], y=end[1])
@@ -1261,6 +1318,11 @@ def run_light_tool_checks(client: AutomationClient) -> None:
     stored = client.call("get_view_settings")["view_settings"]["light_direction"]
     check(abs(stored[0] - target[0]) < 0.1 and abs(stored[1] - target[1]) < 0.1,
           f"the drag put the light at {stored}")
+    check(undo_depth(client) == versions + 1, "the whole light drag is one undo step")
+    client.call("menu", item="undo")
+    back = client.call("get_view_settings")["view_settings"]["light_direction"]
+    check(back == [0.0, 0.0], f"undo puts the light back where it was: {back}")
+    client.call("menu", item="redo")
 
     client.call("mouse_move", x=10, y=10)
     lit = luminance(client.call("get_pixel", x=end[0], y=end[1])["color"])
@@ -1526,6 +1588,39 @@ def run_measure_session(client: AutomationClient) -> None:
     wanted = math.radians(MEASURE_DEGREES) * EARTH_RADIUS_KM
     shown = client.call("get_status")["status"]["measure"]
     check(f"{wanted:.1f} km" in shown, f"the status bar shows {wanted:.1f} km: {shown}")
+
+    # The same number sits beside the line, just up and right of its midpoint.
+    label = client.call("get_tool")["measure_label"]
+    check(label["visible"] and label["text"] == shown,
+          f"the distance is written beside the line: {label}")
+    middle = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
+    dx, dy = label["screen"][0] - middle[0], label["screen"][1] - middle[1]
+    check(0.0 < dx < 40.0 and -60.0 < dy < 0.0,
+          f"and it sits up and to the right of the midpoint: {dx:.0f}, {dy:.0f}")
+
+    # Turn the midpoint round the back of the globe and the label goes with it.
+    client.call("set_view", lat=0.0, lon=180.0)
+    check(not client.call("get_tool")["measure_label"]["visible"],
+          "the label is hidden while the midpoint is round the back")
+    client.call("set_view", lat=0.0, lon=0.0)
+    check(client.call("get_tool")["measure_label"]["visible"], "and back when it is in view")
+
+    # A third click is the start of the next measurement, not a longer path.
+    third = client.call("latlon_to_screen", lat=10.0, lon=0.0)["screen"]
+    client.call("click", x=third[0], y=third[1])
+    tool = client.call("get_tool")
+    check(len(tool["measure_points"]) == 1, f"a third click starts over: {tool['measure_points']}")
+    check(not tool["measure_label"]["visible"], "with no segment to label yet")
+    for lat, lon in MEASURE_POINTS:
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        client.call("click", x=screen[0], y=screen[1])
+    client.call("set_tool", tool="move")
+    check(not client.call("get_tool")["measure_label"]["visible"],
+          "leaving the tool takes the label away")
+    client.call("set_tool", tool="measure")
+    for lat, lon in MEASURE_POINTS:
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        client.call("click", x=screen[0], y=screen[1])
 
     # Another planet. The radius is a whole number of kilometres, which is the
     # step the preference is edited in.
@@ -2170,11 +2265,10 @@ def run_import_session(client: AutomationClient, folder: Path) -> None:
     check(document["path"] == "", f"an import has no file of its own: {document['path']!r}")
     check(document["dirty"], "and is offered for saving")
 
-    client.call("select", title="Plate 101")
-    keyframes = client.call("get_properties")["properties"]["keyframes"]
-    check(len(keyframes) >= 2, f"the plate group carries the sampled rotation: {len(keyframes)}")
-
     client.call("select", title="Imported Plate")
+    keyframes = client.call("get_selected")["feature"]["keyframes"]
+    check(len(keyframes) >= 2,
+          f"the feature carries its plate's sampled rotation: {len(keyframes)}")
     panel = client.call("get_properties")["properties"]
     check(panel["geometry"].startswith("polygon"), f"drawn as a polygon: {panel['geometry']!r}")
     check(panel["feature_type"] == "coastline",
@@ -2230,6 +2324,7 @@ def main(argv: list[str]) -> int:
         finally:
             shutil.rmtree(folder, ignore_errors=True)
         run_drawing_session(client)
+        run_point_undo_session(client)
         run_escape_session(client)
         run_properties_session(client)
         run_coordinate_session(client)

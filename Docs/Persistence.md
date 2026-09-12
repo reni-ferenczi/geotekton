@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "features": { ... },
   "view": { ... }
 }
@@ -108,10 +108,19 @@ value out of range is brought back into it, so a file from a version that knew
 fewer settings still opens; see [0.5.0 to 0.6.0](#050-to-060) and
 [0.6.0 to 0.7.0](#060-to-070).
 
-The block is **not on the undo stack**. A view setting says how the document is
-looked at rather than what it holds, so undo goes straight past it to whatever
-the tree last did. It does make the document dirty, since the file is what
-carries it, and `Document.view_edited()` is what says so.
+The block is **on the undo stack** beside the tree: every version the stack
+records holds both, so a change of light, palette or backdrop is undone the way
+a change of geometry is, and the dirty flag comes from the stack alone.
+`Document.view_edited()` is what records a view change. Up to 0.7.0 the block
+was left off the stack as a matter of how the document was looked at rather
+than what it held; the second round of developer feedback asked for one undo
+buffer over every document change, and the current time and the animation
+settings, which are not document changes, are what remain off it.
+
+A colour picker in the View settings dialog applies every colour the cursor
+is dragged over and records only the one left when the picker closes; a drag
+with the Light tool records once, on release. Every other field is one version
+per change.
 
 #### The backdrop path
 
@@ -148,7 +157,6 @@ groups and leaf features.
   "enabled": true,
   "is_group": true,
   "type": "Group",
-  "keyframes": [ ... ],
   "children": [ ... ]
 }
 ```
@@ -215,10 +223,10 @@ is kept as it stands, so a topology loads and saves whole even while one of the
 features it names is missing; see
 [Editing](Editing.md#line-topologies).
 
-`keyframes` is where the node is over time: a list of `{time, rotation}`,
+`keyframes` is where the feature is over time: a list of `{time, rotation}`,
 sorted with the youngest first, `time` an age in millions of years before
-present and `rotation` the three angles above. A group has them as well, and
-everything under it inherits its motion. The file is written at full float
+present and `rotation` the three angles above. Only a leaf has them; a group
+carries no motion since 0.8.0. The file is written at full float
 precision, so a keyframe time comes back as the exact time it was written at;
 see [Time](Time.md#precision).
 
@@ -289,6 +297,23 @@ before the block existed, so an older file opens looking the way it always did.
 0.7.0 added the styling keys to the `view` block. There is no migration step for
 them either: a block without them gets each feature drawn in its own colour with
 every class of geometry shown, which is what every version before 0.7.0 drew.
+
+#### 0.7.0 to 0.8.0
+
+Up to 0.7.0 a group had `keyframes` and everything under it inherited that
+motion. 0.8.0 keeps motion on leaf features alone: a group is organization and
+carries none, and what rides on what is a coupling between two features
+(GP-0046).
+
+The migration folds the motion in. For every leaf under at least one moving
+group, the rotations of the groups above it and its own are composed at every
+time any keyframe along that chain sits at, and the result is written as the
+leaf's own keyframes, so the feature is drawn where it was at each of those
+times. Between two of them the interpolation of the composed rotations is not
+quite the composition of the interpolations, so a feature that rode on a moving
+group can differ slightly from what 0.7.0 drew between keyframes. A leaf under
+no moving group is left exactly as it was, and every group loses its keyframe
+list. The step is `Document._to_0_8_0()`.
 
 ## The config file
 

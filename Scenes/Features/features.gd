@@ -297,7 +297,12 @@ func _on_expand_pressed() -> void:
 
 func _on_feature_tree_program_changed() -> void:
 	document.record()
-	reload()
+	# The tree emits this from inside its own mouse handling, where Godot's Tree
+	# refuses to be cleared or have items created, so rebuilding it right here
+	# leaves the panel empty. Clicking under the rows while a row is being
+	# renamed is one way in: the click closes the cell editor and lands the
+	# rename here, still inside the event. Wait until the control is done with it.
+	reload.call_deferred()
 
 
 func _on_feature_tree_feature_selected(_node: Feature) -> void:

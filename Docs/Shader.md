@@ -285,9 +285,9 @@ time moves the features under a pointer that need not have moved at all, so
 the latitude and longitude it was last reported at, before it uploads the row.
 It costs a hit test only while the pointer is on the globe.
 
-The rotation is the feature's own composed with every group above it, worked
-out from the root down by `Planet.Geometry.resolve()`; see
-[Time](Time.md#groups-carry-motion). A `Basis` in Godot is column-major, so
+The rotation is the feature's own, worked out for every feature at once by
+`Planet.Geometry.resolve()`; a group above it moves nothing, see
+[Time](Time.md#groups-do-not-move). A `Basis` in Godot is column-major, so
 `Basis.x`, `.y` and `.z` are the three columns, and `mat3(f0.xyz, f1.xyz,
 f2.xyz)` in the shader is the same matrix.
 
@@ -347,9 +347,8 @@ uploaded apart:
 | `bases`, `shown` | Where each feature is and whether it is there, at `time` |
 
 `verts` are `Vector2(latitude, longitude)` in **degrees**, in the feature's own
-frame. `resolve(root, time)` fills `bases` and `shown` for a time, walking the
-tree from the root so that each node composes its own rotation with what its
-ancestors gave it.
+frame. `resolve(root, time)` fills `bases` and `shown` for a time, one feature
+after another, from each feature's own keyframes.
 
 ### `Planet.collect_geometry(root: Feature, time := 0.0, styling: Styling = null) -> Geometry`
 

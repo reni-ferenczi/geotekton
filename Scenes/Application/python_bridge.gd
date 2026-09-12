@@ -359,8 +359,10 @@ func _serve(request_: Dictionary) -> Dictionary:
 			if moved == null:
 				return _no_such(request_)
 			var degrees: Array = request_.get("rotation", [0.0, 0.0, 0.0])
-			app.document.set_keyframe(moved, float(request_.get("time", 0.0)),
+			var problem := app.document.set_keyframe(moved, float(request_.get("time", 0.0)),
 				Vector3(degrees[0], degrees[1], degrees[2]))
+			if not problem.is_empty():
+				return {"ok": false, "error": problem}
 			_refresh()
 			return {"ok": true}
 

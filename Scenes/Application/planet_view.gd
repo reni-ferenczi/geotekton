@@ -57,8 +57,28 @@ var zoom: float = DEFAULT_ZOOM
 
 var move_enabled: bool = false
 var is_moving: bool = false
+
+# The distance the Measure tool writes beside the line it measured: a label
+# over the viewport, put at the midpoint of the segment every frame so it
+# follows the camera, and hidden while that midpoint is round the back of the
+# globe or off the map. INF is no measurement to show.
+var measure_label: Label
+var _measure_label_at := Vector2.INF
 var move_rotating: bool = false
 var move_on_globe: bool = false
+
+
+func _ready() -> void:
+	measure_label = Label.new()
+	measure_label.name = "MeasureLabel"
+	measure_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	measure_label.visible = false
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.0, 0.0, 0.0, 0.6)
+	style.set_content_margin_all(4.0)
+	style.set_corner_radius_all(3.0)
+	measure_label.add_theme_stylebox_override("normal", style)
+	add_child(measure_label)
 
 
 func _process(_delta: float) -> void:
@@ -67,6 +87,35 @@ func _process(_delta: float) -> void:
 	# and longitude it is pointed at, and a map re-projects about them.
 	camera.rotation.z = deg_to_rad(planet.angle)
 	camera.position.y = _camera_offset()
+	_place_measure_label()
+
+
+### The measurement label
+
+
+# Write a distance beside the place it belongs to, which is the midpoint of the
+# segment measured.
+func show_measurement(text: String, lat: float, lon: float) -> void:
+	measure_label.text = text
+	_measure_label_at = Vector2(lat, lon)
+	_place_measure_label()
+
+
+func hide_measurement() -> void:
+	_measure_label_at = Vector2.INF
+	measure_label.visible = false
+
+
+# Put the label a little up and to the right of its place, so the line itself
+# stays visible under it. Every frame, since the camera may have moved.
+func _place_measure_label() -> void:
+	if _measure_label_at == Vector2.INF:
+		return
+	var point = _latlon_to_view(_measure_label_at.x, _measure_label_at.y)
+	measure_label.visible = point != null
+	if point != null:
+		measure_label.position = (point as Vector2) \
+			+ Vector2(6.0, -6.0 - measure_label.get_minimum_size().y)
 
 
 ### The scene

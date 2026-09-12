@@ -59,7 +59,7 @@ follows the feature tree selection, through
 | Geometry   | Label              | no         |
 | Coordinates| Table, Add, Remove | no         |
 | Sections   | Table, Reverse, Remove | no     |
-| Keyframes  | Table, Key, Delete | yes        |
+| Keyframes  | Table, Key, Delete | no         |
 
 A feature shows either the coordinate table or the section table, never both: a
 [line topology](Editing.md#line-topologies) borrows its vertices instead of
@@ -80,9 +80,8 @@ axis the timeline slider runs on, so `From` is the younger end. A feature
 outside it at the current time is neither drawn nor hit tested, and its tree row
 is greyed out. See [Time](Time.md#being-there-at-all).
 
-A group has the keyframe table because a group carries motion its children
-inherit, which is the one thing besides its name and its switch that a group
-has to edit.
+A group has no keyframe table: a group carries no motion, so its name and its
+switch are all there is to edit on one.
 
 ### The coordinate table
 
@@ -173,6 +172,12 @@ A right click on the globe or the map selects whatever is under the pointer and
 offers Duplicate and Delete on it. Only in the Move tool: in the Draw tool a
 right click takes the last placed vertex back, and in the Measure tool it takes
 back the last point measured to.
+
+Undo and Redo have the same exception. While the Draw, Circle or Measure tool
+holds points it has not committed, Ctrl+Z takes the last of them back and
+Ctrl+Y puts it down again, and the document's stack is reached only once no
+point is held; see [Draw](Draw.md#visual-feedback). The feature tree toolbar's
+Undo and Redo buttons always go to the document.
 
 The Remove button here and the Delete key of the
 [Vertex tool](Editing.md#deleting) part company over the last vertices of a

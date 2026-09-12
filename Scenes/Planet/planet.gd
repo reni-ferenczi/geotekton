@@ -216,22 +216,13 @@ class Geometry extends RefCounted:
 			cap_cosines[index] = -1.0 if radius >= PI * 0.5 else cos(radius)
 
 	# Work out where every feature sits at a time and whether it is there then.
-	# The tree is walked from the root down so that each node composes its own
-	# rotation with what its ancestors already gave it, which is how a group
-	# carries everything under it along.
-	func resolve(root: Feature, time_: float) -> void:
+	# A feature's rotation is its own; nothing above it in the tree moves it.
+	func resolve(_root: Feature, time_: float) -> void:
 		time = time_
-		var stack: Array = [[root, Basis()]]
-		while not stack.is_empty():
-			var entry: Array = stack.pop_back()
-			var node: Feature = entry[0]
-			var m: Basis = (entry[1] as Basis) * node.basis_at(time)
-			if index_of.has(node):
-				var index := int(index_of[node])
-				bases[index] = m
-				shown[index] = node.exists_at(time)
-			for child in node.children:
-				stack.append([child, m])
+		for index in features.size():
+			var node: Feature = features[index]
+			bases[index] = node.basis_at(time)
+			shown[index] = node.exists_at(time)
 
 
 # Upload the feature geometry to the planet shader. Where the features sit and

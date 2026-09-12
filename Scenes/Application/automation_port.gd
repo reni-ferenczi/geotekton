@@ -520,6 +520,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"split_from": _vertex_to_json(app.split_from),
 				"can_split": not app.split_button.disabled,
 				"measure_points": _points_to_json(app.measure_points),
+				"measure_label": _measure_label_to_json(),
 				"circle_points": _points_to_json(app.circle_points),
 				"circle": _circle_to_json(),
 				"segments": app.circle_segments(),
@@ -922,6 +923,18 @@ func _capture() -> Image:
 
 func _timeline() -> Timeline:
 	return app.timeline
+
+
+# The distance label beside a measured segment: what it says, whether it is on
+# screen, and where, in window pixels.
+func _measure_label_to_json() -> Dictionary:
+	var label := app.planet_view.measure_label
+	var screen: Vector2 = app.planet_view.get_global_transform_with_canvas() * label.position
+	return {
+		"text": label.text,
+		"visible": label.visible,
+		"screen": [screen.x, screen.y],
+	}
 
 
 # The menu and item id behind a command name, or an empty array when unknown.

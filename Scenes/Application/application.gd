@@ -445,8 +445,8 @@ func _on_file_menu_id_pressed(id: int) -> void:
 func _on_edit_menu_id_pressed(id: int) -> void:
 	var selected := features.feature_tree.get_selected_node()
 	match id:
-		EditItem.UNDO: features.undo()
-		EditItem.REDO: features.redo()
+		EditItem.UNDO: undo()
+		EditItem.REDO: redo()
 		EditItem.CUT: features._on_cut_pressed()
 		EditItem.COPY: features._on_copy_pressed()
 		EditItem.PASTE: features._on_paste_pressed()
@@ -463,8 +463,8 @@ func _update_edit_menu() -> void:
 	var is_node := selected != null and not selected.is_root
 	var pasteable := Document.APPLICATION in DisplayServer.clipboard_get()
 	var disabled := {
-		EditItem.UNDO: not document.can_undo(),
-		EditItem.REDO: not document.can_redo(),
+		EditItem.UNDO: not document.can_undo() and _tool_points().is_empty(),
+		EditItem.REDO: not document.can_redo() and taken_back.is_empty(),
 		EditItem.CUT: not is_node,
 		EditItem.COPY: not is_node,
 		EditItem.PASTE: not pasteable,
@@ -728,7 +728,11 @@ func _on_root_replaced(same_document: bool) -> void:
 	# being left behind.
 	if not same_document:
 		set_active_tool(Tool.MOVE)
-		apply_view_settings()
+	# The version carries the view settings as well as the tree, so the scene
+	# and the dialog showing it follow every step of the stack.
+	apply_view_settings()
+	if view_dialog.visible:
+		_fill_view_fields()
 	refresh_geometry()
 
 
@@ -1135,7 +1139,12 @@ func _view_color(form: GridContainer, key: String, text: String) -> void:
 	var button := ColorPickerButton.new()
 	button.name = key.to_pascal_case()
 	button.custom_minimum_size = Vector2(140, 28)
-	button.color_changed.connect(func(_color: Color) -> void: _on_view_field_changed())
+	# The picker sends a colour for every drag of its cursor. The scene takes
+	# them all, so what is being picked is visible, but only the colour left
+	# when the picker closes reaches the undo stack, the way the feature colour
+	# picker of the Properties panel does it.
+	button.color_changed.connect(func(_color: Color) -> void: _on_view_field_changed(false))
+	button.popup_closed.connect(_on_view_field_changed)
 	form.add_child(button)
 	view_fields[key] = button
 
@@ -1220,8 +1229,10 @@ func _fill_view_fields() -> void:
 
 
 # One field moved: take the whole block off the dialog and hand it to the
-# document, so the planet follows while the dialog is still open.
-func _on_view_field_changed() -> void:
+# document, so the planet follows while the dialog is still open. Every field
+# commit is one undo version; a colour being dragged in a picker is applied
+# without one until the picker closes.
+func _on_view_field_changed(commit: bool = true) -> void:
 	var settings := document.view
 	settings.background_color = view_fields["background_color"].color
 	settings.star_field = view_fields["star_field"].button_pressed
@@ -1236,7 +1247,8 @@ func _on_view_field_changed() -> void:
 	settings.single_color = view_fields["single_color"].color
 	settings.draw_style = option_value(view_fields["draw_style"])
 	settings.palette = option_value(view_fields["palette"])
-	document.view_edited()
+	if commit:
+		document.view_edited()
 	apply_view_settings()
 	_show_palette_preview()
 	refresh_geometry()
@@ -1451,6 +1463,7 @@ func _on_cursor_moved(lat: float, lon: float) -> void:
 
 
 func set_active_tool(tool: Tool) -> void:
+	taken_back = PackedVector2Array()
 	if active_tool == Tool.DRAW and tool != Tool.DRAW:
 		_outline_cancel()
 	if active_tool == Tool.VERTEX and tool != Tool.VERTEX:
@@ -1722,44 +1735,39 @@ func _can_draw(node: Feature) -> bool:
 ### Move tool
 
 
-# A group can be dragged as well as a feature, because a group carries motion
-# its children inherit. The root is left out: it holds everything, so turning it
-# would only turn the globe, which the view already does.
+# Only a leaf feature is dragged. A group carries no motion since 0.8.0, so
+# there is nothing a drag of one could write.
 func _update_move_enabled() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	planet_view.move_enabled = active_tool == Tool.MOVE and selected != null \
-		and not selected.is_root and selected.holds_geometry()
+		and not selected.is_group and selected.has_geometry()
 
 
-# The point that was grabbed and the rotation the dragged node had when the drag
-# started, both in the frame its parent gives it, so an inherited rotation is
-# neither undone nor applied twice. The keyframes it started with come back if
-# the drag is cancelled.
-var move_anchor_local: Vector3
+# The point that was grabbed and the rotation the dragged feature had when the
+# drag started. The keyframes it started with come back if the drag is
+# cancelled.
+var move_anchor: Vector3
 var move_base_rot: Vector3
-var move_parent_inverse := Basis()
 var move_base_keyframes: Array[Keyframe] = []
 
 
 func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 	var selected := features.feature_tree.get_selected_node()
-	if selected == null or selected.is_root:
+	if selected == null or selected.is_group:
 		return
 	move_base_keyframes = Keyframe.clone_list(selected.keyframes)
-	move_parent_inverse = Feature.world_basis(
-		features.root, features.root.find_parent(selected), document.current_time).transposed()
 	move_base_rot = selected.rotation_at(document.current_time)
-	move_anchor_local = move_parent_inverse * Feature._latlon_to_xyz_s(Vector2(anchor_lat, anchor_lon))
+	move_anchor = Feature._latlon_to_xyz_s(Vector2(anchor_lat, anchor_lon))
 
 
 # Dragging writes the keyframe at the current time as it goes, so what is on the
 # globe is what will be committed. Only the release records an undo version.
 func _on_move_to(lat: float, lon: float) -> void:
 	var selected := features.feature_tree.get_selected_node()
-	if selected == null or selected.is_root:
+	if selected == null or selected.is_group:
 		return
-	var target_local := move_parent_inverse * Feature._latlon_to_xyz_s(Vector2(lat, lon))
-	var new_rot: Variant = Feature.compute_move_rotation(move_anchor_local, target_local, move_base_rot)
+	var target := Feature._latlon_to_xyz_s(Vector2(lat, lon))
+	var new_rot: Variant = Feature.compute_move_rotation(move_anchor, target, move_base_rot)
 	if new_rot != null:
 		Keyframe.upsert(selected.keyframes, document.current_time, new_rot)
 		refresh_motion()
@@ -1774,7 +1782,7 @@ func _on_move_ended() -> void:
 
 func _on_move_cancelled() -> void:
 	var selected := features.feature_tree.get_selected_node()
-	if selected != null and not selected.is_root:
+	if selected != null and not selected.is_group:
 		selected.keyframes = move_base_keyframes
 	refresh_motion()
 
@@ -1818,6 +1826,81 @@ func _on_planet_input_outside(event: InputEvent) -> void:
 		_light_dragging = false
 
 
+### Undo and redo
+#
+# A tool that takes clicks before it commits them — the shape being drawn, the
+# points of a circle, the ends of a measurement — holds them outside the
+# document, so the document's undo stack knows nothing about them. Ctrl+Z while
+# a tool holds points takes the last one back rather than undoing the previous
+# edit under the half drawn shape, and Ctrl+Y puts it back; a right click is the
+# same take back. With nothing held, both reach the document. The feature tree
+# toolbar's own buttons go straight to the document, since the tree is not
+# where drawing happens. See Docs/Draw.md.
+
+# The points taken back and not put back yet, oldest first. Forgotten as soon as
+# anything else changes the points: a new click, a commit, a cancel, a change
+# of tool.
+var taken_back := PackedVector2Array()
+
+
+func undo() -> void:
+	var points := _tool_points()
+	if points.is_empty():
+		features.undo()
+		return
+	taken_back.append(points[points.size() - 1])
+	points.remove_at(points.size() - 1)
+	_set_tool_points(points)
+
+
+func redo() -> void:
+	if taken_back.is_empty():
+		features.redo()
+		return
+	var points := _tool_points()
+	points.append(taken_back[taken_back.size() - 1])
+	taken_back.remove_at(taken_back.size() - 1)
+	_set_tool_points(points)
+
+
+# One more point for the active tool, from a click.
+func _place_point(point: Vector2) -> void:
+	var points := _tool_points()
+	points.append(point)
+	taken_back = PackedVector2Array()
+	_set_tool_points(points)
+
+
+# The points the active tool holds before it commits them; none for a tool
+# that takes no clicks of that kind.
+func _tool_points() -> PackedVector2Array:
+	match active_tool:
+		Tool.DRAW:
+			return outline_vertices
+		Tool.CIRCLE:
+			return circle_points
+		Tool.MEASURE:
+			return measure_points
+	return PackedVector2Array()
+
+
+# Give the active tool its points and show them the way that tool does.
+func _set_tool_points(points: PackedVector2Array) -> void:
+	match active_tool:
+		Tool.DRAW:
+			outline_vertices = points
+			_refresh_outline()
+		Tool.CIRCLE:
+			circle_points = points
+			_refresh_selection_outline()
+			_show_measurement()
+		Tool.MEASURE:
+			measure_points = points
+			_refresh_selection_outline()
+			_show_measurement()
+	_update_edit_menu()
+
+
 func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 	if event is not InputEventMouseButton or not event.is_pressed():
 		return
@@ -1827,12 +1910,9 @@ func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 		return
 
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		outline_vertices.append(Vector2(lat, lon))
-		_refresh_outline()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		if not outline_vertices.is_empty():
-			outline_vertices.remove_at(outline_vertices.size() - 1)
-			_refresh_outline()
+		_place_point(Vector2(lat, lon))
+	elif event.button_index == MOUSE_BUTTON_RIGHT and not outline_vertices.is_empty():
+		undo()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -1870,6 +1950,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_report(_circle_commit())
 			elif event.keycode == KEY_ESCAPE:
 				circle_points = PackedVector2Array()
+				taken_back = PackedVector2Array()
 				_refresh_selection_outline()
 				_show_measurement()
 			else:
@@ -1894,7 +1975,7 @@ func _outline_commit() -> void:
 		return
 
 	# The vertices were clicked in world space; a feature keeps its own frame,
-	# which at the current time is where its keyframes and its groups' put it.
+	# which at the current time is where its keyframes put it.
 	var into_local := Feature.world_basis(
 		features.root, selected, document.current_time).transposed()
 	selected.add_ring(Feature.apply_basis(outline_vertices, into_local), kind)
@@ -1908,6 +1989,7 @@ func _outline_commit() -> void:
 
 func _outline_cancel() -> void:
 	outline_vertices = PackedVector2Array()
+	taken_back = PackedVector2Array()
 	_refresh_selection_outline()
 
 
@@ -2271,13 +2353,9 @@ func _on_circle_input(lat: float, lon: float, event: InputEvent) -> void:
 	if event.button_index == MOUSE_BUTTON_LEFT:
 		if circle_points.size() >= 3:
 			circle_points = PackedVector2Array()
-		circle_points.append(Vector2(lat, lon))
+		_place_point(Vector2(lat, lon))
 	elif event.button_index == MOUSE_BUTTON_RIGHT and not circle_points.is_empty():
-		circle_points.remove_at(circle_points.size() - 1)
-	else:
-		return
-	_refresh_selection_outline()
-	_show_measurement()
+		undo()
 
 
 # The circle the clicked points describe, as [centre, angular radius], or an
@@ -2339,7 +2417,7 @@ func _circle_commit() -> String:
 		return "A circle becomes a polygon or a polyline, not a %s." % Feature.KIND_NAMES[kind]
 
 	# The circle was worked out in world space; a feature keeps its own frame,
-	# which at the current time is where its keyframes and its groups' put it.
+	# which at the current time is where its keyframes put it.
 	var into_local := Feature.world_basis(
 		features.root, selected, document.current_time).transposed()
 	selected.add_ring(Feature.apply_basis(circle_ring(), into_local), kind)
@@ -2437,11 +2515,16 @@ func _after_topology_edit() -> void:
 var _light_dragging: bool = false
 
 
+# The light follows the pointer for the whole drag and the release records one
+# undo version for all of it, the way a feature drag does.
 func _on_light_input(lat: float, lon: float, event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_light_dragging = event.is_pressed()
 		if event.is_pressed():
+			_light_dragging = true
 			_point_light_at(lat, lon)
+		elif _light_dragging:
+			_light_dragging = false
+			document.view_edited()
 	elif event is InputEventMouseMotion and _light_dragging:
 		_point_light_at(lat, lon)
 
@@ -2451,7 +2534,6 @@ func _point_light_at(lat: float, lon: float) -> void:
 	if direction == null:
 		return
 	document.view.light_direction = ViewSettings.light_from_vector(direction)
-	document.view_edited()
 	apply_view_settings()
 	if view_dialog.visible:
 		_fill_view_fields()
@@ -2479,17 +2561,18 @@ func _on_measure_input(_lat: float, _lon: float, event: InputEvent) -> void:
 	if event is not InputEventMouseButton or not event.is_pressed():
 		return
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		measure_points.append(Vector2(_lat, _lon))
+		# A measurement is one segment. A third click starts the next one from
+		# where it fell, so a run of measurements is click, click, click.
+		if measure_points.size() >= 2:
+			measure_points = PackedVector2Array()
+		_place_point(Vector2(_lat, _lon))
 	elif event.button_index == MOUSE_BUTTON_RIGHT and not measure_points.is_empty():
-		measure_points.remove_at(measure_points.size() - 1)
-	else:
-		return
-	_refresh_selection_outline()
-	_show_measurement()
+		undo()
 
 
 func _measure_clear() -> void:
 	measure_points = PackedVector2Array()
+	taken_back = PackedVector2Array()
 	_show_measurement()
 
 
@@ -2517,14 +2600,17 @@ func _show_measurement(error: String = "") -> void:
 		return
 
 	var radius := Config.get_planet_radius()
+	if active_tool == Tool.MEASURE and measure_points.size() >= 2:
+		var distance := Measure.format_km(
+			Measure.distance(measure_points[0], measure_points[1], radius))
+		status_measure.text = distance
+		# The same number beside the line itself, at its midpoint.
+		var middle := Measure.along(measure_points[0], measure_points[1], 0.5)
+		planet_view.show_measurement(distance, middle.x, middle.y)
+		return
+	planet_view.hide_measurement()
 	if active_tool == Tool.MEASURE:
-		if measure_points.size() < 2:
-			status_measure.text = "click two points to measure"
-			return
-		var last := Measure.distance(measure_points[measure_points.size() - 2],
-			measure_points[measure_points.size() - 1], radius)
-		status_measure.text = "%s   total %s" % [Measure.format_km(last),
-			Measure.format_km(Measure.path_length(measure_points, radius))]
+		status_measure.text = "click two points to measure"
 		return
 
 	var selected := features.feature_tree.get_selected_node()

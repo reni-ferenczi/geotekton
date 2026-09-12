@@ -345,8 +345,10 @@ func show_node(node_: Feature) -> void:
 		control.visible = is_feature and not is_topology
 	for control in _topology_boxes:
 		control.visible = is_topology
+	# A group carries no motion, so only a feature that is not a topology has
+	# keyframes to show.
 	for control in _motion_boxes:
-		control.visible = editable and not is_topology
+		control.visible = is_feature and not is_topology
 
 	if not editable:
 		return
@@ -637,9 +639,13 @@ func _on_keyframe_edited() -> void:
 # keyframe is made without dragging: the rotation it records is the one the
 # keyframes around the current time already give, so nothing on the globe moves.
 func _on_key_pressed() -> void:
-	if node == null or node.is_root:
+	if node == null or node.is_group:
 		return
-	document.set_keyframe(node, document.current_time, node.rotation_at(document.current_time))
+	var error := document.set_keyframe(
+		node, document.current_time, node.rotation_at(document.current_time))
+	if not error.is_empty():
+		rejected.emit(error)
+		return
 	_refill_keyframes()
 	edited.emit()
 

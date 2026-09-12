@@ -57,10 +57,9 @@ them and they were dropped in 0.2.0, files included.
 
 ## Moving Features
 
-When the Move tool is active and something with geometry under it is selected in
-the feature tree, left-clicking on the globe starts moving it. That can be a
-group as well as a leaf feature, because a group carries motion its children
-inherit; only the root is left out. A move writes the keyframe at the current
+When the Move tool is active and a feature holding geometry is selected in the
+feature tree, left-clicking on the globe starts moving it. A group cannot be
+moved, since a group carries no motion. A move writes the keyframe at the current
 time, so moving at two times is what makes something move at all — see
 [Time](Time.md#making-a-keyframe).
 
@@ -119,8 +118,8 @@ to hit whatever the view is zoomed to; the reach is
 ### Editing a feature that has moved
 
 A feature keeps its vertices in its own frame, before the rotation its keyframes
-and its groups' give it at the current time; see
-[Time](Time.md#groups-carry-motion). The Vertex tool therefore maps every click
+give it at the current time; see
+[Time](Time.md#keyframes). The Vertex tool therefore maps every click
 back into that frame, through the inverse of
 `Feature.world_basis(root, feature, time)`.
 
@@ -210,7 +209,8 @@ fourth starts again.
 | Input | Action |
 |-------|--------|
 | **LMB** on the globe | Add a point; the fourth starts a new circle |
-| **RMB** | Take the last point back |
+| **RMB** or **Ctrl+Z** | Take the last point back |
+| **Ctrl+Y** | Put it back |
 | **Enter** | Commit the circle to the selected feature |
 | **Escape** | Start again with no points |
 
@@ -324,22 +324,26 @@ of the globe the light should come from is on the far side.
 
 ## The Measure tool
 
-The Measure tool reports great circle distances in the status bar.
+The Measure tool measures the great circle distance between two points.
 
 | Input | Action |
 |-------|--------|
-| **LMB** on the globe | Add a point to the path being measured |
-| **RMB** | Take the last point back |
+| **LMB** on the globe | The first point, then the second; a third starts the next measurement from where it fell |
+| **RMB** or **Ctrl+Z** | Take the last point back |
+| **Ctrl+Y** | Put it back |
 | **Escape** | Start again with no points |
 
-With two or more points the status bar shows the last segment and the total
-along the whole path. With none it says so. Outside the Measure tool the same
-field shows the length along the selected feature's geometry: around the outline
-of a polygon, along a polyline, and nothing for a multipoint, whose vertices are
-separate markers rather than a path.
+A measurement is one segment: it is a measuring tool, not a drawing tool. With
+two points the distance is written in the status bar and beside the line
+itself, a little up and to the right of its midpoint, where it follows the
+camera and hides while the midpoint is round the back of the globe or off the
+map. With fewer than two the status bar says what to click. Outside the
+Measure tool the same field shows the length along the selected feature's
+geometry: around the outline of a polygon, along a polyline, and nothing for a
+multipoint, whose vertices are separate markers rather than a path.
 
-The points are drawn in the same yellow outline overlay the Draw tool uses, so
-the path being measured is visible while it is read.
+The two points and the line between them are drawn in the same yellow outline
+overlay the Draw tool uses.
 
 ### The planet radius
 
@@ -383,8 +387,8 @@ item each for polygons, polylines, points, small circles and topologies. See
 which part of the palette format is read.
 
 The settings belong to the document and are saved with it, so a map of a world
-keeps the way its author drew it; see
-[Persistence](Persistence.md#view-settings). They are not on the undo stack.
+keeps the way its author drew it, and every change to them is one step of the
+undo stack; see [Persistence](Persistence.md#view-settings).
 
 **Save as default** makes the block, and the view being shown, what File > New
 starts from. **Restore defaults** puts the open document back to them. An
