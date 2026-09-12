@@ -78,6 +78,8 @@ adding an item means adding an enum value and one `add_item` line.
 | ------------ | --------- | ----------------------------------------- |
 | Skip Older   | Page Up   | The timeline's `<` button: one skip towards the older end; see [Time](Time.md#the-time-control) |
 | Skip Younger | Page Down | The `>` button: one skip towards the younger end |
+| Older Keyframe | Ctrl+Page Up | The `<<` button: the selected node's next keyframe towards the older end |
+| Younger Keyframe | Ctrl+Page Down | The `>>` button: the same towards the younger end |
 
 | Help          | Shortcut | What it does                          |
 | ------------- | -------- | ------------------------------------- |

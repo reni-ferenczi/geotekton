@@ -111,6 +111,7 @@ The panel under the globe, `Scenes/Timeline/timeline.gd`:
 
 | Control        | What it does                                            |
 | -------------- | ------------------------------------------------------- |
+| `<<` and `>>`  | The selected node's next keyframe towards the older or the younger end; greyed out when there is none that way |
 | `<` and `>`    | One skip towards the older or the younger end, by the number beside them |
 | The skip       | How far `<` and `>` jump, in millions of years; 50 to start with, remembered between runs |
 | Play           | Run the animation from where the time is, or from the start when it is at the end |
@@ -119,7 +120,7 @@ The panel under the globe, `Scenes/Timeline/timeline.gd`:
 | The number     | Type a time                                              |
 | Configure...   | The animation dialog                                     |
 | The slider     | Drag the time; taking hold of it takes over from playback |
-| The strip below| A mark for each keyframe of the selected node, and one for the current time |
+| The strip below| A mark for each keyframe of the selected node, and one for the current time. A click on a mark goes to that keyframe exactly, and the pointer over one says its time |
 
 The skip is for moving about while editing. Someone laying out an animation
 in 50 My steps and then working on one feature's movement in 10 My steps
@@ -127,6 +128,13 @@ types 10 into the box, and nothing about the document or the animation
 changes with it. **Page Up** and **Page Down** make the same two skips from
 the keyboard, wherever the focus is; they are the Time menu's items, which is
 what gives a shortcut that reach. A skip never leaves the animation range.
+
+Landing on a keyframe is a click on its mark, or `<<` and `>>` with
+**Ctrl+Page Up** and **Ctrl+Page Down**, which go to the selected node's next
+keyframe either way and stop at the last one. A keyframe time is a full
+precision float, and the mark is the way to reach it without typing every
+digit. The reach of a click is `Timeline.MARKER_PICK_PIXELS` either side of
+the mark; between two marks a click does nothing.
 
 The slider holds the negative of the time, which is what puts the oldest end on
 the left: a slider always grows to the right and an age grows into the past. It

@@ -49,7 +49,7 @@ const SNAP_PIXELS := 12.0
 enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, RUN_SCRIPT, PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, CONSOLE, STATUS_BAR, SETTINGS, FULL_SCREEN }
-enum TimeItem { OLDER, YOUNGER }
+enum TimeItem { OLDER, YOUNGER, OLDER_KEYFRAME, YOUNGER_KEYFRAME }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -384,6 +384,9 @@ func _build_menus() -> void:
 	time_menu = _add_menu("Time")
 	time_menu.add_item("Skip Older", TimeItem.OLDER, KEY_PAGEUP)
 	time_menu.add_item("Skip Younger", TimeItem.YOUNGER, KEY_PAGEDOWN)
+	time_menu.add_separator()
+	time_menu.add_item("Older Keyframe", TimeItem.OLDER_KEYFRAME, KEY_MASK_CTRL | KEY_PAGEUP)
+	time_menu.add_item("Younger Keyframe", TimeItem.YOUNGER_KEYFRAME, KEY_MASK_CTRL | KEY_PAGEDOWN)
 	time_menu.id_pressed.connect(_on_time_menu_id_pressed)
 
 	help_menu = _add_menu("Help")
@@ -567,6 +570,8 @@ func _on_time_menu_id_pressed(id: int) -> void:
 	match id:
 		TimeItem.OLDER: timeline.step(true)
 		TimeItem.YOUNGER: timeline.step(false)
+		TimeItem.OLDER_KEYFRAME: timeline.jump_keyframe(true)
+		TimeItem.YOUNGER_KEYFRAME: timeline.jump_keyframe(false)
 
 
 func _on_help_menu_id_pressed(id: int) -> void:
