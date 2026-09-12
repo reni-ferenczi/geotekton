@@ -225,13 +225,13 @@ def test_the_time_range_follows_the_gplates_valid_time(tmp_path, valid, expected
 def test_a_plate_that_never_moves_gets_no_keyframes(tmp_path):
     features = write_features(tmp_path / "features.gpml", [a_feature(geometry=a_polygon())])
     rotations = write_rotations(tmp_path / "rotations.rot", turns={101: 0.0})
-    assert import_files([features, rotations]).groups[1].keyframes == []
+    assert import_files([features, rotations]).features[0].keyframes == []
 
 
 def test_a_moving_plate_is_sampled_at_the_step_and_stops_repeating_itself(tmp_path):
     features = write_features(tmp_path / "features.gpml", [a_feature(geometry=a_polygon())])
     rotations = write_rotations(tmp_path / "rotations.rot", turns={101: 90.0}, oldest=50.0)
-    keyframes = import_files([features, rotations], step=10.0, oldest=100.0).groups[1].keyframes
+    keyframes = import_files([features, rotations], step=10.0, oldest=100.0).features[0].keyframes
     times = [key.time for key in keyframes]
     # The plate turns until 50 Ma and stands still after it, so the samples
     # between the one that says it has stopped and the last one go.
@@ -252,12 +252,15 @@ def test_a_rotation_sequence_in_the_feature_file_is_used(tmp_path):
     ]).write(str(both))
     document = import_files([both])
     assert len(document.features) == 1, "the rotation sequence is not a feature of its own"
-    assert [key.time for key in document.groups[1].keyframes][-1] == 100.0
+    assert [key.time for key in document.features[0].keyframes][-1] == 100.0
 
 
-def test_no_rotation_file_leaves_every_group_still(tmp_path):
+def test_no_rotation_file_leaves_every_feature_still(tmp_path):
     features = write_features(tmp_path / "features.gpml", [a_feature(geometry=a_polygon())])
-    assert all(group.keyframes == [] for group in import_files([features]).groups)
+    document = import_files([features])
+    assert all(feature.keyframes == [] for feature in document.features)
+    assert all("keyframes" not in group.data for group in document.groups), \
+        "a group carries no motion and no keyframe list"
 
 
 ### The rotation convention, pinned to what the application computes
@@ -322,7 +325,7 @@ def test_a_feature_stands_where_gplates_reconstructs_it_at_fifty(name):
     feature = next(child for child in group.children if child.title == name)
     plate = int(group.title.split()[1])
 
-    matrix = build_rotation_basis(rotation_at(group.keyframes, 50.0))
+    matrix = build_rotation_basis(rotation_at(feature.keyframes, 50.0))
     model = pygplates.RotationModel(str(ROTATIONS))
     for latitude, longitude in feature.rings[0][::17]:
         here = xyz_to_lat_lon(multiply(matrix, lat_lon_to_xyz(latitude, longitude)))
@@ -395,7 +398,7 @@ def test_a_project_names_the_files_and_they_are_imported(tmp_path):
                                         for path in (features, rotations)]))
     document = import_project(project)
     assert [feature.title for feature in document.features] == ["Somewhere"]
-    assert document.groups[1].keyframes != []
+    assert document.features[0].keyframes != []
 
 
 def test_a_project_naming_a_file_that_is_gone_says_so_and_imports_the_rest(tmp_path, caplog):

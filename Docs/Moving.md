@@ -74,8 +74,8 @@ This convention is self-consistent: `apply_rotation` and `compute_move_rotation`
 
 `unapply_rotation` applies the transpose (inverse) of the same matrix.
 `apply_basis` takes a `Basis` that has already been built, which is what most
-callers have: a node's rotation in the world is composed from its own and its
-ancestors', so it arrives as a matrix rather than as three angles.
+callers have, since the rotation arrives as a matrix rather than as three
+angles.
 
 Committing a new outline on top of a moved feature goes through the inverse of
 that composed matrix, `Feature.world_basis(root, feature, time).transposed()`,
@@ -88,25 +88,17 @@ records an undo version. Cancelling puts the whole keyframe list back the way it
 was, not just the one rotation, because a drag may have added a keyframe that
 was not there before.
 
-A node inside a group is dragged in the frame its parent gives it. The grabbed
-point and the target are both carried into that frame first, so the rotation
-that comes out is the node's own and the inherited part is neither undone nor
-applied twice:
+The grabbed point and the target are both in world space, and so is the
+rotation that comes out, since a feature's rotation is its own wherever it sits
+in the tree:
 
 ```gdscript
-var parent_inverse := Feature.world_basis(root, root.find_parent(node), time).transposed()
-var anchor_local := parent_inverse * anchor_world
-var target_local := parent_inverse * target_world
 Keyframe.upsert(node.keyframes, time, Feature.compute_move_rotation(
-    anchor_local, target_local, node.rotation_at(time)))
+    anchor_world, target_world, node.rotation_at(time)))
 ```
 
-Conjugating the delta rotation this way maps its axis into the parent's frame
-and leaves its angle alone, which is why the same `compute_move_rotation` works
-for a node at any depth.
-
-A group can be dragged too, since a group carries motion its children inherit.
-The root cannot: turning it would only turn the globe.
+Only a leaf feature is dragged. A group carries no motion, so a drag of one
+would have nothing to write; see [Time](Time.md#groups-do-not-move).
 
 ---
 

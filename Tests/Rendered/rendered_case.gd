@@ -29,6 +29,11 @@ func look_at_latlon(lat: float, lon: float) -> void:
 func load_sample(file_name: String) -> void:
 	var path := ProjectSettings.globalize_path("%s/%s" % [DATA_DIR, file_name])
 	app.document.load_from_file(path)
+	# The pointer's last reported place survives from the test before, and a
+	# feature of this sample under it would be drawn hovered, which brightens
+	# it and fails an exact colour probe. Every sample starts with nothing
+	# under the pointer.
+	app._on_craton_hovered(NAN, NAN)
 	app.refresh_geometry()
 	await frames(2)
 

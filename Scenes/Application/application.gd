@@ -1715,44 +1715,39 @@ func _can_draw(node: Feature) -> bool:
 ### Move tool
 
 
-# A group can be dragged as well as a feature, because a group carries motion
-# its children inherit. The root is left out: it holds everything, so turning it
-# would only turn the globe, which the view already does.
+# Only a leaf feature is dragged. A group carries no motion since 0.8.0, so
+# there is nothing a drag of one could write.
 func _update_move_enabled() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	planet_view.move_enabled = active_tool == Tool.MOVE and selected != null \
-		and not selected.is_root and selected.holds_geometry()
+		and not selected.is_group and selected.has_geometry()
 
 
-# The point that was grabbed and the rotation the dragged node had when the drag
-# started, both in the frame its parent gives it, so an inherited rotation is
-# neither undone nor applied twice. The keyframes it started with come back if
-# the drag is cancelled.
-var move_anchor_local: Vector3
+# The point that was grabbed and the rotation the dragged feature had when the
+# drag started. The keyframes it started with come back if the drag is
+# cancelled.
+var move_anchor: Vector3
 var move_base_rot: Vector3
-var move_parent_inverse := Basis()
 var move_base_keyframes: Array[Keyframe] = []
 
 
 func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 	var selected := features.feature_tree.get_selected_node()
-	if selected == null or selected.is_root:
+	if selected == null or selected.is_group:
 		return
 	move_base_keyframes = Keyframe.clone_list(selected.keyframes)
-	move_parent_inverse = Feature.world_basis(
-		features.root, features.root.find_parent(selected), document.current_time).transposed()
 	move_base_rot = selected.rotation_at(document.current_time)
-	move_anchor_local = move_parent_inverse * Feature._latlon_to_xyz_s(Vector2(anchor_lat, anchor_lon))
+	move_anchor = Feature._latlon_to_xyz_s(Vector2(anchor_lat, anchor_lon))
 
 
 # Dragging writes the keyframe at the current time as it goes, so what is on the
 # globe is what will be committed. Only the release records an undo version.
 func _on_move_to(lat: float, lon: float) -> void:
 	var selected := features.feature_tree.get_selected_node()
-	if selected == null or selected.is_root:
+	if selected == null or selected.is_group:
 		return
-	var target_local := move_parent_inverse * Feature._latlon_to_xyz_s(Vector2(lat, lon))
-	var new_rot: Variant = Feature.compute_move_rotation(move_anchor_local, target_local, move_base_rot)
+	var target := Feature._latlon_to_xyz_s(Vector2(lat, lon))
+	var new_rot: Variant = Feature.compute_move_rotation(move_anchor, target, move_base_rot)
 	if new_rot != null:
 		Keyframe.upsert(selected.keyframes, document.current_time, new_rot)
 		refresh_motion()
@@ -1767,7 +1762,7 @@ func _on_move_ended() -> void:
 
 func _on_move_cancelled() -> void:
 	var selected := features.feature_tree.get_selected_node()
-	if selected != null and not selected.is_root:
+	if selected != null and not selected.is_group:
 		selected.keyframes = move_base_keyframes
 	refresh_motion()
 
@@ -1887,7 +1882,7 @@ func _outline_commit() -> void:
 		return
 
 	# The vertices were clicked in world space; a feature keeps its own frame,
-	# which at the current time is where its keyframes and its groups' put it.
+	# which at the current time is where its keyframes put it.
 	var into_local := Feature.world_basis(
 		features.root, selected, document.current_time).transposed()
 	selected.add_ring(Feature.apply_basis(outline_vertices, into_local), kind)
@@ -2332,7 +2327,7 @@ func _circle_commit() -> String:
 		return "A circle becomes a polygon or a polyline, not a %s." % Feature.KIND_NAMES[kind]
 
 	# The circle was worked out in world space; a feature keeps its own frame,
-	# which at the current time is where its keyframes and its groups' put it.
+	# which at the current time is where its keyframes put it.
 	var into_local := Feature.world_basis(
 		features.root, selected, document.current_time).transposed()
 	selected.add_ring(Feature.apply_basis(circle_ring(), into_local), kind)

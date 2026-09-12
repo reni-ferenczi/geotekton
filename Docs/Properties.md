@@ -59,7 +59,7 @@ follows the feature tree selection, through
 | Geometry   | Label              | no         |
 | Coordinates| Table, Add, Remove | no         |
 | Sections   | Table, Reverse, Remove | no     |
-| Keyframes  | Table, Key, Delete | yes        |
+| Keyframes  | Table, Key, Delete | no         |
 
 A feature shows either the coordinate table or the section table, never both: a
 [line topology](Editing.md#line-topologies) borrows its vertices instead of
@@ -80,9 +80,8 @@ axis the timeline slider runs on, so `From` is the younger end. A feature
 outside it at the current time is neither drawn nor hit tested, and its tree row
 is greyed out. See [Time](Time.md#being-there-at-all).
 
-A group has the keyframe table because a group carries motion its children
-inherit, which is the one thing besides its name and its switch that a group
-has to edit.
+A group has no keyframe table: a group carries no motion, so its name and its
+switch are all there is to edit on one.
 
 ### The coordinate table
 

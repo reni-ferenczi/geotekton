@@ -2163,11 +2163,10 @@ def run_import_session(client: AutomationClient, folder: Path) -> None:
     check(document["path"] == "", f"an import has no file of its own: {document['path']!r}")
     check(document["dirty"], "and is offered for saving")
 
-    client.call("select", title="Plate 101")
-    keyframes = client.call("get_properties")["properties"]["keyframes"]
-    check(len(keyframes) >= 2, f"the plate group carries the sampled rotation: {len(keyframes)}")
-
     client.call("select", title="Imported Plate")
+    keyframes = client.call("get_selected")["feature"]["keyframes"]
+    check(len(keyframes) >= 2,
+          f"the feature carries its plate's sampled rotation: {len(keyframes)}")
     panel = client.call("get_properties")["properties"]
     check(panel["geometry"].startswith("polygon"), f"drawn as a polygon: {panel['geometry']!r}")
     check(panel["feature_type"] == "coastline",
