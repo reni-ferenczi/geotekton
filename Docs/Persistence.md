@@ -108,10 +108,19 @@ value out of range is brought back into it, so a file from a version that knew
 fewer settings still opens; see [0.5.0 to 0.6.0](#050-to-060) and
 [0.6.0 to 0.7.0](#060-to-070).
 
-The block is **not on the undo stack**. A view setting says how the document is
-looked at rather than what it holds, so undo goes straight past it to whatever
-the tree last did. It does make the document dirty, since the file is what
-carries it, and `Document.view_edited()` is what says so.
+The block is **on the undo stack** beside the tree: every version the stack
+records holds both, so a change of light, palette or backdrop is undone the way
+a change of geometry is, and the dirty flag comes from the stack alone.
+`Document.view_edited()` is what records a view change. Up to 0.7.0 the block
+was left off the stack as a matter of how the document was looked at rather
+than what it held; the second round of developer feedback asked for one undo
+buffer over every document change, and the current time and the animation
+settings, which are not document changes, are what remain off it.
+
+A colour picker in the View settings dialog applies every colour the cursor
+is dragged over and records only the one left when the picker closes; a drag
+with the Light tool records once, on release. Every other field is one version
+per change.
 
 #### The backdrop path
 

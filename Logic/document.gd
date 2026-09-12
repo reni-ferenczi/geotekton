@@ -1,13 +1,13 @@
 class_name Document
 extends RefCounted
 
-# The open document: the feature tree, the file it came from and whether it
-# differs from what is on disk.
+# The open document: the feature tree, the view settings, the file it came from
+# and whether it differs from what is on disk.
 #
 # The undo stack is the only source of the dirty flag. Every edit records a
-# version; the document is clean exactly while the stack sits on the version
-# that was last written to or read from a file, so undoing back to that point
-# makes it clean again.
+# version, of the tree and the view settings together; the document is clean
+# exactly while the stack sits on the version that was last written to or read
+# from a file, so undoing back to that point makes it clean again.
 
 const APPLICATION := "middle-earth"
 const EXTENSION := ".middle-earth"
@@ -32,12 +32,10 @@ signal time_changed()
 var root: Feature
 var path: String = ""
 
-# How the scene around the features is drawn. Saved with the file, but not on
-# the undo stack: it says how the document is looked at rather than what it
-# holds. It still dirties the document, which _view_changed tracks, since the
-# file is what carries it.
+# How the scene around the features is drawn. Saved with the file and on the
+# undo stack beside the tree, so a change of light or palette is undone the
+# way a change of geometry is. Up to 0.7.0 it was left off the stack.
 var view := ViewSettings.new()
-var _view_changed: bool = false
 
 # When everything is drawn, an age in millions of years before present, so a
 # larger number is older and 0 is now. Not part of the document's content: it is
@@ -45,9 +43,21 @@ var _view_changed: bool = false
 # always opens at the present.
 var current_time: float = 0.0
 
-# Recorded versions of the tree, oldest first, and how many of them are applied.
-# The current version is versions[applied - 1]; anything above applied is redo.
-var versions: Array[Feature] = []
+# One recorded version: the tree and the view settings as they were.
+class Version:
+	var root: Feature
+	var view: ViewSettings
+
+	static func of(root_: Feature, view_: ViewSettings) -> Version:
+		var version := Version.new()
+		version.root = root_.clone()
+		version.view = view_.clone()
+		return version
+
+
+# Recorded versions, oldest first, and how many of them are applied. The
+# current version is versions[applied - 1]; anything above applied is redo.
+var versions: Array[Version] = []
 var applied: int = 0
 
 # The value of applied that matches the file on disk, or -1 once that version
@@ -67,7 +77,6 @@ func reset(settings: ViewSettings = null) -> void:
 	root = Feature.create_group("Planet")
 	root.is_root = true
 	view = settings.clone() if settings != null else ViewSettings.new()
-	_view_changed = false
 	versions.clear()
 	applied = 0
 	record()
@@ -79,14 +88,17 @@ func reset(settings: ViewSettings = null) -> void:
 
 
 func is_dirty() -> bool:
-	return applied != _saved or _view_changed
+	return applied != _saved
 
 
-# Say that a view setting was edited, so the document is offered for saving. The
-# caller has already changed `view`; this is what makes the change count.
+# Say that a view setting was edited. The caller has already changed `view`;
+# this records the version, which is what makes the change count and what
+# lets it be undone. A block that still says what the last version says
+# records nothing, so a picker opened and closed again is not an undo step.
 func view_edited() -> void:
-	_view_changed = true
-	state_changed.emit()
+	if applied > 0 and versions[applied - 1].view.to_json() == view.to_json():
+		return
+	record()
 
 
 # The file name for the window title, or "Untitled" before the first save.
@@ -97,11 +109,12 @@ func display_name() -> String:
 ### Undo stack
 
 
-# Record the current tree as a new version, dropping any redo versions.
+# Record the current tree and view settings as a new version, dropping any redo
+# versions.
 func record() -> void:
 	while versions.size() > applied:
 		versions.pop_back()
-	versions.append(root.clone())
+	versions.append(Version.of(root, view))
 	applied += 1
 	while applied > MAX_UNDO_STEPS:
 		versions.pop_front()
@@ -136,7 +149,9 @@ func redo() -> void:
 
 
 func _apply_current() -> void:
-	root = versions[applied - 1].clone()
+	var version := versions[applied - 1]
+	root = version.root.clone()
+	view = version.view.clone()
 	root_replaced.emit(true)
 	state_changed.emit()
 
@@ -477,7 +492,6 @@ func load_from_file(file_path: String) -> String:
 
 	root = loaded
 	view = ViewSettings.from_json(migrated.get("view"))
-	_view_changed = false
 	versions.clear()
 	applied = 0
 	record()
@@ -530,7 +544,6 @@ func save_to_file(file_path: String) -> String:
 	file.close()
 
 	path = file_path
-	_view_changed = false
 	_saved = applied
 	state_changed.emit()
 	return ""

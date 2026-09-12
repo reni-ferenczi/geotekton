@@ -383,8 +383,8 @@ item each for polygons, polylines, points, small circles and topologies. See
 which part of the palette format is read.
 
 The settings belong to the document and are saved with it, so a map of a world
-keeps the way its author drew it; see
-[Persistence](Persistence.md#view-settings). They are not on the undo stack.
+keeps the way its author drew it, and every change to them is one step of the
+undo stack; see [Persistence](Persistence.md#view-settings).
 
 **Save as default** makes the block, and the view being shown, what File > New
 starts from. **Restore defaults** puts the open document back to them. An
