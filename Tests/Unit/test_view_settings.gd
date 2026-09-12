@@ -97,15 +97,17 @@ func test_the_settings_survive_a_save_and_a_load() -> void:
 	DirAccess.remove_absolute(path)
 
 
-# A view setting is not an edit of the tree: it dirties the document but records
-# no version, so undo goes back past it to whatever the tree last did.
-func test_a_view_setting_is_not_on_the_undo_stack() -> void:
+# A view setting is an edit like any other since GP-0042: it records one
+# version, and one that changes nothing records none.
+func test_a_view_setting_is_one_step_of_the_undo_stack() -> void:
 	var document := Document.new()
 	var depth := document.applied
 	document.view.ambient = 0.5
 	document.view_edited()
-	assert_eq(document.applied, depth, "no undo version was recorded")
-	assert_true(not document.can_undo(), "and there is nothing to undo")
+	assert_eq(document.applied, depth + 1, "one undo version was recorded")
+	assert_true(document.can_undo(), "and it can be undone")
+	document.view_edited()
+	assert_eq(document.applied, depth + 1, "saying it again with nothing changed records nothing")
 
 
 # Every file written before 0.6.0 carries no view block, and opens looking the

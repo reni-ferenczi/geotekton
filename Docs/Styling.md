@@ -136,8 +136,8 @@ the path of a file. `Palette.resolve()` takes it back either way.
 
 The four settings live in the [view settings](Persistence.md#view-settings)
 block, saved with the document and mirrored in the preferences as what a new
-document starts from. Like the rest of that block they are not on the undo
-stack: a style says how the document is looked at, not what it holds.
+document starts from. Like the rest of that block they are on the undo stack,
+so picking a style is one step of it.
 
 | Key | What it says |
 | --- | ------------ |

@@ -100,9 +100,10 @@ var triangles := PackedVector2Array()
 # is drawn as one rather than as the fan of triangles it was cut into.
 var triangle_edges := PackedByteArray()
 
-# How the node turns over time, sorted by time. A group has these too: its
-# children inherit its motion, which is what takes the place of a GPlates plate
-# circuit. An empty list means the node does not move at all.
+# How the feature turns over time, sorted by time. An empty list means it does
+# not move at all. Only a leaf has any: a group is organization and carries no
+# motion, since 0.8.0; what rides on what is a coupling between two features
+# (GP-0046), not the tree.
 var keyframes: Array[Keyframe] = []
 
 # The ages between which a feature exists, in millions of years before present.
@@ -383,7 +384,6 @@ func to_json() -> Variant:
 		"title": title,
 		"enabled": enabled,
 		"is_group": is_group,
-		"keyframes": Keyframe.list_to_json(keyframes),
 	}
 	if is_group:
 		data["type"] = "Group"
@@ -393,6 +393,7 @@ func to_json() -> Variant:
 		data["children"] = children_data
 	else:
 		data["type"] = "Feature"
+		data["keyframes"] = Keyframe.list_to_json(keyframes)
 		data["feature_type"] = feature_type
 		data["color"] = [color.r, color.g, color.b, color.a]
 		data["geometry_kind"] = KIND_NAMES[geometry_kind]
@@ -418,7 +419,10 @@ static func from_json(data: Variant) -> Feature:
 	node.title = data["title"]
 	node.enabled = data.get("enabled", true)
 	node.is_group = data.get("is_group", data.get("type") == "Group")
-	node.keyframes = Keyframe.list_from_json(data.get("keyframes", []))
+	# A group carries no motion. A file written before 0.8.0 had keyframes on
+	# groups; Document.migrate() folds those into the leaves before this runs.
+	if not node.is_group:
+		node.keyframes = Keyframe.list_from_json(data.get("keyframes", []))
 	if node.is_group:
 		node.collapsed = true
 		for child_data in data.get("children", []):
@@ -558,9 +562,7 @@ static func point_in_triangle(p: Vector2, a: Vector2, b: Vector2, c: Vector2) ->
 ### Motion in time
 
 
-# The rotation this node applies of its own at the given time, from its own
-# keyframes. What the world sees is this composed with every ancestor's; see
-# world_basis().
+# The rotation this node has at the given time, from its keyframes.
 func rotation_at(time: float) -> Vector3:
 	return Keyframe.interpolate(keyframes, time)
 
@@ -580,38 +582,13 @@ func exists_at(time: float) -> bool:
 
 
 # The rotation that carries a node's own frame into world space at the given
-# time: its own rotation with every ancestor's applied outside it, root first.
-# A group's motion therefore reaches everything under it, which is how a terrane
-# rides on the craton it sits on. The identity when the node is not in the tree.
+# time. Since 0.8.0 that is the node's own rotation and nothing more: the
+# groups above it are organization and carry no motion. The identity when the
+# node is not in the tree.
 static func world_basis(root: Feature, node: Feature, time: float) -> Basis:
-	var m := Basis()
-	for step in chain_to(root, node):
-		m = m * step.basis_at(time)
-	return m
-
-
-# The nodes from the root down to one of them, both included, or nothing when
-# the node is not in that tree. Everything a node inherits comes from this
-# chain: its rotation, and the keyframe times that rotation changes at.
-static func chain_to(root: Feature, node: Feature) -> Array[Feature]:
-	# _path_to leaves the chain empty when it fails, so a node that is not in
-	# the tree needs no case of its own here.
-	var chain: Array[Feature] = []
-	if root != null and node != null:
-		_path_to(root, node, chain)
-	return chain
-
-
-# Fill chain with the nodes from this one down to the target, both included.
-static func _path_to(node: Feature, target: Feature, chain: Array[Feature]) -> bool:
-	chain.append(node)
-	if is_same(node, target):
-		return true
-	for child in node.children:
-		if _path_to(child, target, chain):
-			return true
-	chain.pop_back()
-	return false
+	if root == null or node == null or not root.contains_node_at_any_depth(node):
+		return Basis()
+	return node.basis_at(time)
 
 
 ### Rotation helpers
@@ -656,9 +633,8 @@ static func unapply_rotation(verts: PackedVector2Array, rot: Vector3) -> PackedV
 	return apply_basis(verts, build_rotation_basis(rot).transposed())
 
 
-# Carry latitude and longitude vertices through a rotation already built. The
-# rotation of a node is composed from its own and its ancestors', so most
-# callers have the Basis rather than the three angles that made it.
+# Carry latitude and longitude vertices through a rotation already built, which
+# is what most callers have rather than the three angles that made it.
 static func apply_basis(verts: PackedVector2Array, m: Basis) -> PackedVector2Array:
 	var result := PackedVector2Array()
 	result.resize(verts.size())

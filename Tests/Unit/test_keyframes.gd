@@ -143,36 +143,8 @@ func test_a_group_is_there_whenever_its_children_are() -> void:
 		assert_true(group.exists_at(time), "a group has no time range of its own")
 
 
-func test_a_child_inherits_the_motion_of_its_group() -> void:
-	var root := Feature.create_group("Planet")
-	root.is_root = true
-	var group := Feature.create_group("Craton")
-	root.children.append(group)
-	var terrane := Feature.create_feature("Terrane")
-	group.children.append(terrane)
-
-	# The group turns 30 degrees about the poles and the terrane 20 of its own,
-	# both of them by the time the animation reaches 100 Ma.
-	Keyframe.upsert(group.keyframes, 0.0, Vector3.ZERO)
-	Keyframe.upsert(group.keyframes, 100.0, Vector3(30, 0, 0))
-	Keyframe.upsert(terrane.keyframes, 0.0, Vector3.ZERO)
-	Keyframe.upsert(terrane.keyframes, 100.0, Vector3(20, 0, 0))
-
-	assert_true(Feature.world_basis(root, terrane, 0.0).is_equal_approx(Basis()),
-		"at time zero nothing has turned")
-
-	var world := Feature.world_basis(root, terrane, 100.0)
-	assert_true(world.is_equal_approx(Feature.build_rotation_basis(Vector3(50, 0, 0))),
-		"the two turns about the same axis add up: %s" %
-			Feature.decompose_rotation_degrees(world))
-
-	# Halfway through, both are half done, so the terrane is half way as well.
-	var half := Feature.world_basis(root, terrane, 50.0)
-	assert_close(Feature.decompose_rotation_degrees(half), Vector3(25, 0, 0), 1e-3,
-		"halfway through both turns")
-
-
-func test_a_group_carries_a_child_that_does_not_move_itself() -> void:
+# Since 0.8.0 a group is organization only: whatever is on it moves nothing.
+func test_a_group_does_not_move_what_is_under_it() -> void:
 	var root := Feature.create_group("Planet")
 	root.is_root = true
 	var group := Feature.create_group("Craton")
@@ -180,12 +152,15 @@ func test_a_group_carries_a_child_that_does_not_move_itself() -> void:
 	var terrane := Feature.create_feature("Terrane")
 	group.children.append(terrane)
 	Keyframe.upsert(group.keyframes, 0.0, Vector3(45, 0, 0))
+	Keyframe.upsert(terrane.keyframes, 0.0, Vector3.ZERO)
+	Keyframe.upsert(terrane.keyframes, 100.0, Vector3(20, 0, 0))
 
-	var point := PackedVector2Array([Vector2(0, 0)])
-	var carried := Feature.apply_basis(point, Feature.world_basis(root, terrane, 0.0))[0]
-	var group_itself := Feature.apply_basis(point, Feature.world_basis(root, group, 0.0))[0]
-	assert_close(carried, group_itself, 1e-6,
-		"the terrane goes exactly where the craton under it goes")
+	assert_true(Feature.world_basis(root, terrane, 0.0).is_equal_approx(Basis()),
+		"at time zero the terrane has not turned, whatever the group says")
+	var world := Feature.world_basis(root, terrane, 100.0)
+	assert_true(world.is_equal_approx(Feature.build_rotation_basis(Vector3(20, 0, 0))),
+		"at 100 Ma it has turned its own 20 degrees and no more: %s" %
+			Feature.decompose_rotation_degrees(world))
 
 
 func test_a_node_outside_the_tree_does_not_rotate() -> void:

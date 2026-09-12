@@ -33,6 +33,35 @@ func test_an_edit_makes_it_dirty_and_undoing_it_clean_again() -> void:
 	assert_eq(document.root.child_count(), 1, "the feature is back")
 
 
+func test_a_view_setting_is_undone_like_an_edit() -> void:
+	var document := Document.new()
+	var before := document.view.background_color
+	document.view.background_color = Color.RED
+	document.view_edited()
+	assert_true(document.is_dirty(), "a view setting edited is offered for saving")
+	assert_true(document.can_undo(), "and can be undone")
+
+	document.undo()
+	assert_eq(document.view.background_color, before, "undo puts the colour back")
+	assert_true(not document.is_dirty(), "undoing to the saved version is clean")
+
+	document.redo()
+	assert_eq(document.view.background_color, Color.RED, "redo brings it back")
+	assert_true(document.is_dirty(), "and the document is dirty again")
+
+
+func test_a_version_holds_the_view_it_was_recorded_with() -> void:
+	# The stack clones the block, so editing the live one afterwards does not
+	# rewrite the version that was recorded.
+	var document := Document.new()
+	document.view.ambient = 0.5
+	document.view_edited()
+	document.view.ambient = 0.9
+	document.undo()
+	document.redo()
+	assert_close(document.view.ambient, 0.5, 1e-9, "the version is what was recorded")
+
+
 func test_recording_an_edit_drops_the_redo_versions() -> void:
 	var document := Document.new()
 	document.root.children.append(Feature.create_feature("First"))

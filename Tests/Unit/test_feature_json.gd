@@ -143,8 +143,6 @@ func _build_tree() -> Feature:
 	root.is_root = true
 
 	var group := Feature.create_group("Cratons")
-	# A group carries motion of its own, which everything under it inherits.
-	Keyframe.upsert(group.keyframes, 100.0, Vector3(5, 0, 0))
 	root.children.append(group)
 
 	var laurentia := Feature.create_feature("Laurentia", Color(0.25, 0.5, 0.75, 1.0))
