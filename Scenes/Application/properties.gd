@@ -57,6 +57,9 @@ var name_edit: LineEdit
 var type_selector: OptionButton
 var style_selector: OptionButton
 var palette_selector: OptionButton
+var ramp_from_button: ColorPickerButton
+var ramp_to_button: ColorPickerButton
+var ramp_span_spin: SpinBox
 var color_button: ColorPickerButton
 var opacity_spin: SpinBox
 var enabled_check: CheckBox
@@ -170,6 +173,24 @@ func _build() -> void:
 	palette_selector = _selector("Palette")
 	palette_selector.item_selected.connect(func(_index: int) -> void: _commit_style())
 	_row(form, "Palette", palette_selector, true, false)
+
+	# The two colour ramp the Two colour ramp palette reads: the colour at age
+	# zero, the colour at the end of the span, and the span in My.
+	var ramp_row := HBoxContainer.new()
+	ramp_row.name = "RampRow"
+	_row(form, "Ramp", ramp_row, true, false)
+	ramp_from_button = _ramp_button("RampFrom")
+	ramp_row.add_child(ramp_from_button)
+	ramp_to_button = _ramp_button("RampTo")
+	ramp_row.add_child(ramp_to_button)
+	ramp_span_spin = SpinBox.new()
+	ramp_span_spin.name = "RampSpan"
+	ramp_span_spin.min_value = 1
+	ramp_span_spin.max_value = TIME_LIMIT
+	ramp_span_spin.step = 1
+	ramp_span_spin.tooltip_text = "How old a feature is, in My, when it reaches the second colour"
+	ramp_span_spin.value_changed.connect(func(_value: float) -> void: _commit_style())
+	ramp_row.add_child(ramp_span_spin)
 
 	enabled_check = CheckBox.new()
 	enabled_check.name = "Enabled"
@@ -293,6 +314,19 @@ func _row(form: GridContainer, text: String, control: Control, on_a_group: bool 
 	form.add_child(control)
 	_rows.append({"label": label, "control": control, "on_a_group": on_a_group,
 		"on_a_feature": on_a_feature})
+
+
+# One end of the ramp. Dragging previews on the globe, closing commits, the way
+# the colour row does it.
+func _ramp_button(button_name: String) -> ColorPickerButton:
+	var button := ColorPickerButton.new()
+	button.name = button_name
+	button.custom_minimum_size = Vector2(0, 28)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.edit_alpha = false
+	button.color_changed.connect(func(_color: Color) -> void: _on_ramp_previewed())
+	button.popup_closed.connect(_commit_style)
+	return button
 
 
 # A selector whose longest item does not set the width of the panel: a palette
@@ -616,11 +650,15 @@ func _show_style() -> void:
 	style_selector.select(_item_index(style_selector, style.mode))
 	color_button.color = Color(style.color, 1.0)
 	opacity_spin.value = roundf(style.opacity * 100.0)
+	ramp_from_button.color = style.ramp_from
+	ramp_to_button.color = style.ramp_to
+	ramp_span_spin.value = style.ramp_span
 	palette_selector.clear()
-	for key in Palette.BUILT_IN:
-		palette_selector.add_item(str(Palette.BUILT_IN[key]["name"]))
+	var listed := Palette.choices()
+	for key in listed:
+		palette_selector.add_item(str(listed[key]))
 		palette_selector.set_item_metadata(palette_selector.item_count - 1, key)
-	if not Palette.BUILT_IN.has(style.palette):
+	if not listed.has(style.palette):
 		palette_selector.add_item(style.palette.get_file())
 		palette_selector.set_item_metadata(palette_selector.item_count - 1, style.palette)
 		palette_selector.set_item_tooltip(palette_selector.item_count - 1, style.palette)
@@ -647,6 +685,14 @@ func _on_color_previewed(color: Color) -> void:
 	previewed.emit()
 
 
+func _on_ramp_previewed() -> void:
+	if _filling or node == null or node.is_root or not node.is_group:
+		return
+	node.style.ramp_from = ramp_from_button.color
+	node.style.ramp_to = ramp_to_button.color
+	previewed.emit()
+
+
 # The picked color at the opacity the box holds. A change of either is one
 # edit, one undo version.
 func _commit_color() -> void:
@@ -669,6 +715,9 @@ func _commit_style() -> void:
 	style.color = Color(color_button.color, node.style.color.a)
 	style.opacity = opacity_spin.value / 100.0
 	style.palette = str(palette_selector.get_item_metadata(palette_selector.selected))
+	style.ramp_from = ramp_from_button.color
+	style.ramp_to = ramp_to_button.color
+	style.ramp_span = ramp_span_spin.value
 	var error := document.set_style(node, style)
 	if not error.is_empty():
 		rejected.emit(error)
@@ -717,6 +766,11 @@ func to_json() -> Dictionary:
 				node.style.color.a],
 			"opacity": int(opacity_spin.value),
 			"palette": str(palette_selector.get_item_metadata(chosen)) if chosen >= 0 else "",
+			"ramp_from": [ramp_from_button.color.r, ramp_from_button.color.g,
+				ramp_from_button.color.b, ramp_from_button.color.a],
+			"ramp_to": [ramp_to_button.color.r, ramp_to_button.color.g,
+				ramp_to_button.color.b, ramp_to_button.color.a],
+			"ramp_span": ramp_span_spin.value,
 		}
 		data["styles"] = range(style_selector.item_count).map(
 			func(index: int) -> String: return str(style_selector.get_item_metadata(index)))
@@ -785,6 +839,17 @@ func set_field(field: String, value: Variant) -> String:
 				return "the %s selector offers no %s" % [field, value]
 			selector.select(at)
 			_commit_style()
+		"ramp_from", "ramp_to":
+			if not node.is_group:
+				return "a feature has no %s; its group does" % field
+			var parts: Array = value
+			var button := ramp_from_button if field == "ramp_from" else ramp_to_button
+			button.color = Color(float(parts[0]), float(parts[1]), float(parts[2]))
+			_commit_style()
+		"ramp_span":
+			if not node.is_group:
+				return "a feature has no ramp_span; its group does"
+			ramp_span_spin.value = float(value)
 		"color":
 			var c: Array = value
 			_filling = true
