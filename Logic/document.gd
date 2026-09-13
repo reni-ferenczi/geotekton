@@ -296,7 +296,28 @@ func split_feature(feature: Feature, part: int, first: int, second: int = -1) ->
 			problem = "A multipoint is separate markers, so there is no path to split."
 	if not problem.is_empty():
 		return problem
+	return _split_into(feature, part, halves)
 
+
+# Cut a polygon in two along a path drawn across it, in the feature's own frame.
+# The first and last points of the path go onto the ring and the points between
+# them go to both halves; see GeometryEdit.split_along(). Otherwise the same as
+# split_feature(): both halves carry what the feature was, and one version.
+func split_feature_along(feature: Feature, part: int, path: PackedVector2Array) -> String:
+	if feature == null or feature.is_group \
+			or feature.geometry_kind != Feature.GeometryKind.POLYGON:
+		return "Only a polygon is split along a cut."
+	if part < 0 or part >= feature.rings.size():
+		return "The feature has no part %d." % part
+	var problem := GeometryEdit.split_along_problem(feature.rings[part], path)
+	if not problem.is_empty():
+		return problem
+	return _split_into(feature, part, GeometryEdit.split_along(feature.rings[part], path))
+
+
+# Put the first half in place of the part and the second in a new feature beside
+# the original, named after it.
+func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array]) -> String:
 	var parent := root.find_parent(feature)
 	if parent == null:
 		return "%s is not in the tree." % feature.title

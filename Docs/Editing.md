@@ -2,8 +2,8 @@
 
 ## Tools
 
-The toolbar contains seven mutually exclusive tool buttons, two switches, a
-selector and a number:
+The toolbar contains eight mutually exclusive tool buttons, a switch, a selector
+and a number:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
 - **Draw** — Enables drawing on the globe surface. See `Docs/Draw.md` for full details.
@@ -19,9 +19,8 @@ selector and a number:
   [The Light tool](#the-light-tool). Offered on the globe alone.
 - **Snap** — Whether a dragged vertex jumps onto a nearby one. Only the Vertex
   tool uses it; see [Snapping](#snapping).
-- **Split** — Cuts the selected feature in two at the vertex the Vertex tool is
-  holding; see [Splitting](#splitting). Its tooltip says why it is unavailable
-  when it is.
+- **Split** — Cuts the selected polygon in two along a line drawn across it;
+  see [The Split tool](#the-split-tool). Offered while a polygon is selected.
 - **Geometry kind** — What the Draw and Circle tools produce: Polygon, Polyline
   or Multipoint. Any kind can be picked until the selected feature holds a
   shape, and then only the kind it holds; see
@@ -29,8 +28,8 @@ selector and a number:
 - **Circle segments** — Shown only while the Circle tool is active; see
   [Segments of a circle](#segments-of-a-circle).
 
-Only one of Move, Draw, Vertex, Measure, Circle, Topology and Light is active at
-a time. Everything but
+Only one of Move, Draw, Vertex, Measure, Circle, Topology, Light and Split is
+active at a time. Everything but
 Move takes the clicks on the planet for itself, so selecting a feature, moving
 one and the right click menu wait until Move comes back. Rotating the globe with
 the middle button always works.
@@ -183,20 +182,58 @@ A feature can be cut in two, leaving two features side by side in the tree.
 - A **polyline** is cut at one vertex. Both halves keep that vertex, so between
   them they hold every original vertex once. An end vertex is refused: one half
   would be a single point.
-- A **polygon** is cut between two vertices. Hold the first with **Shift+S**,
-  then pick the second and press **S** or the Split button. Both halves keep
-  both vertices.
+- A **polygon** is cut along a line, with the [Split tool](#the-split-tool).
+  In the Vertex tool it can also be cut straight between two of its vertices:
+  hold the first with **Shift+S**, then pick the second and press **S**. Both
+  halves keep both vertices.
 
 The cut has to lie inside the shape. On a concave polygon a line between two
 vertices can run outside it, across the mouth of a dent, or cross an edge on the
 way; either would leave two rings that overlap instead of covering the original,
 so the split is refused and the status bar says why.
 
-Both halves carry the type, the colour, the time range and the keyframes of the
-feature they came from, so the two go on moving together and go on existing over
-the same span. The first keeps the title and every other part the feature had;
-the second is named after it, `Laurentia` and `Laurentia 2`, and holds its half
-alone.
+Both halves carry the type, the colour and opacity, the time range and the
+keyframes of the feature they came from, so the two go on moving together and go
+on existing over the same span. The first keeps the title and every other part
+the feature had; the second is named after it, `Laurentia` and `Laurentia 2`,
+and holds its half alone. A split is one undo version.
+
+## The Split tool
+
+The Split tool cuts the selected polygon in two along a line drawn across it.
+Click where the cut starts, any points it should bend through, and where it
+ends. The line is drawn over the polygon's outline as it grows, like the shape
+the Draw tool previews.
+
+| Input | Action |
+|-------|--------|
+| **LMB** on the globe | Add the next point of the cut |
+| **RMB** or **Ctrl+Z** | Take the last point back |
+| **Ctrl+Y** | Put it back |
+| **Enter** | Split the polygon along the cut |
+| **Escape** | Start again with no points |
+
+The ends do not have to be clicked on the edge. On Enter each end moves to the
+nearest point of the polygon's boundary and becomes a new vertex there, or uses
+the vertex that is already there, as a click just past a corner does. The
+points between the ends go to both halves, so the two halves share the whole
+cut. A feature of several polygons is cut in the part whose edge is nearest the
+first point.
+
+A cut is refused, with the reason in the status bar, when:
+
+- both ends land on the same edge;
+- it runs outside the polygon, as a straight cut across the mouth of a bay
+  does;
+- it crosses the polygon's edge anywhere between its ends, or crosses itself.
+
+A refused cut keeps its points, so the one at fault can be taken back with
+Ctrl+Z. A cut that is made records one undo version and goes back to the Move
+tool, with the first half selected.
+
+The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
+operation with no points between the ends, and `GeometryEdit` works both out
+with the same functions.
 
 ## The Circle tool
 
