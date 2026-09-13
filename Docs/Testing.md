@@ -132,7 +132,8 @@ globe, which checks what is drawn and what a click selects; the document, which
 checks New, Open, Save, Save As, the unsaved changes prompt, the recent file list
 and a View toggle; drawing, one feature of each geometry kind; the Properties
 panel, which checks what selecting a feature fills in, what an edit does to the
-tree row and the globe, what the document refuses, `Key` between two keyframes
+tree row and the globe, a group's style set through the panel, probed on the
+globe and undone, what the document refuses, `Key` between two keyframes
 leaving the feature where it is and `Delete` working only on a keyframe's time,
 Duplicate and Delete from the
 right click menu on the globe, and the Edit menu running the same commands; and
@@ -263,6 +264,7 @@ the stand-in scene is reached with `--scene=res://...`.
 | `Backdrops/quarters.*`    | The same four coloured quarters as a PNG, a JPEG, a WebP and an SVG, for the backdrop image. |
 | `two_cratons.middle-earth` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
 | `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
+| `group_styles.middle-earth` | The same three features under group styles: the polygon in a group on a single colour, the polyline in a group on own colours, and the markers under a root on the feature type style. Written in the current format. |
 | `motion.middle-earth`     | One red quad with three keyframes, which is the fixture for anything about motion over time. Written in the current format. |
 | `Palettes/*.cpt`          | A continuous, a discrete, a categorical and a malformed colour palette table. |
 
@@ -404,17 +406,17 @@ a round trip is also a wait for the screen to catch up.
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
 | `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a line topology, its `sections` with what each one resolved to |
-| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed |
-| `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `opacity` (0 to 100), `enabled`, `time_from`, `time_to` |
+| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100 and `palette`) and the `styles` and `palettes` its selectors offer |
+| `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `opacity` (0 to 100), `enabled`, `time_from`, `time_to`, and on a group `style` and `palette`, where `color` and `opacity` are the style's |
 | `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
 | `sections {button, index}`            | selects a section row of a line topology and presses `Reverse` or `Remove` in the panel |
 | `get_tool`                           | `tool` (`move`, `draw`, `vertex`, `measure` or `circle`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split`, the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`) and the `circle` its clicks describe |
 | `set_tool {tool, kind, snap, segments}` | picks the tool (`move`, `draw`, `vertex`, `measure`, `circle` or `topology`), the geometry kind, the snap switch and the segment count, refusing what the toolbar itself would not allow |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
-| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed. `get_preferences` also reports the `default_view` and the `view_defaults` a new document starts from |
-| `get_view_settings` | `view_settings`, the scene block the open document carries, `backdrop_error`, why the image it names is not on the planet, and `palette_errors`, what could not be read of the palette it names |
-| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
+| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed. `get_preferences` also reports the `default_view`, the `view_defaults` and the `style_defaults` a new document starts from |
+| `get_view_settings` | `view_settings`, the scene block the open document carries, `style`, the root group's style the same dialog edits, `backdrop_error`, why the image it names is not on the planet, and `palette_errors`, what could not be read of the palette the root names |
+| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. The root group's style is set through the dialog's `draw_style`, `single_color`, `opacity` and `palette` fields. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
 | `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the skip, the keyframe markers with where each is on screen, and the animation settings |
 | `get_kinematics`                     | `kinematics`, what the motion graphs hold: the `span` they cover, the `samples` of the path, one entry per `segments` between two keyframes, what both come to at the current time, and where the `cursor` is drawn across the plotting area |

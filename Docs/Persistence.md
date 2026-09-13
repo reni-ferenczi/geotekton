@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "features": { ... },
   "view": { ... }
 }
@@ -96,12 +96,10 @@ drawn the way its author chose:
 | `backdrop_opacity`  | 0 to 1            | `1`                 | How much of the Earth it covers |
 | `backdrop_visible`  | bool              | `true`              | Whether it is drawn at all |
 | `hidden_classes`    | list of names     | `[]`                | Which classes of geometry are switched off |
-| `draw_style`        | string            | `"feature"`         | How a feature's colour is chosen |
-| `single_color`      | `[r, g, b, a]`    | light grey          | What the single colour style paints with |
-| `palette`           | string            | `"age"`             | A built in palette's key, or the path of a `.cpt` file |
 
-The last four are the [styling](Styling.md): which features are drawn and what
-colour they come out.
+`hidden_classes` is the [styling](Styling.md#the-visibility-switches): which
+features are drawn. What colour they come out is the style of the root group
+since 0.10.0; see [Feature tree serialization](#feature-tree-serialization).
 
 Every key is optional. A block that does not name one gets the default, and a
 value out of range is brought back into it, so a file from a version that knew
@@ -139,8 +137,10 @@ built in Earth and the reason is recorded rather than thrown. See
 The preferences hold a second copy of the same block, which is what File > New
 starts a document from, together with the view it opens in. The View settings
 dialog writes both with **Save as default** and puts the open document back to
-them with **Restore defaults**. An opened file always wins over the preference:
-the block in the file is what that document says about itself.
+them with **Restore defaults**. The root group's style goes with the block, as
+`style` inside it; a block saved before 0.10.0 names it by the three view keys
+it had then and is read through them. An opened file always wins over the
+preference: the block in the file is what that document says about itself.
 
 ### Feature tree serialization
 
@@ -157,9 +157,19 @@ groups and leaf features.
   "enabled": true,
   "is_group": true,
   "type": "Group",
+  "style": {"mode": "inherit", "color": [0.9, 0.9, 0.9, 1.0], "opacity": 1.0, "palette": "age"},
   "children": [ ... ]
 }
 ```
+
+`style` is how the group colors the features under it; see
+[Styling](Styling.md#group-styles). `mode` is `inherit`, `feature`, `single`,
+`age` or `type`, `color` what the single colour mode paints with, `opacity` 0 to
+1 and multiplied into everything under the group, and `palette` a built in
+palette's key or the path of a `.cpt` file. A group without the key inherits at
+full opacity, and so does one naming a mode this version does not know. The
+root group's style is the document default: a root without one, or on inherit,
+draws each feature in its own colour.
 
 **Feature (leaf) node:**
 
@@ -338,6 +348,26 @@ the file's view block. The step is `Document._to_0_9_0()`.
 
 The same switch in the preferences' `view_defaults` is not migrated: a default
 that had the circles off shows them again until it is saved once more.
+
+#### 0.9.0 to 0.10.0
+
+Up to 0.9.0 the whole document had one draw style, in the `view` block. 0.10.0
+gives every group a `style` in place of GPlates layer coloring, and the root
+group's style is the document default. The migration takes `draw_style`,
+`single_color` and `palette` out of the view block and writes them onto the root
+group as `mode`, `color` and `palette`, at full opacity:
+
+| Up to 0.9.0, `view` | 0.10.0, the root group's `style` |
+| ------------------- | -------------------------------- |
+| `draw_style`        | `mode`                           |
+| `single_color`      | `color`, alpha and all           |
+| `palette`           | `palette`                        |
+
+A file drawn in a single colour opens drawn in the same colour, and a block that
+named none of the three leaves the root on each feature's own colour, which is
+what it drew. Every other group arrives without a style and inherits. The step
+is `Document._to_0_10_0()`. The preferences' `view_defaults` are not rewritten,
+but they are read through the same three keys until they are saved again.
 
 ## The config file
 

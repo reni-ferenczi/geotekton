@@ -1,9 +1,11 @@
 # Styling
 
-Which features are drawn, and what colour they come out. Three pieces:
-`Logic/styling.gd` answers both questions for one feature, `Logic/palette.gd`
-reads the colour palettes the age style needs, and `Logic/view_settings.gd`
-holds what the open document has chosen.
+Which features are drawn, and what colour they come out. Four pieces:
+`Logic/styling.gd` answers both questions for one feature,
+`Logic/group_style.gd` is the style a group colors the features under it with,
+`Logic/palette.gd` reads the colour palettes the age style needs, and
+`Logic/view_settings.gd` holds which classes of geometry the open document
+shows.
 
 The whole of it is resolved in one place, `Planet.collect_geometry()`. That
 function flattens the feature tree into the primitives the shader is handed, so
@@ -14,7 +16,8 @@ out again without flattening anything. Neither the shader nor the hit test
 knows there are styles at all; see [Shader](Shader.md).
 
 A color's alpha is the opacity the feature is drawn at. The feature color
-carries the one set in the Properties panel.
+carries the one set in the Properties panel, and the opacity of every group
+above the feature is multiplied into it; see [Group styles](#group-styles).
 
 ## The visibility switches
 
@@ -55,7 +58,7 @@ show again.
 | Style | Where the colour comes from |
 | ----- | --------------------------- |
 | Feature colour | The colour the feature itself carries, which is what the Properties panel edits |
-| Single colour | One colour for everything, `single_color` on the view settings |
+| Single colour | One colour for everything under the group, the `color` of its style |
 | Feature age | The palette, read at the feature's age |
 | Feature type | The color the [feature type](Properties.md) catalog gives its type: one each for polygons, lines, points, circles and topologies |
 
@@ -71,6 +74,40 @@ Ages run backwards, so that is the larger of the two numbers.
 Picking a style changes nothing about the document's features. The colour a
 feature carries is still its own and still what the Properties panel edits; the
 style only says which colour is used to draw it.
+
+## Group styles
+
+GPlates colors a layer at once: by plate ID, one color, by age or by type, with
+a fill opacity per layer. Middle Earth has no layers, so groups take their
+place. Every group carries a **style**:
+
+| Field | Values |
+| ----- | ------ |
+| `mode` | `inherit`, or one of the four draw styles above |
+| `color` | What the single colour mode paints with |
+| `opacity` | 0 to 1, multiplied into every feature under the group |
+| `palette` | What the feature age mode reads: a built in palette's key or the path of a `.cpt` file |
+
+`Styling.color_of()` goes up from a feature to the nearest group whose mode is
+not inherit, and that group's style decides the color. The opacity works
+differently: every group above the feature multiplies its own into the alpha,
+whichever group decides the color. A feature at 80 percent under two groups at
+50 percent is drawn at 20 percent.
+
+The **root group's style is the document default**. Nothing is above it, so a
+root on inherit draws each feature's own color, the same as Feature colour. A
+new group starts on inherit at full opacity, so it changes nothing until
+someone picks a style for it. The View settings dialog edits the root's style
+and the Properties panel edits any other group's. A group of cratons on
+Feature colour can sit beside a group of continental crust on Single colour.
+
+`Styling.of()` walks the tree once when it is built and remembers the deciding
+style and the opacity for every leaf, so `color_of()` looks both up rather than
+climbing the tree for each feature.
+
+The style is part of the tree. It is written on the group node in the file, it
+is on the undo stack with the rest of the tree, and a duplicated or pasted group
+takes a copy of it. GP-0036 adds an age ramp to the same fields.
 
 ## Colour palettes
 
@@ -134,28 +171,35 @@ same reader, so there is one way in:
 | Grayscale | 0 to 1000, white down to black |
 | Discrete steps | Five flat slices two hundred wide: blue, green, yellow, orange, red |
 
-A document stores the palette as one string: the key of a built in palette, or
-the path of a file. `Palette.resolve()` takes it back either way.
+A style stores the palette as one string: the key of a built in palette, or
+the path of a file. `Palette.resolve()` takes it back either way. The
+application reads each palette once and keeps it by that string, so a rebuild
+of the geometry never reads a file it has read before.
+
+That chooser is the root group's. A group's palette row in the Properties panel
+lists the built in palettes and the file its style already names, and has no
+**Load...** button, so a palette file reaches a group only through a file or a
+script that names it.
 
 ## What the document carries
 
-The four settings live in the [view settings](Persistence.md#view-settings)
-block, saved with the document and mirrored in the preferences as what a new
-document starts from. Like the rest of that block they are on the undo stack,
-so picking a style is one step of it.
+The visibility switches live in the [view settings](Persistence.md#view-settings)
+block as `hidden_classes`. The colors live in the group styles, the root's among
+them, on the [group nodes](Persistence.md#feature-tree-serialization) of the
+feature tree. Both are saved with the document and both are on the undo stack,
+so picking a style is one step of it. The preferences keep what a new document
+starts from: the view block, with the root style under `style`.
 
-| Key | What it says |
-| --- | ------------ |
-| `hidden_classes` | Which classes of geometry are switched off |
-| `draw_style` | Which style is active |
-| `single_color` | What the single colour style paints with |
-| `palette` | A built in palette's key, or the path of a `.cpt` file |
+Up to 0.9.0 the view block carried `draw_style`, `single_color` and `palette`;
+0.10.0 moved them onto the root group. See
+[0.9.0 to 0.10.0](Persistence.md#090-to-0100).
 
 ## Where the tests are
 
 | Test | What it covers |
 | ---- | -------------- |
 | `Tests/Unit/test_palette.gd` | The reader: the fixtures in `Tests/Data/Palettes`, the built in palettes, boundary and gap lookups, and every palette GPlates ships when that checkout is beside this one |
-| `Tests/Unit/test_styling.gd` | Which class a feature lands in, that each switch removes its own class and no other, and the colour each style resolves to |
-| `Tests/Rendered/test_styling.gd` | Pixel probes of each style on the globe, the Earth showing where a switched off class was, and the chooser's list and preview strip |
-| `Tests/session.py` | The styling scenario: the styles on a running application, a palette read from a file, the switches through the View menu, and the whole lot through a save and a load |
+| `Tests/Unit/test_styling.gd` | Which class a feature lands in, that each switch removes its own class and no other, the colour each style resolves to, and the group styles: inherit through two levels, the nearest group deciding, the root as the default, opacity multiplying down, the file, clones and undo |
+| `Tests/Unit/test_migration.gd` | A 0.7.0 view block's style landing on the root group |
+| `Tests/Rendered/test_styling.gd` | Pixel probes of each style on the globe, a group on a single colour beside a group on own colours, a group's opacity, a 0.7.0 file drawn in its single colour, the Earth showing where a switched off class was, and the chooser's list and preview strip |
+| `Tests/session.py` | The styling scenario: the styles on a running application, a palette read from a file, the switches through the View menu, and the whole lot through a save and a load. The Properties scenario sets a group's style through the panel, probes it and undoes it |

@@ -60,7 +60,9 @@ follows the feature tree selection, through
 | ---------- | ------------------ | ---------- |
 | Name       | Line edit          | yes        |
 | Type       | Selector           | no         |
-| Colour     | Colour picker, opacity | no     |
+| Style      | Selector           | only       |
+| Colour     | Colour picker, opacity | yes    |
+| Palette    | Selector           | only       |
 | Enabled    | Switch             | yes        |
 | From (Ma)  | Number             | no         |
 | To (Ma)    | Number             | no         |
@@ -79,7 +81,8 @@ holding them, and where it is comes from the features its sections run along.
 
 With nothing selected the panel says so and shows no rows at all, and so does
 the root group, which has no name of its own to change and no switch — the same
-as on its tree row.
+as on its tree row. The root's style is the document default and is edited in
+the View settings dialog.
 
 The panel keeps one width, `CONTENT_WIDTH`, whatever it is showing. Letting its
 content set the width would let the split container hand the difference to the
@@ -90,16 +93,30 @@ The box beside the color picker is the feature's opacity, from 0 to 100
 percent. It is the alpha of the same color, so it is saved with the color and
 undone with it, and the picker itself leaves the alpha alone. At 0 the Earth
 shows through the feature, which can still be selected by clicking where it is.
-Each draw style supplies its own color and alpha, so the box shows on the globe
-under the Feature colour style; see [Styling](Styling.md#the-draw-styles).
+The other styles supply their own color, so the box shows on the globe while
+the group deciding the feature's color is on Feature colour. The opacity of
+every group above the feature is multiplied in whatever the style; see
+[Styling](Styling.md#group-styles).
 
 The time range is two ages in millions of years before the present, the same
 axis the timeline slider runs on, so `From` is the younger end. A feature
 outside it at the current time is neither drawn nor hit tested, and its tree row
 is greyed out. See [Time](Time.md#being-there-at-all).
 
-A group has no keyframe row: a group carries no motion, so its name and its
-switch are all there is to edit on one.
+A group has no keyframe row, since a group carries no motion. It has its
+[style](Styling.md#group-styles) instead: how the features under it are colored.
+
+- **Style** is the mode: Inherit, which leaves the choice to the group above,
+  or one of the four draw styles.
+- **Colour** is the color the Single colour mode paints with, and the box beside
+  it is the group's opacity, multiplied into every feature under the group.
+- **Palette** is what the Feature age mode reads. It lists the built in palettes
+  and the file the style names, if it names one.
+
+Every row is shown whatever the mode, since the opacity applies in all of them
+and a color or a palette picked ahead is kept for when the mode is switched.
+Each change is one edit and one undo version, and dragging the picker previews
+the color on the globe the way it does on a feature.
 
 ### The keyframe row
 
@@ -145,6 +162,7 @@ undo version:
 | `rename`                | nothing; a long title is cut down the way the tree cuts it |
 | `set_enabled`           | nothing                                            |
 | `set_color`             | nothing                                            |
+| `set_style`             | a leaf, which has no style                         |
 | `set_feature_type`      | an unknown type, one that does not hold the kind the feature holds, and any type on a feature holding nothing |
 | `set_time_range`        | a range that ends before it starts                 |
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
