@@ -99,6 +99,11 @@ var triangles := PackedVector2Array()
 # (GP-0046), not the tree.
 var keyframes: Array[Keyframe] = []
 
+# The spans of the timeline over which the feature rides on another, youngest
+# first. Inside one its keyframes are relative to that parent; see
+# Logic/coupling.gd. Only a leaf has any, and the tree has nothing to do with it.
+var couplings: Array[Coupling] = []
+
 # The ages between which a feature exists, in millions of years before present.
 # A feature outside it at the current time is neither drawn nor hit tested. Only
 # a leaf feature has one; a group is there whenever its children are.
@@ -268,6 +273,7 @@ func clone() -> Feature:
 	# Copied rather than recomputed: every undo step clones the whole tree.
 	node.triangles = triangles.duplicate()
 	node.keyframes = Keyframe.clone_list(keyframes)
+	node.couplings = Coupling.clone_list(couplings)
 	node.time_range = time_range
 	for child in children:
 		node.children.append(child.clone())
@@ -373,6 +379,7 @@ func to_json() -> Variant:
 	else:
 		data["type"] = "Feature"
 		data["keyframes"] = Keyframe.list_to_json(keyframes)
+		data["couplings"] = Coupling.list_to_json(couplings)
 		data["feature_type"] = feature_type
 		data["color"] = [color.r, color.g, color.b, color.a]
 		data["geometry_kind"] = KIND_NAMES[geometry_kind]
@@ -402,6 +409,7 @@ static func from_json(data: Variant) -> Feature:
 	# groups; Document.migrate() folds those into the leaves before this runs.
 	if not node.is_group:
 		node.keyframes = Keyframe.list_from_json(data.get("keyframes", []))
+		node.couplings = Coupling.list_from_json(data.get("couplings", []))
 	if node.is_group:
 		node.collapsed = true
 		node.style = GroupStyle.from_json(data.get("style"))
@@ -556,13 +564,24 @@ func exists_at(time: float) -> bool:
 
 
 # The rotation that carries a node's own frame into world space at the given
-# time. Since 0.8.0 that is the node's own rotation and nothing more: the
-# groups above it are organization and carry no motion. The identity when the
-# node is not in the tree.
+# time. That is the node's own rotation, composed with the parent's while a
+# coupling holds (Logic/coupling.gd); the groups above it are organization and
+# carry no motion. The identity when the node is not in the tree.
 static func world_basis(root: Feature, node: Feature, time: float) -> Basis:
 	if root == null or node == null or not root.contains_node_at_any_depth(node):
 		return Basis()
-	return node.basis_at(time)
+	if node.couplings.is_empty():
+		return node.basis_at(time)
+	return Coupling.world_basis(node, time, Coupling.index(root))
+
+
+# The rotation a keyframe at this time has to hold to keep the node where it
+# stands: its own interpolation when it rides on nothing, and otherwise its
+# world rotation put into the frame in effect at the time.
+static func keyframe_rotation(root: Feature, node: Feature, time: float) -> Vector3:
+	if node.couplings.is_empty():
+		return node.rotation_at(time)
+	return Coupling.rotation_for(node, time, world_basis(root, node, time), Coupling.index(root))
 
 
 ### Rotation helpers
