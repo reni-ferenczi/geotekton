@@ -196,37 +196,6 @@ func test_setting_a_keyframe_records_an_undo_version() -> void:
 	assert_close(feature.keyframes[0].rotation, Vector3(45, 0, 0), 1e-6)
 
 
-func test_a_keyframe_can_be_moved_but_not_onto_another() -> void:
-	var document := Document.new()
-	var feature := Feature.create_feature("Craton")
-	document.root.children.append(feature)
-	document.set_keyframe(feature, 0.0, Vector3.ZERO)
-	document.set_keyframe(feature, 100.0, Vector3(30, 0, 0))
-
-	assert_eq(document.set_keyframe_time(feature, 1, 50.0), "", "moving it is allowed")
-	assert_close(feature.keyframes[1].time, 50.0, 1e-9)
-	assert_close(feature.keyframes[1].rotation, Vector3(30, 0, 0), 1e-6, "it took its rotation")
-
-	assert_true(not document.set_keyframe_time(feature, 1, 0.0).is_empty(),
-		"moving it onto the other one is refused")
-	assert_eq(feature.keyframes.size(), 2, "and nothing was merged away")
-	assert_true(not document.set_keyframe_time(feature, 1, -1.0).is_empty(),
-		"a time after the present is refused")
-
-
-func test_a_keyframe_moved_past_another_keeps_the_list_sorted() -> void:
-	var document := Document.new()
-	var feature := Feature.create_feature("Craton")
-	document.root.children.append(feature)
-	document.set_keyframe(feature, 0.0, Vector3(1, 0, 0))
-	document.set_keyframe(feature, 100.0, Vector3(2, 0, 0))
-
-	assert_eq(document.set_keyframe_time(feature, 0, 500.0), "")
-	assert_close(feature.keyframes[0].time, 100.0, 1e-9, "the other one is first now")
-	assert_close(feature.keyframes[1].rotation, Vector3(1, 0, 0), 1e-6,
-		"and the moved one is last, still holding its own rotation")
-
-
 func test_a_keyframe_can_be_deleted_and_the_index_is_checked() -> void:
 	var document := Document.new()
 	var feature := Feature.create_feature("Craton")

@@ -410,34 +410,6 @@ func remove_keyframe(node: Feature, index: int) -> String:
 	return ""
 
 
-# Move a keyframe to another time. Refused when another keyframe is already
-# there, since the two would have to become one and the caller would not know
-# which rotation survived.
-func set_keyframe_time(node: Feature, index: int, time: float) -> String:
-	var error := _check_keyframe(node, index)
-	if not error.is_empty():
-		return error
-	if time < 0.0 or time > MAX_TIME:
-		return "The time %s is outside 0 to %d." % [time, MAX_TIME]
-	var existing := Keyframe.index_at(node.keyframes, time)
-	if existing >= 0 and existing != index:
-		return "There is already a keyframe at %s." % time
-	var rotation: Vector3 = node.keyframes[index].rotation
-	node.keyframes.remove_at(index)
-	Keyframe.upsert(node.keyframes, time, rotation)
-	record()
-	return ""
-
-
-func set_keyframe_rotation(node: Feature, index: int, rotation: Vector3) -> String:
-	var error := _check_keyframe(node, index)
-	if not error.is_empty():
-		return error
-	node.keyframes[index].rotation = rotation
-	record()
-	return ""
-
-
 func _check_keyframe(node: Feature, index: int) -> String:
 	if node == null:
 		return "Nothing is selected."

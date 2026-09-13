@@ -188,22 +188,6 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
-		"properties":
-			if request.has("part"):
-				app.properties.select_vertex(int(request["part"]), int(request.get("index", 0)))
-			var button_name := str(request.get("button", ""))
-			var vertex_button: Button = {
-				"Add": app.properties.add_button,
-				"Remove": app.properties.remove_button,
-			}.get(button_name)
-			if vertex_button == null:
-				return {"ok": false, "error": "no properties button called %s" % button_name}
-			if vertex_button.disabled:
-				return {"ok": false, "error": "the %s button is disabled" % button_name}
-			vertex_button.pressed.emit()
-			await _frames(2)
-			return {"ok": true}
-
 		"toolbar":
 			var buttons := app.features.get_node_or_null("PanelContainer/Buttons")
 			var button := buttons.get_node_or_null(str(request.get("button", ""))) if buttons != null else null
@@ -351,8 +335,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true}
 
 		"sections":
-			# The section table of a line topology, driven the way the keyframe
-			# table is: pick a row, then press one of its buttons.
+			# The section table of a line topology: pick a row, then press one of
+			# its buttons.
 			if request.has("index"):
 				app.properties.select_section(int(request["index"]))
 			var section_button: Button = {
@@ -370,8 +354,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true}
 
 		"keyframes":
-			if request.has("index"):
-				app.properties.select_keyframe(int(request["index"]))
+			# Both buttons work at the current time, so there is no row to pick.
 			var key_button: Button = {
 				"Key": app.properties.key_button,
 				"Delete": app.properties.delete_key_button,
