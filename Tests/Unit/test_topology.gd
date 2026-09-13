@@ -265,8 +265,8 @@ func test_a_topology_is_drawn_and_measured_as_a_polyline() -> void:
 
 
 # A topology holds geometry but none of it is its own, which is what the Vertex
-# tool, the Split button and the coordinate table all go by: there is nothing
-# there to drag, insert, delete or cut in two.
+# tool and the Split button go by: there is nothing there to drag, insert,
+# delete or cut in two.
 func test_a_topology_holds_geometry_but_no_vertices_of_its_own() -> void:
 	var root := _build_tree()
 	var boundary := _boundary(root)

@@ -132,7 +132,9 @@ globe, which checks what is drawn and what a click selects; the document, which
 checks New, Open, Save, Save As, the unsaved changes prompt, the recent file list
 and a View toggle; drawing, one feature of each geometry kind; the Properties
 panel, which checks what selecting a feature fills in, what an edit does to the
-tree row and the globe, what the document refuses, Duplicate and Delete from the
+tree row and the globe, what the document refuses, `Key` between two keyframes
+leaving the feature where it is and `Delete` working only on a keyframe's time,
+Duplicate and Delete from the
 right click menu on the globe, and the Edit menu running the same commands; and
 time, which moves a feature at two times and reads it back in between.
 
@@ -400,10 +402,9 @@ a round trip is also a wait for the screen to catch up.
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
 | `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a line topology, its `sections` with what each one resolved to |
-| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers |
+| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed |
 | `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `enabled`, `time_from`, `time_to` |
-| `properties {button, part, index}`   | selects a vertex row and presses `Add` or `Remove` in the panel |
-| `keyframes {button, index}`          | selects a keyframe row and presses `Key` or `Delete` in the panel |
+| `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
 | `sections {button, index}`            | selects a section row of a line topology and presses `Reverse` or `Remove` in the panel |
 | `get_tool`                           | `tool` (`move`, `draw`, `vertex`, `measure` or `circle`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split`, the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments` and the `circle` its clicks describe |
 | `set_tool {tool, kind, snap, segments}` | picks the tool (`move`, `draw`, `vertex`, `measure`, `circle` or `topology`), the geometry kind, the snap switch and the segment count, refusing what the toolbar itself would not allow |

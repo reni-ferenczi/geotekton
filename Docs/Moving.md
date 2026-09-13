@@ -26,9 +26,6 @@ A rotation is a `Vector3` of degrees:
 - `y` = β (latitude shift, rotation around X / right axis)
 - `z` = γ (self-rotation)
 
-The keyframe table of the Properties panel calls the three of them Lon, Lat and
-Spin.
-
 `build_rotation_basis` and `decompose_rotation_degrees` in `Logic/feature.gd`
 convert between `Vector3` degrees and `Basis`. They are public because the
 keyframe interpolation needs them: it converts both ends to quaternions, slerps,

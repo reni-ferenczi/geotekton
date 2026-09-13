@@ -32,7 +32,7 @@ Everything that moves the time asks the document to move it and then follows the
 
 What follows the signal is the globe, which redraws at the new time; the feature
 tree, which greys out whatever is not there then; and the Properties panel,
-which marks the keyframe the time has landed on.
+whose `Delete` works only while the time is on a keyframe.
 
 ## Keyframes
 
@@ -89,14 +89,13 @@ another is all it takes to make something move; see
 A group cannot be dragged: it carries no motion, so there would be nothing for
 the drag to write.
 
-The **Properties panel** lists the keyframes of whatever is selected, in a table
-of the time and the three angles, with the row the current time sits on marked.
-Every cell can be edited, so a keyframe dragged roughly into place can be given
-exact numbers. `Key` holds where the node is now as a keyframe at the current
-time, which is how a keyframe is made without moving anything, and `Delete`
-takes the selected one off. Moving a keyframe onto the time of another is
-refused: the two would have to become one, and nobody said which rotation should
-survive.
+The **Properties panel** has one keyframe row: how many keyframes the selected
+feature has, `Key` and `Delete`. `Key` holds where the feature is now as a
+keyframe at the current time, which is how a keyframe is made without moving
+anything. `Delete` removes the keyframe at the current time and is greyed out
+between keyframes; the keyframe marks and the `<<` and `>>` buttons below land
+on one exactly. The panel shows no keyframe times or angles; see
+[Properties](Properties.md#the-keyframe-row).
 
 ## Being there at all
 

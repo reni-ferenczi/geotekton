@@ -39,9 +39,9 @@ see [Properties](Properties.md#what-the-type-restricts).
 | Polyline | 2 | An open line through the vertices |
 | Multipoint | 1 | Separate markers, one per vertex |
 
-The minimums are `Feature.MINIMUM_VERTICES`, which the coordinate table of the
-Properties panel reads as well: a part that falls under its minimum is removed
-rather than left as geometry nothing can draw.
+The minimums are `Feature.MINIMUM_VERTICES`, which the Vertex tool reads as
+well: it refuses to delete a vertex that would leave a part under its minimum.
+See [Deleting](Editing.md#deleting).
 
 ## Drawing Process
 

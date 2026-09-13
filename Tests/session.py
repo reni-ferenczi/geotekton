@@ -435,11 +435,6 @@ def titles_of(client: AutomationClient) -> list[str]:
     return [f["title"] for f in client.call("get_features")["features"]]
 
 
-def part_sizes(panel: dict) -> list[int]:
-    """How many vertices the coordinate table shows in each part."""
-    return [len(part) for part in panel["coordinates"]]
-
-
 def run_properties_session(client: AutomationClient) -> None:
     """The Properties panel: what it shows, what it edits and what it refuses."""
     open_mixed_geometry(client)
@@ -464,15 +459,19 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["color"][:3] == [1.0, 0.0, 0.0], f"its colour: {panel['color']}")
     check(panel["enabled"] is True, "its enabled flag")
     check(panel["time_range"] == [0, 2000], f"its time range: {panel['time_range']}")
-    check(part_sizes(panel) == [3], f"and the three vertices of its geometry: {panel['coordinates']}")
-    check("3 vertices in 1 part" in panel["geometry"], f"summarized as: {panel['geometry']}")
+    check("3 vertices in 1 part" in panel["geometry"], f"its geometry summarized: {panel['geometry']}")
+    check("coordinates" not in panel, f"and no coordinate rows: {sorted(panel)}")
+    # The sample holds one keyframe at the present, where the time is after a load.
+    times = [k["time"] for k in client.call("get_selected")["feature"]["keyframes"]]
+    check(panel["keyframes"] == {"count": len(times), "key": True, "delete": 0.0 in times},
+          f"one keyframe row with its count, Key and Delete: {panel['keyframes']}, {times}")
 
     # A group has a name and a switch and nothing else, so that is all it shows.
     client.call("select", title="Shapes")
     panel = client.call("get_properties")["properties"]
     check(panel["showing"] == "group", "selecting a group shows the group properties")
-    check(panel["name"] == "Shapes" and "feature_type" not in panel,
-          f"a group has no type, colour or geometry: {sorted(panel)}")
+    check(panel["name"] == "Shapes" and "feature_type" not in panel and "keyframes" not in panel,
+          f"a group has no type, colour, geometry or keyframes: {sorted(panel)}")
 
     # The name in the panel is the name on the tree row, and undo moves both back.
     client.call("select", title="Red Triangle")
@@ -541,27 +540,42 @@ def run_properties_session(client: AutomationClient) -> None:
           "and the selector shows none again")
 
 
-def run_coordinate_session(client: AutomationClient) -> None:
-    """The coordinate table: adding a vertex and taking one off again."""
-    open_mixed_geometry(client)
-    client.call("select", title="Green Stations")
-    panel = client.call("get_properties")["properties"]
-    check(part_sizes(panel) == [2], f"the multipoint holds two markers: {panel['coordinates']}")
+def run_keyframe_row_session(client: AutomationClient) -> None:
+    """The keyframe row: Key between two keyframes and Delete on one."""
+    client.call("load", path=str(MOTION))
+    client.call("select", title="Drifting Craton")
+    # The sample holds keyframes at 0, 600 and 1400 Ma.
+    client.call("set_time", time=300.0)
+    before = client.call("get_selected")["feature"]
+    row = client.call("get_properties")["properties"]["keyframes"]
+    check(row == {"count": 3, "key": True, "delete": False},
+          f"between two keyframes Key works and Delete is greyed out: {row}")
 
-    client.call("properties", button="Add", part=0, index=0)
-    panel = client.call("get_properties")["properties"]
-    check(part_sizes(panel) == [3], f"Add puts a third one in: {panel['coordinates']}")
-    check(panel["coordinates"][0][1] == panel["coordinates"][0][0],
-          "on top of the one it was added after")
-    check(client.call("get_selected")["feature"]["rings"][0][1] == panel["coordinates"][0][0],
-          "and the feature holds it too")
+    versions = undo_depth(client)
+    client.call("keyframes", button="Key")
+    after = client.call("get_selected")["feature"]
+    check([k["time"] for k in after["keyframes"]] == [0.0, 300.0, 600.0, 1400.0],
+          f"Key adds a keyframe at the current time: {after['keyframes']}")
+    check(worst_offset(after["world_rings"][0], [tuple(v) for v in before["world_rings"][0]]) < 1e-3,
+          "without moving the feature on the globe")
+    check(undo_depth(client) == versions + 1, "in one undo step")
+    row = client.call("get_properties")["properties"]["keyframes"]
+    check(row == {"count": 4, "key": True, "delete": True},
+          f"the row counts it, and Delete works now the time is on one: {row}")
 
-    client.call("properties", button="Remove", part=0, index=1)
-    check(part_sizes(client.call("get_properties")["properties"]) == [2],
-          "Remove takes it off again")
-    client.call("menu", item="undo")
-    check(part_sizes(client.call("get_properties")["properties"]) == [3],
-          "and undo brings it back")
+    client.call("set_time", time=600.0)
+    client.call("keyframes", button="Delete")
+    times = [k["time"] for k in client.call("get_selected")["feature"]["keyframes"]]
+    check(times == [0.0, 300.0, 1400.0], f"Delete removes the keyframe at the current time: {times}")
+    row = client.call("get_properties")["properties"]["keyframes"]
+    check(row == {"count": 3, "key": True, "delete": False},
+          f"and is greyed out once none is there: {row}")
+    refused = ""
+    try:
+        client.call("keyframes", button="Delete")
+    except RuntimeError as error:
+        refused = str(error)
+    check(refused != "", f"so pressing it again is refused: {refused}")
 
 
 def run_colour_session(client: AutomationClient) -> None:
@@ -2074,9 +2088,11 @@ def run_python_session(client: AutomationClient) -> None:
         panel = client.call("get_properties")["properties"]
         check(panel["geometry"].startswith("polygon"),
               f"drawn as the kind the console asked for: {panel['geometry']!r}")
-        keyframes = panel["keyframes"]
+        check(panel["keyframes"]["count"] == 2,
+              f"the panel counts both keyframes: {panel['keyframes']}")
+        keyframes = client.call("get_selected")["feature"]["keyframes"]
         check([key["time"] for key in keyframes] == [0.0, 600.0],
-              f"and both keyframes are there, at the times they were set: {keyframes}")
+              f"at the times they were set: {keyframes}")
         check(keyframes[1]["rotation"] == [-30.0, 10.0, 0.0],
               f"with the rotation the console asked for: {keyframes[1]}")
 
@@ -2379,7 +2395,7 @@ def main(argv: list[str]) -> int:
         run_point_undo_session(client)
         run_escape_session(client)
         run_properties_session(client)
-        run_coordinate_session(client)
+        run_keyframe_row_session(client)
         run_colour_session(client)
         run_globe_menu_session(client)
         run_edit_menu_session(client)

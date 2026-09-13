@@ -3,8 +3,9 @@ class_name Properties
 
 # The Properties panel: what the feature tree has selected, laid out so it can
 # be edited. A leaf feature shows its name, type, colour, enabled switch, time
-# range and the coordinates of its geometry; a group shows the name and the
-# switch, because that is all a group has. See Docs/Properties.md.
+# range, what its geometry holds and how many keyframes it has; a group shows
+# the name and the switch, because that is all a group has. See
+# Docs/Properties.md.
 #
 # The panel never writes to a feature itself. Every edit goes through the
 # document, which validates it and records one undo version, and an edit the
@@ -24,8 +25,8 @@ signal rejected(message: String)
 const TIME_LIMIT := int(Document.MAX_TIME)
 
 # The columns of the section table of a line topology: the feature the section
-# runs along, the vertices of it the section covers, counted from one as the
-# coordinate table counts them, and which way round it is walked.
+# runs along, the vertices of it the section covers, counted from one, and which
+# way round it is walked.
 const SECTION_COLUMNS = ["Feature", "From", "To", "Way"]
 
 # A section whose feature can no longer be found, or cannot be followed at the
@@ -33,16 +34,8 @@ const SECTION_COLUMNS = ["Feature", "From", "To", "Way"]
 # has lost instead of quietly shrinking.
 const BROKEN_SECTION_COLOR = Color(0.9, 0.45, 0.4, 1.0)
 
-# The columns of the keyframe table: when the keyframe is, and the three angles
-# of the rotation it holds. The angles are the ones Docs/Moving.md names: a
-# turn about the poles, one about the equator, and the feature's own spin.
-const KEYFRAME_COLUMNS := ["Ma", "Lon", "Lat", "Spin"]
-
 # How wide the panel is, whatever it happens to be showing.
 const CONTENT_WIDTH := 280
-
-# The background of the keyframe row the current time is sitting on.
-const CURRENT_KEYFRAME_COLOR := Color(0.25, 0.35, 0.5, 1.0)
 
 # The open document, set by Application through attach().
 var document: Document
@@ -62,10 +55,7 @@ var enabled_check: CheckBox
 var from_spin: SpinBox
 var to_spin: SpinBox
 var geometry_label: Label
-var coordinates: Tree
-var add_button: Button
-var remove_button: Button
-var keyframes: Tree
+var keyframe_count: Label
 var key_button: Button
 var delete_key_button: Button
 var sections: Tree
@@ -75,13 +65,10 @@ var remove_section_button: Button
 # Every row of the form, each a label and the control beside it, and whether a
 # group has it too.
 var _rows: Array[Dictionary] = []
-# The coordinate table and its buttons, which a feature holding vertices of its
-# own has. A topology has the section table below instead.
-var _feature_boxes: Array[Control] = []
 # The section table and its buttons, which only a line topology has.
 var _topology_boxes: Array[Control] = []
-# The keyframe table and its buttons, which a group has as well, because a group
-# carries motion its children inherit.
+# The keyframe row, label and all, which a feature holding vertices of its own
+# has. A topology has no motion of its own, and a group carries none.
 var _motion_boxes: Array[Control] = []
 
 
@@ -164,45 +151,8 @@ func _build() -> void:
 	geometry_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_row(form, "Geometry", geometry_label)
 
-	coordinates = Tree.new()
-	coordinates.name = "Coordinates"
-	coordinates.columns = 3
-	coordinates.column_titles_visible = true
-	coordinates.hide_root = true
-	coordinates.set_column_title(0, "Part")
-	coordinates.set_column_title(1, "Latitude")
-	coordinates.set_column_title(2, "Longitude")
-	coordinates.set_column_expand(0, false)
-	coordinates.set_column_custom_minimum_width(0, 64)
-	coordinates.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	coordinates.custom_minimum_size = Vector2(0, 160)
-	coordinates.item_edited.connect(_on_coordinate_edited)
-	coordinates.item_selected.connect(_update_vertex_buttons)
-	coordinates.nothing_selected.connect(_update_vertex_buttons)
-	box.add_child(coordinates)
-	_feature_boxes.append(coordinates)
-
-	var buttons := HBoxContainer.new()
-	buttons.name = "VertexButtons"
-	box.add_child(buttons)
-	_feature_boxes.append(buttons)
-
-	add_button = Button.new()
-	add_button.name = "Add"
-	add_button.text = "Add"
-	add_button.tooltip_text = "Add a vertex after the selected one"
-	add_button.pressed.connect(_on_add_pressed)
-	buttons.add_child(add_button)
-
-	remove_button = Button.new()
-	remove_button.name = "Remove"
-	remove_button.text = "Remove"
-	remove_button.tooltip_text = "Remove the selected vertex"
-	remove_button.pressed.connect(_on_remove_pressed)
-	buttons.add_child(remove_button)
-
+	_build_keyframes(form)
 	_build_sections(box)
-	_build_keyframes(box)
 
 
 # The section table of a line topology: which feature each section runs along,
@@ -254,48 +204,36 @@ func _build_sections(box: VBoxContainer) -> void:
 	buttons.add_child(remove_section_button)
 
 
-# The keyframe table: when the node is where, one row per keyframe, with the row
-# at the current time marked. Every cell can be edited, so a keyframe dragged
-# roughly into place with the Move tool can be given exact numbers here.
-func _build_keyframes(box: VBoxContainer) -> void:
-	var heading := Label.new()
-	heading.name = "MotionHeading"
-	heading.text = "Keyframes"
-	box.add_child(heading)
-	_motion_boxes.append(heading)
+# The keyframe row: how many keyframes the feature has, and the two buttons that
+# work at the current time. Landing on a keyframe is the timeline's job.
+func _build_keyframes(form: GridContainer) -> void:
+	var row := HBoxContainer.new()
+	row.name = "Keyframes"
+	_row(form, "Keyframes", row)
+	_motion_boxes.append(_rows.back()["label"])
+	_motion_boxes.append(row)
 
-	keyframes = Tree.new()
-	keyframes.name = "Keyframes"
-	keyframes.columns = KEYFRAME_COLUMNS.size()
-	keyframes.column_titles_visible = true
-	keyframes.hide_root = true
-	for column in KEYFRAME_COLUMNS.size():
-		keyframes.set_column_title(column, KEYFRAME_COLUMNS[column])
-	keyframes.custom_minimum_size = Vector2(0, 120)
-	keyframes.item_edited.connect(_on_keyframe_edited)
-	keyframes.item_selected.connect(_update_keyframe_buttons)
-	keyframes.nothing_selected.connect(_update_keyframe_buttons)
-	box.add_child(keyframes)
-	_motion_boxes.append(keyframes)
-
-	var key_buttons := HBoxContainer.new()
-	key_buttons.name = "KeyframeButtons"
-	box.add_child(key_buttons)
-	_motion_boxes.append(key_buttons)
+	keyframe_count = Label.new()
+	keyframe_count.name = "Count"
+	keyframe_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Without clipping the text sets a minimum width, and the row is then wider
+	# than CONTENT_WIDTH, which pushes the planet view aside.
+	keyframe_count.clip_text = true
+	row.add_child(keyframe_count)
 
 	key_button = Button.new()
 	key_button.name = "Key"
 	key_button.text = "Key"
 	key_button.tooltip_text = "Hold where this is now as a keyframe at the current time"
 	key_button.pressed.connect(_on_key_pressed)
-	key_buttons.add_child(key_button)
+	row.add_child(key_button)
 
 	delete_key_button = Button.new()
 	delete_key_button.name = "DeleteKey"
 	delete_key_button.text = "Delete"
-	delete_key_button.tooltip_text = "Delete the selected keyframe"
+	delete_key_button.tooltip_text = "Delete the keyframe at the current time"
 	delete_key_button.pressed.connect(_on_delete_key_pressed)
-	key_buttons.add_child(delete_key_button)
+	row.add_child(delete_key_button)
 
 
 func _time_spin(spin_name: String) -> SpinBox:
@@ -338,15 +276,11 @@ func show_node(node_: Feature) -> void:
 		var shown: bool = is_feature or (editable and row["on_a_group"])
 		(row["label"] as Control).visible = shown
 		(row["control"] as Control).visible = shown
-	# A topology has sections where a feature has coordinates, and no motion of
-	# its own: where it is comes from the features its sections run along.
+	# A topology has sections, and no motion of its own: where it is comes from
+	# the features its sections run along. A group carries no motion either.
 	var is_topology := is_feature and node.geometry_kind == Feature.GeometryKind.TOPOLOGY
-	for control in _feature_boxes:
-		control.visible = is_feature and not is_topology
 	for control in _topology_boxes:
 		control.visible = is_topology
-	# A group carries no motion, so only a feature that is not a topology has
-	# keyframes to show.
 	for control in _motion_boxes:
 		control.visible = is_feature and not is_topology
 
@@ -362,28 +296,21 @@ func show_node(node_: Feature) -> void:
 		from_spin.value = node.time_range.x
 		to_spin.value = node.time_range.y
 		geometry_label.text = _geometry_summary(node)
-		_fill_coordinates()
 		_fill_sections()
-	_fill_keyframes()
 	_filling = false
-	_update_vertex_buttons()
 	_update_section_buttons()
-	_update_keyframe_buttons()
+	_update_keyframes()
 
 
-# The current time moved: mark whichever keyframe row it now sits on, and fill
-# the section table again, since a section can be followed at one time and
-# broken at another. Nothing else in the panel depends on the time.
+# The current time moved: Delete only works on a keyframe the time sits on, and
+# a section can be followed at one time and broken at another. Nothing else in
+# the panel depends on the time.
 func show_time() -> void:
-	if node == null or node.is_root or keyframes == null:
+	if node == null or node.is_root:
 		return
 	if node.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		_refill_sections()
-	var root := keyframes.get_root()
-	if root == null:
-		return
-	for item in root.get_children():
-		_mark_current(item)
+	_update_keyframes()
 
 
 func _type_index(type_id: String) -> int:
@@ -410,38 +337,6 @@ func _geometry_summary(feature: Feature) -> String:
 		feature.kind_name(),
 		vertices, "vertex" if vertices == 1 else "vertices",
 		parts, "part" if parts == 1 else "parts"]
-
-
-# One row per part, with its vertices under it. The metadata of a vertex row is
-# where it sits, so an edit knows which vertex of which part it changed.
-func _fill_coordinates() -> void:
-	coordinates.clear()
-	var root := coordinates.create_item()
-	for part in node.rings.size():
-		var part_item := coordinates.create_item(root)
-		part_item.set_text(0, "Part %d" % (part + 1))
-		for column in 3:
-			part_item.set_selectable(column, false)
-		for index in node.rings[part].size():
-			var vertex := node.rings[part][index]
-			var item := coordinates.create_item(part_item)
-			item.set_metadata(0, Vector2i(part, index))
-			item.set_text(0, str(index + 1))
-			item.set_selectable(0, false)
-			for column in [1, 2]:
-				item.set_editable(column, true)
-			item.set_text(1, format_degrees(vertex.x))
-			item.set_text(2, format_degrees(vertex.y))
-
-
-static func format_degrees(value: float) -> String:
-	return "%.4f" % value
-
-
-# A time as the keyframe table shows it. Enough decimals to tell two frames of a
-# fine animation apart, without a row of trailing zeros on the usual whole ages.
-static func format_time(value: float) -> String:
-	return String.num(value, 4).trim_suffix(".0")
 
 
 ### The section table
@@ -494,7 +389,7 @@ func _on_section_edited() -> void:
 		_take_back_section("%s is not a vertex number." % text)
 		return
 
-	# The table counts vertices from one, as the coordinate table does.
+	# The table counts vertices from one.
 	var section: TopologySection = node.sections[index]
 	var from_index := section.from_index
 	var to_index := section.to_index
@@ -536,7 +431,7 @@ func _on_remove_section_pressed() -> void:
 
 
 # Which section is picked, or -1 when the table is empty or none is. With no row
-# picked the last section stands in, the way the coordinate table works.
+# picked the last section stands in.
 func selected_section() -> int:
 	if node == null or node.is_group or node.sections.is_empty():
 		return -1
@@ -576,63 +471,22 @@ func _take_back_section(message: String) -> void:
 	rejected.emit(message)
 
 
-### The keyframe table
+### The keyframe row
 
 
-func _fill_keyframes() -> void:
-	keyframes.clear()
-	if node == null or node.is_root:
-		return
-	var root := keyframes.create_item()
-	for index in node.keyframes.size():
-		var keyframe: Keyframe = node.keyframes[index]
-		var item := keyframes.create_item(root)
-		item.set_metadata(0, index)
-		item.set_text(0, format_time(keyframe.time))
-		for column in [1, 2, 3]:
-			item.set_text(column, format_degrees(keyframe.rotation[column - 1]))
-		for column in KEYFRAME_COLUMNS.size():
-			item.set_editable(column, true)
-		_mark_current(item)
+# Which keyframe the current time sits on, or -1 when it is between keyframes.
+func _keyframe_here() -> int:
+	if document == null or node == null or node.is_group:
+		return -1
+	return Keyframe.index_at(node.keyframes, document.current_time)
 
 
-# Show which keyframe the document is sitting on, if it is sitting on one.
-func _mark_current(item: TreeItem) -> void:
-	var index: Variant = item.get_metadata(0)
-	if index == null or document == null:
-		return
-	var here := is_equal_approx(node.keyframes[int(index)].time, document.current_time)
-	for column in KEYFRAME_COLUMNS.size():
-		if here:
-			item.set_custom_bg_color(column, CURRENT_KEYFRAME_COLOR)
-		else:
-			item.clear_custom_bg_color(column)
-
-
-func _on_keyframe_edited() -> void:
-	var item := keyframes.get_edited()
-	var column := keyframes.get_edited_column()
-	if _filling or node == null or item == null or item.get_metadata(0) == null:
-		return
-
-	var index := int(item.get_metadata(0))
-	var text := item.get_text(column).strip_edges()
-	if not text.is_valid_float():
-		_take_back_keyframe("%s is not a number." % text)
-		return
-
-	var error: String
-	if column == 0:
-		error = document.set_keyframe_time(node, index, float(text))
-	else:
-		var rotation: Vector3 = node.keyframes[index].rotation
-		rotation[column - 1] = float(text)
-		error = document.set_keyframe_rotation(node, index, rotation)
-	if not error.is_empty():
-		_take_back_keyframe(error)
-		return
-	_refill_keyframes()
-	edited.emit()
+func _update_keyframes() -> void:
+	var feature := node != null and not node.is_group
+	var count := node.keyframes.size() if feature else 0
+	keyframe_count.text = "%d keyframe%s" % [count, "" if count == 1 else "s"]
+	key_button.disabled = not feature
+	delete_key_button.disabled = _keyframe_here() < 0
 
 
 # Hold where the node is now as a keyframe at the current time. This is how a
@@ -646,58 +500,20 @@ func _on_key_pressed() -> void:
 	if not error.is_empty():
 		rejected.emit(error)
 		return
-	_refill_keyframes()
+	_update_keyframes()
 	edited.emit()
 
 
 func _on_delete_key_pressed() -> void:
-	var index := selected_keyframe()
+	var index := _keyframe_here()
 	if index < 0:
 		return
 	var error := document.remove_keyframe(node, index)
 	if not error.is_empty():
 		rejected.emit(error)
 		return
-	_refill_keyframes()
+	_update_keyframes()
 	edited.emit()
-
-
-# Which keyframe is picked, or -1 when the table is empty or none is.
-func selected_keyframe() -> int:
-	if node == null or node.is_root or node.keyframes.is_empty():
-		return -1
-	var item := keyframes.get_selected()
-	if item != null and item.get_metadata(0) != null:
-		return int(item.get_metadata(0))
-	return -1
-
-
-func select_keyframe(index: int) -> void:
-	var root := keyframes.get_root()
-	if root == null or index < 0 or index >= root.get_child_count():
-		return
-	keyframes.deselect_all()
-	root.get_child(index).select(0)
-
-
-func _update_keyframe_buttons() -> void:
-	var editable := node != null and not node.is_root
-	key_button.disabled = not editable
-	delete_key_button.disabled = not editable or selected_keyframe() < 0
-
-
-func _refill_keyframes() -> void:
-	_filling = true
-	_fill_keyframes()
-	_filling = false
-	_update_keyframe_buttons()
-
-
-# Put the table back the way the node is and say what went wrong, after an edit
-# the document would not take.
-func _take_back_keyframe(message: String) -> void:
-	_refill_keyframes()
-	rejected.emit(message)
 
 
 ### Editing
@@ -768,98 +584,6 @@ func _commit_time_range() -> void:
 	edited.emit()
 
 
-func _on_coordinate_edited() -> void:
-	var item := coordinates.get_edited()
-	var column := coordinates.get_edited_column()
-	if _filling or node == null or item == null or item.get_metadata(0) == null:
-		return
-
-	var at: Vector2i = item.get_metadata(0)
-	var text := item.get_text(column).strip_edges()
-	if not text.is_valid_float():
-		_take_back_coordinate(at, "%s is not a number." % text)
-		return
-
-	var vertex := node.rings[at.x][at.y]
-	if column == 1:
-		vertex.x = float(text)
-	else:
-		vertex.y = float(text)
-	var error := document.set_vertex(node, at.x, at.y, vertex)
-	if not error.is_empty():
-		_take_back_coordinate(at, error)
-		return
-	edited.emit()
-
-
-func _on_add_pressed() -> void:
-	var at := selected_vertex()
-	if at.x < 0:
-		return
-	# The new vertex starts on top of the selected one, so it is moved into place
-	# by editing it rather than by knowing where it goes in advance.
-	var error := document.insert_vertex(node, at.x, at.y + 1, node.rings[at.x][at.y])
-	if not error.is_empty():
-		rejected.emit(error)
-		return
-	edited.emit()
-	select_vertex(at.x, at.y + 1)
-
-
-func _on_remove_pressed() -> void:
-	var at := selected_vertex()
-	if at.x < 0:
-		return
-	var error := document.remove_vertex(node, at.x, at.y)
-	if not error.is_empty():
-		rejected.emit(error)
-		return
-	edited.emit()
-
-
-### The coordinate table selection
-
-
-# Where the selected vertex sits, or (-1, -1) when the feature has no geometry.
-# With no row picked the last vertex of the last part stands in, so the buttons
-# work on a table nobody has clicked in yet.
-func selected_vertex() -> Vector2i:
-	if node == null or node.is_group or node.rings.is_empty():
-		return Vector2i(-1, -1)
-	var item := coordinates.get_selected()
-	if item != null and item.get_metadata(0) != null:
-		return item.get_metadata(0)
-	var part := node.rings.size() - 1
-	return Vector2i(part, node.rings[part].size() - 1)
-
-
-func select_vertex(part: int, index: int) -> void:
-	var root := coordinates.get_root()
-	if root == null or part < 0 or part >= root.get_child_count():
-		return
-	var part_item := root.get_child(part)
-	if index < 0 or index >= part_item.get_child_count():
-		return
-	coordinates.deselect_all()
-	part_item.get_child(index).select(1)
-
-
-func _update_vertex_buttons() -> void:
-	var has_geometry := node != null and not node.is_group and node.has_own_vertices()
-	add_button.disabled = not has_geometry
-	remove_button.disabled = not has_geometry
-
-
-# Put the table back the way the feature is and say what went wrong, after an
-# edit the document would not take.
-func _take_back_coordinate(at: Vector2i, message: String) -> void:
-	_filling = true
-	_fill_coordinates()
-	_filling = false
-	select_vertex(at.x, at.y)
-	rejected.emit(message)
-
-
 ### The automation port
 
 
@@ -875,7 +599,6 @@ func to_json() -> Dictionary:
 		"name": name_edit.text,
 		"enabled": enabled_check.button_pressed,
 	}
-	data["keyframes"] = _keyframes_to_json()
 	if node.is_group:
 		return data
 	var picked := type_selector.selected
@@ -887,7 +610,12 @@ func to_json() -> Dictionary:
 		color_button.color.b, color_button.color.a]
 	data["time_range"] = [int(from_spin.value), int(to_spin.value)]
 	data["geometry"] = geometry_label.text
-	data["coordinates"] = _coordinates_to_json()
+	if keyframe_count.get_parent().visible:
+		data["keyframes"] = {
+			"count": keyframe_count.text.to_int(),
+			"key": not key_button.disabled,
+			"delete": not delete_key_button.disabled,
+		}
 	data["sections"] = _sections_to_json()
 	return data
 
@@ -908,34 +636,6 @@ func _sections_to_json() -> Array:
 			"broken": item.get_custom_color(0) == BROKEN_SECTION_COLOR,
 		})
 	return rows
-
-
-# The keyframe table as it stands, read off the rows rather than off the node.
-func _keyframes_to_json() -> Array:
-	var rows: Array = []
-	var root := keyframes.get_root()
-	if root == null:
-		return rows
-	for item in root.get_children():
-		rows.append({
-			"time": float(item.get_text(0)),
-			"rotation": [float(item.get_text(1)), float(item.get_text(2)), float(item.get_text(3))],
-			"current": item.get_custom_bg_color(0) == CURRENT_KEYFRAME_COLOR,
-		})
-	return rows
-
-
-func _coordinates_to_json() -> Array:
-	var parts: Array = []
-	var root := coordinates.get_root()
-	if root == null:
-		return parts
-	for part_item in root.get_children():
-		var vertices: Array = []
-		for item in part_item.get_children():
-			vertices.append([float(item.get_text(1)), float(item.get_text(2))])
-		parts.append(vertices)
-	return parts
 
 
 # Drive one field the way a person would, for the scripted session.

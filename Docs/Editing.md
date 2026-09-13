@@ -92,9 +92,9 @@ After committing a shape (pressing Enter in the Draw tool), the Move tool is aut
 
 ## The Vertex tool
 
-The Vertex tool edits the geometry of the selected feature on the globe itself,
-rather than through the coordinate table of the [Properties](Properties.md)
-panel. It is available once a leaf feature holding vertices of its own is
+The Vertex tool edits the geometry of the selected feature on the globe itself.
+The [Properties](Properties.md) panel lists no coordinates, so this is where a
+vertex is moved, inserted or deleted. It is available once a leaf feature holding vertices of its own is
 selected; there is nothing to take hold of otherwise, and a
 [line topology](#line-topologies) borrows every vertex it draws from the
 features its sections run along.
@@ -150,11 +150,6 @@ Delete takes out the vertex being held. It is **refused** when the part would
 fall under the minimum its kind needs — three for a polygon, two for a polyline,
 one for a multipoint — and the status bar says so. On the globe the alternative
 is a triangle disappearing under a single key press.
-
-The Remove button of the Properties panel is the older behaviour and keeps it:
-there a part that falls under its minimum is removed along with the vertex. The
-two differ on purpose. The panel lists the parts, so one of them going is
-visible in the table the click was made in; the globe shows no such list.
 
 ## Snapping
 
@@ -255,7 +250,7 @@ runs of vertices they cover and carries them through the rotation those features
 have then. What comes out is what is drawn, hit tested and measured, so from
 there on a topology is a polyline like any other.
 
-That is also why a topology has **no motion of its own** and no keyframe table
+That is also why a topology has **no motion of its own** and no keyframe row
 in the [Properties](Properties.md) panel: where it is comes from the features
 under it.
 
@@ -284,7 +279,7 @@ own: a feature cannot both draw its geometry and borrow it.
 ### Editing the sections
 
 The [Properties](Properties.md#the-section-table) panel shows the sections where
-another feature shows its coordinates: the feature each one runs along, the two
+another feature shows its keyframe row: the feature each one runs along, the two
 vertices it runs between, and which way round. **Reverse** turns the selected
 section round, which is what a boundary usually needs when the next feature's
 vertices run back towards the last one, and **Remove** takes it out.
