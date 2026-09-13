@@ -216,6 +216,9 @@ func _build_keyframes(form: GridContainer) -> void:
 	keyframe_count = Label.new()
 	keyframe_count.name = "Count"
 	keyframe_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Without clipping the text sets a minimum width, and the row is then wider
+	# than CONTENT_WIDTH, which pushes the planet view aside.
+	keyframe_count.clip_text = true
 	row.add_child(keyframe_count)
 
 	key_button = Button.new()
