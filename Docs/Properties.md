@@ -65,14 +65,17 @@ follows the feature tree selection, through
 | From (Ma)  | Number             | no         |
 | To (Ma)    | Number             | no         |
 | Geometry   | Label              | no         |
-| Coordinates| Table, Add, Remove | no         |
+| Keyframes  | Count, Key, Delete | no         |
 | Sections   | Table, Reverse, Remove | no     |
-| Keyframes  | Table, Key, Delete | no         |
 
-A feature shows either the coordinate table or the section table, never both: a
+The panel lists no coordinates. Middle Earth is for building worlds, and a
+vertex is placed, moved, inserted and deleted on the globe with the
+[Draw](Draw.md) and [Vertex](Editing.md#the-vertex-tool) tools. The Geometry row
+still says what the feature holds.
+
+A feature shows either the keyframe row or the section table, never both: a
 [line topology](Editing.md#line-topologies) borrows its vertices instead of
-holding them. A topology has no keyframe table either, because where it is comes
-from the features its sections run along.
+holding them, and where it is comes from the features its sections run along.
 
 With nothing selected the panel says so and shows no rows at all, and so does
 the root group, which has no name of its own to change and no switch — the same
@@ -88,51 +91,41 @@ axis the timeline slider runs on, so `From` is the younger end. A feature
 outside it at the current time is neither drawn nor hit tested, and its tree row
 is greyed out. See [Time](Time.md#being-there-at-all).
 
-A group has no keyframe table: a group carries no motion, so its name and its
+A group has no keyframe row: a group carries no motion, so its name and its
 switch are all there is to edit on one.
 
-### The coordinate table
+### The keyframe row
 
-One row per part of the geometry, with the vertices of that part under it.
-Latitude and longitude are editable in place; a value that is not a number, or
-one off the planet, is refused and the table goes back to what the feature
-holds. `Add` puts a new vertex after the selected one, in the same place, so it
-is moved by editing it rather than by knowing where it goes in advance.
-`Remove` takes the selected vertex off, and a part left with too few vertices to
-be a shape goes with it — three for a polygon, two for a polyline, one for a
-multipoint, as `Feature.MINIMUM_VERTICES` lists them.
+One row: how many keyframes the feature has, and two buttons that work at the
+current time.
 
-With no row picked both buttons work on the last vertex of the last part.
+- `Key` holds where the feature is now as a keyframe at the current time. The
+  rotation it records is the one the keyframes around that time already give,
+  so nothing on the globe moves. This is how a keyframe is made without
+  dragging.
+- `Delete` removes the keyframe at the current time. It is greyed out while the
+  time is between keyframes. The timeline's keyframe marks and its `<<` and
+  `>>` buttons land on a keyframe exactly; see
+  [Time](Time.md#the-time-control).
+
+The panel does not list the keyframes' times or angles. A keyframe is placed by
+dragging with the Move tool.
 
 ### The section table
 
 Only a [line topology](Editing.md#line-topologies) has one. One row per section:
-the feature it runs along, the two vertices it runs between, counted from one
-the way the coordinate table counts them, and `on` or `back` for which way round
-it is walked.
+the feature it runs along, the two vertices it runs between, counted from one,
+and `on` or `back` for which way round it is walked.
 
 `From` and `To` are editable, so a section added by clicking a whole feature can
-be trimmed to the stretch that belongs to the boundary. `Reverse` turns the
-selected section round and `Remove` takes it out; with no row picked both work
-on the last section, the way the coordinate table's buttons do.
+be trimmed to the stretch that belongs to the boundary. This table is the only
+place that can be done. `Reverse` turns the selected section round and `Remove`
+takes it out; with no row picked both work on the last section.
 
 A section whose feature cannot be followed — deleted, or not there at the
 current time — is shown in a warning colour with the reason as its tooltip,
 rather than being dropped. The table is filled again whenever the current time
 moves, since a section can be followed at one time and not at another.
-
-### The keyframe table
-
-One row per keyframe: `Ma`, the time, and `Lon`, `Lat` and `Spin`, the three
-angles [Moving](Moving.md#rotation-representation) names. The row the current
-time sits on is marked, so it is clear whether an edit will land on a keyframe
-or between two of them.
-
-Every cell can be edited, so a keyframe dragged roughly into place with the Move
-tool can be given exact numbers. `Key` holds where the node is now as a keyframe
-at the current time, which is how a keyframe is made without moving anything;
-the rotation it records is the one the keyframes around the current time already
-give, so nothing on the globe moves. `Delete` takes the selected keyframe off.
 
 ### Every edit goes through the document
 
@@ -151,9 +144,8 @@ undo version:
 | `insert_vertex`         | the same                                           |
 | `remove_vertex`         | a part or vertex that is not there                 |
 | `split_feature`         | a group, a topology, a part that is not there, a multipoint, and a cut that would leave half a shape or run outside it |
-| `set_keyframe`          | nothing; the time it names replaces or is added    |
-| `set_keyframe_time`     | a keyframe that is not there, a time outside 0 to `MAX_TIME`, and a time another keyframe already holds |
-| `set_keyframe_rotation` | a keyframe that is not there                       |
+| `set_keyframe`          | a group; the time it names replaces or is added    |
+| `remove_keyframe`       | a group, and a keyframe that is not there          |
 | `add_section`           | a group, a feature holding vertices of its own, and a target that is a group, a topology, the topology itself or has no vertices |
 | `remove_section`        | anything but a topology, and a section that is not there |
 | `reverse_section`       | the same                                           |
@@ -186,11 +178,6 @@ holds points it has not committed, Ctrl+Z takes the last of them back and
 Ctrl+Y puts it down again, and the document's stack is reached only once no
 point is held; see [Draw](Draw.md#visual-feedback). The feature tree toolbar's
 Undo and Redo buttons always go to the document.
-
-The Remove button here and the Delete key of the
-[Vertex tool](Editing.md#deleting) part company over the last vertices of a
-part. This one removes the part along with the vertex; that one refuses. See
-[Deleting](Editing.md#deleting) for why.
 
 ## The file
 
