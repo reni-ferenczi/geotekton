@@ -26,7 +26,7 @@ func test_hit_inside_and_miss_outside() -> void:
 	var geometry := Planet.collect_geometry(_make_root([feature]))
 	assert_eq(geometry.primitives.size(), 1, "one triangle is collected")
 	assert_eq(geometry.primitives[0]["kind"], Planet.Primitive.TRIANGLE)
-	assert_eq(geometry.primitives[0]["color"], Color.RED)
+	assert_eq(geometry.colors, [Color.RED] as Array[Color], "one color for the one feature")
 	assert_eq(Planet.hit_test(0, 0, geometry), feature, "the centre is inside")
 	assert_eq(Planet.hit_test(40, 40, geometry), null, "a far away point misses")
 

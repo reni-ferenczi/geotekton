@@ -3,6 +3,19 @@ extends RenderedCase
 # The cratons of the sample files really are drawn, in their own colour, at the
 # probe points documented in Tests/Data/README.md.
 
+# Zoomed in this far the pale rim a filled polygon carried before GP-0033, 0.001
+# wide as a chord length, would be several pixels across.
+const BOUNDARY_ZOOM := 20.0
+
+# How many pixels either side of the middle of an edge are looked at. The globe
+# is a tessellated mesh, so where a place lands on screen can be a few pixels
+# off the analytic position at this zoom; the square is wide enough to hold the
+# boundary anyway.
+const BOUNDARY_REACH := 10
+
+# How much green a pixel may carry beside a blue polygon on a red backdrop.
+const GREEN_TOLERANCE := 0.1
+
 
 func test_the_red_triangle_is_drawn_where_it_is_hit_tested() -> void:
 	await load_sample("triangle.middle-earth")
@@ -41,62 +54,63 @@ func test_an_empty_file_draws_no_craton() -> void:
 	await _check_probe(-3.0, 0.0, "")
 
 
-# GP-0027: a filled polygon used to be drawn with a pale rim around every one of
-# its triangles, so the fan ear clipping cut it into showed through the fill.
-# The rim now follows the ring alone.
-#
-# The probe points are the midpoints of the edges the triangulation cut, read
-# out of the same triangle_edges the shader is given, so the test asks about the
-# exact places the seams used to be rather than a guess at where they were.
-func test_a_polygon_is_filled_without_showing_its_triangles() -> void:
+# GP-0033: a filled polygon is one flat color right up to its boundary. It used
+# to carry a pale rim there. The planet wears a flat red backdrop for the test,
+# so around the middle of every edge of the ring every pixel is either the blue
+# fill or the red beneath it, and both are there: a rim would be neither. The
+# Earth itself is no use as the background, since its detail does not come out
+# the same from one frame to the next.
+func test_a_polygon_is_one_flat_color_up_to_its_boundary() -> void:
 	await load_sample("craton.middle-earth")
 	var feature := _first_feature()
 	if feature == null:
 		return
-	# The tests share one application, and the ones before this turn the globe.
-	# The craton is centred near (0, 0), so bring it back to face the camera:
-	# away from there the surface is barely lit and its blue reads as dark
-	# rather than as blue at all.
-	await look_at_latlon(0.0, 0.0)
+	var ring := Feature.apply_basis(feature.rings[0],
+		Feature.world_basis(app.features.root, feature, app.document.current_time))
 
-	var image := await capture()
+	var red := Image.create(4, 2, false, Image.FORMAT_RGBA8)
+	red.fill(Color.RED)
+	view().planet.set_backdrop(ImageTexture.create_from_image(red), 1.0)
+	view().set_zoom(BOUNDARY_ZOOM)
 	var probed := 0
-	for midpoint in _cut_edge_midpoints(feature):
+	for i in ring.size():
+		var a := ring[i]
+		var b := ring[(i + 1) % ring.size()]
+		var middle := Measure.along(a, b, 0.5)
 		# The graticule is drawn on multiples of 15 degrees and is pale too, so
-		# a midpoint sitting on one says nothing about the fill.
-		if _near_graticule(midpoint):
+		# an edge crossing one says nothing about the fill.
+		if _near_graticule(middle):
 			continue
-		var screen: Variant = app.planet_view.latlon_to_screen(midpoint.x, midpoint.y)
-		if screen == null:
+		await look_at_latlon(middle.x, middle.y)
+		var centre: Variant = view().latlon_to_screen(middle.x, middle.y)
+		if centre == null:
 			continue
-		var at: Vector2 = screen
-		if at.x < 0.0 or at.y < 0.0 or at.x >= image.get_width() or at.y >= image.get_height():
-			continue
+		var image := await capture()
 		probed += 1
-		var color := image.get_pixel(int(at.x), int(at.y))
-		assert_eq(dominant_channel(color), "blue",
-			"the middle of the cut at %s is fill, not a seam: %s" % [midpoint, color])
+		var counts := {"blue": 0, "red": 0}
+		var pale: Array[Color] = []
+		for dy in range(-BOUNDARY_REACH, BOUNDARY_REACH + 1):
+			for dx in range(-BOUNDARY_REACH, BOUNDARY_REACH + 1):
+				var color := image.get_pixel(int(centre.x) + dx, int(centre.y) + dy)
+				var channel := dominant_channel(color)
+				if counts.has(channel):
+					counts[channel] += 1
+				# Neither the fill nor the backdrop has any green, and a pixel on
+				# the boundary itself is a blend of the two, which has none
+				# either. White, which the rim was, is all green.
+				if color.g > GREEN_TOLERANCE:
+					pale.append(color)
+		assert_true(counts["blue"] > 0 and counts["red"] > 0,
+			"the edge %s-%s is in the square: %s" % [a, b, counts])
+		assert_true(pale.is_empty(),
+			"beside the edge %s-%s no pixel is paler than the fill and the backdrop, %d are: %s"
+				% [a, b, pale.size(), pale.slice(0, 4)])
+	view().set_zoom(PlanetView.DEFAULT_ZOOM)
+	view().planet.set_backdrop(null, 0.0)
+	await frames(2)
 
-	assert_true(probed >= 8,
-		"there were cut edges away from the graticule to probe, found %d" % probed)
-
-
-# The midpoints, in world coordinates, of every edge ear clipping cut rather
-# than took from the ring. A cut is shared by the two triangles either side of
-# it, so each midpoint comes back twice; probing it twice costs nothing.
-func _cut_edge_midpoints(feature: Feature) -> PackedVector2Array:
-	var midpoints := PackedVector2Array()
-	var bits := [Feature.EDGE_AB, Feature.EDGE_BC, Feature.EDGE_CA]
-	var m := Feature.world_basis(app.features.root, feature, app.document.current_time)
-	for t in range(feature.triangle_edges.size()):
-		var corners := [
-			feature.triangles[t * 3], feature.triangles[t * 3 + 1], feature.triangles[t * 3 + 2]]
-		for e in range(3):
-			if feature.triangle_edges[t] & bits[e]:
-				continue
-			var middle := Measure.along(corners[e], corners[(e + 1) % 3], 0.5)
-			midpoints.append(Feature.apply_basis(PackedVector2Array([middle]), m)[0])
-	return midpoints
+	assert_true(probed >= 10,
+		"there were ring edges away from the graticule to probe, found %d" % probed)
 
 
 # The graticule runs along every fifteenth degree of latitude and longitude.

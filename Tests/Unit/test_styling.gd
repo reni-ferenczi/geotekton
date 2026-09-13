@@ -196,10 +196,9 @@ func test_a_document_that_names_no_style_draws_the_feature_colours() -> void:
 	# The same again with no styling handed over at all, which is what a caller
 	# that knows nothing about styles gets.
 	var bare := Planet.collect_geometry(root, 0.0)
-	for primitive in bare.primitives:
-		var feature: Feature = primitive["feature"]
-		assert_eq((primitive["color"] as Color), feature.color,
-			"%s without any styling" % feature.title)
+	for index in bare.features.size():
+		var feature: Feature = bare.features[index]
+		assert_eq(bare.colors[index], feature.color, "%s without any styling" % feature.title)
 
 
 func test_a_style_name_from_nowhere_falls_back_to_the_feature_colour() -> void:
@@ -228,12 +227,13 @@ func _primitives_by_class(root: Feature, settings: ViewSettings) -> Dictionary:
 	return counts
 
 
-# The colour each class is drawn in, read off the primitives themselves.
+# The color each class is drawn in, read off the colors the geometry carries
+# for the shader.
 func _colors_by_class(root: Feature, settings: ViewSettings) -> Dictionary:
 	var colors := {}
 	var geometry := Planet.collect_geometry(root, 0.0, Styling.of(settings))
-	for primitive in geometry.primitives:
-		colors[Styling.class_of(primitive["feature"] as Feature)] = primitive["color"] as Color
+	for index in geometry.features.size():
+		colors[Styling.class_of(geometry.features[index])] = geometry.colors[index]
 	return colors
 
 

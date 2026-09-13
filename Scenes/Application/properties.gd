@@ -18,6 +18,10 @@ signal edited()
 # has been recorded yet, so the tree does not.
 signal previewed()
 
+# A color or an opacity went through. Only the colors need to reach the globe,
+# which is cheaper than what `edited` asks for.
+signal recolored()
+
 # An edit was refused, with the message saying why.
 signal rejected(message: String)
 
@@ -51,6 +55,7 @@ var placeholder: Label
 var name_edit: LineEdit
 var type_selector: OptionButton
 var color_button: ColorPickerButton
+var opacity_spin: SpinBox
 var enabled_check: CheckBox
 var from_spin: SpinBox
 var to_spin: SpinBox
@@ -125,15 +130,31 @@ func _build() -> void:
 	type_selector.item_selected.connect(_on_type_selected)
 	_row(form, "Type", type_selector)
 
+	# The color and its opacity share a row. The picker leaves the alpha alone,
+	# since the box beside it is where the opacity is set.
+	var color_row := HBoxContainer.new()
+	color_row.name = "ColorRow"
+	_row(form, "Colour", color_row)
+
 	color_button = ColorPickerButton.new()
 	color_button.name = "Color"
 	color_button.custom_minimum_size = Vector2(0, 28)
+	color_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	color_button.edit_alpha = false
 	# While the picker is open the colour is only previewed; closing it is what
 	# makes one undo version out of however much dragging went on inside.
 	color_button.color_changed.connect(_on_color_previewed)
 	color_button.popup_closed.connect(_commit_color)
-	_row(form, "Colour", color_button)
+	color_row.add_child(color_button)
+
+	opacity_spin = SpinBox.new()
+	opacity_spin.name = "Opacity"
+	opacity_spin.max_value = 100
+	opacity_spin.step = 1
+	opacity_spin.suffix = "%"
+	opacity_spin.tooltip_text = "Opacity: 0 shows what is beneath, 100 covers it"
+	opacity_spin.value_changed.connect(func(_value: float) -> void: _commit_color())
+	color_row.add_child(opacity_spin)
 
 	enabled_check = CheckBox.new()
 	enabled_check.name = "Enabled"
@@ -292,7 +313,7 @@ func show_node(node_: Feature) -> void:
 	enabled_check.button_pressed = node.enabled
 	if is_feature:
 		type_selector.select(_type_index(node.feature_type))
-		color_button.color = node.color
+		_show_color()
 		from_spin.value = node.time_range.x
 		to_spin.value = node.time_range.y
 		geometry_label.text = _geometry_summary(node)
@@ -545,9 +566,16 @@ func _on_type_selected(index: int) -> void:
 		rejected.emit(error)
 		return
 	_filling = true
-	color_button.color = node.color
+	_show_color()
 	_filling = false
 	edited.emit()
+
+
+# The color on the button and the opacity in percent beside it. Call while
+# _filling, so the box does not take its own new value for an edit.
+func _show_color() -> void:
+	color_button.color = node.color
+	opacity_spin.value = roundf(node.color.a * 100.0)
 
 
 # The picker sends a colour for every drag of its cursor. Showing them on the
@@ -556,15 +584,17 @@ func _on_type_selected(index: int) -> void:
 func _on_color_previewed(color: Color) -> void:
 	if _filling or node == null or node.is_group:
 		return
-	node.color = color
+	node.color = Color(color, opacity_spin.value / 100.0)
 	previewed.emit()
 
 
+# The picked color at the opacity the box holds. A change of either is one
+# edit, one undo version.
 func _commit_color() -> void:
 	if _filling or node == null or node.is_group:
 		return
-	document.set_color(node, color_button.color)
-	edited.emit()
+	document.set_color(node, Color(color_button.color, opacity_spin.value / 100.0))
+	recolored.emit()
 
 
 func _commit_time_range() -> void:
@@ -607,7 +637,8 @@ func to_json() -> Dictionary:
 	data["types"] = range(type_selector.item_count).map(
 		func(index: int) -> String: return str(type_selector.get_item_metadata(index)))
 	data["color"] = [color_button.color.r, color_button.color.g,
-		color_button.color.b, color_button.color.a]
+		color_button.color.b, opacity_spin.value / 100.0]
+	data["opacity"] = int(opacity_spin.value)
 	data["time_range"] = [int(from_spin.value), int(to_spin.value)]
 	data["geometry"] = geometry_label.text
 	if keyframe_count.get_parent().visible:
@@ -655,8 +686,13 @@ func set_field(field: String, value: Variant) -> String:
 			_on_type_selected(index)
 		"color":
 			var c: Array = value
-			color_button.color = Color(c[0], c[1], c[2], c[3] if c.size() > 3 else 1.0)
+			_filling = true
+			color_button.color = Color(c[0], c[1], c[2])
+			opacity_spin.value = roundf((c[3] if c.size() > 3 else 1.0) * 100.0)
+			_filling = false
 			_commit_color()
+		"opacity":
+			opacity_spin.value = float(value)
 		"time_from":
 			from_spin.value = float(value)
 		"time_to":

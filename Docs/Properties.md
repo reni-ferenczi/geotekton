@@ -60,7 +60,7 @@ follows the feature tree selection, through
 | ---------- | ------------------ | ---------- |
 | Name       | Line edit          | yes        |
 | Type       | Selector           | no         |
-| Colour     | Colour picker      | no         |
+| Colour     | Colour picker, opacity | no     |
 | Enabled    | Switch             | yes        |
 | From (Ma)  | Number             | no         |
 | To (Ma)    | Number             | no         |
@@ -85,6 +85,13 @@ The panel keeps one width, `CONTENT_WIDTH`, whatever it is showing. Letting its
 content set the width would let the split container hand the difference to the
 planet view, so the globe would move under the pointer every time the selection
 changed.
+
+The box beside the color picker is the feature's opacity, from 0 to 100
+percent. It is the alpha of the same color, so it is saved with the color and
+undone with it, and the picker itself leaves the alpha alone. At 0 the Earth
+shows through the feature, which can still be selected by clicking where it is.
+Each draw style supplies its own color and alpha, so the box shows on the globe
+under the Feature colour style; see [Styling](Styling.md#the-draw-styles).
 
 The time range is two ages in millions of years before the present, the same
 axis the timeline slider runs on, so `From` is the younger end. A feature
