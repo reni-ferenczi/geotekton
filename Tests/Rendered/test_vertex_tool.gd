@@ -126,6 +126,8 @@ func _outline_reach(marker: bool) -> Array[int]:
 	if feature == null:
 		return empty
 	app.features.feature_tree.select_node(feature)
+	# The dots on the vertices are drawn in the Vertex tool alone; see GP-0034.
+	app.set_active_tool(Application.Tool.VERTEX)
 	await frames(2)
 
 	var ring: PackedVector2Array = feature.rings[0]
@@ -156,6 +158,7 @@ func _outline_reach(marker: bool) -> Array[int]:
 	Config.set_vertex_marker_scale(1.0)
 	Config.set_line_width_scale(1.0)
 	app._apply_outline_scale()
+	app.set_active_tool(Application.Tool.MOVE)
 	await frames(2)
 	return measured
 
