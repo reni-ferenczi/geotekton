@@ -67,9 +67,17 @@ another, and it is what every version before 0.7.0 drew. It stands in for the
 plate ID colouring GPlates does: Middle Earth has no plate IDs, and a feature's
 own colour is the thing it identifies itself by.
 
-**Feature age** is the age at the older end of the feature's
-[time range](Time.md#being-there-at-all): the age it came into existence at.
-Ages run backwards, so that is the larger of the two numbers.
+**Feature age** is how long the feature has existed at the current time: the
+older end of its [time range](Time.md#being-there-at-all), where it came into
+existence, minus the current time, and never below zero. Ages run backwards, so
+that end is the larger of the two numbers. GPlates colors by age the same way:
+begin time minus current time. At the present the age is the whole of that end,
+so a document looked at in the present draws the same as before GP-0036.
+
+Because the age moves with the time, so does the color. A step of the animation
+works the colors out again whenever some feature is colored by age
+(`Styling.by_age`), and uploads them in `feature_data` with the rotations, so
+the geometry texture is not touched. See [Shader](Shader.md#per-feature-rotation).
 
 Picking a style changes nothing about the document's features. The colour a
 feature carries is still its own and still what the Properties panel edits; the
@@ -86,7 +94,8 @@ place. Every group carries a **style**:
 | `mode` | `inherit`, or one of the four draw styles above |
 | `color` | What the single colour mode paints with |
 | `opacity` | 0 to 1, multiplied into every feature under the group |
-| `palette` | What the feature age mode reads: a built in palette's key or the path of a `.cpt` file |
+| `palette` | What the feature age mode reads: `ramp`, a built in palette's key or the path of a `.cpt` file |
+| `ramp_from`, `ramp_to`, `ramp_span` | The two colour ramp: the color at age zero, the color at `ramp_span` My, and that span |
 
 `Styling.color_of()` goes up from a feature to the nearest group whose mode is
 not inherit, and that group's style decides the color. The opacity works
@@ -107,7 +116,23 @@ climbing the tree for each feature.
 
 The style is part of the tree. It is written on the group node in the file, it
 is on the undo stack with the rest of the tree, and a duplicated or pasted group
-takes a copy of it. GP-0036 adds an age ramp to the same fields.
+takes a copy of it.
+
+### The two colour ramp
+
+The palette list starts with **Two colour ramp** (`ramp`). Its colors and its
+span are fields of the style itself, so every group has its own: a feature is
+`ramp_from` when it comes into existence, moves towards `ramp_to` at the same
+rate whatever the timeline does, reaches it `ramp_span` My later and stays
+there. A feature younger than the span never reaches `ramp_to`, which is the
+point: a group of orogenies can go from brown to grey over 300 My while another
+group ages over a different span. The color in between is a straight blend of
+the two, the way a palette slice blends its ends.
+
+`GroupStyle.ramp()` turns the three fields into a palette of one slice, so the
+ramp is looked up and previewed the same way as any other palette. A new style
+starts at brown to grey over 300 My, and the span is at least 1 My. The `.cpt`
+palettes stay for anyone who wants more than two steps, and read the same age.
 
 ## Colour palettes
 
@@ -176,6 +201,10 @@ the path of a file. `Palette.resolve()` takes it back either way. The
 application reads each palette once and keeps it by that string, so a rebuild
 of the geometry never reads a file it has read before.
 
+The two colour ramp is listed first. Below the palette row the dialog has a
+Ramp row with the root style's two colors and its span; the strip previews the
+ramp from age zero to the end of the span.
+
 That chooser is the root group's. A group's palette row in the Properties panel
 lists the built in palettes and the file its style already names, and has no
 **Load...** button, so a palette file reaches a group only through a file or a
@@ -192,14 +221,16 @@ starts from: the view block, with the root style under `style`.
 
 Up to 0.9.0 the view block carried `draw_style`, `single_color` and `palette`;
 0.10.0 moved them onto the root group. See
-[0.9.0 to 0.10.0](Persistence.md#090-to-0100).
+[0.9.0 to 0.10.0](Persistence.md#090-to-0100). 0.11.0 added the ramp fields;
+see [0.10.0 to 0.11.0](Persistence.md#0100-to-0110).
 
 ## Where the tests are
 
 | Test | What it covers |
 | ---- | -------------- |
 | `Tests/Unit/test_palette.gd` | The reader: the fixtures in `Tests/Data/Palettes`, the built in palettes, boundary and gap lookups, and every palette GPlates ships when that checkout is beside this one |
-| `Tests/Unit/test_styling.gd` | Which class a feature lands in, that each switch removes its own class and no other, the colour each style resolves to, and the group styles: inherit through two levels, the nearest group deciding, the root as the default, opacity multiplying down, the file, clones and undo |
-| `Tests/Unit/test_migration.gd` | A 0.7.0 view block's style landing on the root group |
-| `Tests/Rendered/test_styling.gd` | Pixel probes of each style on the globe, a group on a single colour beside a group on own colours, a group's opacity, a 0.7.0 file drawn in its single colour, the Earth showing where a switched off class was, and the chooser's list and preview strip |
-| `Tests/session.py` | The styling scenario: the styles on a running application, a palette read from a file, the switches through the View menu, and the whole lot through a save and a load. The Properties scenario sets a group's style through the panel, probes it and undoes it |
+| `Tests/Unit/test_styling.gd` | Which class a feature lands in, that each switch removes its own class and no other, the colour each style resolves to, the age so far, and the group styles: inherit through two levels, the nearest group deciding, the root as the default, opacity multiplying down, the file, clones and undo. A feature born at 500 Ma under a 200 My ramp is color A at 500, halfway at 400 and color B at 300 and at 0, moved only by `Geometry.resolve()` |
+| `Tests/Unit/test_migration.gd` | A 0.7.0 view block's style landing on the root group, and a 0.10.0 style reading with the default ramp |
+| `Tests/Rendered/test_styling.gd` | Pixel probes of each style on the globe, a group on a single colour beside a group on own colours, a group's opacity, a 0.7.0 file drawn in its single colour, one polygon under the ramp red at 500 Ma and blue at 300 Ma without the geometry texture being uploaded again, the Earth showing where a switched off class was, and the chooser's list and preview strip, the ramp's among them |
+| `Tests/session.py` | The styling scenario: the styles on a running application, the root's ramp through the dialog, a palette read from a file, the switches through the View menu, and the whole lot through a save and a load. The Properties scenario sets a group's style and ramp through the panel, probes them and undoes them |
+| `Tests/performance.py` | The frame time playing under the age ramp beside the frame time playing in flat colors |

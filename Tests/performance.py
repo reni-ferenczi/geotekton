@@ -69,8 +69,12 @@ def circle(lat: float, lon: float, vertices: int) -> list[list[float]]:
     ]
 
 
-def build_sample(path: Path, triangles: int) -> int:
-    """Write a document of about `triangles` triangles. Returns the real count."""
+def build_sample(path: Path, triangles: int, coupled: bool = False) -> int:
+    """Write a document of about `triangles` triangles. Returns the real count.
+
+    Coupled, every feature but the first rides on the first over the whole
+    animation, so a frame resolves every rotation through that parent.
+    """
     # Ear clipping turns a ring of n vertices into n - 2 triangles.
     per_feature = max(1, round(triangles / FEATURES))
     vertices = per_feature + 2
@@ -80,6 +84,8 @@ def build_sample(path: Path, triangles: int) -> int:
         lat = LATITUDES[i % len(LATITUDES)]
         lon = -170.0 + 340.0 * (i // len(LATITUDES)) / max(1, (FEATURES // len(LATITUDES)))
         children.append({
+            "uuid": f"blob-{i}",
+            "couplings": [{"from": 400.0, "to": 0.0, "parent": "blob-0"}] if coupled and i > 0 else [],
             "title": f"Blob {i}",
             "enabled": True,
             "is_group": False,
@@ -133,7 +139,7 @@ def report(label: str, frame_times: list[float]) -> float:
     return median
 
 
-def measure(client: AutomationClient, budget_ms: float) -> bool:
+def measure(client: AutomationClient, budget_ms: float, coupled: Path) -> bool:
     """Report the frame time standing still and playing. False when over budget."""
     counts = client.call("get_performance")["performance"]
     print(f"{counts['primitives']} primitives from {counts['features']} features, "
@@ -150,8 +156,29 @@ def measure(client: AutomationClient, budget_ms: float) -> bool:
     client.call("timeline", button="Play")
     playing = report("playing", sample_frames(client))
     client.call("timeline", button="Pause")
-
     print(f"playback costs {playing - still:+.2f} ms a frame")
+
+    # The same playback colored by age, whose colors move every frame. The span
+    # is longer than any feature's age here, so no color reaches the end of it.
+    client.call("set_view_settings", view_settings={
+        "draw_style": "age", "palette": "ramp", "ramp_span": 3000.0,
+    })
+    client.call("timeline", button="Reset")
+    client.call("timeline", button="Play")
+    aging = report("playing, colored by age", sample_frames(client))
+    client.call("timeline", button="Pause")
+    print(f"the age ramp costs {aging - playing:+.2f} ms a frame over flat colors")
+
+    # The same playback with every feature riding on the first one, which is
+    # the most a frame has to resolve through a parent. Reported, not held to
+    # a limit.
+    client.call("load", path=str(coupled))
+    client.call("timeline", button="Reset")
+    client.call("timeline", button="Play")
+    riding = report("playing, every feature coupled to one parent", sample_frames(client))
+    client.call("timeline", button="Pause")
+    print(f"coupling costs {riding - playing:+.2f} ms a frame over uncoupled playback")
+
     within = playing <= budget_ms
     print(f"{'PASS' if within else 'FAIL'} the median frame while playing is within the budget")
     return within
@@ -193,6 +220,8 @@ def main(argv: list[str]) -> int:
     sample = folder / "performance.middle-earth"
     wanted = build_sample(sample, triangles)
     print(f"{wanted} triangles in {FEATURES} features written to {sample}")
+    coupled = folder / "performance-coupled.middle-earth"
+    build_sample(coupled, triangles, coupled=True)
 
     process = launch_app(port)
     client = AutomationClient(port)
@@ -203,7 +232,7 @@ def main(argv: list[str]) -> int:
         # The frame time first. The hit test benchmark spends about ten seconds
         # solidly on one core, and a machine that has just done that does not
         # report the frame time it would have cold.
-        within = measure(client, budget)
+        within = measure(client, budget, coupled)
         print()
         passed = measure_hit_test(client) and within
     finally:

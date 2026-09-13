@@ -468,6 +468,29 @@ def run_group_style_checks(client: AutomationClient) -> None:
           f"undo takes the style back: {panel.get('style')}")
     check(is_colour(probe_at(client, lat, lon), [1.0, 0.0, 0.0]),
           "and the polygon is red again")
+
+    # GP-0036: the ramp rows. Both ends the same colour, so the probe does not
+    # depend on how old the polygon is.
+    depth = client.call("get_document")["document"]["undo_depth"]
+    ramp = [0.1, 0.6, 0.9, 1.0]
+    client.call("set_property", field="style", value="age")
+    client.call("set_property", field="palette", value="ramp")
+    client.call("set_property", field="ramp_from", value=ramp)
+    client.call("set_property", field="ramp_to", value=ramp)
+    client.call("set_property", field="ramp_span", value=450)
+    style = client.call("get_properties")["properties"]["style"]
+    check(style["palette"] == "ramp" and style["ramp_span"] == 450
+          and all(abs(a - b) < 1e-3 for a, b in zip(style["ramp_from"], ramp))
+          and all(abs(a - b) < 1e-3 for a, b in zip(style["ramp_to"], ramp)),
+          f"the panel reads back the ramp it was given: {style}")
+    check(client.call("get_document")["document"]["undo_depth"] == depth + 5,
+          "five edits of the style, five undo versions")
+    check(is_colour(probe_at(client, lat, lon), ramp),
+          "the group's ramp reaches the polygon under it")
+    for _ in range(5):
+        client.call("menu", item="undo")
+    check(client.call("get_properties")["properties"]["style"]["mode"] == "inherit",
+          "and undo takes the ramp back")
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
 
@@ -617,6 +640,149 @@ def run_keyframe_row_session(client: AutomationClient) -> None:
     except RuntimeError as error:
         refused = str(error)
     check(refused != "", f"so pressing it again is refused: {refused}")
+
+
+COUPLING_SAMPLE = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+COUPLED_AT = 500.0
+DECOUPLED_AT = 200.0
+# Inside the span, where the rider is dragged on its own.
+RIDER_MOVED_AT = 350.0
+# How far the parent is dragged each time, in degrees of longitude.
+PARENT_DRAG = 10.0
+
+
+def coupling_row(client: AutomationClient) -> dict:
+    return client.call("get_properties")["properties"]["coupling"]
+
+
+def centroid_of(client: AutomationClient, title: str) -> tuple[float, float]:
+    client.call("select", title=title)
+    return world_centroid(client)
+
+
+def run_coupling_session(client: AutomationClient, folder: Path) -> None:
+    """Couple the blue quad to the red triangle, drag each, decouple, and keep the spans."""
+    client.call("load", path=str(COUPLING_SAMPLE))
+    client.call("set_view", lat=15.0, lon=20.0, angle=0.0)
+    planet = client.call("latlon_to_screen", lat=15.0, lon=20.0)["screen"]
+    client.call("select", title="Red Triangle")
+    red = client.call("get_selected")["feature"]
+    client.call("select", title="Blue Quad")
+    client.call("set_time", time=COUPLED_AT)
+
+    row = coupling_row(client)
+    check(row["coupled_to"] == "nothing" and not row["decouple"] and row["spans"] == [],
+          f"an uncoupled feature rides on nothing: {row}")
+    check("Red Triangle" in row["parents"] and "Blue Quad" not in row["parents"],
+          f"and the picker offers every other feature: {row['parents']}")
+
+    before = client.call("get_selected")["feature"]
+    versions = undo_depth(client)
+    client.call("coupling", button="Couple", parent="Red Triangle")
+    after = client.call("get_selected")["feature"]
+    check(after["couplings"] == [{"from": COUPLED_AT, "to": 0.0, "parent": red["uuid"]}],
+          f"Couple starts a span at the current time running to the present: {after['couplings']}")
+    check(worst_offset(after["world_rings"][0], [tuple(v) for v in before["world_rings"][0]]) < 1e-3,
+          "without moving the feature on the globe")
+    check(undo_depth(client) == versions + 1, "in one undo step")
+    row = coupling_row(client)
+    check(row["coupled_to"] == "Red Triangle" and row["decouple"] and not row["couple"]
+          and row["spans"] == [{"parent": "Red Triangle", "from": COUPLED_AT, "to": 0.0, "broken": False}],
+          f"the panel names the parent and lists the span: {row}")
+    bars = client.call("get_timeline")["timeline"]["couplings"]
+    check(len(bars) == 1 and bars[0]["from"] == COUPLED_AT and bars[0]["screen"][0] < bars[0]["screen"][1],
+          f"the timeline draws the span as a bar from older to younger: {bars}")
+    check(client.call("latlon_to_screen", lat=15.0, lon=20.0)["screen"] == planet,
+          "the coupling rows leave the planet where it was")
+
+    # Couple, drag the parent: the child moves with it.
+    client.call("set_time", time=DECOUPLED_AT)
+    rider = centroid_of(client, "Blue Quad")
+    parent = centroid_of(client, "Red Triangle")
+    if not drag(client, parent[0], parent[1] + PARENT_DRAG):
+        return
+    moved_parent = world_centroid(client)
+    moved_rider = centroid_of(client, "Blue Quad")
+    check(angular_distance(rider, moved_rider) > PARENT_DRAG / 2.0,
+          f"dragging the parent carries the rider: {rider} to {moved_rider}")
+    check(abs(angular_distance(moved_parent, moved_rider) - angular_distance(parent, rider)) < DRAG_TOLERANCE,
+          "and keeps it as far from the parent as it was")
+
+    # Decouple, drag the parent: the child stays.
+    before = client.call("get_selected")["feature"]
+    client.call("coupling", button="Decouple")
+    after = client.call("get_selected")["feature"]
+    check(after["couplings"] == [{"from": COUPLED_AT, "to": DECOUPLED_AT, "parent": red["uuid"]}],
+          f"Decouple ends the span at the current time: {after['couplings']}")
+    check(DECOUPLED_AT in [k["time"] for k in after["keyframes"]],
+          f"with a keyframe there: {after['keyframes']}")
+    check(worst_offset(after["world_rings"][0], [tuple(v) for v in before["world_rings"][0]]) < 1e-3,
+          "and nothing on the globe moves")
+    check(coupling_row(client)["coupled_to"] == "nothing", "the panel says it rides on nothing now")
+    parent = centroid_of(client, "Red Triangle")
+    if not drag(client, parent[0], parent[1] + PARENT_DRAG):
+        return
+    client.call("select", title="Blue Quad")
+    stayed = client.call("get_selected")["feature"]
+    check(worst_offset(stayed["world_rings"][0], [tuple(v) for v in after["world_rings"][0]]) < 1e-3,
+          "dragging the parent after decoupling leaves the rider where it is")
+
+    # Dragging the rider inside the span writes a keyframe relative to the
+    # parent, which has moved by then, and still lands where it was dropped.
+    client.call("set_time", time=RIDER_MOVED_AT)
+    lat, lon = world_centroid(client)
+    if not drag(client, lat - 5.0, lon):
+        return
+    got = world_centroid(client)
+    check(abs(got[0] - (lat - 5.0)) < DRAG_TOLERANCE and abs(got[1] - lon) < DRAG_TOLERANCE,
+          f"a rider dragged inside the span lands where it was dropped: {got}")
+
+    run_coupling_refusal_checks(client)
+    run_coupling_round_trip(client, folder)
+
+
+def run_coupling_refusal_checks(client: AutomationClient) -> None:
+    """A cycle is refused with the reason, and a deleted parent leaves the span broken."""
+    client.call("select", title="Red Triangle")
+    versions = undo_depth(client)
+    client.call("coupling", button="Couple", parent="Blue Quad")
+    dialog = client.call("get_dialog")["dialog"]
+    if check(dialog is not None and "circle" in dialog["text"],
+             f"coupling the parent to its own rider is refused: {dialog}"):
+        client.call("dialog", button="OK")
+    check(undo_depth(client) == versions and client.call("get_selected")["feature"]["couplings"] == [],
+          "and changes nothing")
+
+    client.call("menu", item="delete")
+    client.call("select", title="Blue Quad")
+    row = coupling_row(client)
+    check([span["broken"] for span in row["spans"]] == [True],
+          f"a deleted parent leaves the span in place, drawn as broken: {row['spans']}")
+    client.call("menu", item="undo")
+    client.call("select", title="Blue Quad")
+    row = coupling_row(client)
+    check([span["broken"] for span in row["spans"]] == [False], f"and undo mends it: {row['spans']}")
+
+
+def run_coupling_round_trip(client: AutomationClient, folder: Path) -> None:
+    """Save, load, undo and redo keep the spans."""
+    client.call("select", title="Blue Quad")
+    spans = client.call("get_selected")["feature"]["couplings"]
+    saved = folder / "coupled.middle-earth"
+    client.call("expect_file_dialog", path=str(saved))
+    client.call("menu", item="save_as")
+    client.call("load", path=str(saved))
+    client.call("select", title="Blue Quad")
+    check(client.call("get_selected")["feature"]["couplings"] == spans,
+          f"save and load keep the spans: {spans}")
+
+    client.call("coupling", button="Remove", index=0)
+    check(client.call("get_selected")["feature"]["couplings"] == [], "Remove takes the span away")
+    for item, wanted in (("undo", spans), ("redo", []), ("undo", spans)):
+        client.call("menu", item=item)
+        client.call("select", title="Blue Quad")
+        got = client.call("get_selected")["feature"]["couplings"]
+        check(got == wanted, f"{item} gives the spans {wanted}: {got}")
 
 
 def run_colour_session(client: AutomationClient) -> None:
@@ -1795,7 +1961,7 @@ def run_split_session(client: AutomationClient) -> None:
     check(client.call("get_tool")["split_from"] == [0, 0], "the first end is held")
     if not pick_vertex(client, whole["world_rings"][0][2]):
         return
-    check(client.call("get_tool")["can_split"], "the Split button is offered")
+    check(client.call("get_tool")["can_split"], "the Vertex tool can split there")
     client.call("vertex", action="split")
 
     titles = [f["title"] for f in client.call("get_features")["features"]]
@@ -1812,6 +1978,78 @@ def run_split_session(client: AutomationClient) -> None:
         check(half["keyframes"] == whole["keyframes"],
               f"{title} kept the keyframes: {half['keyframes']}")
         check(len(half["rings"][0]) >= 3, f"{title} has a ring of its own")
+
+
+# A cut across the body of the sample craton, south to north a little west of
+# the middle, with one point between its ends. Both ends are clicked outside the
+# outline, so the commit has to put them onto it.
+SPLIT_CUT = [(-24.0, -8.0), (-6.0, -10.0), (12.0, -8.0)]
+# Inside the west and the east half of that cut, away from every edge.
+SPLIT_PROBES = {"Old Shield": (-10.0, -16.0), "Old Shield 2": (-10.0, -2.0)}
+
+
+def run_split_tool_session(client: AutomationClient) -> None:
+    """The Split tool cutting the sample craton along a drawn line."""
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.middle-earth"))
+    client.call("select", title="Old Shield")
+    whole = client.call("get_selected")["feature"]
+    depth = undo_depth(client)
+
+    before = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
+    client.call("set_tool", tool="split")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "split", f"the Split button picks the Split tool: {tool['tool']}")
+    check(client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"] == before,
+          "the planet stays where it was when the tool is picked")
+
+    # A point too many, taken back with Ctrl+Z, and a cut that crosses the edge.
+    if not draw(client, SPLIT_CUT[:2] + [(2.0, -30.0)]):
+        return
+    client.call("key", key="Z", ctrl=True)
+    held = len(client.call("get_tool")["split_points"])
+    check(held == 2, f"Ctrl+Z takes the last point of the cut back: {held} held")
+    if not draw(client, [(2.0, -30.0), SPLIT_CUT[2]]):
+        return
+    client.call("key", key="Enter")
+    status = client.call("get_status")["status"]["measure"]
+    check("crosses the edge" in status, f"a cut that crosses the edge is refused: {status!r}")
+    check(undo_depth(client) == depth, "and records nothing")
+
+    client.call("key", key="Escape")
+    check(client.call("get_tool")["split_points"] == [], "Escape lets the points go")
+    if not draw(client, SPLIT_CUT):
+        return
+    client.call("key", key="Enter")
+    check(undo_depth(client) == depth + 1, "the split recorded one version")
+    check(client.call("get_tool")["tool"] == "move", "and went back to the Move tool")
+
+    titles = [f["title"] for f in client.call("get_features")["features"]]
+    check("Old Shield" in titles and "Old Shield 2" in titles,
+          f"the craton became two features: {titles}")
+    total = 0
+    for title, (lat, lon) in SPLIT_PROBES.items():
+        client.call("select", title=title)
+        half = client.call("get_selected")["feature"]
+        total += len(half["rings"][0])
+        check(half["color"] == whole["color"] and half["feature_type"] == whole["feature_type"],
+              f"{title} kept the colour and the type")
+        check(len(half["triangles"]) > 0, f"{title} is triangulated")
+        client.call("set_view", show_map=False, lat=lat, lon=lon, angle=0.0, zoom=1.0)
+        # Off the feature, since the one under the pointer is drawn highlighted.
+        away = client.call("latlon_to_screen", lat=lat, lon=lon - 40.0)["screen"]
+        client.call("mouse_move", x=away[0], y=away[1])
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        pixel = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+        check(pixel[2] > max(pixel[0], pixel[1]) + 0.3, f"{title} is drawn blue there: {pixel}")
+    wanted = len(whole["rings"][0]) + 2 * len(SPLIT_CUT)
+    check(total == wanted, f"the halves hold every vertex once and the cut twice: {total}, {wanted}")
+
+    client.call("menu", item="undo")
+    titles = [f["title"] for f in client.call("get_features")["features"]]
+    check("Old Shield 2" not in titles, f"undo puts the one craton back: {titles}")
+    client.call("select", title="Old Shield")
+    check(client.call("get_selected")["feature"]["rings"] == whole["rings"],
+          "with the outline it had")
 
 
 ### Helpers for the vertex scenarios
@@ -1933,6 +2171,19 @@ def run_palette_checks(client: AutomationClient) -> None:
     for name, (lat, lon) in STYLE_PROBES.items():
         check(is_colour(probe_at(client, lat, lon), expected[name]),
               f"the {name[:-1]} takes the palette colour for its age")
+
+    # GP-0036: the root's two colour ramp through the dialog, red to blue over
+    # 200 My. The polyline at 300 and the markers at 900 are past it, so blue.
+    ramp = {"palette": "ramp", "ramp_from": [1.0, 0.0, 0.0, 1.0],
+            "ramp_to": [0.0, 0.0, 1.0, 1.0], "ramp_span": 200.0}
+    client.call("set_view_settings", view_settings=ramp)
+    style = client.call("get_view_settings")["style"]
+    check(all(style[key] == value for key, value in ramp.items()),
+          f"the root group carries the ramp the dialog was given: {style}")
+    for name in ("polylines", "points"):
+        lat, lon = STYLE_PROBES[name]
+        check(is_colour(probe_at(client, lat, lon), [0.0, 0.0, 1.0]),
+              f"the {name[:-1]}, older than the span, is the ramp's second colour")
 
     # The same again from a file rather than from the built in list. The
     # fixture ramps black to red between 0 and 100, then red to white to 200.
@@ -2471,6 +2722,11 @@ def main(argv: list[str]) -> int:
         run_escape_session(client)
         run_properties_session(client)
         run_keyframe_row_session(client)
+        folder = Path(tempfile.mkdtemp(prefix="middle-earth-coupling-"))
+        try:
+            run_coupling_session(client, folder)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
         run_colour_session(client)
         run_globe_menu_session(client)
         run_edit_menu_session(client)
@@ -2490,6 +2746,7 @@ def main(argv: list[str]) -> int:
         run_snap_session(client)
         run_measure_session(client)
         run_split_session(client)
+        run_split_tool_session(client)
         run_circle_session(client)
         run_topology_session(client)
         run_kinematics_session(client)

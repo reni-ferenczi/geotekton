@@ -136,8 +136,21 @@ tree row and the globe, a group's style set through the panel, probed on the
 globe and undone, what the document refuses, `Key` between two keyframes
 leaving the feature where it is and `Delete` working only on a keyframe's time,
 Duplicate and Delete from the
-right click menu on the globe, and the Edit menu running the same commands; and
-time, which moves a feature at two times and reads it back in between.
+right click menu on the globe, and the Edit menu running the same commands;
+coupling, described below; and time, which moves a feature at two times and
+reads it back in between.
+
+The coupling scenario opens `two_cratons.middle-earth` and couples the blue quad
+to the red triangle at 500 Ma. It checks the span, that the quad did not move,
+one undo version, the panel's rows, the bar on the timeline and that the planet
+stayed where it was. At 200 Ma it drags the triangle and checks that the quad
+moved with it and kept its distance, decouples the quad there, and drags the
+triangle again to check that the quad now stays. At 350 Ma, inside the span, it
+drags the quad itself, which lands where it was dropped. Coupling the triangle
+to the quad is refused as a cycle with the reason in a dialog; deleting the
+triangle leaves the span listed as broken and undo mends it. Last, it saves,
+loads, removes the span, and checks that undo, redo and undo give the spans
+back each time.
 
 The time scenario draws a triangle whose middle sits on the equator, so that
 turning it about the poles keeps it there and the path between two of its
@@ -204,8 +217,14 @@ the feature's own frame would be caught even though the globe looked right;
 `run_snap_session` drops a vertex a few pixels from one belonging to another
 feature, with snapping on and then off; `run_measure_session` reads a distance
 off the status bar and checks it against the arc it was told to measure, on two
-planet radii; and `run_split_session` cuts a polygon in two and checks that both
-halves kept the type, the colour, the time range and the keyframes.
+planet radii; `run_split_session` cuts a polygon in two between two vertices and
+checks that both halves kept the type, the colour, the time range and the
+keyframes; and `run_split_tool_session` picks the Split tool on the craton
+sample, checks the planet did not move, takes a point back with Ctrl+Z, has a
+cut that crosses the edge refused with the reason in the status bar, then cuts
+the craton along three points. It checks one undo version, two features holding
+the original vertices once and the cut twice, a blue pixel inside each half,
+and that undo brings back the one outline.
 
 The Python scenarios run last against the interpreter the application started.
 `run_python_session` builds a feature and two keyframes entirely from the
@@ -287,9 +306,15 @@ probe point to the front before reading its pixel.
 
 `uv run Tests/run.py performance` builds a document of a given triangle count,
 every feature of it moving between two keyframes, and reports the frame time
-twice: standing still, and playing the animation. Standing still comes first so
-that what playback adds can be told apart from what drawing that much geometry
-costs whether anything moves or not. The numbers come from the engine's own
+three times: standing still, playing the animation, and playing again with the
+root group on the Feature age style over the two colour ramp. Standing still
+comes first so that what playback adds can be told apart from what drawing that
+much geometry costs whether anything moves or not. The third reading is what
+recoloring every feature on every frame adds; it is reported, not held against
+a budget. A fourth plays a copy of the document in which every feature but the
+first [rides on the first](Time.md#coupling) over the whole animation, which is
+what resolving every rotation through a parent adds. It is reported the same
+way. The numbers come from the engine's own
 counters, never from how the animation looks.
 
 It is not part of `all`, because a frame time depends on the machine and on what
@@ -405,20 +430,21 @@ a round trip is also a wait for the screen to catch up.
 | `load {path}`                        | loads a `.middle-earth` file, absolute path                      |
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
-| `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a line topology, its `sections` with what each one resolved to |
-| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100 and `palette`) and the `styles` and `palettes` its selectors offer |
-| `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `opacity` (0 to 100), `enabled`, `time_from`, `time_to`, and on a group `style` and `palette`, where `color` and `opacity` are the style's |
+| `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `keyframes`, `couplings`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a line topology, its `sections` with what each one resolved to |
+| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed, and `coupling`: what it is `coupled_to` now, the `parents` the picker offers and the `parent` it shows, whether `couple`, `decouple` and `remove` can be pressed, and the `spans` listed with whether each is `broken`. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100, `palette`, `ramp_from`, `ramp_to` and `ramp_span`) and the `styles` and `palettes` its selectors offer |
+| `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `opacity` (0 to 100), `enabled`, `time_from`, `time_to`, and on a group `style`, `palette`, `ramp_from`, `ramp_to` and `ramp_span`, where `color` and `opacity` are the style's |
 | `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
+| `coupling {button, parent, index}`   | presses `Couple` with the `parent` picked by title, `Decouple`, both at the current time, or `Remove` on the span at `index` in the panel's list |
 | `sections {button, index}`            | selects a section row of a line topology and presses `Reverse` or `Remove` in the panel |
-| `get_tool`                           | `tool` (`move`, `draw`, `vertex`, `measure` or `circle`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split`, the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`) and the `circle` its clicks describe |
-| `set_tool {tool, kind, snap, segments}` | picks the tool (`move`, `draw`, `vertex`, `measure`, `circle` or `topology`), the geometry kind, the snap switch and the segment count, refusing what the toolbar itself would not allow |
+| `get_tool`                           | `tool` (`move`, `draw`, `vertex`, `measure` or `circle`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split` (whether its `S` would split now), whether the Split tool is offered (`split_enabled`) and its `split_points`, the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`) and the `circle` its clicks describe |
+| `set_tool {tool, kind, snap, segments}` | picks the tool (`move`, `draw`, `vertex`, `measure`, `circle`, `topology`, `light` or `split`), the geometry kind, the snap switch and the segment count, refusing what the toolbar itself would not allow |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
 | `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed. `get_preferences` also reports the `default_view`, the `view_defaults` and the `style_defaults` a new document starts from |
 | `get_view_settings` | `view_settings`, the scene block the open document carries, `style`, the root group's style the same dialog edits, `backdrop_error`, why the image it names is not on the planet, and `palette_errors`, what could not be read of the palette the root names |
-| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. The root group's style is set through the dialog's `draw_style`, `single_color`, `opacity` and `palette` fields. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
+| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. The root group's style is set through the dialog's `draw_style`, `single_color`, `opacity`, `palette`, `ramp_from`, `ramp_to` and `ramp_span` fields. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
-| `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the skip, the keyframe markers with where each is on screen, and the animation settings |
+| `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the skip, the keyframe markers with where each is on screen, the `couplings` bars of the selected feature with both ends and where the bar is drawn, and the animation settings |
 | `get_kinematics`                     | `kinematics`, what the motion graphs hold: the `span` they cover, the `samples` of the path, one entry per `segments` between two keyframes, what both come to at the current time, and where the `cursor` is drawn across the plotting area |
 | `timeline {button}`                  | presses a time control button: `Play`, `Pause`, `Reset`, `Older`, `Younger`, `OlderKeyframe`, `YoungerKeyframe`, `Configure` |
 | `set_animation {animation}`          | changes the animation settings the dialog holds, refusing what cannot be played; only the keys given are changed |

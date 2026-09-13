@@ -63,16 +63,44 @@ static func path(root: Feature, node: Feature, oldest: float, youngest: float,
 	return result
 
 
-# Every time the motion of a node can change: its keyframe times, sorted
-# youngest first. Nothing above it in the tree moves it.
-static func motion_times(_root: Feature, node: Feature) -> PackedFloat64Array:
+# Every time the motion of a node can change, sorted youngest first: its
+# keyframe times, and while it rides on another feature the ends of that span
+# and every time the parent's own motion changes inside it. Nothing above it in
+# the tree moves it.
+static func motion_times(root: Feature, node: Feature) -> PackedFloat64Array:
 	var times := PackedFloat64Array()
 	if node == null:
 		return times
-	for keyframe in node.keyframes:
-		times.append(keyframe.time)
+	var nodes := Coupling.index(root) if root != null and not node.couplings.is_empty() else {}
+	_add_motion_times(node, nodes, [node], times)
 	times.sort()
 	return times
+
+
+static func _add_motion_times(node: Feature, nodes: Dictionary, visiting: Array,
+		times: PackedFloat64Array) -> void:
+	for keyframe in node.keyframes:
+		_add_time(times, keyframe.time)
+	for span in node.couplings:
+		_add_time(times, span.from)
+		_add_time(times, span.to)
+		var parent: Feature = nodes.get(span.parent)
+		if parent == null or visiting.has(parent):
+			continue
+		var inside := PackedFloat64Array()
+		visiting.append(parent)
+		_add_motion_times(parent, nodes, visiting, inside)
+		visiting.pop_back()
+		for time in inside:
+			if span.holds(time):
+				_add_time(times, time)
+
+
+static func _add_time(times: PackedFloat64Array, time: float) -> void:
+	for existing in times:
+		if is_equal_approx(existing, time):
+			return
+	times.append(time)
 
 
 # How fast the node turns between each pair of those times. One dictionary per

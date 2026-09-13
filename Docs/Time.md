@@ -54,18 +54,98 @@ keyframe holds, without passing through a quaternion on the way.
 ### Groups do not move
 
 A group is organization: it holds features and other groups, and carries no
-motion. A feature's rotation in the world is its own keyframes and nothing more
-(`Feature.world_basis()`), wherever it sits in the tree, so moving a feature
-from one group to another changes nothing about where it is. What rides on
-what is a **coupling** between two features over a span of the timeline, which
-GP-0046 adds, and that is what takes the place of the plate circuit GPlates
-builds out of plate ids and a rotation tree.
+motion. A feature's rotation in the world comes from its own keyframes and its
+[couplings](#coupling) (`Feature.world_basis()`), wherever it sits in the tree,
+so moving a feature from one group to another changes nothing about where it
+is. What rides on what is a coupling between two features over a span of the
+timeline, and that is what takes the place of the plate circuit GPlates builds
+out of plate ids and a rotation tree.
 
 Up to 0.7.0 a group had keyframes and everything under it inherited them. A
 file from then still opens: the composition of every moving group above a
 feature is folded into the feature's own keyframes, sampled at every keyframe
 time along the chain, so it is drawn where it was at each of those times; see
 [Persistence](Persistence.md#070-to-080).
+
+## Coupling
+
+A feature can ride on another feature for part of the animation and go its own
+way for the rest. This is the Middle Earth form of the GPlates rotation model,
+where a plate's fixed plate changes from one time span to the next. A coupling
+is a relation between two leaf features over a **span** of the timeline
+(`Logic/coupling.gd`): `from`, the older age where it starts, `to`, the younger
+age where it ends, and the parent, named by uuid. A feature can have several
+spans, which do not overlap, and a parent can carry any number of riders. The
+feature tree plays no part in it.
+
+While a span holds, the rider's keyframes are its pose **relative** to the
+parent: its world rotation at a time is the parent's world rotation then,
+composed with the rider's own keyframe interpolation. Outside every span its
+keyframes are world rotations. A span holds its older end and not its younger
+one, so a keyframe at `from` is relative and a keyframe at `to` is a world pose.
+A span that runs to the present holds the present too.
+
+The parent may itself ride on another feature, and the chain is followed to its
+end.
+
+### Coupling and decoupling
+
+Both act at the current time, from the Properties panel's
+[coupling rows](Properties.md#coupling), and each is one undo version.
+
+- **Couple** starts a span at the current time, running until the next span
+  the feature already has towards the present, or the present itself. It writes
+  a keyframe there holding the feature where it stands, re-expressed in the
+  parent's frame.
+- **Decouple** ends the span in effect at the current time and writes a keyframe
+  there holding the world pose. Decoupling at the time a span starts takes the
+  span away. A span that runs to the present cannot be decoupled at the present,
+  since nothing is younger than that.
+- **Remove** takes a span away altogether.
+
+Every one of these re-expresses each keyframe of the feature in the frame in
+effect at its own time afterwards, so nothing on the globe moves at any
+keyframe. So a span boundary always has a keyframe on each side of it: the one
+at `from` inside, the one at `to` outside.
+
+Couple is refused, with the reason, when:
+
+- the feature already rides on something at that time;
+- the parent is the feature itself, a group or a topology;
+- the parent already rides on the feature, directly or down a chain, at any
+  time;
+- the parent is not there, by its time range, all the way from the current time
+  to where the span would end.
+
+A topology cannot ride either, having no motion of its own.
+
+### Between keyframes in different frames
+
+Couple and Decouple keep the keyframes on either side of a boundary in their
+own frames, but deleting a keyframe can leave two neighbors in different ones.
+The rule then is that the span in effect at the **older** keyframe decides the
+frame, and the younger keyframe is converted into that frame at its own time.
+So a rider whose decoupling keyframe is deleted rides on past the old boundary
+until its next keyframe. Younger than the first keyframe, that keyframe's frame
+holds. Older than the last one, the frame in effect at the time holds, with the
+last keyframe converted into it, so a feature coupled at its only keyframe
+stands still before that time.
+
+### A parent that is gone
+
+Deleting a parent leaves the span in place. The Properties panel draws it in a
+warning color, like a broken topology section, and the timeline bar turns the
+same color. Undo brings the parent back and mends the span. While the parent
+cannot be followed, whether missing, turned into something that cannot be
+ridden on, or looped back by a hand-written file, it counts as not turning, so
+the rider's relative keyframes read as world rotations.
+
+### Splitting a coupled feature
+
+Both halves of a [split](Editing.md#splitting) keep the couplings of the
+feature they came from, so both go on riding on the same parent. A feature
+that rode on the one split rides on the first half, which keeps the original's
+uuid.
 
 ### Precision
 

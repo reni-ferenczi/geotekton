@@ -29,6 +29,13 @@ const MARKERS_TOOLTIP := "The keyframes of the selected feature; click one to go
 # The keyframe markers of the selected node, and the current time among them.
 const MARKER_COLOR := Color(1.0, 0.85, 0.2, 1.0)
 
+# The spans over which the selected feature rides on another, a bar along the
+# bottom of the strip under the keyframe marks, and the colour of one whose
+# parent cannot be followed.
+const COUPLING_HEIGHT := 3.0
+const COUPLING_COLOR := Color(0.35, 0.75, 1.0, 0.9)
+const BROKEN_COUPLING_COLOR := Color(0.9, 0.45, 0.4, 1.0)
+
 # How close to a keyframe's time the current time counts as being on it, so
 # that a jump from a keyframe goes to the next one rather than back to itself.
 const TIME_EPSILON := 1e-9
@@ -385,6 +392,14 @@ func _draw_markers() -> void:
 
 	if marked == null:
 		return
+	var nodes := Coupling.index(document.root) \
+		if document != null and not marked.couplings.is_empty() else {}
+	for coupling in marked.couplings:
+		var from_x := _marker_x(coupling.from, span)
+		var broken := not Coupling.parent_problem(nodes, marked, coupling).is_empty()
+		markers.draw_rect(Rect2(from_x, markers.size.y - COUPLING_HEIGHT,
+			_marker_x(coupling.to, span) - from_x, COUPLING_HEIGHT),
+			BROKEN_COUPLING_COLOR if broken else COUPLING_COLOR)
 	for keyframe in marked.keyframes:
 		var x := _marker_x(keyframe.time, span)
 		markers.draw_line(Vector2(x, 0.0), Vector2(x, markers.size.y), MARKER_COLOR, 2.0)
@@ -421,8 +436,27 @@ func to_json() -> Dictionary:
 		"skip": skip(),
 		"markers": _markers_to_json(),
 		"marker_screen": _marker_screen_to_json(),
+		"couplings": _couplings_to_json(),
 		"animation": animation.to_json(),
 	}
+
+
+# The bars of the marked feature's spans: both ends as ages, and where the bar
+# starts and ends across the window, with the height it is drawn at.
+func _couplings_to_json() -> Array:
+	var bars: Array = []
+	var span := oldest() - youngest()
+	if marked == null or span <= 0.0:
+		return bars
+	var origin := markers.get_global_rect().position
+	for coupling in marked.couplings:
+		bars.append({
+			"from": coupling.from,
+			"to": coupling.to,
+			"screen": [origin.x + _marker_x(coupling.from, span), origin.x + _marker_x(coupling.to, span),
+				origin.y + markers.size.y - COUPLING_HEIGHT / 2.0],
+		})
+	return bars
 
 
 func _markers_to_json() -> Array:

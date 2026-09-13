@@ -37,7 +37,7 @@ const PALETTE_PREVIEW_STEPS := 128
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT }
+enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT, SPLIT }
 
 # How near, in window pixels, a click has to be to take hold of a vertex or an
 # edge, and how near a dragged vertex has to come to another before snapping
@@ -254,7 +254,7 @@ func _ready() -> void:
 	light_button.pressed.connect(func() -> void: set_active_tool(Tool.LIGHT))
 	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
 	snap_button.toggled.connect(_on_snap_toggled)
-	split_button.pressed.connect(func() -> void: _report(split_at_selected_vertex()))
+	split_button.pressed.connect(func() -> void: set_active_tool(Tool.SPLIT))
 	snap_button.button_pressed = Config.get_snap_to_vertices()
 	_build_kind_selector()
 	# The range and the starting value come from Circle, so the scene does
@@ -766,6 +766,10 @@ func apply_view_settings() -> void:
 # parse of it is used and the reasons are pushed as warnings.
 func _load_palette() -> void:
 	var source := document.root.style.palette
+	# The ramp is made of the style's own fields, so there is nothing to read.
+	if source == Palette.RAMP:
+		palette = document.root.style.ramp()
+		return
 	if not palettes.has(source):
 		palettes[source] = Palette.resolve(source)
 		for problem in palettes[source].errors:
@@ -1021,6 +1025,35 @@ func _build_view_content() -> Control:
 	load_palette.pressed.connect(choose_palette)
 	palette_row.add_child(load_palette)
 
+	# The two colour ramp: the colour at age zero, the colour at the end of the
+	# span, and the span. Only the Two colour ramp palette reads them.
+	var ramp_row := HBoxContainer.new()
+	ramp_row.name = "RampRow"
+	box.add_child(ramp_row)
+	var ramp_label := Label.new()
+	ramp_label.text = "Ramp"
+	ramp_row.add_child(ramp_label)
+	for key in ["ramp_from", "ramp_to"]:
+		var ramp_color := ColorPickerButton.new()
+		ramp_color.name = key.to_pascal_case()
+		ramp_color.custom_minimum_size = Vector2(100, 28)
+		ramp_color.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ramp_color.edit_alpha = false
+		ramp_color.color_changed.connect(func(_color: Color) -> void: _on_view_field_changed(false))
+		ramp_color.popup_closed.connect(_on_view_field_changed)
+		ramp_row.add_child(ramp_color)
+		view_fields[key] = ramp_color
+	var ramp_span := SpinBox.new()
+	ramp_span.name = "RampSpan"
+	ramp_span.min_value = 1.0
+	ramp_span.max_value = Document.MAX_TIME
+	ramp_span.step = 1.0
+	ramp_span.suffix = "My"
+	ramp_span.tooltip_text = "How old a feature is when it reaches the second colour"
+	ramp_span.value_changed.connect(func(_value: float) -> void: _on_view_field_changed())
+	ramp_row.add_child(ramp_span)
+	view_fields["ramp_span"] = ramp_span
+
 	# The palette from one end of its range to the other, so what is about to be
 	# drawn with is visible before anything is drawn with it.
 	palette_preview = TextureRect.new()
@@ -1200,11 +1233,12 @@ func show_view_settings() -> void:
 func _fill_palette_choices() -> void:
 	var choice: OptionButton = view_fields["palette"]
 	choice.clear()
-	for key in Palette.BUILT_IN:
-		choice.add_item(str(Palette.BUILT_IN[key]["name"]))
+	var listed := Palette.choices()
+	for key in listed:
+		choice.add_item(str(listed[key]))
 		choice.set_item_metadata(choice.item_count - 1, key)
 	var named := document.root.style.palette
-	if not named.is_empty() and not Palette.BUILT_IN.has(named):
+	if not named.is_empty() and not listed.has(named):
 		choice.add_item(named.get_file())
 		choice.set_item_metadata(choice.item_count - 1, named)
 		choice.set_item_tooltip(choice.item_count - 1, named)
@@ -1244,6 +1278,9 @@ func _fill_view_fields() -> void:
 	select_option(view_fields["draw_style"], Styling.normalize_style(style.mode))
 	view_fields["single_color"].color = style.color
 	view_fields["opacity"].set_value_no_signal(style.opacity)
+	view_fields["ramp_from"].color = style.ramp_from
+	view_fields["ramp_to"].color = style.ramp_to
+	view_fields["ramp_span"].set_value_no_signal(style.ramp_span)
 	_fill_palette_choices()
 	_show_palette_preview()
 
@@ -1269,6 +1306,9 @@ func _on_view_field_changed(commit: bool = true) -> void:
 	style.mode = option_value(view_fields["draw_style"])
 	style.opacity = view_fields["opacity"].value
 	style.palette = option_value(view_fields["palette"])
+	style.ramp_from = view_fields["ramp_from"].color
+	style.ramp_to = view_fields["ramp_to"].color
+	style.ramp_span = view_fields["ramp_span"].value
 	if commit:
 		document.view_edited()
 	apply_view_settings()
@@ -1497,6 +1537,8 @@ func set_active_tool(tool: Tool) -> void:
 		circle_points = PackedVector2Array()
 	if active_tool == Tool.LIGHT and tool != Tool.LIGHT:
 		_light_dragging = false
+	if active_tool == Tool.SPLIT and tool != Tool.SPLIT:
+		split_points = PackedVector2Array()
 	active_tool = tool
 	move_button.button_pressed = (tool == Tool.MOVE)
 	draw_button.button_pressed = (tool == Tool.DRAW)
@@ -1505,6 +1547,7 @@ func set_active_tool(tool: Tool) -> void:
 	circle_button.button_pressed = (tool == Tool.CIRCLE)
 	topology_button.button_pressed = (tool == Tool.TOPOLOGY)
 	light_button.button_pressed = (tool == Tool.LIGHT)
+	split_button.button_pressed = (tool == Tool.SPLIT)
 	# Only the Circle tool reads the segment count, so only it shows the box.
 	segments_label.visible = tool == Tool.CIRCLE
 	segments_spin.visible = tool == Tool.CIRCLE
@@ -1527,14 +1570,15 @@ func snapping() -> bool:
 
 # The Vertex tool needs a leaf feature holding vertices of its own; there is
 # nothing to take hold of otherwise, and a topology's vertices belong to the
-# features it runs along. Measure needs nothing at all.
+# features it runs along. Measure needs nothing at all, and Split a polygon.
 func _update_tool_buttons() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var editable := selected != null and not selected.is_group and selected.has_own_vertices()
 	vertex_button.disabled = not editable
 	snap_button.disabled = active_tool != Tool.VERTEX
-	split_button.disabled = not _split_problem().is_empty()
-	split_button.tooltip_text = _split_tooltip()
+	split_button.disabled = not _can_split_along(selected)
+	split_button.tooltip_text = "Split the selected polygon along a line drawn across it" \
+		if not split_button.disabled else "Select a polygon to split it"
 
 
 ### Feature selection
@@ -1572,6 +1616,8 @@ func _on_feature_selected(node: Feature) -> void:
 	# not survive an undo.
 	var editable := node == null or (not node.is_group and node.has_own_vertices())
 	if active_tool == Tool.VERTEX and not editable:
+		set_active_tool(Tool.MOVE)
+	if active_tool == Tool.SPLIT and node != null and not _can_split_along(node):
 		set_active_tool(Tool.MOVE)
 
 	var is_leaf := node != null and not node.is_group
@@ -1776,12 +1822,18 @@ func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 	if selected == null or selected.is_group:
 		return
 	move_base_keyframes = Keyframe.clone_list(selected.keyframes)
-	move_base_rot = selected.rotation_at(document.current_time)
+	# A feature riding on another is dragged in world space like any other, and
+	# the keyframe is put into the parent's frame when it is written.
+	move_base_rot = selected.rotation_at(document.current_time) if selected.couplings.is_empty() \
+		else Feature.decompose_rotation_degrees(
+			Feature.world_basis(features.root, selected, document.current_time))
 	move_anchor = Feature._latlon_to_xyz_s(Vector2(anchor_lat, anchor_lon))
 
 
 # Dragging writes the keyframe at the current time as it goes, so what is on the
 # globe is what will be committed. Only the release records an undo version.
+# Whatever rides on the dragged feature goes with it, since refresh_motion()
+# resolves every rider from its parent.
 func _on_move_to(lat: float, lon: float) -> void:
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group:
@@ -1789,6 +1841,9 @@ func _on_move_to(lat: float, lon: float) -> void:
 	var target := Feature._latlon_to_xyz_s(Vector2(lat, lon))
 	var new_rot: Variant = Feature.compute_move_rotation(move_anchor, target, move_base_rot)
 	if new_rot != null:
+		if not selected.couplings.is_empty():
+			new_rot = Coupling.rotation_for(selected, document.current_time,
+				Feature.build_rotation_basis(new_rot), Coupling.index(features.root))
 		Keyframe.upsert(selected.keyframes, document.current_time, new_rot)
 		refresh_motion()
 
@@ -1830,6 +1885,8 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 			_on_topology_input(lat, lon, event)
 		Tool.LIGHT:
 			_on_light_input(lat, lon, event)
+		Tool.SPLIT:
+			_on_split_input(lat, lon, event)
 
 
 # The background behind the globe. A drag of a vertex that ends out there is
@@ -1901,6 +1958,8 @@ func _tool_points() -> PackedVector2Array:
 			return circle_points
 		Tool.MEASURE:
 			return measure_points
+		Tool.SPLIT:
+			return split_points
 	return PackedVector2Array()
 
 
@@ -1916,6 +1975,10 @@ func _set_tool_points(points: PackedVector2Array) -> void:
 			_show_measurement()
 		Tool.MEASURE:
 			measure_points = points
+			_refresh_selection_outline()
+			_show_measurement()
+		Tool.SPLIT:
+			split_points = points
 			_refresh_selection_outline()
 			_show_measurement()
 	_update_edit_menu()
@@ -1970,6 +2033,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_report(_circle_commit())
 			elif event.keycode == KEY_ESCAPE:
 				circle_points = PackedVector2Array()
+				taken_back = PackedVector2Array()
+				_refresh_selection_outline()
+				_show_measurement()
+			else:
+				return
+		Tool.SPLIT:
+			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				_report(split_along_points())
+			elif event.keycode == KEY_ESCAPE:
+				split_points = PackedVector2Array()
 				taken_back = PackedVector2Array()
 				_refresh_selection_outline()
 				_show_measurement()
@@ -2302,10 +2375,11 @@ func _after_vertex_edit() -> void:
 ### Splitting
 
 
-# Why the selected feature cannot be split where the tool is pointing, or an
-# empty string when it can. A polyline is cut at the picked vertex; a polygon
-# between it and the one held with Split From.
-func _split_problem() -> String:
+# Why the Vertex tool cannot split the selected feature where it is pointing, or
+# an empty string when it can. A polyline is cut at the picked vertex; a polygon
+# between it and the one held with Shift+S. The Split tool cuts a polygon along
+# a drawn line instead; this is the same cut with no points in between.
+func vertex_split_problem() -> String:
 	if active_tool != Tool.VERTEX:
 		return "Splitting belongs to the Vertex tool."
 	var feature := features.feature_tree.get_selected_node()
@@ -2317,14 +2391,9 @@ func _split_problem() -> String:
 			return GeometryEdit.polyline_split_problem(ring, selected_vertex.y)
 		Feature.GeometryKind.POLYGON:
 			if split_from == NO_VERTEX or split_from.x != selected_vertex.x:
-				return "A polygon is cut between two vertices; hold the first with Split From."
+				return "A polygon is cut between two vertices; hold the first with Shift+S."
 			return GeometryEdit.polygon_split_problem(ring, split_from.y, selected_vertex.y)
 	return "A multipoint is separate markers, so it has no path to split."
-
-
-func _split_tooltip() -> String:
-	var problem := _split_problem()
-	return "Split the feature in two" if problem.is_empty() else problem
 
 
 # Hold the picked vertex as one end of a polygon cut. The other end is whichever
@@ -2341,7 +2410,7 @@ func hold_split_from() -> String:
 
 
 func split_at_selected_vertex() -> String:
-	var problem := _split_problem()
+	var problem := vertex_split_problem()
 	if not problem.is_empty():
 		return problem
 	var feature := features.feature_tree.get_selected_node()
@@ -2354,6 +2423,62 @@ func split_at_selected_vertex() -> String:
 	features.reload()
 	refresh_geometry()
 	_update_tool_buttons()
+	return ""
+
+
+### The Split tool
+#
+# Cutting the selected polygon in two along a line drawn across it. Clicks place
+# the points of the cut in world coordinates, previewed over the polygon's
+# outline; Enter commits them and Escape lets them all go. The two ends need not
+# be clicked on the boundary: the commit puts them on the nearest point of it.
+# See Docs/Editing.md#the-split-tool.
+
+var split_points := PackedVector2Array()
+
+
+# The Split tool needs a leaf polygon holding vertices of its own.
+func _can_split_along(node: Feature) -> bool:
+	return node != null and not node.is_group and node.has_own_vertices() \
+		and node.geometry_kind == Feature.GeometryKind.POLYGON
+
+
+func _on_split_input(lat: float, lon: float, event: InputEvent) -> void:
+	if event is not InputEventMouseButton or not event.is_pressed():
+		return
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		_place_point(Vector2(lat, lon))
+	elif event.button_index == MOUSE_BUTTON_RIGHT and not split_points.is_empty():
+		undo()
+
+
+# Cut the selected polygon along the points clicked. The part cut is the one
+# whose boundary is nearest the first point. A refused cut keeps its points, so
+# the one at fault can be taken back rather than the whole cut clicked again.
+func split_along_points() -> String:
+	var feature := features.feature_tree.get_selected_node()
+	if not _can_split_along(feature):
+		return "Select a polygon to split."
+	if split_points.size() < 2:
+		return "Click where the cut starts and where it ends."
+	# The points were clicked in world space; a feature keeps its own frame.
+	var into_local := Feature.world_basis(
+		features.root, feature, document.current_time).transposed()
+	var path := Feature.apply_basis(split_points, into_local)
+	var part := 0
+	var nearest := INF
+	for index in feature.rings.size():
+		var distance: float = GeometryEdit.nearest_segment(feature.rings[index], path[0], true)[1]
+		if distance < nearest:
+			nearest = distance
+			part = index
+	var error := document.split_feature_along(feature, part, path)
+	if not error.is_empty():
+		return error
+	split_points = PackedVector2Array()
+	features.reload()
+	refresh_geometry()
+	set_active_tool(Tool.MOVE)
 	return ""
 
 
@@ -2636,6 +2761,11 @@ func _show_measurement(error: String = "") -> void:
 	if active_tool == Tool.MEASURE:
 		status_measure.text = "click two points to measure"
 		return
+	if active_tool == Tool.SPLIT:
+		status_measure.text = "click across the polygon, from one edge to another" \
+			if split_points.size() < 2 \
+			else "%d points   Enter splits the polygon along them" % split_points.size()
+		return
 
 	var selected := features.feature_tree.get_selected_node()
 	var length := Measure.geometry_length(selected, radius)
@@ -2858,6 +2988,10 @@ func _refresh_selection_outline() -> void:
 			"vertices": Feature.apply_basis(ring, m),
 			"style": style,
 		})
+	# The Split tool previews its cut over the polygon's outline, the way the
+	# Draw tool previews a shape.
+	if active_tool == Tool.SPLIT and not split_points.is_empty():
+		parts.append({"vertices": split_points, "style": Planet.OutlineStyle.OPEN})
 	planet_view.planet.set_outline(parts)
 
 

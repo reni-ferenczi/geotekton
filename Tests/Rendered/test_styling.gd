@@ -64,6 +64,34 @@ func test_the_feature_age_style_paints_the_palette_at_each_age() -> void:
 		await _check(at, palette.color_at(float(ages[at])), "%s Ma old" % ages[at])
 
 
+# GP-0036: the same polygon, born at 500 Ma under a 200 My ramp from red to
+# blue, is red when it comes into existence and blue 200 My later. The time is
+# moved the way the timeline moves it, so only the feature state is uploaded.
+func test_the_age_ramp_colors_one_feature_differently_at_two_times() -> void:
+	await _load_styled({"draw_style": Styling.BY_AGE, "palette": Palette.RAMP})
+	var feature := _feature_at(POLYGON)
+	if feature == null:
+		return
+	feature.time_range = Vector2i(0, 500)
+	var style: GroupStyle = app.document.root.style
+	style.ramp_from = Color.RED
+	style.ramp_to = Color.BLUE
+	style.ramp_span = 200.0
+	app.refresh_geometry()
+	var material: ShaderMaterial = view().planet.globe.get_surface_override_material(0)
+	var geometry_data: Texture2D = material.get_shader_parameter("geometry_data")
+
+	app.document.set_time(500.0)
+	await frames(2)
+	await _check(POLYGON, Color.RED, "the polygon as it comes into existence")
+	app.document.set_time(300.0)
+	await frames(2)
+	await _check(POLYGON, Color.BLUE, "the same polygon 200 My later")
+	assert_true(material.get_shader_parameter("geometry_data") == geometry_data,
+		"and the geometry texture was not uploaded again")
+	app.document.set_time(0.0)
+
+
 # Each switch takes its own class off the screen and leaves the others where
 # they were, with the Earth showing through where it was drawn.
 func test_a_switch_leaves_the_earth_where_its_class_was_drawn() -> void:
@@ -205,12 +233,20 @@ func test_the_chooser_lists_and_previews_the_built_in_palettes() -> void:
 	var listed: Array = []
 	for index in choice.item_count:
 		listed.append(str(choice.get_item_metadata(index)))
-	assert_eq(listed, Palette.BUILT_IN.keys(), "every built in palette is offered")
+	assert_eq(listed, Palette.choices().keys(), "the ramp and every built in palette are offered")
 
 	for key in Palette.BUILT_IN:
 		Application.select_option(choice, str(key))
 		app._on_view_field_changed()
 		_check_preview(Palette.built_in(str(key)), "the built in %s" % key)
+
+	# The ramp previews the root style's own two colours over its span.
+	app.view_fields["ramp_from"].color = Color.RED
+	app.view_fields["ramp_to"].color = Color.BLUE
+	Application.select_option(choice, Palette.RAMP)
+	app._on_view_field_changed()
+	assert_eq(app.document.root.style.ramp_from, Color.RED, "the dialog's ramp is the root's")
+	_check_preview(Palette.ramp(Color.RED, Color.BLUE, app.document.root.style.ramp_span), "the ramp")
 	app.view_dialog.hide()
 
 
@@ -224,7 +260,7 @@ func test_a_palette_read_from_a_file_joins_the_list_and_previews() -> void:
 	app.show_view_settings()
 
 	var choice: OptionButton = app.view_fields["palette"]
-	assert_eq(choice.item_count, Palette.BUILT_IN.size() + 1, "one entry more than built in")
+	assert_eq(choice.item_count, Palette.choices().size() + 1, "one entry more than built in")
 	assert_eq(Application.option_value(choice), path, "and it is the one chosen")
 	assert_eq(choice.get_item_text(choice.selected), "continuous.cpt", "under its file name")
 	_check_preview(Palette.load_from(path), "the palette read from the file")

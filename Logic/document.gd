@@ -296,7 +296,28 @@ func split_feature(feature: Feature, part: int, first: int, second: int = -1) ->
 			problem = "A multipoint is separate markers, so there is no path to split."
 	if not problem.is_empty():
 		return problem
+	return _split_into(feature, part, halves)
 
+
+# Cut a polygon in two along a path drawn across it, in the feature's own frame.
+# The first and last points of the path go onto the ring and the points between
+# them go to both halves; see GeometryEdit.split_along(). Otherwise the same as
+# split_feature(): both halves carry what the feature was, and one version.
+func split_feature_along(feature: Feature, part: int, path: PackedVector2Array) -> String:
+	if feature == null or feature.is_group \
+			or feature.geometry_kind != Feature.GeometryKind.POLYGON:
+		return "Only a polygon is split along a cut."
+	if part < 0 or part >= feature.rings.size():
+		return "The feature has no part %d." % part
+	var problem := GeometryEdit.split_along_problem(feature.rings[part], path)
+	if not problem.is_empty():
+		return problem
+	return _split_into(feature, part, GeometryEdit.split_along(feature.rings[part], path))
+
+
+# Put the first half in place of the part and the second in a new feature beside
+# the original, named after it.
+func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array]) -> String:
 	var parent := root.find_parent(feature)
 	if parent == null:
 		return "%s is not in the tree." % feature.title
@@ -423,6 +444,126 @@ func remove_keyframe(node: Feature, index: int) -> String:
 	node.keyframes.remove_at(index)
 	record()
 	return ""
+
+
+### Coupling
+
+# A coupling is a span of the timeline over which a feature rides on another.
+# Each of these changes the spans and re-expresses every keyframe in the frame in
+# effect at its time, so nothing on the globe moves at any keyframe, and records
+# one version. See Logic/coupling.gd.
+
+
+# Start a span at the time: the feature rides on the parent from then until the
+# next span it already has towards the present, or the present itself. A
+# keyframe at the time holds it where it stands.
+func couple(child: Feature, parent: Feature, time: float) -> String:
+	var problem := coupling_problem(child, parent, time)
+	if not problem.is_empty():
+		return problem
+	var nodes := Coupling.index(root)
+	var here := Coupling.world_basis(child, time, nodes)
+	var worlds := _keyframe_worlds(child, nodes)
+	child.couplings.append(Coupling.create(time, _span_end(child, time), parent.uuid))
+	Coupling.sort(child.couplings)
+	_rebase(child, worlds, nodes)
+	Keyframe.upsert(child.keyframes, time, Coupling.rotation_for(child, time, here, nodes))
+	record()
+	return ""
+
+
+# Why the child cannot start riding on the parent at the time, or an empty
+# string when it can.
+func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
+	if child == null or child.is_group:
+		return "Only a feature can ride on another feature."
+	if child.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		return "%s is a topology and has no motion of its own to couple." % child.title
+	if parent == null:
+		return "Pick the feature %s is to ride on." % child.title
+	if parent == child:
+		return "%s cannot ride on itself." % child.title
+	if parent.is_group:
+		return "%s is a group; a feature rides on another feature." % parent.title
+	if parent.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		return "%s is a topology and has no motion of its own to ride on." % parent.title
+	var nodes := Coupling.index(root)
+	if nodes.get(child.uuid) != child or nodes.get(parent.uuid) != parent:
+		return "Both features have to be in the document."
+	var current := Coupling.span_at(child, time)
+	if current != null:
+		var rides_on: Feature = nodes.get(current.parent)
+		return "%s already rides on %s at %s Ma; decouple it first." % [
+			child.title, rides_on.title if rides_on != null else "a missing feature", time]
+	if Coupling.reaches(nodes, parent, child):
+		return "%s already rides on %s, so the chain would go round in a circle." % [
+			parent.title, child.title]
+	var end := _span_end(child, time)
+	if float(parent.time_range.x) > end or float(parent.time_range.y) < time:
+		return "%s is not there all the way from %s to %s Ma; it exists from %d to %d Ma." % [
+			parent.title, time, end, parent.time_range.x, parent.time_range.y]
+	return ""
+
+
+# End the span in effect at the time there. A keyframe at the time holds the
+# world pose. Decoupling where the span starts takes the whole span away.
+func decouple(child: Feature, time: float) -> String:
+	if child == null or child.is_group:
+		return "Only a feature rides on another."
+	var span := Coupling.span_at(child, time)
+	if span == null:
+		return "%s rides on nothing at %s Ma." % [child.title, time]
+	if span.to <= 0.0 and is_equal_approx(time, 0.0) and not is_equal_approx(span.from, 0.0):
+		return "%s rides on to the present; decouple it at an older time." % child.title
+	var nodes := Coupling.index(root)
+	var here := Coupling.world_basis(child, time, nodes)
+	var worlds := _keyframe_worlds(child, nodes)
+	if is_equal_approx(time, span.from):
+		child.couplings.erase(span)
+	else:
+		span.to = time
+	_rebase(child, worlds, nodes)
+	Keyframe.upsert(child.keyframes, time, Coupling.rotation_for(child, time, here, nodes))
+	record()
+	return ""
+
+
+# Take a span away. Every keyframe it held becomes the world pose it gave, so the
+# feature stands where it stood at each of them.
+func remove_coupling(child: Feature, index: int) -> String:
+	if child == null or child.is_group:
+		return "Only a feature rides on another."
+	if index < 0 or index >= child.couplings.size():
+		return "%s has no coupling %d." % [child.title, index + 1]
+	var nodes := Coupling.index(root)
+	var worlds := _keyframe_worlds(child, nodes)
+	child.couplings.remove_at(index)
+	_rebase(child, worlds, nodes)
+	record()
+	return ""
+
+
+# Where a span starting at the time ends: where the next span towards the
+# present starts, or the present.
+func _span_end(child: Feature, time: float) -> float:
+	var end := 0.0
+	for span in child.couplings:
+		if span.from < time:
+			end = maxf(end, span.from)
+	return end
+
+
+func _keyframe_worlds(child: Feature, nodes: Dictionary) -> Array[Basis]:
+	var worlds: Array[Basis] = []
+	for keyframe in child.keyframes:
+		worlds.append(Coupling.world_basis(child, keyframe.time, nodes))
+	return worlds
+
+
+func _rebase(child: Feature, worlds: Array[Basis], nodes: Dictionary) -> void:
+	for i in child.keyframes.size():
+		var keyframe := child.keyframes[i]
+		keyframe.rotation = Coupling.rotation_for(child, keyframe.time, worlds[i], nodes)
 
 
 func _check_keyframe(node: Feature, index: int) -> String:
@@ -584,7 +725,7 @@ func resolve_backdrop() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.10.0"):
+	if not _is_older_than(version, "0.12.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -599,8 +740,13 @@ static func migrate(data: Dictionary) -> Dictionary:
 		if view is Dictionary and view.get("hidden_classes") is Array:
 			view["hidden_classes"] = view["hidden_classes"].map(
 				func(name: Variant) -> Variant: return "circles" if name == "small_circles" else name)
-	_to_0_10_0(data)
-	data["version"] = "0.10.0"
+	if _is_older_than(version, "0.10.0"):
+		_to_0_10_0(data)
+	# 0.11.0 added the age ramp to the group style. A style without it takes the
+	# default ramp, which nothing drew with before, so there is no step.
+	# 0.12.0 added couplings to a leaf. A leaf without them rides on nothing,
+	# which is what every feature did before, so there is no step either.
+	data["version"] = "0.12.0"
 	return data
 
 

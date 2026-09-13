@@ -12,6 +12,12 @@ extends RefCounted
 # older blocks through it.
 const VIEW_KEYS := {"draw_style": "mode", "single_color": "color", "palette": "palette"}
 
+# The ramp a new style starts with: brown to grey over 300 My, the orogeny it
+# was asked for.
+const DEFAULT_RAMP_FROM := Color(0.55, 0.35, 0.2, 1.0)
+const DEFAULT_RAMP_TO := Color(0.6, 0.6, 0.6, 1.0)
+const DEFAULT_RAMP_SPAN := 300.0
+
 # An id in Styling.MODES. Inherit leaves the choice to the group above.
 var mode: String = Styling.INHERIT
 
@@ -22,9 +28,15 @@ var color: Color = Styling.DEFAULT_SINGLE
 # decides the color.
 var opacity: float = 1.0
 
-# The palette the feature age mode reads: a key of Palette.BUILT_IN or the path
-# of a `.cpt` file.
+# The palette the feature age mode reads: Palette.RAMP, a key of
+# Palette.BUILT_IN or the path of a `.cpt` file.
 var palette: String = Palette.DEFAULT
+
+# The two colour ramp, read when `palette` is Palette.RAMP: ramp_from at age
+# zero, ramp_to once the feature is ramp_span My old, and held there after.
+var ramp_from: Color = DEFAULT_RAMP_FROM
+var ramp_to: Color = DEFAULT_RAMP_TO
+var ramp_span: float = DEFAULT_RAMP_SPAN
 
 
 # The document default: the root has nothing above it to inherit from, so it
@@ -45,7 +57,16 @@ func to_json() -> Dictionary:
 		"color": [color.r, color.g, color.b, color.a],
 		"opacity": opacity,
 		"palette": palette,
+		"ramp_from": [ramp_from.r, ramp_from.g, ramp_from.b, ramp_from.a],
+		"ramp_to": [ramp_to.r, ramp_to.g, ramp_to.b, ramp_to.a],
+		"ramp_span": ramp_span,
 	}
+
+
+# The ramp as a palette of one slice, so it is looked up and previewed the way
+# every other palette is.
+func ramp() -> Palette:
+	return Palette.ramp(ramp_from, ramp_to, ramp_span)
 
 
 # Read a style back, taking the default for anything it does not say. A mode no
@@ -57,13 +78,21 @@ static func from_json(data: Variant) -> GroupStyle:
 		return style
 	var mode_id := str(data.get("mode", Styling.INHERIT))
 	style.mode = mode_id if Styling.MODES.has(mode_id) else Styling.INHERIT
-	var c: Variant = data.get("color")
-	if c is Array and (c as Array).size() >= 3:
-		style.color = Color(float(c[0]), float(c[1]), float(c[2]),
-			float(c[3]) if (c as Array).size() > 3 else 1.0)
+	style.color = _color(data.get("color"), Styling.DEFAULT_SINGLE)
 	style.opacity = clampf(float(data.get("opacity", 1.0)), 0.0, 1.0)
 	style.palette = str(data.get("palette", Palette.DEFAULT))
+	style.ramp_from = _color(data.get("ramp_from"), DEFAULT_RAMP_FROM)
+	style.ramp_to = _color(data.get("ramp_to"), DEFAULT_RAMP_TO)
+	style.ramp_span = clampf(float(data.get("ramp_span", DEFAULT_RAMP_SPAN)), 1.0, Document.MAX_TIME)
 	return style
+
+
+# `[r, g, b]` or `[r, g, b, a]`, or the fallback for anything else.
+static func _color(c: Variant, fallback: Color) -> Color:
+	if c is Array and (c as Array).size() >= 3:
+		return Color(float(c[0]), float(c[1]), float(c[2]),
+			float(c[3]) if (c as Array).size() > 3 else 1.0)
+	return fallback
 
 
 # The style a view settings block written before 0.10.0 describes, as the JSON

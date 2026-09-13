@@ -165,18 +165,72 @@ func test_the_single_colour_style_gives_every_feature_the_same_one() -> void:
 		assert_eq(colors[class_id], SINGLE, "%s is the one colour" % class_id)
 
 
-# A feature's age is the older end of its time range: when it came into being.
-func test_the_feature_age_style_reads_the_palette_at_the_start_of_the_range() -> void:
+# At the present a feature's age is the older end of its time range: all the
+# time since it came into being.
+func test_the_feature_age_style_reads_the_palette_at_the_age_so_far() -> void:
 	var root := _styled(Styling.BY_AGE)
 	root.style.palette = "steps"
 	var palette := Palette.built_in("steps")
 	var colors := _colors_by_class(root)
-	assert_eq(colors[Styling.POLYGONS], palette.color_at(100.0), "the shield, 100 Ma old")
+	assert_eq(colors[Styling.POLYGONS], palette.color_at(100.0), "the shield, 100 My old")
 	assert_eq(colors[Styling.POLYLINES], palette.color_at(500.0), "the ridge, 500")
 	assert_eq(colors[Styling.POINTS], palette.color_at(900.0), "the stations, 900")
 	assert_eq(colors[Styling.TOPOLOGIES], palette.color_at(700.0), "the boundary, 700")
-	assert_eq(Styling.age_of(_feature(root, Styling.POINTS)), 900.0,
-		"which is the older end of the range, not the younger")
+	var stations := _feature(root, Styling.POINTS)
+	assert_eq(Styling.age_of(stations), 900.0, "the older end of the range, not the younger")
+	assert_eq(Styling.age_of(stations, 600.0), 300.0, "and 300 My old at 600 Ma")
+	assert_eq(Styling.age_of(stations, 950.0), 0.0, "never below zero before it exists")
+
+
+### The two colour ramp
+
+
+const RAMP_FROM := Color(0.8, 0.4, 0.1, 1.0)
+const RAMP_TO := Color(0.2, 0.6, 0.9, 1.0)
+
+
+# GP-0036: a feature born at 500 Ma under a 200 My ramp is color A at 500,
+# halfway at 400, and color B at 300 and every time after, down to the present.
+# Read off the colors the geometry uploads, moved only by resolve(), which is
+# what a step of an animation calls.
+func test_the_ramp_moves_from_a_to_b_over_its_span_and_holds() -> void:
+	var root := _nested()
+	root.style.mode = Styling.BY_AGE
+	root.style.palette = Palette.RAMP
+	root.style.ramp_from = RAMP_FROM
+	root.style.ramp_to = RAMP_TO
+	root.style.ramp_span = 200.0
+	var leaf: Feature = root.children[0].children[0].children[0]
+	leaf.time_range = Vector2i(0, 500)
+
+	var geometry := Planet.collect_geometry(root, 500.0, Styling.of(ViewSettings.new(), root))
+	var halfway := RAMP_FROM.lerp(RAMP_TO, 0.5)
+	for step in [[500.0, RAMP_FROM, "A when it comes into existence"],
+			[400.0, halfway, "halfway 100 My later"],
+			[300.0, RAMP_TO, "B at the end of the span"],
+			[0.0, RAMP_TO, "and still B at the present"],
+			[500.0, RAMP_FROM, "and A again back at 500"]]:
+		geometry.resolve(root, step[0])
+		assert_close(geometry.colors[0], step[1], 1e-5, "%s (%s Ma)" % [step[2], step[0]])
+
+
+# The ramp is a palette of one slice, so the chooser's strip previews it the
+# same way as any other.
+func test_the_ramp_is_a_palette_of_one_slice() -> void:
+	var ramp := Palette.ramp(RAMP_FROM, RAMP_TO, 200.0)
+	assert_eq(ramp.source, Palette.RAMP, "named by its key")
+	assert_eq(ramp.color_at(-10.0), RAMP_FROM, "A below zero")
+	assert_close(ramp.color_at(50.0), RAMP_FROM.lerp(RAMP_TO, 0.25), 1e-5, "a quarter along")
+	assert_eq(ramp.color_at(1000.0), RAMP_TO, "B past the span")
+	assert_true(Palette.choices().has(Palette.RAMP), "and it is listed with the built in palettes")
+
+
+# A style that names no ramp never recolors on a step of an animation.
+func test_only_an_age_style_asks_for_colors_every_step() -> void:
+	var root := _nested()
+	assert_true(not Styling.of(ViewSettings.new(), root).by_age, "own colours do not")
+	root.children[0].style.mode = Styling.BY_AGE
+	assert_true(Styling.of(ViewSettings.new(), root).by_age, "an age style under the root does")
 
 
 func test_the_feature_type_style_gives_the_colour_of_the_type() -> void:
@@ -299,6 +353,9 @@ func test_a_style_round_trips_through_the_file() -> void:
 	outer.style.color = OTHER_SINGLE
 	outer.style.opacity = 0.25
 	outer.style.palette = "C:/palettes/ages.cpt"
+	outer.style.ramp_from = SINGLE
+	outer.style.ramp_to = OTHER_SINGLE
+	outer.style.ramp_span = 450.0
 	var back := Feature.from_json(root.to_json())
 	assert_eq(back.children[0].style.to_json(), outer.style.to_json(), "the group's whole style")
 	assert_eq(back.style.to_json(), root.style.to_json(), "and the root's")
@@ -311,6 +368,7 @@ func test_a_style_the_file_garbles_reads_as_inherit_in_range() -> void:
 	assert_eq(style.mode, Styling.INHERIT, "an unknown mode inherits")
 	assert_eq(style.opacity, 1.0, "the opacity is brought back into range")
 	assert_eq(style.color, Styling.DEFAULT_SINGLE, "and a colour that is not one is the default")
+	assert_eq(GroupStyle.from_json({"ramp_span": 0.0}).ramp_span, 1.0, "a ramp spans at least 1 My")
 	assert_eq(GroupStyle.from_json(null).to_json(), GroupStyle.new().to_json(), "no style at all")
 
 
