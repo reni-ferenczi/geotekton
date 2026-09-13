@@ -467,10 +467,13 @@ On an AMD Radeon 8060S, at 1800x900, with every feature moving
 | Triangles | Frame, standing still | Frame, playing |
 |---|---|---|
 | 1,000 | 16.9 ms | 16.7 ms |
-| 2,000 | 17.0 ms | 16.7 ms |
+| 2,000 | 18.5 ms | 16.7 ms |
 | 3,000 | — | 20.4 ms |
 | 4,000 | — | 26.3 ms |
-| 5,000 | 32.3 ms | 34.5 ms |
+| 5,000 | 29.4 ms | 31.3 ms |
+
+The 2,000 and 5,000 rows were measured again once GP-0033 had moved the color
+into `feature_data` and dropped the rim. The other rows are older.
 
 Sixty frames a second is 16.7 ms, so it holds to about 2,000 triangles and not
 beyond. `Planet.MAX_PRIMITIVES` is where that stops being a slow frame and
