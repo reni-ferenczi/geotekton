@@ -584,7 +584,7 @@ func resolve_backdrop() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.10.0"):
+	if not _is_older_than(version, "0.11.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -599,8 +599,11 @@ static func migrate(data: Dictionary) -> Dictionary:
 		if view is Dictionary and view.get("hidden_classes") is Array:
 			view["hidden_classes"] = view["hidden_classes"].map(
 				func(name: Variant) -> Variant: return "circles" if name == "small_circles" else name)
-	_to_0_10_0(data)
-	data["version"] = "0.10.0"
+	if _is_older_than(version, "0.10.0"):
+		_to_0_10_0(data)
+	# 0.11.0 added the age ramp to the group style. A style without it takes the
+	# default ramp, which nothing drew with before, so there is no step.
+	data["version"] = "0.11.0"
 	return data
 
 

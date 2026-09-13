@@ -180,6 +180,10 @@ class Geometry extends RefCounted:
 	# with the opacity in alpha. One entry per feature, in the same order.
 	var colors: Array[Color] = []
 
+	# The styling the colors were last worked out with, kept so resolve() can
+	# work them out again when an age style makes them follow the time.
+	var styling: Styling = null
+
 	func index_for(feature: Feature) -> int:
 		if index_of.has(feature):
 			return int(index_of[feature])
@@ -223,21 +227,25 @@ class Geometry extends RefCounted:
 			cap_cosines[index] = -1.0 if radius >= PI * 0.5 else cos(radius)
 
 	# Work out where every feature sits at a time and whether it is there then.
-	# A feature's rotation is its own; nothing above it in the tree moves it.
+	# A feature's rotation is its own; nothing above it in the tree moves it. A
+	# feature colored by its age changes color with the time as well.
 	func resolve(_root: Feature, time_: float) -> void:
 		time = time_
 		for index in features.size():
 			var node: Feature = features[index]
 			bases[index] = node.basis_at(time)
 			shown[index] = node.exists_at(time)
+		if styling != null and styling.by_age:
+			recolor(styling)
 
-	# Work out the color of every feature again, without touching the
-	# primitives. Without a styling each feature is drawn in the color it
-	# carries.
-	func recolor(styling: Styling) -> void:
+	# Work out the color of every feature again at the resolved time, without
+	# touching the primitives. Without a styling each feature is drawn in the
+	# color it carries.
+	func recolor(styling_: Styling) -> void:
+		styling = styling_
 		for index in features.size():
 			var node: Feature = features[index]
-			colors[index] = styling.color_of(node) if styling != null else node.color
+			colors[index] = styling.color_of(node, time) if styling != null else node.color
 
 
 # Upload the feature geometry to the planet shader. Where the features sit, what

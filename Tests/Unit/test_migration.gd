@@ -30,7 +30,7 @@ func test_the_samples_keep_the_edges_their_triangles_left_on_the_boundary() -> v
 		var before: Array = []
 		_collect_leaves(raw["features"], before)
 		var migrated := Document.migrate(raw.duplicate(true))
-		assert_eq(str(migrated["version"]), "0.10.0", "%s is migrated to 0.10.0" % file_name)
+		assert_eq(str(migrated["version"]), "0.11.0", "%s is migrated to 0.11.0" % file_name)
 
 		var after: Array = []
 		_collect_leaves(migrated["features"], after)
@@ -128,7 +128,7 @@ func test_a_leaf_at_0_4_0_under_no_moving_group_is_left_alone() -> void:
 	var expected: Dictionary = data["features"].duplicate(true)
 	expected["feature_type"] = FeatureType.NONE
 	assert_eq(migrated["features"], expected, "the leaf is as it was, its type left to its geometry")
-	assert_eq(migrated["version"], "0.10.0", "at the current version")
+	assert_eq(migrated["version"], "0.11.0", "at the current version")
 
 
 ### 0.7.0 to 0.8.0: groups stop carrying motion
@@ -221,7 +221,7 @@ func test_a_0_7_0_file_opens_each_old_type_as_one_of_the_five() -> void:
 	var migrated := Document.migrate({"version": "0.7.0",
 		"features": {"type": "Group", "title": "Planet", "children": children},
 		"view": {"hidden_classes": ["small_circles", "points"]}})
-	assert_eq(migrated["version"], "0.10.0", "at the current version")
+	assert_eq(migrated["version"], "0.11.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	for i in OLD_TYPES.size():
 		assert_eq(root.children[i].feature_type, OLD_TYPES[i][2], root.children[i].title)
@@ -298,7 +298,25 @@ func test_a_0_9_0_file_keeps_its_types() -> void:
 		"type": "Group", "title": "Planet", "children": [
 			{"type": "Feature", "title": "Ring", "feature_type": "circle", "rings": []}]}})
 	assert_eq(migrated["features"]["children"][0]["feature_type"], "circle", "the circle stays one")
-	assert_eq(migrated["version"], "0.10.0", "at the current version")
+	assert_eq(migrated["version"], "0.11.0", "at the current version")
+
+
+### 0.10.0 to 0.11.0: the age ramp joins the group style
+
+
+# A 0.10.0 style has no ramp and reads with the default one, without a step.
+func test_a_0_10_0_style_reads_with_the_default_ramp() -> void:
+	var style := {"mode": "age", "color": [0.9, 0.9, 0.9, 1.0], "opacity": 0.5, "palette": "steps"}
+	var migrated := Document.migrate({"version": "0.10.0",
+		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style.duplicate(),
+			"children": []}})
+	assert_eq(migrated["features"]["style"], style, "the style is left as it was")
+	assert_eq(migrated["version"], "0.11.0", "at the current version")
+	var root := Feature.from_json(migrated["features"])
+	assert_eq(root.style.palette, "steps", "the palette it named")
+	assert_eq(root.style.ramp_from, GroupStyle.DEFAULT_RAMP_FROM, "and the default ramp")
+	assert_eq(root.style.ramp_to, GroupStyle.DEFAULT_RAMP_TO, "to its default end")
+	assert_eq(root.style.ramp_span, GroupStyle.DEFAULT_RAMP_SPAN, "over its default span")
 
 
 func test_version_ordering() -> void:

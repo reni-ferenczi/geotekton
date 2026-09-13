@@ -60,6 +60,12 @@ F\tred""",
 # The built in palette a document uses until someone picks another.
 const DEFAULT := "age"
 
+# The two colour ramp a group style carries itself; see GroupStyle.ramp(). It is
+# listed with the built in palettes but has no table, since its colours and its
+# span are the style's.
+const RAMP := "ramp"
+const RAMP_NAME := "Two colour ramp"
+
 # What GMT gives a palette that names none of them: black below, white above and
 # grey for a value the palette does not cover.
 const DEFAULT_BACKGROUND := Color(0.0, 0.0, 0.0, 1.0)
@@ -104,6 +110,27 @@ static func resolve(name_or_path: String) -> Palette:
 	if BUILT_IN.has(name_or_path):
 		return built_in(name_or_path)
 	return load_from(name_or_path)
+
+
+# What a palette chooser lists without a file, by key against the name shown:
+# the two colour ramp, then the built in tables.
+static func choices() -> Dictionary:
+	var listed := {RAMP: RAMP_NAME}
+	for key in BUILT_IN:
+		listed[key] = str(BUILT_IN[key]["name"])
+	return listed
+
+
+# One slice from `from` at zero to `to` at `span`, with `from` below it and `to`
+# past it, so an age past the span holds at `to`.
+static func ramp(from: Color, to: Color, span: float) -> Palette:
+	var palette := Palette.new()
+	palette.name = RAMP_NAME
+	palette.source = RAMP
+	palette.slices = [{"low": 0.0, "high": span, "from": from, "to": to}]
+	palette.background = from
+	palette.foreground = to
+	return palette
 
 
 static func built_in(key: String) -> Palette:

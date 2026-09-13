@@ -66,6 +66,13 @@ var palettes: Dictionary = {}
 var _deciding := {}
 var _opacity := {}
 
+# True when some leaf is colored by its age, which moves with the current time,
+# so a step of an animation has to work the colors out again.
+var by_age := false
+
+# The ramp palette of each style that reads one, built on first use.
+var _ramps := {}
+
 
 # A feature outside the tree given here, or every feature when no tree is
 # given, is drawn in its own colour at its own opacity.
@@ -86,6 +93,7 @@ func _walk(node: Feature, deciding: GroupStyle, opacity: float) -> void:
 	if not node.is_group:
 		_deciding[node] = deciding
 		_opacity[node] = opacity
+		by_age = by_age or deciding.mode == BY_AGE
 		return
 	var style: GroupStyle = node.style if node.style != null else GroupStyle.new()
 	var handed := deciding if style.mode == INHERIT else style
@@ -117,10 +125,11 @@ static func normalize_style(style_id: String) -> String:
 	return style_id if STYLES.has(style_id) else BY_FEATURE
 
 
-# How old a feature is, which is the older end of its time range: the age it
-# came into existence at. Ages run backwards, so that is the larger of the two.
-static func age_of(feature: Feature) -> float:
-	return float(feature.time_range.y)
+# How long a feature has existed at a time: the older end of its time range,
+# where it came into existence, minus the time. Ages run backwards, so that is
+# the larger end. Never below zero, before the feature exists.
+static func age_of(feature: Feature, time: float = 0.0) -> float:
+	return maxf(float(feature.time_range.y) - time, 0.0)
 
 
 func shows(feature: Feature) -> bool:
@@ -128,8 +137,9 @@ func shows(feature: Feature) -> bool:
 
 
 # The color a feature is drawn in: what the nearest group not on inherit says,
-# with the alpha multiplied by the opacity of every group above the feature.
-func color_of(feature: Feature) -> Color:
+# with the alpha multiplied by the opacity of every group above the feature. The
+# age style reads the feature's age at `time`.
+func color_of(feature: Feature, time: float = 0.0) -> Color:
 	var style: GroupStyle = _deciding.get(feature)
 	var color := feature.color
 	if style != null:
@@ -137,11 +147,20 @@ func color_of(feature: Feature) -> Color:
 			BY_SINGLE:
 				color = style.color
 			BY_AGE:
-				color = palette_of(style.palette).color_at(Styling.age_of(feature))
+				color = age_palette(style).color_at(Styling.age_of(feature, time))
 			BY_TYPE:
 				color = FeatureType.color(feature.feature_type)
 		color.a *= float(_opacity[feature])
 	return color
+
+
+# The palette a style's age mode reads: its own ramp, or a palette by source.
+func age_palette(style: GroupStyle) -> Palette:
+	if style.palette != Palette.RAMP:
+		return palette_of(style.palette)
+	if not _ramps.has(style):
+		_ramps[style] = style.ramp()
+	return _ramps[style]
 
 
 # A palette by source, read the first time it is asked for.
