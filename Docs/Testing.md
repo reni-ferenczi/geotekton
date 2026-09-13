@@ -204,8 +204,14 @@ the feature's own frame would be caught even though the globe looked right;
 `run_snap_session` drops a vertex a few pixels from one belonging to another
 feature, with snapping on and then off; `run_measure_session` reads a distance
 off the status bar and checks it against the arc it was told to measure, on two
-planet radii; and `run_split_session` cuts a polygon in two and checks that both
-halves kept the type, the colour, the time range and the keyframes.
+planet radii; `run_split_session` cuts a polygon in two between two vertices and
+checks that both halves kept the type, the colour, the time range and the
+keyframes; and `run_split_tool_session` picks the Split tool on the craton
+sample, checks the planet did not move, takes a point back with Ctrl+Z, has a
+cut that crosses the edge refused with the reason in the status bar, then cuts
+the craton along three points. It checks one undo version, two features holding
+the original vertices once and the cut twice, a blue pixel inside each half,
+and that undo brings back the one outline.
 
 The Python scenarios run last against the interpreter the application started.
 `run_python_session` builds a feature and two keyframes entirely from the
@@ -413,8 +419,8 @@ a round trip is also a wait for the screen to catch up.
 | `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `opacity` (0 to 100), `enabled`, `time_from`, `time_to`, and on a group `style`, `palette`, `ramp_from`, `ramp_to` and `ramp_span`, where `color` and `opacity` are the style's |
 | `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
 | `sections {button, index}`            | selects a section row of a line topology and presses `Reverse` or `Remove` in the panel |
-| `get_tool`                           | `tool` (`move`, `draw`, `vertex`, `measure` or `circle`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split`, the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`) and the `circle` its clicks describe |
-| `set_tool {tool, kind, snap, segments}` | picks the tool (`move`, `draw`, `vertex`, `measure`, `circle` or `topology`), the geometry kind, the snap switch and the segment count, refusing what the toolbar itself would not allow |
+| `get_tool`                           | `tool` (`move`, `draw`, `vertex`, `measure` or `circle`), `kind`, whether the kind is locked, the `allowed_kinds` the selected feature's type permits, how many vertices the shape being drawn holds, the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split` (whether its `S` would split now), whether the Split tool is offered (`split_enabled`) and its `split_points`, the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`) and the `circle` its clicks describe |
+| `set_tool {tool, kind, snap, segments}` | picks the tool (`move`, `draw`, `vertex`, `measure`, `circle`, `topology`, `light` or `split`), the geometry kind, the snap switch and the segment count, refusing what the toolbar itself would not allow |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
 | `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed. `get_preferences` also reports the `default_view`, the `view_defaults` and the `style_defaults` a new document starts from |

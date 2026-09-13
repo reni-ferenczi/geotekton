@@ -1837,6 +1837,78 @@ def run_split_session(client: AutomationClient) -> None:
         check(len(half["rings"][0]) >= 3, f"{title} has a ring of its own")
 
 
+# A cut across the body of the sample craton, south to north a little west of
+# the middle, with one point between its ends. Both ends are clicked outside the
+# outline, so the commit has to put them onto it.
+SPLIT_CUT = [(-24.0, -8.0), (-6.0, -10.0), (12.0, -8.0)]
+# Inside the west and the east half of that cut, away from every edge.
+SPLIT_PROBES = {"Old Shield": (-10.0, -16.0), "Old Shield 2": (-10.0, -2.0)}
+
+
+def run_split_tool_session(client: AutomationClient) -> None:
+    """The Split tool cutting the sample craton along a drawn line."""
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.middle-earth"))
+    client.call("select", title="Old Shield")
+    whole = client.call("get_selected")["feature"]
+    depth = undo_depth(client)
+
+    before = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
+    client.call("set_tool", tool="split")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "split", f"the Split button picks the Split tool: {tool['tool']}")
+    check(client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"] == before,
+          "the planet stays where it was when the tool is picked")
+
+    # A point too many, taken back with Ctrl+Z, and a cut that crosses the edge.
+    if not draw(client, SPLIT_CUT[:2] + [(2.0, -30.0)]):
+        return
+    client.call("key", key="Z", ctrl=True)
+    held = len(client.call("get_tool")["split_points"])
+    check(held == 2, f"Ctrl+Z takes the last point of the cut back: {held} held")
+    if not draw(client, [(2.0, -30.0), SPLIT_CUT[2]]):
+        return
+    client.call("key", key="Enter")
+    status = client.call("get_status")["status"]["measure"]
+    check("crosses the edge" in status, f"a cut that crosses the edge is refused: {status!r}")
+    check(undo_depth(client) == depth, "and records nothing")
+
+    client.call("key", key="Escape")
+    check(client.call("get_tool")["split_points"] == [], "Escape lets the points go")
+    if not draw(client, SPLIT_CUT):
+        return
+    client.call("key", key="Enter")
+    check(undo_depth(client) == depth + 1, "the split recorded one version")
+    check(client.call("get_tool")["tool"] == "move", "and went back to the Move tool")
+
+    titles = [f["title"] for f in client.call("get_features")["features"]]
+    check("Old Shield" in titles and "Old Shield 2" in titles,
+          f"the craton became two features: {titles}")
+    total = 0
+    for title, (lat, lon) in SPLIT_PROBES.items():
+        client.call("select", title=title)
+        half = client.call("get_selected")["feature"]
+        total += len(half["rings"][0])
+        check(half["color"] == whole["color"] and half["feature_type"] == whole["feature_type"],
+              f"{title} kept the colour and the type")
+        check(len(half["triangles"]) > 0, f"{title} is triangulated")
+        client.call("set_view", show_map=False, lat=lat, lon=lon, angle=0.0, zoom=1.0)
+        # Off the feature, since the one under the pointer is drawn highlighted.
+        away = client.call("latlon_to_screen", lat=lat, lon=lon - 40.0)["screen"]
+        client.call("mouse_move", x=away[0], y=away[1])
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        pixel = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+        check(pixel[2] > max(pixel[0], pixel[1]) + 0.3, f"{title} is drawn blue there: {pixel}")
+    wanted = len(whole["rings"][0]) + 2 * len(SPLIT_CUT)
+    check(total == wanted, f"the halves hold every vertex once and the cut twice: {total}, {wanted}")
+
+    client.call("menu", item="undo")
+    titles = [f["title"] for f in client.call("get_features")["features"]]
+    check("Old Shield 2" not in titles, f"undo puts the one craton back: {titles}")
+    client.call("select", title="Old Shield")
+    check(client.call("get_selected")["feature"]["rings"] == whole["rings"],
+          "with the outline it had")
+
+
 ### Helpers for the vertex scenarios
 
 
@@ -2526,6 +2598,7 @@ def main(argv: list[str]) -> int:
         run_snap_session(client)
         run_measure_session(client)
         run_split_session(client)
+        run_split_tool_session(client)
         run_circle_session(client)
         run_topology_session(client)
         run_kinematics_session(client)
