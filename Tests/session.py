@@ -599,6 +599,23 @@ def run_colour_session(client: AutomationClient) -> None:
     color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
     check(dominant(color) == "red", f"and red again after undo: {color}")
 
+    # The opacity box beside the colour sets the alpha of the same colour.
+    versions = undo_depth(client)
+    client.call("set_property", field="opacity", value=50)
+    panel = client.call("get_properties")["properties"]
+    check(panel["opacity"] == 50 and panel["color"][3] == 0.5,
+          f"the panel shows half opacity: {panel['opacity']}, {panel['color']}")
+    feature_color = client.call("get_selected")["feature"]["color"]
+    check(feature_color[3] == 0.5, f"which reaches the feature: {feature_color}")
+    check(undo_depth(client) == versions + 1, "in one undo step")
+    client.call("set_property", field="opacity", value=0)
+    color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+    check(dominant(color) != "red", f"at none the Earth shows through: {color}")
+    client.call("menu", item="undo")
+    client.call("menu", item="undo")
+    check(client.call("get_properties")["properties"]["opacity"] == 100,
+          "and undo puts the opacity back")
+
 
 def run_globe_menu_session(client: AutomationClient) -> None:
     """Clone and delete from the right click menu on the globe."""
