@@ -77,61 +77,157 @@ static func split_polyline(ring: PackedVector2Array, index: int) -> Array[Packed
 
 
 # Why the polygon cannot be split between those two vertices, or an empty string
-# when it can. The cut runs from one to the other, so both halves keep both of
-# them and neither may be left under three vertices; that rules out the same
-# vertex twice and two that are already neighbours.
+# when it can. The cut runs from a to b through the vertices of path, which may
+# be none, so both halves keep a, b and the path and neither may be left under
+# three vertices; that rules out the same vertex twice and two that are already
+# neighbours.
 #
 # The cut also has to lie inside the shape. On a concave ring a line between two
 # vertices can run outside it, across the mouth of a dent, and the two rings it
 # would leave overlap each other instead of covering the original.
-static func polygon_split_problem(ring: PackedVector2Array, a: int, b: int) -> String:
+static func polygon_split_problem(ring: PackedVector2Array, a: int, b: int,
+		path := PackedVector2Array()) -> String:
 	var size := ring.size()
 	if a < 0 or a >= size or b < 0 or b >= size:
 		return "There is no such vertex."
 	if a == b:
 		return "A polygon splits between two different vertices."
-	var low := mini(a, b)
-	var high := maxi(a, b)
-	if high - low < 2 or size - high + low < 2:
+	if _neighbours(size, a, b):
 		return "The two vertices are next to each other, so one half would be a line."
-	if not is_diagonal(ring, low, high):
-		return "The cut between those two vertices runs outside the shape."
+	match cut_problem(ring, a, b, path):
+		CutProblem.CROSSES:
+			return "The cut crosses the edge of the shape between its ends."
+		CutProblem.CROSSES_ITSELF:
+			return "The cut crosses itself."
+		CutProblem.OUTSIDE:
+			return "The cut runs outside the shape."
 	return ""
 
 
-# Whether the straight line between two vertices stays inside the ring.
+enum CutProblem { NONE, CROSSES, CROSSES_ITSELF, OUTSIDE }
+
+
+# Whether the cut from vertex a through path to vertex b stays inside the ring.
 #
 # Two things can put it outside. It can cross an edge, which is checked against
-# every edge that does not already share one of the two vertices with it, since
-# those meet it at an end rather than crossing it. Or it can cross nothing and
-# still lie outside, which is what a line across the mouth of a dent does, so
-# its middle has to be inside the ring as well.
-static func is_diagonal(ring: PackedVector2Array, a: int, b: int) -> bool:
+# every edge that does not already share an end of the cut with it, since those
+# meet it at that end rather than crossing it. Or it can cross nothing and still
+# lie outside, which is what a line across the mouth of a dent does, so the
+# middle of every stretch of it has to be inside the ring as well. A cut that
+# crosses itself would leave halves that overlap themselves.
+static func cut_problem(ring: PackedVector2Array, a: int, b: int,
+		path := PackedVector2Array()) -> CutProblem:
 	var size := ring.size()
 	if size < 3:
-		return false
-	var from := ring[a]
-	var to := ring[b]
-	for i in range(size):
-		var j := (i + 1) % size
-		if i == a or i == b or j == a or j == b:
-			continue
-		if Geometry2D.segment_intersects_segment(from, to, ring[i], ring[j]) != null:
-			return false
-	return Geometry2D.is_point_in_polygon((from + to) * 0.5, ring)
+		return CutProblem.OUTSIDE
+	var cut := PackedVector2Array([ring[a]])
+	cut.append_array(path)
+	cut.append(ring[b])
+	var last := cut.size() - 2
+	for k in range(last + 1):
+		var from := cut[k]
+		var to := cut[k + 1]
+		for i in range(size):
+			var j := (i + 1) % size
+			if k == 0 and (i == a or j == a):
+				continue
+			if k == last and (i == b or j == b):
+				continue
+			if Geometry2D.segment_intersects_segment(from, to, ring[i], ring[j]) != null:
+				return CutProblem.CROSSES
+		for m in range(k + 2, last + 1):
+			if Geometry2D.segment_intersects_segment(from, to, cut[m], cut[m + 1]) != null:
+				return CutProblem.CROSSES_ITSELF
+		if not Geometry2D.is_point_in_polygon((from + to) * 0.5, ring):
+			return CutProblem.OUTSIDE
+	return CutProblem.NONE
 
 
-# The two polygons the ring becomes when it is cut from a to b. Both hold the
-# two vertices the cut runs between; every other vertex goes to one half.
-static func split_polygon(ring: PackedVector2Array, a: int, b: int) -> Array[PackedVector2Array]:
+# The two polygons the ring becomes when it is cut from a to b through the
+# vertices of path. Both hold the two vertices the cut runs between and the
+# path; every other vertex goes to one half.
+static func split_polygon(ring: PackedVector2Array, a: int, b: int,
+		path := PackedVector2Array()) -> Array[PackedVector2Array]:
 	var low := mini(a, b)
 	var high := maxi(a, b)
+	# The path as it runs from low to high.
+	var forward := path.duplicate()
+	if a > b:
+		forward.reverse()
+	var backward := forward.duplicate()
+	backward.reverse()
 	var halves: Array[PackedVector2Array] = []
-	halves.append(ring.slice(low, high + 1))
+	var first := ring.slice(low, high + 1)
+	first.append_array(backward)
+	halves.append(first)
 	var second := ring.slice(high)
 	second.append_array(ring.slice(0, low + 1))
+	second.append_array(forward)
 	halves.append(second)
 	return halves
+
+
+static func _neighbours(size: int, a: int, b: int) -> bool:
+	var low := mini(a, b)
+	var high := maxi(a, b)
+	return high - low < 2 or size - high + low < 2
+
+
+# Why the polygon cannot be split along a cut drawn across it, or an empty string
+# when it can. The path is every point of the cut, ends included; see
+# with_cut_ends() for where the ends go. Both ends on one edge would take a bite
+# out of that edge rather than cut the polygon across, and are refused.
+static func split_along_problem(ring: PackedVector2Array, path: PackedVector2Array) -> String:
+	if path.size() < 2:
+		return "A cut needs a start and an end."
+	var cut := with_cut_ends(ring, path[0], path[path.size() - 1])
+	if _neighbours((cut[0] as PackedVector2Array).size(), cut[1], cut[2]):
+		return "Both ends of the cut land on the same edge."
+	return polygon_split_problem(cut[0], cut[1], cut[2], path.slice(1, path.size() - 1))
+
+
+# The two polygons the ring becomes when it is cut along a drawn path. Between
+# them they hold every vertex of the ring once, and the two ends and the points
+# between them twice.
+static func split_along(ring: PackedVector2Array, path: PackedVector2Array) -> Array[PackedVector2Array]:
+	var cut := with_cut_ends(ring, path[0], path[path.size() - 1])
+	return split_polygon(cut[0], cut[1], cut[2], path.slice(1, path.size() - 1))
+
+
+# A cut drawn across the polygon, its first and last points put on the ring.
+# Each end goes to the nearest point of the boundary and becomes a vertex there,
+# unless that point is a vertex already. Returns the ring with the ends in it and
+# where they went, [ring, a, b]; the points between the ends are the path.
+static func with_cut_ends(ring: PackedVector2Array, from: Vector2,
+		to: Vector2) -> Array:
+	var size := ring.size()
+	var ends := [_on_ring(ring, from), _on_ring(ring, to)]
+	var result := PackedVector2Array()
+	var at := [-1, -1]
+	for i in range(size):
+		for k in 2:
+			if ends[k][0] == i and ends[k][1] == 0.0:
+				at[k] = result.size()
+		result.append(ring[i])
+		# Both ends inside one edge is refused later, as neighbours, whichever
+		# order they go in here.
+		for k in 2:
+			if ends[k][0] == i and ends[k][1] > 0.0:
+				at[k] = result.size()
+				result.append(ring[i].lerp(ring[(i + 1) % size], ends[k][1]))
+	return [result, at[0], at[1]]
+
+
+# The nearest point of the ring's boundary, as [edge, fraction along it]. A
+# point at the end of an edge is given as the start of the next one, fraction 0,
+# so that a vertex is always named the same way.
+static func _on_ring(ring: PackedVector2Array, point: Vector2) -> Array:
+	var found := nearest_segment(ring, point, true)
+	var edge := int(found[0])
+	var along := float(found[2])
+	if along >= 1.0:
+		return [(edge + 1) % ring.size(), 0.0]
+	return [edge, along]
 
 
 ### Picking

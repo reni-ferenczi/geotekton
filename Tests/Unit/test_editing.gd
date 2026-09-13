@@ -89,6 +89,25 @@ func test_the_halves_of_a_polygon_are_triangulated_and_add_up() -> void:
 	assert_close(sum, whole_area, whole_area * 1e-4, "the two halves cover the original")
 
 
+func test_a_polygon_splits_along_a_drawn_cut_in_one_version() -> void:
+	var document := _splittable()
+	var versions := document.applied
+	var color := _feature(document).color
+	assert_eq(document.split_feature_along(_feature(document), 0,
+		PackedVector2Array([Vector2(5, -1), Vector2(6, 8), Vector2(5, 20)])), "")
+	assert_eq(document.root.children.size(), 2, "the tree holds two features now")
+	assert_eq(document.root.children[1].title, "Gondwana 2")
+	assert_eq(document.root.children[1].color, color, "the second half keeps the colour")
+	assert_eq(document.applied, versions + 1, "the split recorded exactly one version")
+	document.undo()
+	assert_eq(document.root.children.size(), 1, "undo puts the one feature back")
+	assert_eq(_feature(document).rings[0].size(), 5, "with the five vertices it had")
+	assert_true(not document.split_feature_along(_feature(document), 0,
+		PackedVector2Array([Vector2(3, -1), Vector2(7, -1)])).is_empty(),
+		"a cut with both ends on one edge is refused")
+	assert_eq(document.applied, versions, "and records nothing")
+
+
 func test_a_polyline_splits_at_one_vertex() -> void:
 	var document := _splittable(Feature.GeometryKind.POLYLINE)
 	assert_eq(document.split_feature(_feature(document), 0, 2), "")
