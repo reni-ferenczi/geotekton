@@ -435,6 +435,42 @@ def titles_of(client: AutomationClient) -> list[str]:
     return [f["title"] for f in client.call("get_features")["features"]]
 
 
+# What a group's style selector offers, Styling.MODES in Logic/styling.gd.
+GROUP_STYLES = ["inherit", "feature", "single", "age", "type"]
+
+
+def run_group_style_checks(client: AutomationClient) -> None:
+    """A group's style set through the panel, seen on the globe and undone."""
+    lat, lon = (-3.0, 0.0)  # Red Triangle, under Shapes
+    client.call("mouse_move", x=10, y=10)
+    depth = client.call("get_document")["document"]["undo_depth"]
+    single = [0.1, 0.6, 0.9, 1.0]
+    client.call("set_property", field="style", value="single")
+    client.call("set_property", field="color", value=single)
+    style = client.call("get_properties")["properties"]["style"]
+    check(style["mode"] == "single" and all(abs(a - b) < 1e-3 for a, b in zip(style["color"], single)),
+          f"the panel reads back the style it was given: {style}")
+    check(client.call("get_document")["document"]["undo_depth"] == depth + 2,
+          "two edits of the style, two undo versions")
+    check(is_colour(probe_at(client, lat, lon), single),
+          "the group's single colour reaches the polygon under it")
+
+    client.call("set_property", field="opacity", value=0)
+    check(client.call("get_properties")["properties"]["style"]["opacity"] == 0,
+          "the opacity box is the group's opacity")
+    check(not is_colour(probe_at(client, lat, lon), single),
+          "and at none the Earth shows where the polygon is")
+
+    for _ in range(3):
+        client.call("menu", item="undo")
+    panel = client.call("get_properties")["properties"]
+    check(panel["name"] == "Shapes" and panel["style"]["mode"] == "inherit",
+          f"undo takes the style back: {panel.get('style')}")
+    check(is_colour(probe_at(client, lat, lon), [1.0, 0.0, 0.0]),
+          "and the polygon is red again")
+    client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+
+
 def run_properties_session(client: AutomationClient) -> None:
     """The Properties panel: what it shows, what it edits and what it refuses."""
     open_mixed_geometry(client)
@@ -466,12 +502,17 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["keyframes"] == {"count": len(times), "key": True, "delete": 0.0 in times},
           f"one keyframe row with its count, Key and Delete: {panel['keyframes']}, {times}")
 
-    # A group has a name and a switch and nothing else, so that is all it shows.
+    # A group has a name, a switch and a style: how the features under it are
+    # colored. It has no type, geometry or keyframes.
     client.call("select", title="Shapes")
     panel = client.call("get_properties")["properties"]
     check(panel["showing"] == "group", "selecting a group shows the group properties")
     check(panel["name"] == "Shapes" and "feature_type" not in panel and "keyframes" not in panel,
-          f"a group has no type, colour, geometry or keyframes: {sorted(panel)}")
+          f"a group has no type, geometry or keyframes: {sorted(panel)}")
+    check(panel["style"]["mode"] == "inherit" and panel["style"]["opacity"] == 100,
+          f"a group from an older file inherits at full opacity: {panel['style']}")
+    check(panel["styles"] == GROUP_STYLES, f"the style selector offers these: {panel['styles']}")
+    run_group_style_checks(client)
 
     # The name in the panel is the name on the tree row, and undo moves both back.
     client.call("select", title="Red Triangle")
@@ -1898,8 +1939,8 @@ def run_palette_checks(client: AutomationClient) -> None:
     palette = ROOT / "Tests" / "Data" / "Palettes" / "continuous.cpt"
     client.call("set_view_settings", view_settings={"palette": str(palette)})
     answer = client.call("get_view_settings")
-    check(answer["view_settings"]["palette"] == str(palette),
-          "the document names the palette file it was given")
+    check(answer["style"]["palette"] == str(palette),
+          "the root group names the palette file it was given")
     check(answer["palette_errors"] == [], "which reads without error")
     lat, lon = STYLE_PROBES["polygons"]
     check(is_colour(probe_at(client, lat, lon), [1.0, 0.0, 0.0]),
@@ -1951,13 +1992,17 @@ def run_styling_round_trip(client: AutomationClient, folder: Path) -> None:
     client.call("expect_file_dialog", path=str(saved))
     client.call("menu", item="save_as")
     written = json.loads(saved.read_text(encoding="utf-8"))
-    check(written["view"]["draw_style"] == "age", "the file carries the active style")
+    check(written["features"]["style"]["mode"] == "age" and "draw_style" not in written["view"],
+          "the file carries the active style on the root group")
 
     client.call("menu", item="new")
     if client.call("get_dialog")["dialog"] is not None:
         client.call("dialog", button="Discard")
     client.call("load", path=str(saved))
-    back = client.call("get_view_settings")["view_settings"]
+    answer = client.call("get_view_settings")
+    style = answer["style"]
+    back = {**answer["view_settings"], "draw_style": style["mode"],
+            "single_color": style["color"], "palette": style["palette"]}
     for key, value in edited.items():
         if key == "single_color":
             check(all(abs(a - b) < 1e-3 for a, b in zip(back[key], value)),
