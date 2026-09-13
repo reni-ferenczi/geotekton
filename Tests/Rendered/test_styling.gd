@@ -85,6 +85,54 @@ func test_a_switch_leaves_the_earth_where_its_class_was_drawn() -> void:
 					"%s is still drawn at %s: %s" % [class_id, at, color])
 
 
+### Opacity
+
+
+# GP-0033: the alpha of a feature's colour is its opacity. Half lays the colour
+# half over the Earth, mixed in linear light the way the shader mixes it; none
+# leaves the Earth showing while the feature can still be clicked.
+func test_opacity_lays_the_colour_over_the_earth() -> void:
+	await _load_styled({"draw_style": Styling.BY_FEATURE})
+	var feature := _feature_at(POLYGON)
+	if feature == null:
+		return
+	feature.enabled = false
+	app.refresh_geometry()
+	var earth := await _probe(POLYGON)
+	feature.enabled = true
+
+	feature.color = Color(Color.RED, 0.5)
+	app.refresh_geometry()
+	var half := earth.srgb_to_linear().lerp(Color.RED.srgb_to_linear(), 0.5).linear_to_srgb()
+	await _check(POLYGON, half, "the polygon at half opacity")
+
+	feature.color = Color(Color.RED, 0.0)
+	app.refresh_geometry()
+	await _check(POLYGON, earth, "the polygon at no opacity")
+	assert_eq(Planet.hit_test(POLYGON.x, POLYGON.y, app.geometry), feature,
+		"and it is still hit tested")
+
+
+# The colour lives in the per feature texture, so a change of colour uploads
+# that and leaves the geometry texture as it was.
+func test_a_colour_change_uploads_only_the_feature_state() -> void:
+	await _load_styled({"draw_style": Styling.BY_FEATURE})
+	var feature := _feature_at(POLYGON)
+	if feature == null:
+		return
+	var material: ShaderMaterial = view().planet.globe.get_surface_override_material(0)
+	var geometry_data: Texture2D = material.get_shader_parameter("geometry_data")
+	var feature_data: Texture2D = material.get_shader_parameter("feature_data")
+
+	feature.color = Color.BLUE
+	app.refresh_colors()
+	assert_true(material.get_shader_parameter("geometry_data") == geometry_data,
+		"the geometry texture is not uploaded again")
+	assert_true(material.get_shader_parameter("feature_data") != feature_data,
+		"the feature state is")
+	await _check(POLYGON, Color.BLUE, "the polygon in its new colour")
+
+
 ### The palette chooser
 
 

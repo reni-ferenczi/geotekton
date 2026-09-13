@@ -37,30 +37,30 @@ const float ROBINSON_EXTENT = 0.50718800410786;
 const float MAP_EDGE_SLACK = 1e-6;
 
 // Feature geometry data texture (filter_nearest for exact texel reads)
-// Layout: width = primitive count, height = 3
+// Layout: width = primitive count, height = 2
 //   Row 0: (lat_a, lon_a, lat_b, lon_b) in radians
 //   Row 1: (lat_c, lon_c, feature, kind)
-//   Row 2: (r, g, b, a) color
 // kind 0 is a triangle (a, b, c), 1 a polyline segment (a, b) and 2 a
 // multipoint marker (a); the unused vertices repeat a. The vertices are in the
 // frame of the feature the primitive belongs to, and `feature` is the column of
-// feature_data holding the rotation that carries them into world space.
+// feature_data holding the rotation and the colour of that feature.
 uniform sampler2D geometry_data : filter_nearest, repeat_disable;
 uniform int geometry_count = 0;
 
-uniform float geometry_edge_width = 0.001;
 uniform float geometry_line_width = 0.012;
 uniform float geometry_point_radius = 0.02;
 
 // Per feature state at the current time (filter_nearest for exact texel reads)
-// Layout: width = feature count, height = 3
+// Layout: width = feature count, height = 4
 //   Row 0: (m00, m10, m20, hovered)  -- the first column of the rotation
 //   Row 1: (m01, m11, m21, visible)  -- the second
 //   Row 2: (m02, m12, m22, unused)   -- the third
-// Keeping the rotation here rather than in the vertices is what makes a step of
-// an animation cheap: only these three texels per feature are re-uploaded,
-// whatever the triangle count is. `visible` is 0 while the feature is outside
-// its time range, and `hovered` is 1 while the pointer rests on it.
+//   Row 3: (r, g, b, a)              -- the colour, linear, alpha the opacity
+// Keeping the rotation and the colour here rather than beside the vertices is
+// what makes a step of an animation or a change of colour cheap: only these
+// four texels per feature are re-uploaded, whatever the triangle count is.
+// `visible` is 0 while the feature is outside its time range, and `hovered` is
+// 1 while the pointer rests on it.
 uniform sampler2D feature_data : filter_nearest, repeat_disable;
 
 // Outline overlay data texture (filter_nearest for exact texel reads)
@@ -244,11 +244,13 @@ void fragment() {
 	vec3 p = latlon_to_unit(vec2(lat, lon));
 
 	// Feature geometry. Every primitive of one feature follows the last, so the
-	// rotation is fetched once per feature rather than once per primitive.
+	// rotation and the colour are fetched once per feature rather than once per
+	// primitive.
 	int loaded_feature = -1;
 	mat3 rotation = mat3(1.0);
 	float hovered = 0.0;
 	bool feature_visible = true;
+	vec4 feature_color = vec4(1.0);
 
 	for (int i = 0; i < geometry_count; i++) {
 		vec4 row0 = texelFetch(geometry_data, ivec2(i, 0), 0);
@@ -263,42 +265,26 @@ void fragment() {
 			rotation = mat3(f0.xyz, f1.xyz, f2.xyz);
 			hovered = f0.w;
 			feature_visible = f1.w > 0.5;
+			feature_color = texelFetch(feature_data, ivec2(feature, 3), 0);
 		}
 		if (!feature_visible) {
 			continue;
 		}
 
-		vec4 row2 = texelFetch(geometry_data, ivec2(i, 2), 0);
 		vec3 a = rotation * latlon_to_unit(row0.xy);
 		int kind = int(row1.w + 0.5);
 
-		// How much of this fragment the primitive covers, and how close it is
-		// to the rim of a filled triangle.
+		// How much of this fragment the primitive covers.
 		float coverage = 0.0;
-		float edge = 1.0;
 
 		if (kind == 0) {
 			vec3 b = rotation * latlon_to_unit(row0.zw);
 			vec3 c = rotation * latlon_to_unit(row1.xy);
 
 			// Great-circle half-plane tests (CCW winding)
-			float d_ab = dot(normalize(cross(a, b)), p);
-			float d_bc = dot(normalize(cross(b, c)), p);
-			float d_ca = dot(normalize(cross(c, a)), p);
-
-			if (d_ab > 0.0 && d_bc > 0.0 && d_ca > 0.0) {
+			if (dot(cross(a, b), p) > 0.0 && dot(cross(b, c), p) > 0.0
+					&& dot(cross(c, a), p) > 0.0) {
 				coverage = 1.0;
-
-				// The pale rim follows the boundary of the shape, not the
-				// edges ear clipping cut it along. Row 3 says which of this
-				// triangle's edges came from the ring; a triangle in the
-				// middle of a large polygon has none and gets no rim at all.
-				vec4 row3 = texelFetch(geometry_data, ivec2(i, 3), 0);
-				float min_dist = 1e9;
-				if (row3.x > 0.5) { min_dist = min(min_dist, abs(d_ab)); }
-				if (row3.y > 0.5) { min_dist = min(min_dist, abs(d_bc)); }
-				if (row3.z > 0.5) { min_dist = min(min_dist, abs(d_ca)); }
-				edge = smoothstep(geometry_edge_width * 0.5, geometry_edge_width, min_dist);
 			}
 		} else if (kind == 1) {
 			float d = arc_distance(a, rotation * latlon_to_unit(row0.zw), p);
@@ -309,12 +295,13 @@ void fragment() {
 		}
 
 		if (coverage > 0.0) {
-			vec3 fill = mix(row2.rgb, base, 1.0 - row2.a);
+			// One flat colour, laid over what is beneath by its opacity.
+			vec3 fill = mix(base, feature_color.rgb, feature_color.a);
 			// Hover highlight: brighten slightly while the pointer is on it
 			if (hovered > 0.5) {
 				fill = mix(fill, vec3(1.0), 0.15);
 			}
-			base = mix(base, mix(vec3(1.0), fill, edge), coverage);
+			base = mix(base, fill, coverage);
 		}
 	}
 

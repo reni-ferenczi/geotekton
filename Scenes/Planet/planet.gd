@@ -138,7 +138,7 @@ const MAX_PRIMITIVES := 16384
 class Geometry extends RefCounted:
 	# One entry per primitive: { "kind": Primitive, "verts": Array of
 	# Vector2(latitude, longitude) in degrees in the feature's own frame,
-	# "color": Color, "feature": Feature, "index": int into features }. Every
+	# "feature": Feature, "index": int into features }. Every
 	# primitive of one feature is contiguous, which is what lets the shader and
 	# the hit test look its rotation up once instead of once per primitive.
 	var primitives: Array = []
@@ -174,6 +174,10 @@ class Geometry extends RefCounted:
 	var shown: Array[bool] = []
 	var time: float = 0.0
 
+	# The colour each feature is drawn in, as the active style gave it, in sRGB
+	# with the opacity in alpha. One entry per feature, in the same order.
+	var colors: Array[Color] = []
+
 	func index_for(feature: Feature) -> int:
 		if index_of.has(feature):
 			return int(index_of[feature])
@@ -182,6 +186,7 @@ class Geometry extends RefCounted:
 		index_of[feature] = index
 		bases.append(Basis())
 		shown.append(true)
+		colors.append(feature.color)
 		starts.append(primitives.size())
 		ends.append(primitives.size())
 		cap_centres.append(Vector3.UP)
@@ -224,10 +229,19 @@ class Geometry extends RefCounted:
 			bases[index] = node.basis_at(time)
 			shown[index] = node.exists_at(time)
 
+	# Work out the colour of every feature again, without touching the
+	# primitives. Without a styling each feature is drawn in the colour it
+	# carries.
+	func recolor(styling: Styling) -> void:
+		for index in features.size():
+			var node: Feature = features[index]
+			colors[index] = styling.color_of(node) if styling != null else node.color
 
-# Upload the feature geometry to the planet shader. Where the features sit and
-# which one the pointer rests on come from set_feature_state() instead, which a
-# frame of an animation calls on its own.
+
+# Upload the feature geometry to the planet shader. Where the features sit, what
+# colour they are and which one the pointer rests on come from
+# set_feature_state() instead, which a frame of an animation and a change of
+# colour call on their own.
 func set_geometry(geometry: Geometry) -> void:
 	var count := geometry.primitives.size()
 	var globe_mat: ShaderMaterial = globe.get_surface_override_material(0)
@@ -238,8 +252,8 @@ func set_geometry(geometry: Geometry) -> void:
 		map_mat.set_shader_parameter("geometry_count", 0)
 		return
 
-	# Data texture: width = primitive count, height = 4, 32-bit float RGBA
-	var img := Image.create(count, 4, false, Image.FORMAT_RGBAF)
+	# Data texture: width = primitive count, height = 2, 32-bit float RGBA
+	var img := Image.create(count, 2, false, Image.FORMAT_RGBAF)
 
 	for i in range(count):
 		var primitive: Dictionary = geometry.primitives[i]
@@ -258,20 +272,6 @@ func set_geometry(geometry: Geometry) -> void:
 			deg_to_rad(c.x), deg_to_rad(c.y),
 			float(primitive["index"]), float(kind)
 		))
-		# Row 2: color (r, g, b, a). A Color holds sRGB values, the numbers the
-		# picker shows; the shader writes ALBEDO in linear light and the renderer
-		# encodes to sRGB on the way out, so the colour is linearized here or it
-		# comes out paler than it was picked. See Docs/Shader.md#colour-space.
-		img.set_pixel(i, 2, (primitive["color"] as Color).srgb_to_linear())
-		# Row 3: which of a triangle's three edges lie on the boundary of the
-		# ring, so the rim follows the shape rather than the triangles it was
-		# cut into. Nothing but a triangle has edges to mark.
-		var edges: int = primitive.get("edges", 0)
-		img.set_pixel(i, 3, Color(
-			1.0 if edges & Feature.EDGE_AB else 0.0,
-			1.0 if edges & Feature.EDGE_BC else 0.0,
-			1.0 if edges & Feature.EDGE_CA else 0.0,
-			0.0))
 
 	var tex := ImageTexture.create_from_image(img)
 	for material in [globe_mat, map_mat]:
@@ -279,25 +279,33 @@ func set_geometry(geometry: Geometry) -> void:
 		material.set_shader_parameter("geometry_count", count)
 
 
-# Upload where each feature sits, whether it is there at the current time, and
-# which one the pointer rests on. This is the whole of what one step of an
-# animation changes, so it is three texels per feature rather than three rows
-# per triangle. Call geometry.resolve() for the wanted time first.
+# Upload where each feature sits, whether it is there at the current time, what
+# colour it is and which one the pointer rests on. This is the whole of what one
+# step of an animation or a change of colour touches, so it is four texels per
+# feature rather than anything per triangle. Call geometry.resolve() for the
+# wanted time first.
 func set_feature_state(geometry: Geometry, hovered_feature: Feature = null) -> void:
 	var count := geometry.features.size()
 	if count == 0:
 		return
 
-	# Data texture: width = feature count, height = 3, 32-bit float RGBA. Each
-	# row carries one column of the rotation, with the hover and the visibility
-	# in the two channels the rotation leaves over.
-	var img := Image.create(count, 3, false, Image.FORMAT_RGBAF)
+	# Data texture: width = feature count, height = 4, 32-bit float RGBA. The
+	# first three rows carry one column of the rotation each, with the hover and
+	# the visibility in the channels the rotation leaves over; the fourth is
+	# the colour.
+	var img := Image.create(count, 4, false, Image.FORMAT_RGBAF)
 	for i in range(count):
 		var m: Basis = geometry.bases[i]
 		var hovered := 1.0 if geometry.features[i] == hovered_feature else 0.0
 		img.set_pixel(i, 0, Color(m.x.x, m.x.y, m.x.z, hovered))
 		img.set_pixel(i, 1, Color(m.y.x, m.y.y, m.y.z, 1.0 if geometry.shown[i] else 0.0))
 		img.set_pixel(i, 2, Color(m.z.x, m.z.y, m.z.z, 0.0))
+		# A Color holds sRGB values, the numbers the picker shows; the shader
+		# writes ALBEDO in linear light and the renderer encodes to sRGB on the
+		# way out, so the colour is linearized here or it comes out paler than
+		# it was picked. The alpha is left as it is. See
+		# Docs/Shader.md#colour-space.
+		img.set_pixel(i, 3, geometry.colors[i].srgb_to_linear())
 
 	var tex := ImageTexture.create_from_image(img)
 	for material in [globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
@@ -337,7 +345,6 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 			geometry.dropped += 1
 			continue
 
-		var color := styling.color_of(node) if styling != null else node.color
 		var index := geometry.index_for(node)
 		# A topology is drawn as a polyline: Topology.rebuild() has already put
 		# one run of resolved vertices per section into its rings.
@@ -345,25 +352,22 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 			Feature.GeometryKind.POLYGON:
 				var verts := node.triangles
 				for j in range(0, verts.size() - 2, 3):
-					var primitive := _primitive(Primitive.TRIANGLE,
-						[verts[j], verts[j + 1], verts[j + 2]], node, index, color)
-					var triangle := j / 3
-					if triangle < node.triangle_edges.size():
-						primitive["edges"] = node.triangle_edges[triangle]
-					geometry.primitives.append(primitive)
+					geometry.primitives.append(_primitive(Primitive.TRIANGLE,
+						[verts[j], verts[j + 1], verts[j + 2]], node, index))
 			Feature.GeometryKind.POLYLINE:
 				for ring in node.rings:
 					for j in range(ring.size() - 1):
 						geometry.primitives.append(_primitive(
-							Primitive.SEGMENT, [ring[j], ring[j + 1]], node, index, color))
+							Primitive.SEGMENT, [ring[j], ring[j + 1]], node, index))
 			Feature.GeometryKind.MULTIPOINT:
 				for ring in node.rings:
 					for v in ring:
 						geometry.primitives.append(
-							_primitive(Primitive.POINT, [v], node, index, color))
+							_primitive(Primitive.POINT, [v], node, index))
 		geometry.ends[index] = geometry.primitives.size()
 	geometry.build_caps(2.0 * asin(maxf(LINE_HIT_WIDTH, POINT_HIT_RADIUS) * 0.5))
 	geometry.resolve(root, time)
+	geometry.recolor(styling)
 	return geometry
 
 
@@ -384,9 +388,8 @@ static func _primitive_count(node: Feature) -> int:
 	return total
 
 
-static func _primitive(kind: Primitive, verts: Array, node: Feature, index: int,
-		color: Color) -> Dictionary:
-	return {"kind": kind, "verts": verts, "color": color, "feature": node, "index": index}
+static func _primitive(kind: Primitive, verts: Array, node: Feature, index: int) -> Dictionary:
+	return {"kind": kind, "verts": verts, "feature": node, "index": index}
 
 
 ## Hit test: find which feature covers the given lat/lon point.

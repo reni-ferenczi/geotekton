@@ -41,12 +41,6 @@ const MINIMUM_VERTICES := {
 # The longest title a feature keeps; anything longer is cut down to it.
 const MAX_TITLE_LENGTH := 100
 
-# Bits of a triangle_edges byte: which of the triangle's three edges, a to b,
-# b to c and c to a, lie on the boundary of the ring.
-const EDGE_AB := 1
-const EDGE_BC := 2
-const EDGE_CA := 4
-
 # Node ID, unique only during the runtime of the application (not persisted)
 var pnid: int = -1
 
@@ -96,12 +90,6 @@ var sections: Array[TopologySection] = []
 # Triangles covering the polygon rings, 3 vertices each, wound so that they face
 # outwards. Derived from rings by rebuild_triangles(), never read from a file.
 var triangles := PackedVector2Array()
-
-# Which edges of each triangle came from the ring rather than from the cut ear
-# clipping made, one byte per triangle, in the same order as triangles. The
-# shader draws the pale rim of a filled polygon along these alone, so the shape
-# is drawn as one rather than as the fan of triangles it was cut into.
-var triangle_edges := PackedByteArray()
 
 # How the feature turns over time, sorted by time. An empty list means it does
 # not move at all. Only a leaf has any: a group is organization and carries no
@@ -215,40 +203,24 @@ func vertex_count() -> int:
 
 # Recompute the cached triangles from the rings. Only a polygon has any; the
 # other kinds are drawn and hit tested from their vertices directly.
-#
-# Which edges came from the ring is worked out here, while the ring indices are
-# still to hand, and kept beside the triangles in triangle_edges. Turning a
-# triangle to face outwards swaps two of its vertices, which permutes its edges,
-# so the swap is done on the indices and the edges read off afterwards.
 func rebuild_triangles() -> void:
 	triangles = PackedVector2Array()
-	triangle_edges = PackedByteArray()
 	if geometry_kind != GeometryKind.POLYGON:
 		return
 
 	for ring in rings:
 		var indices := ear_clip_indices(ring)
 		for i in range(0, indices.size() - 2, 3):
-			var a := indices[i]
-			var b := indices[i + 1]
-			var c := indices[i + 2]
-			if not faces_outwards(ring[a], ring[b], ring[c]):
+			var a := ring[indices[i]]
+			var b := ring[indices[i + 1]]
+			var c := ring[indices[i + 2]]
+			if not faces_outwards(a, b, c):
 				var swapped := b
 				b = c
 				c = swapped
-			triangles.append(ring[a])
-			triangles.append(ring[b])
-			triangles.append(ring[c])
-			triangle_edges.append(
-				(EDGE_AB if _are_neighbours(a, b, ring.size()) else 0)
-				| (EDGE_BC if _are_neighbours(b, c, ring.size()) else 0)
-				| (EDGE_CA if _are_neighbours(c, a, ring.size()) else 0))
-
-
-# Whether two vertices of a ring are next to each other in it, either way round,
-# which is what makes the edge between them part of the boundary.
-static func _are_neighbours(i: int, j: int, size: int) -> bool:
-	return (i + 1) % size == j or (j + 1) % size == i
+			triangles.append(a)
+			triangles.append(b)
+			triangles.append(c)
 
 
 # Whether a triangle is visible from outside the planet: its normal points away
@@ -291,7 +263,6 @@ func clone() -> Feature:
 		node.rings.append(ring.duplicate())
 	# Copied rather than recomputed: every undo step clones the whole tree.
 	node.triangles = triangles.duplicate()
-	node.triangle_edges = triangle_edges.duplicate()
 	node.keyframes = Keyframe.clone_list(keyframes)
 	node.time_range = time_range
 	for child in children:
@@ -477,12 +448,6 @@ static func ear_clip(polygon: PackedVector2Array) -> PackedVector2Array:
 
 
 # The same triangulation as vertex indices into the ring, three per triangle.
-#
-# The indices are what says which of a triangle's edges came from the ring and
-# which one ear clipping cut: an edge is on the boundary exactly when its two
-# vertices are neighbours in the ring. The vertices alone cannot say, which is
-# why the fill used to be drawn with a white rim around every triangle rather
-# than around the shape. See rebuild_triangles() and Docs/Shader.md.
 static func ear_clip_indices(polygon: PackedVector2Array) -> PackedInt32Array:
 	var n := polygon.size()
 	var result := PackedInt32Array()
