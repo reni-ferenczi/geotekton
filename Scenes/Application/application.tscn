@@ -174,13 +174,13 @@ visible = false
 layout_mode = 2
 tooltip_text = "Segments of a circle: how many the Circle tool cuts it into when it commits"
 mouse_filter = 1
-text = "Segments of a circle"
+text = "Circle segments"
 vertical_alignment = 1
 
 [node name="Segments" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
 visible = false
-custom_minimum_size = Vector2(90, 40)
+custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 tooltip_text = "Segments of a circle: how many the Circle tool cuts it into when it commits"
 

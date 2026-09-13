@@ -26,8 +26,8 @@ selector and a number:
   or Multipoint. Any kind can be picked until the selected feature holds a
   shape, and then only the kind it holds; see
   [Properties](Properties.md#what-the-type-restricts).
-- **Segments of a circle** — Shown only while the Circle tool is active; see
-  [The Circle tool](#segments-of-a-circle).
+- **Circle segments** — Shown only while the Circle tool is active; see
+  [Segments of a circle](#segments-of-a-circle).
 
 Only one of Move, Draw, Vertex, Measure, Circle, Topology and Light is active at
 a time. Everything but
@@ -216,9 +216,14 @@ while the tool is armed, so the circle can be read before it is committed.
 ### Segments of a circle
 
 A committed circle is not a true curve but a ring of straight edges. The
-**Segments of a circle** box in the toolbar says how many: from 3 to 720,
+**Circle segments** box in the toolbar says how many: from 3 to 720,
 starting at 36. Only this tool reads it, so the box is shown only while the
 Circle tool is active. The preview and the status bar follow it as it changes.
+
+The box fits in the toolbar's spare width, so showing it does not push the
+Properties panel aside or move the planet. That is why the label is not
+longer. The scripted session checks that the planet stays put when the tool
+changes.
 
 ### What it commits
 

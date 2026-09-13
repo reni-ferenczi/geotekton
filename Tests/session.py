@@ -956,12 +956,17 @@ def build_circle(client: AutomationClient, kind: str, points: list[tuple[float, 
     tool = client.call("get_tool")
     check(not tool["segments_visible"], f"the Segments box is hidden in the Move tool ({kind})")
     check(tool["segments"] == CIRCLE_SEGMENTS, f"but set_tool still sets it: {tool['segments']}")
+    # Showing the box must fit in the toolbar's spare width. If it did not, the
+    # splitter would give way and the planet would jump sideways under the pointer.
+    before = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
     client.call("toolbar", button="AddFeature")
     client.call("set_tool", tool="draw", kind=kind)
     client.call("set_tool", tool="circle")
     tool = client.call("get_tool")
     check(tool["tool"] == "circle", f"the Circle tool is armed ({kind})")
     check(tool["segments_visible"], f"and shows the Segments box ({kind})")
+    after = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
+    check(after == before, f"without moving the planet: {before} then {after}")
     if not draw(client, points):
         return {}
     return client.call("get_tool")
