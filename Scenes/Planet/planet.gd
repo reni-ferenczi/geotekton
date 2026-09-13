@@ -27,6 +27,8 @@ enum OutlineStyle {
 	CLOSED_PREVIEW = 1, # closed, with the closing segment drawn faintly
 	POINTS = 2,         # the vertex markers only, no segments
 	CLOSED = 3,         # closed, with every segment drawn the same
+	OUTLINE = 4,        # closed like CLOSED, with no vertex markers
+	MARKERS = 5,        # the vertex markers only, drawn larger
 }
 
 # The map mesh with the sheet of a projection half a unit tall, which is what a
@@ -280,26 +282,29 @@ func set_geometry(geometry: Geometry) -> void:
 
 
 # Upload where each feature sits, whether it is there at the current time, what
-# color it is and which one the pointer rests on. This is the whole of what one
-# step of an animation or a change of color touches, so it is four texels per
-# feature rather than anything per triangle. Call geometry.resolve() for the
-# wanted time first.
-func set_feature_state(geometry: Geometry, hovered_feature: Feature = null) -> void:
+# color it is, which one the pointer rests on and which one is highlighted as
+# selected. This is the whole of what one step of an animation, a change of
+# color or a change of selection touches, so it is four texels per feature
+# rather than anything per triangle. Call geometry.resolve() for the wanted time
+# first.
+func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
+		selected_feature: Feature = null) -> void:
 	var count := geometry.features.size()
 	if count == 0:
 		return
 
 	# Data texture: width = feature count, height = 4, 32-bit float RGBA. The
-	# first three rows carry one column of the rotation each, with the hover and
-	# the visibility in the channels the rotation leaves over; the fourth is
-	# the color.
+	# first three rows carry one column of the rotation each, with the hover,
+	# the visibility and the selection in the channels the rotation leaves over;
+	# the fourth is the color.
 	var img := Image.create(count, 4, false, Image.FORMAT_RGBAF)
 	for i in range(count):
 		var m: Basis = geometry.bases[i]
 		var hovered := 1.0 if geometry.features[i] == hovered_feature else 0.0
+		var selected := 1.0 if geometry.features[i] == selected_feature else 0.0
 		img.set_pixel(i, 0, Color(m.x.x, m.x.y, m.x.z, hovered))
 		img.set_pixel(i, 1, Color(m.y.x, m.y.y, m.y.z, 1.0 if geometry.shown[i] else 0.0))
-		img.set_pixel(i, 2, Color(m.z.x, m.z.y, m.z.z, 0.0))
+		img.set_pixel(i, 2, Color(m.z.x, m.z.y, m.z.z, selected))
 		# A Color holds sRGB values, the numbers the picker shows; the shader
 		# writes ALBEDO in linear light and the renderer encodes to sRGB on the
 		# way out, so the color is linearized here or it comes out paler than

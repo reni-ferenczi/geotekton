@@ -1499,7 +1499,9 @@ func set_active_tool(tool: Tool) -> void:
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
-	_refresh_selection_outline()
+	# Whether the selection is highlighted depends on the tool, so the feature
+	# state is uploaded again along with the outline.
+	_refresh_feature_state()
 	_show_measurement()
 
 
@@ -2717,7 +2719,7 @@ func _on_craton_hovered(lat: float, lon: float) -> void:
 	hovered_lat = lat
 	hovered_lon = lon
 	if _resolve_hover():
-		planet_view.planet.set_feature_state(geometry, hovered_feature)
+		planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature())
 
 
 # Work out what the pointer is over from where it last was, and report whether
@@ -2772,12 +2774,28 @@ func _refresh_feature_state() -> void:
 	# all, so the feature it is over is worked out again rather than carried
 	# over. It costs a hit test only while the pointer is on the globe.
 	_resolve_hover()
-	planet_view.planet.set_feature_state(geometry, hovered_feature)
+	planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature())
 	_refresh_selection_outline()
 
 
-# Trace the selected feature over the geometry: its rings, one outline part
-# each, in the same yellow the shape being drawn is shown in.
+# The feature whose lines the shader draws thicker and yellow: the selected one,
+# in the tools that trace the selection. Circle, Light and Measure draw their own
+# overlay instead, and the Vertex tool traces the rings with a dot on every
+# vertex, which a thick line would cover.
+func _highlighted_feature() -> Feature:
+	if active_tool in [Tool.VERTEX, Tool.CIRCLE, Tool.LIGHT, Tool.MEASURE]:
+		return null
+	var selected := features.feature_tree.get_selected_node()
+	if selected == null or selected.is_group:
+		return null
+	return selected
+
+
+# Trace the selected feature over the geometry in the same yellow the shape
+# being drawn is shown in. A polygon gets an outline along its rings and a
+# multipoint larger markers; a line needs nothing here, since the shader draws
+# it thicker. Only the Vertex tool puts a dot on every vertex, since picking
+# vertices is what it is for.
 func _refresh_selection_outline() -> void:
 	# Don't overwrite the drawing outline
 	if not outline_vertices.is_empty():
@@ -2809,12 +2827,17 @@ func _refresh_selection_outline() -> void:
 		planet_view.planet.set_outline([])
 		return
 
+	var editing := active_tool == Tool.VERTEX
 	var style := Planet.OutlineStyle.OPEN
 	match selected.drawn_as():
 		Feature.GeometryKind.POLYGON:
-			style = Planet.OutlineStyle.CLOSED
+			style = Planet.OutlineStyle.CLOSED if editing else Planet.OutlineStyle.OUTLINE
 		Feature.GeometryKind.MULTIPOINT:
-			style = Planet.OutlineStyle.POINTS
+			style = Planet.OutlineStyle.POINTS if editing else Planet.OutlineStyle.MARKERS
+		_:
+			if not editing:
+				planet_view.planet.set_outline([])
+				return
 
 	var m := Feature.world_basis(features.root, selected, document.current_time)
 	var parts: Array = []

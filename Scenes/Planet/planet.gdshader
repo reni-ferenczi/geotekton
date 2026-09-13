@@ -50,17 +50,23 @@ uniform int geometry_count = 0;
 uniform float geometry_line_width = 0.012;
 uniform float geometry_point_radius = 0.02;
 
+// How much wider the segments of the selected feature are drawn, in the
+// highlight color.
+const float SELECTED_LINE_SCALE = 2.0;
+const vec3 HIGHLIGHT_COLOR = vec3(1.0, 1.0, 0.0);
+
 // Per feature state at the current time (filter_nearest for exact texel reads)
 // Layout: width = feature count, height = 4
 //   Row 0: (m00, m10, m20, hovered)  -- the first column of the rotation
 //   Row 1: (m01, m11, m21, visible)  -- the second
-//   Row 2: (m02, m12, m22, unused)   -- the third
+//   Row 2: (m02, m12, m22, selected) -- the third
 //   Row 3: (r, g, b, a)              -- the color, linear, alpha the opacity
 // Keeping the rotation and the color here rather than beside the vertices is
 // what makes a step of an animation or a change of color cheap: only these
 // four texels per feature are re-uploaded, whatever the triangle count is.
-// `visible` is 0 while the feature is outside its time range, and `hovered` is
-// 1 while the pointer rests on it.
+// `visible` is 0 while the feature is outside its time range, `hovered` is 1
+// while the pointer rests on it, and `selected` is 1 on the feature whose
+// segments are drawn thicker and yellow.
 uniform sampler2D feature_data : filter_nearest, repeat_disable;
 
 // Outline overlay data texture (filter_nearest for exact texel reads)
@@ -68,13 +74,18 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 //   Row 0: (lat, lon, part_start, style), lat and lon in radians
 // part_start is the index this part begins at, so several parts fit in one
 // texture. style 0 draws an open line, 1 closes it with a faint last segment
-// (the shape being drawn), 2 draws the vertex markers only and 3 closes it
-// with every segment alike (the outline of the selected feature).
+// (the shape being drawn), 2 draws the vertex markers only, 3 closes it with
+// every segment alike (a polygon in the Vertex tool), 4 closes it the same way
+// with no markers (a selected polygon) and 5 draws larger markers only (a
+// selected multipoint). Every style but 4 marks each vertex.
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
 uniform float outline_line_width = 0.002;
 uniform float outline_dot_radius = 0.006;
 uniform float outline_closing_opacity = 0.25;
+
+// How much larger style 5 draws its markers than outline_dot_radius.
+const float SELECTED_MARKER_SCALE = 2.0;
 
 // One of the two Robinson tables at a latitude in degrees, interpolated between
 // the five degree entries it is given at. The counterpart of
@@ -250,6 +261,7 @@ void fragment() {
 	mat3 rotation = mat3(1.0);
 	float hovered = 0.0;
 	bool feature_visible = true;
+	bool feature_selected = false;
 	vec4 feature_color = vec4(1.0);
 
 	for (int i = 0; i < geometry_count; i++) {
@@ -265,6 +277,7 @@ void fragment() {
 			rotation = mat3(f0.xyz, f1.xyz, f2.xyz);
 			hovered = f0.w;
 			feature_visible = f1.w > 0.5;
+			feature_selected = f2.w > 0.5;
 			feature_color = texelFetch(feature_data, ivec2(feature, 3), 0);
 		}
 		if (!feature_visible) {
@@ -274,8 +287,9 @@ void fragment() {
 		vec3 a = rotation * latlon_to_unit(row0.xy);
 		int kind = int(row1.w + 0.5);
 
-		// How much of this fragment the primitive covers.
+		// How much of this fragment the primitive covers, and in what color.
 		float coverage = 0.0;
+		vec4 paint = feature_color;
 
 		if (kind == 0) {
 			vec3 b = rotation * latlon_to_unit(row0.zw);
@@ -288,7 +302,14 @@ void fragment() {
 			}
 		} else if (kind == 1) {
 			float d = arc_distance(a, rotation * latlon_to_unit(row0.zw), p);
-			coverage = 1.0 - smoothstep(geometry_line_width * 0.5, geometry_line_width, d);
+			// A selected line is drawn thicker and yellow, and opaque, so it
+			// shows even at an opacity of zero.
+			float line_width = geometry_line_width;
+			if (feature_selected) {
+				line_width *= SELECTED_LINE_SCALE;
+				paint = vec4(HIGHLIGHT_COLOR, 1.0);
+			}
+			coverage = 1.0 - smoothstep(line_width * 0.5, line_width, d);
 		} else {
 			float d = chord(a, p);
 			coverage = 1.0 - smoothstep(geometry_point_radius * 0.7, geometry_point_radius, d);
@@ -296,7 +317,7 @@ void fragment() {
 
 		if (coverage > 0.0) {
 			// One flat color, laid over what is beneath by its opacity.
-			vec3 fill = mix(base, feature_color.rgb, feature_color.a);
+			vec3 fill = mix(base, paint.rgb, paint.a);
 			// Hover highlight: brighten slightly while the pointer is on it
 			if (hovered > 0.5) {
 				fill = mix(fill, vec3(1.0), 0.15);
@@ -314,9 +335,15 @@ void fragment() {
 		for (int i = 0; i < outline_vertex_count; i++) {
 			vec4 v = texelFetch(outline_data, ivec2(i, 0), 0);
 			vec3 a = latlon_to_unit(v.xy);
-			min_dot_dist = min(min_dot_dist, chord(a, p));
-
 			int style = int(v.w + 0.5);
+			// A larger marker is the same test against a shorter distance.
+			if (style == 5) {
+				min_dot_dist = min(min_dot_dist, chord(a, p) / SELECTED_MARKER_SCALE);
+				continue;
+			}
+			if (style != 4) {
+				min_dot_dist = min(min_dot_dist, chord(a, p));
+			}
 			if (style == 2) {
 				continue;
 			}
