@@ -174,7 +174,7 @@ class Geometry extends RefCounted:
 	var shown: Array[bool] = []
 	var time: float = 0.0
 
-	# The colour each feature is drawn in, as the active style gave it, in sRGB
+	# The color each feature is drawn in, as the active style gave it, in sRGB
 	# with the opacity in alpha. One entry per feature, in the same order.
 	var colors: Array[Color] = []
 
@@ -229,8 +229,8 @@ class Geometry extends RefCounted:
 			bases[index] = node.basis_at(time)
 			shown[index] = node.exists_at(time)
 
-	# Work out the colour of every feature again, without touching the
-	# primitives. Without a styling each feature is drawn in the colour it
+	# Work out the color of every feature again, without touching the
+	# primitives. Without a styling each feature is drawn in the color it
 	# carries.
 	func recolor(styling: Styling) -> void:
 		for index in features.size():
@@ -239,9 +239,9 @@ class Geometry extends RefCounted:
 
 
 # Upload the feature geometry to the planet shader. Where the features sit, what
-# colour they are and which one the pointer rests on come from
+# color they are and which one the pointer rests on come from
 # set_feature_state() instead, which a frame of an animation and a change of
-# colour call on their own.
+# color call on their own.
 func set_geometry(geometry: Geometry) -> void:
 	var count := geometry.primitives.size()
 	var globe_mat: ShaderMaterial = globe.get_surface_override_material(0)
@@ -280,8 +280,8 @@ func set_geometry(geometry: Geometry) -> void:
 
 
 # Upload where each feature sits, whether it is there at the current time, what
-# colour it is and which one the pointer rests on. This is the whole of what one
-# step of an animation or a change of colour touches, so it is four texels per
+# color it is and which one the pointer rests on. This is the whole of what one
+# step of an animation or a change of color touches, so it is four texels per
 # feature rather than anything per triangle. Call geometry.resolve() for the
 # wanted time first.
 func set_feature_state(geometry: Geometry, hovered_feature: Feature = null) -> void:
@@ -292,7 +292,7 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null) -> v
 	# Data texture: width = feature count, height = 4, 32-bit float RGBA. The
 	# first three rows carry one column of the rotation each, with the hover and
 	# the visibility in the channels the rotation leaves over; the fourth is
-	# the colour.
+	# the color.
 	var img := Image.create(count, 4, false, Image.FORMAT_RGBAF)
 	for i in range(count):
 		var m: Basis = geometry.bases[i]
@@ -302,7 +302,7 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null) -> v
 		img.set_pixel(i, 2, Color(m.z.x, m.z.y, m.z.z, 0.0))
 		# A Color holds sRGB values, the numbers the picker shows; the shader
 		# writes ALBEDO in linear light and the renderer encodes to sRGB on the
-		# way out, so the colour is linearized here or it comes out paler than
+		# way out, so the color is linearized here or it comes out paler than
 		# it was picked. The alpha is left as it is. See
 		# Docs/Shader.md#colour-space.
 		img.set_pixel(i, 3, geometry.colors[i].srgb_to_linear())

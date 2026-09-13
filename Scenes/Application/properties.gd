@@ -18,7 +18,7 @@ signal edited()
 # has been recorded yet, so the tree does not.
 signal previewed()
 
-# A colour or an opacity went through. Only the colours need to reach the globe,
+# A color or an opacity went through. Only the colors need to reach the globe,
 # which is cheaper than what `edited` asks for.
 signal recolored()
 
@@ -130,7 +130,7 @@ func _build() -> void:
 	type_selector.item_selected.connect(_on_type_selected)
 	_row(form, "Type", type_selector)
 
-	# The colour and its opacity share a row. The picker leaves the alpha alone,
+	# The color and its opacity share a row. The picker leaves the alpha alone,
 	# since the box beside it is where the opacity is set.
 	var color_row := HBoxContainer.new()
 	color_row.name = "ColorRow"
@@ -571,7 +571,7 @@ func _on_type_selected(index: int) -> void:
 	edited.emit()
 
 
-# The colour on the button and the opacity in percent beside it. Call while
+# The color on the button and the opacity in percent beside it. Call while
 # _filling, so the box does not take its own new value for an edit.
 func _show_color() -> void:
 	color_button.color = node.color
@@ -588,7 +588,7 @@ func _on_color_previewed(color: Color) -> void:
 	previewed.emit()
 
 
-# The picked colour at the opacity the box holds. A change of either is one
+# The picked color at the opacity the box holds. A change of either is one
 # edit, one undo version.
 func _commit_color() -> void:
 	if _filling or node == null or node.is_group:

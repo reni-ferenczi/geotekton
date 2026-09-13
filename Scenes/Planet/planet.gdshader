@@ -43,7 +43,7 @@ const float MAP_EDGE_SLACK = 1e-6;
 // kind 0 is a triangle (a, b, c), 1 a polyline segment (a, b) and 2 a
 // multipoint marker (a); the unused vertices repeat a. The vertices are in the
 // frame of the feature the primitive belongs to, and `feature` is the column of
-// feature_data holding the rotation and the colour of that feature.
+// feature_data holding the rotation and the color of that feature.
 uniform sampler2D geometry_data : filter_nearest, repeat_disable;
 uniform int geometry_count = 0;
 
@@ -55,9 +55,9 @@ uniform float geometry_point_radius = 0.02;
 //   Row 0: (m00, m10, m20, hovered)  -- the first column of the rotation
 //   Row 1: (m01, m11, m21, visible)  -- the second
 //   Row 2: (m02, m12, m22, unused)   -- the third
-//   Row 3: (r, g, b, a)              -- the colour, linear, alpha the opacity
-// Keeping the rotation and the colour here rather than beside the vertices is
-// what makes a step of an animation or a change of colour cheap: only these
+//   Row 3: (r, g, b, a)              -- the color, linear, alpha the opacity
+// Keeping the rotation and the color here rather than beside the vertices is
+// what makes a step of an animation or a change of color cheap: only these
 // four texels per feature are re-uploaded, whatever the triangle count is.
 // `visible` is 0 while the feature is outside its time range, and `hovered` is
 // 1 while the pointer rests on it.
@@ -244,7 +244,7 @@ void fragment() {
 	vec3 p = latlon_to_unit(vec2(lat, lon));
 
 	// Feature geometry. Every primitive of one feature follows the last, so the
-	// rotation and the colour are fetched once per feature rather than once per
+	// rotation and the color are fetched once per feature rather than once per
 	// primitive.
 	int loaded_feature = -1;
 	mat3 rotation = mat3(1.0);
@@ -295,7 +295,7 @@ void fragment() {
 		}
 
 		if (coverage > 0.0) {
-			// One flat colour, laid over what is beneath by its opacity.
+			// One flat color, laid over what is beneath by its opacity.
 			vec3 fill = mix(base, feature_color.rgb, feature_color.a);
 			// Hover highlight: brighten slightly while the pointer is on it
 			if (hovered > 0.5) {

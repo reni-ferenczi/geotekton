@@ -599,7 +599,7 @@ def run_colour_session(client: AutomationClient) -> None:
     color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
     check(dominant(color) == "red", f"and red again after undo: {color}")
 
-    # The opacity box beside the colour sets the alpha of the same colour.
+    # The opacity box beside the color sets the alpha of the same color.
     versions = undo_depth(client)
     client.call("set_property", field="opacity", value=50)
     panel = client.call("get_properties")["properties"]

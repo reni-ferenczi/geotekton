@@ -227,7 +227,7 @@ func _primitives_by_class(root: Feature, settings: ViewSettings) -> Dictionary:
 	return counts
 
 
-# The colour each class is drawn in, read off the colours the geometry carries
+# The color each class is drawn in, read off the colors the geometry carries
 # for the shader.
 func _colors_by_class(root: Feature, settings: ViewSettings) -> Dictionary:
 	var colors := {}

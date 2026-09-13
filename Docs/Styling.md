@@ -8,8 +8,13 @@ holds what the open document has chosen.
 The whole of it is resolved in one place, `Planet.collect_geometry()`. That
 function flattens the feature tree into the primitives the shader is handed, so
 a feature whose class is switched off is simply not among them and a colour is
-worked out once per feature rather than once per fragment. Neither the shader
-nor the hit test knows there are styles at all; see [Shader](Shader.md).
+worked out once per feature rather than once per fragment. The colors go to the
+shader in the per feature texture, so `Planet.Geometry.recolor()` can work them
+out again without flattening anything. Neither the shader nor the hit test
+knows there are styles at all; see [Shader](Shader.md).
+
+A color's alpha is the opacity the feature is drawn at. The feature color
+carries the one set in the Properties panel.
 
 ## The visibility switches
 

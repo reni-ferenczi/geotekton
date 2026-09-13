@@ -179,15 +179,17 @@ wider than the drawn width, so a thin line stays easy to pick.
 | `geometry_data` | `sampler2D` | — | Data texture holding the primitives |
 | `geometry_count` | `int` | `0` | Number of primitives to render |
 | `feature_data` | `sampler2D` | — | Where each feature is at the current time |
-| `geometry_edge_width` | `float` | `0.001` | Width of the pale rim along the boundary of a filled polygon |
 | `geometry_line_width` | `float` | `0.012` | Width of a polyline segment |
 | `geometry_point_radius` | `float` | `0.02` | Radius of a multipoint marker |
 
 The widths are chord lengths on the unit sphere, so 0.012 is about 0.7 degrees.
 
-The colour a primitive is drawn in is whichever the active draw style gave the
-feature it belongs to, worked out once per feature where the geometry is
-flattened. See [Styling](Styling.md).
+A feature is drawn in one flat color: whichever the active draw style gave it,
+worked out once per feature and held in row 3 of
+[`feature_data`](#per-feature-rotation). The alpha of that color is the
+feature's opacity, which the shader lays the color over what is beneath by. At
+0 the Earth shows through, and the feature is still hit tested. See
+[Styling](Styling.md).
 
 ### Colour space
 
@@ -195,8 +197,9 @@ A `Color` holds sRGB values: the numbers the colour picker shows and the file
 stores. The shader writes `ALBEDO` in linear light and the renderer encodes the
 frame to sRGB on the way out, so a colour packed as it stands is lifted along
 the transfer curve — 0.5 grey came out at 0.74 before GP-0032 — while the Earth
-texture, declared `source_color`, was decoded properly. `Planet.set_geometry()`
-therefore packs `Color.srgb_to_linear()` into row 2, and
+texture, declared `source_color`, was decoded properly.
+`Planet.set_feature_state()` therefore packs `Color.srgb_to_linear()` into row 3
+of `feature_data`, leaving the alpha as it is, and
 `Planet.apply_view_settings()` does the same for the graticule colour. The
 outline yellow is unaffected, since 0 and 1 map onto themselves.
 
@@ -208,49 +211,29 @@ the rendered and scripted colour checks compare against.
 
 ### Data Texture Layout
 
-The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with **width = primitive count** and **height = 4 rows**:
+The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with **width = primitive count** and **height = 2 rows**:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
 | 0 | lat_a (rad) | lon_a (rad) | lat_b (rad) | lon_b (rad) |
 | 1 | lat_c (rad) | lon_c (rad) | feature | kind |
-| 2 | red | green | blue | alpha |
-| 3 | edge a-b | edge b-c | edge c-a | unused |
-
-Row 3 is 1 where that edge of a triangle came from the ring and 0 where ear
-clipping cut it; see [Edge rendering](#edge-rendering). Only a triangle has
-edges to mark, and only a fragment already inside one fetches the row, so the
-extra texel costs nothing on the fragments that reject the primitive.
 
 Each column stores one primitive, and the shader reads exact texels via
 `texelFetch`. A vertex a kind does not use repeats vertex a, so a fetch never
 reads uninitialised data. The vertices are in the frame of the feature the
 primitive belongs to, and `feature` is the column of `feature_data` holding the
-rotation that carries them into world space.
+rotation that carries them into world space and the color they are drawn in.
 
-### Edge Rendering
+Nothing here changes when a feature moves or changes color, so the texture is
+built again only when the geometry itself does.
 
-A filled polygon carries a pale rim, antialiased using `smoothstep` over the
-signed distance to the great-circle planes of its edges:
+### Filled polygons
 
-```glsl
-float edge = smoothstep(geometry_edge_width * 0.5, geometry_edge_width, min_dist);
-```
-
-The rim is white and the fill is the feature colour blended over the Earth.
-
-`min_dist` is the distance to the nearest edge **that came from the ring**, which
-row 3 of the geometry texture says. A polygon is one shape to the person looking
-at it but is drawn as the fan of triangles ear clipping cut it into, so taking
-the nearest of all three edges would draw a rim along every cut and show the
-triangulation through the fill. A triangle in the middle of a large polygon has
-no ring edge at all and draws no rim; one cut from a triangle has all three.
-
-`Feature.rebuild_triangles()` works this out while the ring indices are still to
-hand: an edge is on the boundary exactly when its two vertices are neighbours in
-the ring. It is kept in `Feature.triangle_edges`, one byte per triangle, beside
-the triangles themselves. Until 0.4.0 every triangle drew its own rim, which
-nothing noticed because no sample had more than two; see GP-0027.
+A polygon is drawn as the triangles ear clipping cut it into, and a fragment
+inside any of them takes the feature's color. There is no rim along the
+boundary and none along the cuts, so the polygon reads as one flat shape. The
+pale rim it carried until GP-0033, with the per triangle edge flags that kept
+the rim off the cuts, is gone.
 
 ### Winding Order
 
@@ -262,18 +245,25 @@ that way round, whichever way the ring it came from was drawn.
 
 Rotating every vertex on the processor for every frame of an animation would
 not hold up, so the shader does the turning instead. The geometry texture above
-changes only when the tree does; a second texture holds one rotation per
-feature, and that is the whole of what a step of an animation re-uploads,
-whatever the triangle count is.
+changes only when the tree does; a second texture holds one rotation and one
+color per feature, and that is the whole of what a step of an animation or a
+change of color re-uploads, whatever the triangle count is.
 
 `feature_data` uses `FORMAT_RGBAF` with **width = feature count** and
-**height = 3 rows**, one column of the rotation per row:
+**height = 4 rows**, one column of the rotation per row in the first three and
+the color in the fourth:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
 | 0 | m00 | m10 | m20 | hovered |
 | 1 | m01 | m11 | m21 | visible |
 | 2 | m02 | m12 | m22 | unused |
+| 3 | red (linear) | green (linear) | blue (linear) | opacity |
+
+The color is what the draw style resolved for the feature, which is why it
+lives here rather than beside the vertices. The selection highlight of GP-0034
+and the age colors of GP-0036 change it on every selection and every frame of
+an animation, and neither has to rebuild the geometry texture to do so.
 
 `hovered` is 1 while the pointer rests on the feature, which brightens its
 fill. `visible` is 0 while the feature is outside its time range, so it is
@@ -292,13 +282,13 @@ The rotation is the feature's own, worked out for every feature at once by
 f2.xyz)` in the shader is the same matrix.
 
 Every primitive of one feature is contiguous in the geometry texture, so the
-shader fetches the three rows once per feature rather than once per primitive:
+shader fetches the four rows once per feature rather than once per primitive:
 
 ```glsl
 int feature = int(row1.z + 0.5);
 if (feature != loaded_feature) {
     loaded_feature = feature;
-    // three texelFetches, a mat3 and the two flags
+    // four texelFetches: a mat3, the two flags and the color
 }
 ```
 
@@ -339,16 +329,17 @@ uploaded apart:
 
 | Field | What it holds |
 |---|---|
-| `primitives` | One dictionary per primitive: `kind`, `verts`, `color`, `feature`, `index` |
+| `primitives` | One dictionary per primitive: `kind`, `verts`, `feature`, `index` |
 | `features` | The features the primitives belong to, in the order they were met |
-| `primitives[i]["edges"]` | For a triangle, which of its edges came from the ring, as `Feature.EDGE_AB`, `EDGE_BC` and `EDGE_CA` |
 | `starts`, `ends` | Where each feature's primitives sit in `primitives`, as a half open range |
 | `cap_centres`, `cap_cosines` | The bounding cap of each feature, in its own frame |
 | `bases`, `shown` | Where each feature is and whether it is there, at `time` |
+| `colors` | The color each feature is drawn in, sRGB with the opacity in alpha |
 
 `verts` are `Vector2(latitude, longitude)` in **degrees**, in the feature's own
 frame. `resolve(root, time)` fills `bases` and `shown` for a time, one feature
-after another, from each feature's own keyframes.
+after another, from each feature's own keyframes. `recolor(styling)` fills
+`colors` from a styling, or from each feature's own color without one.
 
 ### `Planet.collect_geometry(root: Feature, time := 0.0, styling: Styling = null) -> Geometry`
 
@@ -363,8 +354,8 @@ each feature comes out; without one every feature is drawn in the colour it
 carries, which is what a document said before there were any styles. This is
 the only place either question is asked: a feature whose class is switched off
 is not among the primitives, so it is neither drawn nor hit tested, and the
-colour in row 2 of the geometry texture is whatever the active style resolved
-to. See [Styling](Styling.md).
+color in `colors` is whatever the active style resolved to. See
+[Styling](Styling.md).
 
 ### `Planet.set_geometry(geometry: Geometry)`
 
@@ -374,8 +365,11 @@ primitives clears everything.
 
 ### `Planet.set_feature_state(geometry: Geometry, hovered_feature: Feature = null)`
 
-Packs `bases`, `shown` and the hover into `feature_data`. This is what a step
-of an animation calls, and it is the only thing it calls.
+Packs `bases`, `shown`, `colors` and the hover into `feature_data`. This is
+what a step of an animation calls, and it is the only thing it calls. A change
+of color takes the same path: `Application.refresh_colors()` calls
+`geometry.recolor()` and then this, which is what dragging the color picker or
+changing the opacity costs.
 
 ```gdscript
 geometry = Planet.collect_geometry(root, document.current_time)
@@ -489,7 +483,7 @@ today; raising the limit is GP-0030 in the workspace ticket list.
 
 Playing costs almost nothing over standing still, which is the point of
 keeping the rotation in `feature_data`: what a frame of an animation changes is
-three texels per feature. The limit is the per-fragment loop over the triangles
+four texels per feature. The limit is the per-fragment loop over the triangles
 themselves, which the strategies below address.
 
 ### Optimization Strategies

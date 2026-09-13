@@ -221,7 +221,7 @@ func _ready() -> void:
 	properties.attach(document)
 	properties.edited.connect(_on_properties_edited)
 	properties.previewed.connect(refresh_colors)
-	# The tree row carries a swatch of the colour, so it follows the edit too.
+	# The tree row carries a swatch of the color, so it follows the edit too.
 	properties.recolored.connect(func() -> void:
 		features.reload()
 		refresh_colors())
@@ -2759,8 +2759,8 @@ func refresh_motion() -> void:
 	_refresh_feature_state()
 
 
-# What colour the features are, without rebuilding the geometry. The colour
-# lives in the per feature texture, so dragging the colour picker costs what a
+# What color the features are, without rebuilding the geometry. The color
+# lives in the per feature texture, so dragging the color picker costs what a
 # step of an animation costs.
 func refresh_colors() -> void:
 	geometry.recolor(Styling.of(document.view, palette))

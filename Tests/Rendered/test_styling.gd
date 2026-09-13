@@ -88,10 +88,10 @@ func test_a_switch_leaves_the_earth_where_its_class_was_drawn() -> void:
 ### Opacity
 
 
-# GP-0033: the alpha of a feature's colour is its opacity. Half lays the colour
+# GP-0033: the alpha of a feature's color is its opacity. Half lays the color
 # half over the Earth, mixed in linear light the way the shader mixes it; none
 # leaves the Earth showing while the feature can still be clicked.
-func test_opacity_lays_the_colour_over_the_earth() -> void:
+func test_opacity_lays_the_color_over_the_earth() -> void:
 	await _load_styled({"draw_style": Styling.BY_FEATURE})
 	var feature := _feature_at(POLYGON)
 	if feature == null:
@@ -113,9 +113,9 @@ func test_opacity_lays_the_colour_over_the_earth() -> void:
 		"and it is still hit tested")
 
 
-# The colour lives in the per feature texture, so a change of colour uploads
+# The color lives in the per feature texture, so a change of color uploads
 # that and leaves the geometry texture as it was.
-func test_a_colour_change_uploads_only_the_feature_state() -> void:
+func test_a_color_change_uploads_only_the_feature_state() -> void:
 	await _load_styled({"draw_style": Styling.BY_FEATURE})
 	var feature := _feature_at(POLYGON)
 	if feature == null:
@@ -130,7 +130,7 @@ func test_a_colour_change_uploads_only_the_feature_state() -> void:
 		"the geometry texture is not uploaded again")
 	assert_true(material.get_shader_parameter("feature_data") != feature_data,
 		"the feature state is")
-	await _check(POLYGON, Color.BLUE, "the polygon in its new colour")
+	await _check(POLYGON, Color.BLUE, "the polygon in its new color")
 
 
 ### The palette chooser
