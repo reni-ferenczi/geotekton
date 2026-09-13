@@ -461,8 +461,10 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["time_range"] == [0, 2000], f"its time range: {panel['time_range']}")
     check("3 vertices in 1 part" in panel["geometry"], f"its geometry summarized: {panel['geometry']}")
     check("coordinates" not in panel, f"and no coordinate rows: {sorted(panel)}")
-    check(panel["keyframes"] == {"count": 0, "key": True, "delete": False},
-          f"one keyframe row, a Key button and a greyed out Delete: {panel['keyframes']}")
+    # The sample holds one keyframe at the present, where the time is after a load.
+    times = [k["time"] for k in client.call("get_selected")["feature"]["keyframes"]]
+    check(panel["keyframes"] == {"count": len(times), "key": True, "delete": 0.0 in times},
+          f"one keyframe row with its count, Key and Delete: {panel['keyframes']}, {times}")
 
     # A group has a name and a switch and nothing else, so that is all it shows.
     client.call("select", title="Shapes")
