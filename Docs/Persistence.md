@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "features": { ... },
   "view": { ... }
 }
@@ -157,7 +157,8 @@ groups and leaf features.
   "enabled": true,
   "is_group": true,
   "type": "Group",
-  "style": {"mode": "inherit", "color": [0.9, 0.9, 0.9, 1.0], "opacity": 1.0, "palette": "age"},
+  "style": {"mode": "inherit", "color": [0.9, 0.9, 0.9, 1.0], "opacity": 1.0, "palette": "age",
+            "ramp_from": [0.55, 0.35, 0.2, 1.0], "ramp_to": [0.6, 0.6, 0.6, 1.0], "ramp_span": 300.0},
   "children": [ ... ]
 }
 ```
@@ -165,8 +166,10 @@ groups and leaf features.
 `style` is how the group colors the features under it; see
 [Styling](Styling.md#group-styles). `mode` is `inherit`, `feature`, `single`,
 `age` or `type`, `color` what the single colour mode paints with, `opacity` 0 to
-1 and multiplied into everything under the group, and `palette` a built in
-palette's key or the path of a `.cpt` file. A group without the key inherits at
+1 and multiplied into everything under the group, and `palette` `ramp`, a
+built in palette's key or the path of a `.cpt` file. `ramp_from` and `ramp_to`
+are the [two colour ramp](Styling.md#the-two-colour-ramp)'s colors and
+`ramp_span` its span in My, at least 1. A group without the key inherits at
 full opacity, and so does one naming a mode this version does not know. The
 root group's style is the document default: a root without one, or on inherit,
 draws each feature in its own colour.
@@ -368,6 +371,17 @@ named none of the three leaves the root on each feature's own colour, which is
 what it drew. Every other group arrives without a style and inherits. The step
 is `Document._to_0_10_0()`. The preferences' `view_defaults` are not rewritten,
 but they are read through the same three keys until they are saved again.
+
+#### 0.10.0 to 0.11.0
+
+0.11.0 added `ramp_from`, `ramp_to` and `ramp_span` to the group style, and the
+`ramp` palette that reads them. There is no migration step: a style without
+them takes the default ramp, which nothing drew with before.
+
+The Feature age style also changed what it reads, from the age a feature came
+into existence at to the age it has reached at the current time. Nothing in the
+file changes for that. At the present the two are the same number, so a file
+opens at the present looking the way it did.
 
 ## The config file
 
