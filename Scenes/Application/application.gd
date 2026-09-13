@@ -1822,12 +1822,18 @@ func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 	if selected == null or selected.is_group:
 		return
 	move_base_keyframes = Keyframe.clone_list(selected.keyframes)
-	move_base_rot = selected.rotation_at(document.current_time)
+	# A feature riding on another is dragged in world space like any other, and
+	# the keyframe is put into the parent's frame when it is written.
+	move_base_rot = selected.rotation_at(document.current_time) if selected.couplings.is_empty() \
+		else Feature.decompose_rotation_degrees(
+			Feature.world_basis(features.root, selected, document.current_time))
 	move_anchor = Feature._latlon_to_xyz_s(Vector2(anchor_lat, anchor_lon))
 
 
 # Dragging writes the keyframe at the current time as it goes, so what is on the
 # globe is what will be committed. Only the release records an undo version.
+# Whatever rides on the dragged feature goes with it, since refresh_motion()
+# resolves every rider from its parent.
 func _on_move_to(lat: float, lon: float) -> void:
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group:
@@ -1835,6 +1841,9 @@ func _on_move_to(lat: float, lon: float) -> void:
 	var target := Feature._latlon_to_xyz_s(Vector2(lat, lon))
 	var new_rot: Variant = Feature.compute_move_rotation(move_anchor, target, move_base_rot)
 	if new_rot != null:
+		if not selected.couplings.is_empty():
+			new_rot = Coupling.rotation_for(selected, document.current_time,
+				Feature.build_rotation_basis(new_rot), Coupling.index(features.root))
 		Keyframe.upsert(selected.keyframes, document.current_time, new_rot)
 		refresh_motion()
 
