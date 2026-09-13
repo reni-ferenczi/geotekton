@@ -3,43 +3,51 @@
 ## The type catalog
 
 `Logic/feature_type.gd` holds the whole catalog as one constant dictionary.
-Middle Earth does not carry the GPGIM over; a type here is three things:
+Middle Earth is a world building tool and does not carry the GPGIM over. The
+catalog lists only what the program treats differently:
 
-| Id             | Name         | Geometry kinds                 | Default colour |
-| -------------- | ------------ | ------------------------------ | -------------- |
-| `unclassified` | Unclassified | polygon, polyline, multipoint, topology | chocolate |
-| `craton`       | Craton       | polygon                        | tan            |
-| `terrane`      | Terrane      | polygon                        | olive          |
-| `coastline`    | Coastline    | polygon, polyline              | steel blue     |
-| `ridge`        | Ridge        | polyline                       | crimson        |
-| `marker`       | Marker       | multipoint                     | gold           |
-| `small_circle` | Small circle | polygon, polyline              | dark turquoise |
-| `topology`     | Topology     | topology                       | medium purple  |
+| Id         | Name     | Geometry kinds    | Default color  |
+| ---------- | -------- | ----------------- | -------------- |
+| `polygon`  | Polygon  | polygon           | chocolate      |
+| `line`     | Line     | polyline          | crimson        |
+| `points`   | Points   | multipoint        | gold           |
+| `circle`   | Circle   | polygon, polyline | dark turquoise |
+| `topology` | Topology | topology          | medium purple  |
 
 The kinds are written as the names the file uses, so the catalog needs nothing
 from `Feature` to be read and says the same words the `geometry_kind` field
 does.
 
-`unclassified` is what a feature has until someone picks a type. It allows every
-kind, which is what lets a feature be drawn before it is classified and what
-makes a file written before 0.3.0 loadable: those carry no type at all, so every
-feature in one arrives unclassified rather than reclassified by guesswork.
+### The type follows the geometry
 
-An id the catalog does not know — from a hand-written file, or from a catalog
-that has since lost an entry — reads back as `unclassified` through
-`FeatureType.normalize()`.
+A feature's type is what it holds. Committing the first shape sets it: a
+polygon makes a Polygon, a polyline a Line, a multipoint Points and the first
+section of a line topology a Topology. A feature holding nothing has no type,
+and the selector shows none. Emptying a feature takes its type away again, and
+the next shape committed decides it afresh.
+
+Circle is the one type someone chooses, because a circle is drawn as a polygon
+or a polyline. The [Circle tool](Editing.md#the-circle-tool) gives it on
+commit, and the selector turns a polygon or a polyline into a Circle and back.
+
+`Feature.feature_type` works this out every time it is read, through
+`FeatureType.resolve()`. A type the feature carries that does not hold its kind,
+or that the catalog does not know, gives way to the kind's own type, so a
+hand-written file cannot make a polyline a Polygon.
 
 ### What the type restricts
 
-Two things follow from the type:
-
-- **The geometry kinds the feature may hold.** The Draw tool's kind selector
-  offers only the kinds the selected feature's type allows, and changing the
-  type of a feature that already holds geometry of a forbidden kind is refused.
-  A feature with no geometry yet may take any type.
-- **The colour.** A new feature starts in its type's colour, and changing the
-  type changes the colour with it — but only while the colour is still the one
-  the old type gave. A colour someone picked is never overwritten.
+- **Which type can be picked.** Only one that holds the kind the feature
+  already holds; anything else is refused, and so is every type on a feature
+  holding nothing yet. The Draw tool's kind selector offers every kind until
+  the first shape is committed.
+- **The color.** A new feature starts in chocolate. Changing the type changes
+  the color to the new type's default, but only while the color is still the
+  one the old type gave. A color someone picked is never overwritten. Drawing
+  the first shape leaves the color alone.
+- **The class.** A Circle is switched on and off with the circles in the View
+  menu rather than with the polygons or the polylines; see
+  [Styling](Styling.md#the-visibility-switches).
 
 ## The Properties panel
 
@@ -137,7 +145,7 @@ undo version:
 | `rename`                | nothing; a long title is cut down the way the tree cuts it |
 | `set_enabled`           | nothing                                            |
 | `set_color`             | nothing                                            |
-| `set_feature_type`      | an unknown type, and one that forbids the kind the feature holds |
+| `set_feature_type`      | an unknown type, one that does not hold the kind the feature holds, and any type on a feature holding nothing |
 | `set_time_range`        | a range that ends before it starts                 |
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |
@@ -146,7 +154,7 @@ undo version:
 | `set_keyframe`          | nothing; the time it names replaces or is added    |
 | `set_keyframe_time`     | a keyframe that is not there, a time outside 0 to `MAX_TIME`, and a time another keyframe already holds |
 | `set_keyframe_rotation` | a keyframe that is not there                       |
-| `add_section`           | a group, a feature holding vertices of its own, a type that forbids topologies, and a target that is a group, a topology, the topology itself or has no vertices |
+| `add_section`           | a group, a feature holding vertices of its own, and a target that is a group, a topology, the topology itself or has no vertices |
 | `remove_section`        | anything but a topology, and a section that is not there |
 | `reverse_section`       | the same                                           |
 | `set_section_range`     | the same, and a vertex number below one            |
@@ -189,8 +197,10 @@ part. This one removes the part along with the vertex; that one refuses. See
 A leaf feature carries `feature_type` in the file from 0.3.0 on:
 
 ```json
-"feature_type": "craton"
+"feature_type": "circle"
 ```
 
-A 0.2.0 file has no such key and loads with every feature unclassified, so there
-is no migration step for it. See [Persistence](Persistence.md#file-format).
+A feature without the key, as in a 0.2.0 file, takes its type from its
+geometry. A file written before 0.9.0 names one of the eight types the catalog
+had then, which the migration maps onto the five; see
+[Persistence](Persistence.md#080-to-090).

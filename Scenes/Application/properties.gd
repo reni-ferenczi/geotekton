@@ -390,7 +390,7 @@ func _type_index(type_id: String) -> int:
 	for index in type_selector.item_count:
 		if type_selector.get_item_metadata(index) == type_id:
 			return index
-	return 0
+	return -1
 
 
 func _geometry_summary(feature: Feature) -> String:
@@ -878,8 +878,11 @@ func to_json() -> Dictionary:
 	data["keyframes"] = _keyframes_to_json()
 	if node.is_group:
 		return data
-	data["feature_type"] = str(type_selector.get_item_metadata(type_selector.selected))
-	data["type_label"] = type_selector.get_item_text(type_selector.selected)
+	var picked := type_selector.selected
+	data["feature_type"] = str(type_selector.get_item_metadata(picked)) if picked >= 0 else ""
+	data["type_label"] = type_selector.get_item_text(picked) if picked >= 0 else ""
+	data["types"] = range(type_selector.item_count).map(
+		func(index: int) -> String: return str(type_selector.get_item_metadata(index)))
 	data["color"] = [color_button.color.r, color_button.color.g,
 		color_button.color.b, color_button.color.a]
 	data["time_range"] = [int(from_spin.value), int(to_spin.value)]

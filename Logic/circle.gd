@@ -1,9 +1,9 @@
-class_name SmallCircle
+class_name Circle
 
 # A circle drawn on the surface of the planet: every point of it the same
 # angular distance from one centre. A great circle is the case where that
-# distance is 90 degrees; anything smaller is what plate tectonics calls a small
-# circle, the path a point follows while a plate turns about a fixed pole.
+# distance is 90 degrees; a smaller one is the path a point follows while a
+# plate turns about a fixed pole.
 #
 # Nothing here touches a Feature or a Document. The Circle tool works out the
 # circle here, previews it, and hands the vertices to the feature; see

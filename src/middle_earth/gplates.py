@@ -38,42 +38,12 @@ MAX_TIME = 10000
 # rather than leaving someone wondering why half a planet is missing.
 MAX_PRIMITIVES = 16384
 
-# The GPGIM feature types that have a Middle Earth type of their own. Anything
-# else becomes the unclassified type, which allows every geometry kind, and so
-# does anything whose geometry the type below would not allow — a terrane
-# boundary is a line and the terrane type is for polygons.
-FEATURE_TYPES = {
-    "gpml:ClosedContinentalBoundary": "craton",
-    "gpml:ContinentalCrust": "craton",
-    "gpml:Craton": "craton",
-    "gpml:ExtendedContinentalCrust": "craton",
-    "gpml:TransitionalCrust": "craton",
-    "gpml:ContinentalFragment": "terrane",
-    "gpml:IslandArc": "terrane",
-    "gpml:OrogenicBelt": "terrane",
-    "gpml:Suture": "terrane",
-    "gpml:Coastline": "coastline",
-    "gpml:ContinentalRift": "ridge",
-    "gpml:FractureZone": "ridge",
-    "gpml:MidOceanRidge": "ridge",
-    "gpml:SubductionZone": "ridge",
-    "gpml:Transform": "ridge",
-    "gpml:HotSpot": "marker",
-    "gpml:MeshNode": "marker",
-    "gpml:PolygonCentroidPoint": "marker",
-    "gpml:VirtualGeomagneticPole": "marker",
-}
-
-DEFAULT_FEATURE_TYPE = "unclassified"
-
-# Logic/feature_type.gd. Which geometry kinds each Middle Earth type allows.
-ALLOWED_KINDS = {
-    "unclassified": {"polygon", "polyline", "multipoint"},
-    "craton": {"polygon"},
-    "terrane": {"polygon"},
-    "coastline": {"polygon", "polyline"},
-    "ridge": {"polyline"},
-    "marker": {"multipoint"},
+# Logic/feature_type.gd. A Middle Earth type follows the geometry a feature
+# holds, so the GPGIM type, whatever it is, has no say in it.
+KIND_TYPES = {
+    "polygon": "polygon",
+    "polyline": "line",
+    "multipoint": "points",
 }
 
 
@@ -186,7 +156,7 @@ def _convert_feature(feature) -> Feature | None:
     plate = feature.get_reconstruction_plate_id()
     converted = Feature.new_feature(
         _name(feature), rings, geometry_kind=kind,
-        feature_type=_feature_type(feature, kind), uuid=str(uuid4()))
+        feature_type=KIND_TYPES[kind], uuid=str(uuid4()))
     converted.color = plate_color(plate)
     converted.time_range = _time_range(feature)
     return converted
@@ -226,15 +196,6 @@ def _rings(geometry) -> list[list[tuple[float, float]]]:
 
 def _lat_lon(points) -> list[tuple[float, float]]:
     return [point.to_lat_lon() for point in points]
-
-
-def _feature_type(feature, kind: str) -> str:
-    """The Middle Earth type, which has to allow the geometry the feature holds."""
-    mapped = FEATURE_TYPES.get(str(feature.get_feature_type()), DEFAULT_FEATURE_TYPE)
-    if kind in ALLOWED_KINDS[mapped]:
-        return mapped
-    log.debug("%s is a %s, which the %s type does not hold", _name(feature), kind, mapped)
-    return DEFAULT_FEATURE_TYPE
 
 
 def _time_range(feature) -> tuple[int, int]:

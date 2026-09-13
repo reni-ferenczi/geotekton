@@ -50,8 +50,7 @@ A script finds the running application as `app`, along with `Document`,
 property asks the application again, so a script always sees what is on screen.
 
 ```python
-uuid = app.add_feature("Rodinia", rings=[[(0.0, 0.0), (0.0, 10.0), (10.0, 0.0)]],
-                       feature_type="craton")
+uuid = app.add_feature("Rodinia", rings=[[(0.0, 0.0), (0.0, 10.0), (10.0, 0.0)]])
 app.set_keyframe(uuid, 0.0, (0, 0, 0))
 app.set_keyframe(uuid, 600.0, (-30, 10, 0))
 app.time = 600.0

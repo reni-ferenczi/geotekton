@@ -10,7 +10,7 @@ triangles and no geometry kind. They are the fixtures for `Document.migrate()`, 
 recovers the outline those triangles covered, so leave them as they are.
 `mixed_geometry.middle-earth` is written in **0.2.0**. None of those four carries
 a `feature_type`, so all four are fixtures for what 0.3.0 does with an older
-file: every feature in one loads unclassified. None of them carries `keyframes`
+file: every feature in one takes its type from its geometry. None of them carries `keyframes`
 either, so all four are fixtures for 0.4.0 as well: the one `rotation` a leaf
 holds becomes its keyframe at time zero, and one keyframe holds at every time, so
 the samples sit where they always did whatever the current time is.

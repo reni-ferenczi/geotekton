@@ -118,11 +118,11 @@ def app(fake):
 
 
 def test_adding_a_feature_answers_with_its_uuid(app, fake):
-    uuid = app.add_feature("Craton", rings=[[(0, 0), (0, 10), (10, 0)]], feature_type="craton")
+    uuid = app.add_feature("Craton", rings=[[(0, 0), (0, 10), (10, 0)]], feature_type="circle")
     assert uuid == "uuid-1"
     feature = fake.document.find(uuid)
     assert feature.title == "Craton"
-    assert feature.feature_type == "craton"
+    assert feature.feature_type == "circle"
     assert feature.rings == [[[0.0, 0.0], [0.0, 10.0], [10.0, 0.0]]]
 
 
@@ -138,7 +138,7 @@ def test_editing_changes_only_the_fields_it_names(app, fake):
     feature = fake.document.find(uuid)
     assert feature.title == "Renamed"
     assert not feature.enabled
-    assert feature.feature_type == "unclassified"
+    assert feature.feature_type == ""
 
 
 def test_editing_a_field_a_feature_does_not_have_is_refused(app, fake):

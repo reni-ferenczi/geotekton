@@ -8,21 +8,21 @@ extends RefCounted
 
 # The geometry classes the View menu switches on and off, by the name the file
 # stores against the label the menu shows. A feature belongs to exactly one:
-# a topology by the geometry it holds, a small circle by its feature type, and
+# a topology by the geometry it holds, a circle by its feature type, and
 # everything else by its geometry kind. Every switch therefore takes away its
 # own class and nothing else.
 const CLASSES := {
 	"polygons": "Polygons",
 	"polylines": "Polylines",
 	"points": "Points",
-	"small_circles": "Small Circles",
+	"circles": "Circles",
 	"topologies": "Topologies",
 }
 
 const POLYGONS := "polygons"
 const POLYLINES := "polylines"
 const POINTS := "points"
-const SMALL_CIRCLES := "small_circles"
+const CIRCLES := "circles"
 const TOPOLOGIES := "topologies"
 
 # How a feature's colour is chosen, by the name the file stores against the
@@ -61,8 +61,8 @@ static func of(settings_: ViewSettings, palette_: Palette = null) -> Styling:
 static func class_of(feature: Feature) -> String:
 	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return TOPOLOGIES
-	if feature.feature_type == "small_circle":
-		return SMALL_CIRCLES
+	if feature.feature_type == FeatureType.CIRCLE:
+		return CIRCLES
 	match feature.geometry_kind:
 		Feature.GeometryKind.POLYLINE:
 			return POLYLINES

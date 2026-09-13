@@ -117,7 +117,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Draw a small circle by its centre or through three points"
+tooltip_text = "Draw a circle by its centre or through three points"
 disabled = true
 toggle_mode = true
 icon = ExtResource("12_toolcircle")
@@ -172,7 +172,7 @@ disabled = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(90, 40)
 layout_mode = 2
-tooltip_text = "How many segments a small circle is cut into"
+tooltip_text = "How many segments a circle is cut into"
 suffix = "seg"
 
 [node name="ViewPanel" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]

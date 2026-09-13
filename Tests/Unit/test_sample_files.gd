@@ -117,10 +117,6 @@ func test_sample_files_load_and_hit_test() -> void:
 			assert_eq(title, probe[1], "probe %s in %s" % [point, file_name])
 
 
-# Every sample predates the type field, so all of them are fixtures for the one
-# thing 0.3.0 asks of an older file: that it arrives whole and unclassified.
-# A file older than 0.3.0 carries no type at all, so everything in it has to
-# arrive unclassified; one written since carries the type it names. Which is
 # Every node of a loaded sample is named, whatever format the file is in: 0.5.0
 # and newer name them, and a node arriving from an older file is given an id on
 # load. A line topology resolves through these, so two nodes sharing one would
@@ -169,32 +165,6 @@ func _assert_uuids_come_from(data: Variant, node: Feature, path: String) -> void
 			"%s/%s" % [path, node.children[i].title])
 
 
-# which comes from the version in EXPECTED, so adding a sample cannot quietly
-# skip the check.
-func test_a_sample_carries_the_type_its_format_allows() -> void:
-	for file_name in EXPECTED:
-		var root := _load("%s/%s" % [DATA_DIR, file_name])
-		if root == null:
-			continue
-		var carries_types := not Document._is_older_than(
-			str(EXPECTED[file_name]["version"]), "0.3.0")
-		var stack: Array[Feature] = [root]
-		while not stack.is_empty():
-			var node: Feature = stack.pop_back()
-			stack.append_array(node.children)
-			if node.is_group:
-				continue
-			if carries_types:
-				assert_true(FeatureType.CATALOG.has(node.feature_type),
-					"%s in %s names a type in the catalog: %s" % [
-						node.title, file_name, node.feature_type])
-			else:
-				assert_eq(node.feature_type, FeatureType.UNCLASSIFIED,
-					"%s in %s carries no type, so it is unclassified" % [node.title, file_name])
-			assert_true(FeatureType.allows(node.feature_type, node.kind_name()),
-				"and its type allows the kind it holds")
-
-
 func test_the_craton_sample_keeps_the_type_and_colour_it_names() -> void:
 	var root := _load("%s/craton.middle-earth" % DATA_DIR)
 	if root == null:
@@ -203,10 +173,10 @@ func test_the_craton_sample_keeps_the_type_and_colour_it_names() -> void:
 	assert_true(shield != null, "the sample holds Old Shield")
 	if shield == null:
 		return
-	assert_eq(shield.feature_type, "craton", "it is a craton")
+	assert_eq(shield.feature_type, "polygon", "it was a craton and is a polygon")
 	assert_eq(shield.color, Color(0, 0, 1, 1),
 		"and keeps the colour the file picked, not the one the type would give")
-	assert_true(shield.color != FeatureType.color("craton"),
+	assert_true(shield.color != FeatureType.color("polygon"),
 		"which are different, so the check means something")
 
 

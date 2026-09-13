@@ -20,14 +20,14 @@ The View menu carries one check item per class of geometry:
 | Polygons | A feature holding polygon rings |
 | Polylines | A feature holding polyline rings |
 | Points | A multipoint |
-| Small Circles | A feature whose type is `small_circle`, whatever geometry it holds |
+| Circles | A feature whose type is `circle`, whatever geometry it holds |
 | Topologies | A [line topology](Editing.md#line-topologies) |
 
 A feature belongs to **exactly one** of them. `Styling.class_of()` decides in
-that order: a topology by the geometry it holds, then a small circle by its
-feature type, and everything else by its geometry kind. A small circle is drawn
-as a polygon or a polyline, so its type is the only thing that tells it apart;
-that is why the type is asked about before the kind.
+that order: a topology by the geometry it holds, then a circle by its feature
+type, and everything else by its geometry kind. A circle is drawn as a polygon
+or a polyline, so its type is the only thing that tells it apart; that is why
+the type is asked about before the kind.
 
 Because each feature is in one class, each switch takes away its own class and
 leaves the other four untouched, which is what
@@ -52,7 +52,7 @@ show again.
 | Feature colour | The colour the feature itself carries, which is what the Properties panel edits |
 | Single colour | One colour for everything, `single_color` on the view settings |
 | Feature age | The palette, read at the feature's age |
-| Feature type | The colour the [feature type](Properties.md) catalog gives its type |
+| Feature type | The color the [feature type](Properties.md) catalog gives its type: one each for polygons, lines, points, circles and topologies |
 
 **Feature colour** is what every document is drawn in until someone picks
 another, and it is what every version before 0.7.0 drew. It stands in for the

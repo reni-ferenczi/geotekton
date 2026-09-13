@@ -38,19 +38,17 @@ func test_the_single_colour_style_paints_all_three_the_same() -> void:
 	await _check(POINT, single, "the point")
 
 
-# The sample carries no feature type, so all three are unclassified until the
-# test gives them one, and each then takes the colour of the type it was given.
+# The sample carries no feature type, so each feature has the type its geometry
+# gives, until the polygon is made a Circle, which has a colour of its own.
 func test_the_feature_type_style_paints_the_colour_of_the_type() -> void:
 	await _load_styled({"draw_style": Styling.BY_TYPE})
-	await _check(POLYGON, FeatureType.color(FeatureType.UNCLASSIFIED), "before any type")
+	await _check(POLYGON, FeatureType.color("polygon"), "the polygon")
+	await _check(POLYLINE, FeatureType.color("line"), "the line")
+	await _check(POINT, FeatureType.color("points"), "the points")
 
-	_feature_at(POLYGON).feature_type = "craton"
-	_feature_at(POLYLINE).feature_type = "ridge"
-	_feature_at(POINT).feature_type = "marker"
+	_feature_at(POLYGON).feature_type = FeatureType.CIRCLE
 	app.refresh_geometry()
-	await _check(POLYGON, FeatureType.color("craton"), "the craton")
-	await _check(POLYLINE, FeatureType.color("ridge"), "the ridge")
-	await _check(POINT, FeatureType.color("marker"), "the marker")
+	await _check(POLYGON, FeatureType.color(FeatureType.CIRCLE), "the circle")
 
 
 # The steps palette is five flat slices two hundred million years wide, so the

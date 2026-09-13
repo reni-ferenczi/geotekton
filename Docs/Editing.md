@@ -11,7 +11,7 @@ selector and a number:
   holding vertices of its own; see [The Vertex tool](#the-vertex-tool).
 - **Measure** — Reports great circle distances in the status bar; see
   [The Measure tool](#the-measure-tool).
-- **Circle** — Draws a small circle from a centre or through three points; see
+- **Circle** — Draws a circle from a centre or through three points; see
   [The Circle tool](#the-circle-tool).
 - **Topology** — Builds a line topology out of the features it runs along; see
   [Line topologies](#line-topologies).
@@ -23,9 +23,10 @@ selector and a number:
   holding; see [Splitting](#splitting). Its tooltip says why it is unavailable
   when it is.
 - **Geometry kind** — What the Draw and Circle tools produce: Polygon, Polyline
-  or Multipoint. Only the kinds the selected feature's type allows can be
-  picked; see [Properties](Properties.md#what-the-type-restricts).
-- **Segments** — How many segments a small circle is cut into when it is
+  or Multipoint. Any kind can be picked until the selected feature holds a
+  shape, and then only the kind it holds; see
+  [Properties](Properties.md#what-the-type-restricts).
+- **Segments** — How many segments a circle is cut into when it is
   committed, from 3 to 720.
 
 Only one of Move, Draw, Vertex, Measure, Circle, Topology and Light is active at
@@ -190,8 +191,8 @@ alone.
 
 ## The Circle tool
 
-A **small circle** is the path a point follows while a plate turns about a fixed
-pole: every point of it the same angular distance from one centre. A great
+A **circle** is every point the same angular distance from one centre, which is
+also the path a point follows while a plate turns about a fixed pole. A great
 circle is the case where that distance is 90 degrees.
 
 The tool takes the circle from the points clicked on the globe, and how many
@@ -231,9 +232,10 @@ number of segments the Segments box holds:
 The vertices are worked out in world coordinates and then mapped into the
 feature's own frame, the same way the Draw tool does it, so a circle drawn while
 the current time has moved the feature lands where it was clicked. Committing
+makes the feature a [Circle](Properties.md#the-type-follows-the-geometry),
 records one undo version and goes back to the Move tool.
 
-The construction itself is in `Logic/small_circle.gd` and is tested without a
+The construction itself is in `Logic/circle.gd` and is tested without a
 window. How well three points settle a centre depends on how large the circle
 is: a vertex is a pair of 32-bit floats and the centre comes out of differences
 between three of them, so a circle a degree across lands its centre to about a
@@ -382,7 +384,7 @@ shows what is being chosen.
 | Palette | A built in colour palette, or one loaded from a `.cpt` file, previewed in the strip under the list |
 
 Which classes of geometry are drawn at all is in the View menu itself, one check
-item each for polygons, polylines, points, small circles and topologies. See
+item each for polygons, polylines, points, circles and topologies. See
 [Styling](Styling.md) for what is in each class, what the styles resolve to and
 which part of the palette format is read.
 

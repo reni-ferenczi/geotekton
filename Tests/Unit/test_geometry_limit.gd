@@ -12,7 +12,7 @@ func _tree_of_markers(features: int, per_feature: int) -> Feature:
 	root.is_root = true
 	for i in features:
 		var feature := Feature.create_feature("Markers %d" % i, Color.GREEN)
-		feature.feature_type = "marker"
+		feature.feature_type = "points"
 		var ring := PackedVector2Array()
 		for j in per_feature:
 			ring.append(Vector2(float(j % 89) - 44.0, float((i * 7 + j) % 359) - 179.0))

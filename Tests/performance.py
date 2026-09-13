@@ -84,7 +84,7 @@ def build_sample(path: Path, triangles: int) -> int:
             "enabled": True,
             "is_group": False,
             "type": "Feature",
-            "feature_type": "unclassified",
+            "feature_type": "polygon",
             "color": [0.2, 0.7, 0.3, 1.0],
             "geometry_kind": "polygon",
             "rings": [circle(lat, lon, vertices)],

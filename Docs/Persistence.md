@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "features": { ... },
   "view": { ... }
 }
@@ -170,7 +170,7 @@ groups and leaf features.
   "enabled": true,
   "is_group": false,
   "type": "Feature",
-  "feature_type": "craton",
+  "feature_type": "polygon",
   "color": [0.82, 0.41, 0.12, 1.0],
   "geometry_kind": "polygon",
   "rings": [[[45.0, 30.0], [46.0, 31.0], [45.0, 32.0]]],
@@ -185,7 +185,8 @@ names the features its sections run along by it; see
 [Editing](Editing.md#line-topologies). A duplicate and a paste each get a fresh
 one, so no two nodes of a document share an id.
 
-`feature_type` is an id from the catalog in `Logic/feature_type.gd`; see
+`feature_type` is an id from the catalog in `Logic/feature_type.gd`, or empty
+for a feature holding nothing; see
 [Properties](Properties.md#the-type-catalog). `geometry_kind` is `"polygon"`,
 `"polyline"`, `"multipoint"` or `"topology"`, and `rings`
 holds one array of `[latitude, longitude]` vertices per part. A ring is closed
@@ -264,9 +265,8 @@ that key as well.
 #### 0.2.0 to 0.3.0
 
 0.3.0 added `feature_type` to a leaf feature. There is no migration step for it:
-a feature without the key loads as `unclassified`, which is the type that allows
-every geometry kind, so a 0.2.0 file arrives whole and nothing in it is
-reclassified by guesswork.
+a feature without the key takes its type from its geometry, so a 0.2.0 file
+arrives whole.
 
 #### 0.3.0 to 0.4.0
 
@@ -314,6 +314,30 @@ quite the composition of the interpolations, so a feature that rode on a moving
 group can differ slightly from what 0.7.0 drew between keyframes. A leaf under
 no moving group is left exactly as it was, and every group loses its keyframe
 list. The step is `Document._to_0_8_0()`.
+
+#### 0.8.0 to 0.9.0
+
+Up to 0.8.0 the type catalog had eight entries. 0.9.0 keeps five, the ones the
+program treats differently, and the type follows the geometry. The migration
+maps each old id onto a new one:
+
+| Up to 0.8.0 | 0.9.0 |
+| ----------- | ----- |
+| `craton`, `terrane`, `coastline` | `polygon` |
+| `ridge` | `line` |
+| `marker` | `points` |
+| `small_circle` | `circle` |
+| `topology` | `topology` |
+| `unclassified`, or a type no catalog had | left empty, so the geometry decides |
+
+A mapped type that does not hold the feature's kind gives way to the kind's own
+when the feature is read, so a coastline drawn as a line opens as a Line and an
+unclassified multipoint as Points. The View menu switch for circles is stored
+as `circles` in `hidden_classes` now, and the migration renames the old name in
+the file's view block. The step is `Document._to_0_9_0()`.
+
+The same switch in the preferences' `view_defaults` is not migrated: a default
+that had the circles off shows them again until it is saved once more.
 
 ## The config file
 

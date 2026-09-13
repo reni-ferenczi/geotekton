@@ -18,7 +18,7 @@ const TITLES := {
 	Styling.POLYGONS: "Shield",
 	Styling.POLYLINES: "Ridge",
 	Styling.POINTS: "Stations",
-	Styling.SMALL_CIRCLES: "Circle",
+	Styling.CIRCLES: "Circle",
 	Styling.TOPOLOGIES: "Boundary",
 }
 
@@ -29,26 +29,26 @@ func _build_tree() -> Feature:
 	root.is_root = true
 
 	var shield := Feature.create_feature(TITLES[Styling.POLYGONS], Color.RED)
-	shield.feature_type = "craton"
+	shield.feature_type = "polygon"
 	shield.time_range = Vector2i(0, 100)
 	shield.add_ring(PackedVector2Array(POLYGON_RING), Feature.GeometryKind.POLYGON)
 	root.children.append(shield)
 
 	var ridge := Feature.create_feature(TITLES[Styling.POLYLINES], Color.BLUE)
-	ridge.feature_type = "ridge"
+	ridge.feature_type = "line"
 	ridge.time_range = Vector2i(0, 500)
 	ridge.add_ring(PackedVector2Array(POLYLINE_RING), Feature.GeometryKind.POLYLINE)
 	root.children.append(ridge)
 
 	var stations := Feature.create_feature(TITLES[Styling.POINTS], Color.GREEN)
-	stations.feature_type = "marker"
+	stations.feature_type = "points"
 	stations.time_range = Vector2i(0, 900)
 	stations.add_ring(PackedVector2Array(POINT_RING), Feature.GeometryKind.MULTIPOINT)
 	root.children.append(stations)
 
-	# A polygon like the shield; what makes it a small circle is its type.
-	var circle := Feature.create_feature(TITLES[Styling.SMALL_CIRCLES], Color.YELLOW)
-	circle.feature_type = "small_circle"
+	# A polygon like the shield; what makes it a circle is its type.
+	var circle := Feature.create_feature(TITLES[Styling.CIRCLES], Color.YELLOW)
+	circle.feature_type = FeatureType.CIRCLE
 	circle.time_range = Vector2i(0, 250)
 	circle.add_ring(PackedVector2Array(CIRCLE_RING), Feature.GeometryKind.POLYGON)
 	root.children.append(circle)
@@ -80,14 +80,14 @@ func test_every_feature_of_the_fixture_lands_in_its_own_class() -> void:
 			"%s is a %s" % [TITLES[class_id], class_id])
 
 
-# A small circle is a polygon or a polyline; its type is what tells it apart, so
-# a feature keeps its own class whichever geometry it holds.
-func test_the_type_decides_a_small_circle_rather_than_the_geometry() -> void:
+# A circle is a polygon or a polyline; its type is what tells it apart, so a
+# feature keeps its own class whichever geometry it holds.
+func test_the_type_decides_a_circle_rather_than_the_geometry() -> void:
 	var feature := Feature.create_feature("Circle")
 	feature.add_ring(PackedVector2Array(POLYGON_RING), Feature.GeometryKind.POLYGON)
-	assert_eq(Styling.class_of(feature), Styling.POLYGONS, "unclassified, so a polygon")
-	feature.feature_type = "small_circle"
-	assert_eq(Styling.class_of(feature), Styling.SMALL_CIRCLES, "and now a small circle")
+	assert_eq(Styling.class_of(feature), Styling.POLYGONS, "a polygon to begin with")
+	feature.feature_type = FeatureType.CIRCLE
+	assert_eq(Styling.class_of(feature), Styling.CIRCLES, "and now a circle")
 
 
 ### The visibility switches
@@ -180,10 +180,10 @@ func test_the_feature_age_style_reads_the_palette_at_the_start_of_the_range() ->
 func test_the_feature_type_style_gives_the_colour_of_the_type() -> void:
 	var root := _build_tree()
 	var colors := _colors_by_class(root, _styled(Styling.BY_TYPE))
-	assert_eq(colors[Styling.POLYGONS], FeatureType.color("craton"), "the shield is a craton")
-	assert_eq(colors[Styling.POLYLINES], FeatureType.color("ridge"), "the ridge")
-	assert_eq(colors[Styling.POINTS], FeatureType.color("marker"), "the stations")
-	assert_eq(colors[Styling.SMALL_CIRCLES], FeatureType.color("small_circle"), "the circle")
+	assert_eq(colors[Styling.POLYGONS], FeatureType.color("polygon"), "the shield is a polygon")
+	assert_eq(colors[Styling.POLYLINES], FeatureType.color("line"), "the ridge is a line")
+	assert_eq(colors[Styling.POINTS], FeatureType.color("points"), "the stations are points")
+	assert_eq(colors[Styling.CIRCLES], FeatureType.color(FeatureType.CIRCLE), "the circle")
 
 
 # A document that names no style is drawn the way every document was before

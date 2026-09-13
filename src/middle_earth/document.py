@@ -29,13 +29,13 @@ EXTENSION = ".middle-earth"
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
-CURRENT_VERSION = "0.8.0"
+CURRENT_VERSION = "0.9.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.82, 0.41, 0.12, 1.0]
 DEFAULT_TIME_RANGE = [0, 2000]
 DEFAULT_GEOMETRY_KIND = "polygon"
-DEFAULT_FEATURE_TYPE = "unclassified"
+DEFAULT_FEATURE_TYPE = ""
 
 
 def dumps(data: Any) -> str:

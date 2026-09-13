@@ -4,7 +4,8 @@ extends TestCase
 # 0.2.0 turned the flat triangle list of each leaf into the outline those
 # triangles cover and dropped the five rule editor switches; 0.4.0 turned the
 # one rotation a leaf carried into the keyframe at time zero; 0.8.0 folded the
-# keyframes of groups into the leaves under them. The samples in Tests/Data are
+# keyframes of groups into the leaves under them; 0.9.0 cut eight feature types
+# down to five. The samples in Tests/Data are
 # still written in 0.1.0, so they run through every step.
 
 const DATA_DIR := "res://Tests/Data"
@@ -29,7 +30,7 @@ func test_the_samples_keep_the_edges_their_triangles_left_on_the_boundary() -> v
 		var before: Array = []
 		_collect_leaves(raw["features"], before)
 		var migrated := Document.migrate(raw.duplicate(true))
-		assert_eq(str(migrated["version"]), "0.8.0", "%s is migrated to 0.8.0" % file_name)
+		assert_eq(str(migrated["version"]), "0.9.0", "%s is migrated to 0.9.0" % file_name)
 
 		var after: Array = []
 		_collect_leaves(migrated["features"], after)
@@ -124,8 +125,10 @@ func test_a_leaf_at_0_4_0_under_no_moving_group_is_left_alone() -> void:
 		"keyframes": [{"time": 0.0, "rotation": [0.0, 0.0, 0.0]}],
 	}}
 	var migrated := Document.migrate(data.duplicate(true))
-	assert_eq(migrated["features"], data["features"], "the leaf is as it was")
-	assert_eq(migrated["version"], "0.8.0", "at the current version")
+	var expected: Dictionary = data["features"].duplicate(true)
+	expected["feature_type"] = FeatureType.NONE
+	assert_eq(migrated["features"], expected, "the leaf is as it was, its type left to its geometry")
+	assert_eq(migrated["version"], "0.9.0", "at the current version")
 
 
 ### 0.7.0 to 0.8.0: groups stop carrying motion
@@ -180,7 +183,76 @@ func test_a_leaf_under_a_still_group_is_left_alone() -> void:
 	var migrated := Document.migrate({"version": "0.7.0", "features": {
 		"type": "Group", "title": "Planet", "keyframes": [], "children": [leaf.duplicate(true)],
 	}})
-	assert_eq(migrated["features"]["children"][0], leaf, "nothing above it moved, so it is as it was")
+	assert_eq(migrated["features"]["children"][0], leaf.merged({"feature_type": FeatureType.NONE}),
+		"nothing above it moved, so it is as it was, its type left to its geometry")
+
+
+### 0.8.0 to 0.9.0: five feature types
+
+
+# The old type, the kind the feature holds, and the type it opens as.
+const OLD_TYPES := [
+	["craton", "polygon", "polygon"],
+	["terrane", "polygon", "polygon"],
+	["coastline", "polygon", "polygon"],
+	["coastline", "polyline", "line"],
+	["ridge", "polyline", "line"],
+	["marker", "multipoint", "points"],
+	["small_circle", "polygon", "circle"],
+	["small_circle", "polyline", "circle"],
+	["unclassified", "polygon", "polygon"],
+	["unclassified", "polyline", "line"],
+	["unclassified", "multipoint", "points"],
+	["volcano", "polygon", "polygon"],
+]
+
+
+func test_a_0_7_0_file_opens_each_old_type_as_one_of_the_five() -> void:
+	var children: Array = []
+	for entry in OLD_TYPES:
+		children.append({"type": "Feature", "title": "%s as %s" % [entry[0], entry[1]],
+			"uuid": "uuid-%d" % children.size(), "feature_type": entry[0],
+			"geometry_kind": entry[1], "rings": [[[0.0, 0.0], [0.0, 10.0], [10.0, 0.0]]]})
+	children.append({"type": "Feature", "title": "Boundary", "feature_type": "topology",
+		"geometry_kind": "topology",
+		"sections": [{"feature": "uuid-4", "part": 0, "from": 0, "to": 2, "reversed": false}]})
+	children.append({"type": "Feature", "title": "Empty", "feature_type": "craton", "rings": []})
+
+	var migrated := Document.migrate({"version": "0.7.0",
+		"features": {"type": "Group", "title": "Planet", "children": children},
+		"view": {"hidden_classes": ["small_circles", "points"]}})
+	assert_eq(migrated["version"], "0.9.0", "at the current version")
+	var root := Feature.from_json(migrated["features"])
+	for i in OLD_TYPES.size():
+		assert_eq(root.children[i].feature_type, OLD_TYPES[i][2], root.children[i].title)
+	assert_eq(root.children[-2].feature_type, "topology", "a topology stays one")
+	assert_eq(root.children[-1].feature_type, FeatureType.NONE, "a feature holding nothing has no type")
+	assert_eq(Array(ViewSettings.from_json(migrated["view"]).hidden_classes), ["circles", "points"],
+		"and the circles are still switched off")
+
+
+# Every sample opens with the type its geometry gives, whichever format it is in
+# and whatever type it names; none of them holds a circle.
+func test_every_sample_opens_with_one_of_the_five() -> void:
+	var names := DirAccess.get_files_at(DATA_DIR)
+	var opened := 0
+	for file_name in names:
+		if not file_name.ends_with(".middle-earth"):
+			continue
+		var document := Document.new()
+		var error := document.load_from_file("%s/%s" % [DATA_DIR, file_name])
+		assert_eq(error, "", "%s opens" % file_name)
+		opened += 1
+		var stack: Array[Feature] = [document.root]
+		while not stack.is_empty():
+			var node: Feature = stack.pop_back()
+			stack.append_array(node.children)
+			if node.is_group:
+				continue
+			assert_eq(node.feature_type, FeatureType.resolve(FeatureType.NONE, node.kind_name()),
+				"%s in %s" % [node.title, file_name])
+			assert_true(FeatureType.CATALOG.has(node.feature_type), "which is in the catalog")
+	assert_true(opened >= 7, "every sample was opened: %d" % opened)
 
 
 func test_version_ordering() -> void:

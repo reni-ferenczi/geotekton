@@ -148,7 +148,7 @@ func _build_tree() -> Feature:
 	var laurentia := Feature.create_feature("Laurentia", Color(0.25, 0.5, 0.75, 1.0))
 	laurentia.add_ring(PackedVector2Array([
 		Vector2(-10, -10), Vector2(10, 0), Vector2(-10, 10)]), Feature.GeometryKind.POLYGON)
-	laurentia.feature_type = "craton"
+	laurentia.feature_type = FeatureType.CIRCLE
 	Keyframe.upsert(laurentia.keyframes, 0.0, Vector3(30, -20, 10))
 	Keyframe.upsert(laurentia.keyframes, 750.5, Vector3(75, -20, 10))
 	laurentia.time_range = Vector2i(540, 1800)
@@ -157,14 +157,14 @@ func _build_tree() -> Feature:
 	var ridge := Feature.create_feature("Ridge", Color(0.9, 0.1, 0.4, 0.5))
 	ridge.add_ring(PackedVector2Array([
 		Vector2(20, 30), Vector2(40, 30), Vector2(40, 60)]), Feature.GeometryKind.POLYLINE)
-	ridge.feature_type = "ridge"
+	ridge.feature_type = "line"
 	Keyframe.upsert(ridge.keyframes, 0.0, Vector3(-120, 45, 0))
 	ridge.time_range = Vector2i(0, 750)
 	ridge.enabled = false
 	group.children.append(ridge)
 
 	var stations := Feature.create_feature("Stations", Color(0.1, 0.8, 0.2, 1.0))
-	stations.feature_type = "marker"
+	stations.feature_type = "points"
 	stations.add_ring(PackedVector2Array([Vector2(0, 0), Vector2(5, 5)]),
 		Feature.GeometryKind.MULTIPOINT)
 	group.children.append(stations)

@@ -98,21 +98,19 @@ another [draw style](Styling.md#the-draw-styles) is chosen.
 
 ### Feature types
 
-A GPGIM feature type becomes one of the [types](Properties.md#the-type-catalog)
-Middle Earth has, and anything not in this table becomes **Unclassified**:
+A Middle Earth [type](Properties.md#the-type-catalog) follows the geometry a
+feature holds, so the GPGIM type has no say in it. Whatever GPlates calls a
+feature, it imports as one of three:
 
-| GPlates                                                                   | Middle Earth |
-| ------------------------------------------------------------------------- | ------------ |
-| `ClosedContinentalBoundary`, `ContinentalCrust`, `Craton`, `ExtendedContinentalCrust`, `TransitionalCrust` | Craton |
-| `ContinentalFragment`, `IslandArc`, `OrogenicBelt`, `Suture`              | Terrane      |
-| `Coastline`                                                               | Coastline    |
-| `ContinentalRift`, `FractureZone`, `MidOceanRidge`, `SubductionZone`, `Transform` | Ridge |
-| `HotSpot`, `MeshNode`, `PolygonCentroidPoint`, `VirtualGeomagneticPole`   | Marker       |
+| Geometry in GPlates | Middle Earth |
+| ------------------- | ------------ |
+| Polygon             | Polygon      |
+| Polyline            | Line         |
+| Point or multipoint | Points       |
 
-A Middle Earth type names the geometry kinds it will hold, so a feature whose
-geometry the mapped type does not allow becomes Unclassified as well — a
-terrane boundary drawn as a line is one, since the terrane type is for
-polygons. The table is `FEATURE_TYPES` in `src/middle_earth/gplates.py`.
+A Coastline outline and a Craton are both Polygons, and a MidOceanRidge drawn
+as a line is a Line. Nothing imports as a Circle, which only the Circle tool
+makes. The table is `KIND_TYPES` in `src/middle_earth/gplates.py`.
 
 ### Time
 

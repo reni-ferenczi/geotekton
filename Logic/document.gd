@@ -181,14 +181,18 @@ func set_color(feature: Feature, color: Color) -> void:
 	record()
 
 
-# Give the feature another type. Refused when the feature already holds geometry
-# of a kind that type does not allow, since the alternative is a feature its own
-# type says cannot exist. The colour follows the type as long as it is still the
-# one the old type gave it, so a colour someone picked is never overwritten.
+# Give the feature another type, which comes down to making a polygon or a
+# polyline a Circle or taking that back. Refused on a feature holding nothing,
+# whose type comes from the first shape committed to it, and for a type that
+# does not hold the kind the feature holds. The colour follows the type as long
+# as it is still the one the old type gave it, so a colour someone picked is
+# never overwritten.
 func set_feature_type(feature: Feature, type_id: String) -> String:
 	if not FeatureType.CATALOG.has(type_id):
 		return "There is no feature type called %s." % type_id
-	if feature.has_geometry() and not FeatureType.allows(type_id, feature.kind_name()):
+	if not feature.has_geometry():
+		return "%s holds nothing yet; the first shape drawn into it gives it a type." % feature.title
+	if not FeatureType.allows(type_id, feature.kind_name()):
 		return "A %s cannot be a %s, which is %s." % [
 			feature.kind_name(), FeatureType.label(type_id),
 			" or ".join(FeatureType.kinds(type_id))]
@@ -311,8 +315,6 @@ func add_section(feature: Feature, target: Feature, part: int) -> String:
 		return "Only a feature can be a topology."
 	if feature.has_geometry() and feature.geometry_kind != Feature.GeometryKind.TOPOLOGY:
 		return "%s already holds a %s." % [feature.title, feature.kind_name()]
-	if not FeatureType.allows(feature.feature_type, "topology"):
-		return "A %s cannot be a topology." % FeatureType.label(feature.feature_type)
 	var problem := Topology.section_problem(feature, target)
 	if not problem.is_empty():
 		return problem
@@ -592,16 +594,53 @@ func resolve_backdrop() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.8.0"):
+	if not _is_older_than(version, "0.9.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
 		data["features"] = _to_0_2_0(data.get("features", {}))
 	if _is_older_than(version, "0.4.0"):
 		data["features"] = _to_0_4_0(data.get("features", {}))
-	data["features"] = _to_0_8_0(data.get("features", {}), [])
-	data["version"] = "0.8.0"
+	if _is_older_than(version, "0.8.0"):
+		data["features"] = _to_0_8_0(data.get("features", {}), [])
+	data["features"] = _to_0_9_0(data.get("features", {}))
+	var view: Variant = data.get("view")
+	if view is Dictionary and view.get("hidden_classes") is Array:
+		view["hidden_classes"] = view["hidden_classes"].map(
+			func(name: Variant) -> Variant: return "circles" if name == "small_circles" else name)
+	data["version"] = "0.9.0"
 	return data
+
+
+# The eight types up to 0.8.0 and the one each became. Unclassified, and a type
+# no catalog had, is left to the geometry, and so is a type that no longer holds
+# the kind: a coastline drawn as a line is a Line.
+const TYPES_BEFORE_0_9_0 := {
+	"craton": "polygon",
+	"terrane": "polygon",
+	"coastline": "polygon",
+	"ridge": "line",
+	"marker": "points",
+	"small_circle": "circle",
+	"topology": "topology",
+}
+
+
+# 0.9.0 cut the type catalog down to what the program treats differently:
+# Polygon, Line, Points, Circle and Topology. Feature.feature_type settles
+# whatever the id left open against the geometry the feature holds. The View
+# menu switch for circles, stored by name, lost its "small" at the same time.
+static func _to_0_9_0(node: Variant) -> Variant:
+	if node is not Dictionary:
+		return node
+	if node.get("is_group", node.get("type") == "Group"):
+		var children: Array = []
+		for child in node.get("children", []):
+			children.append(_to_0_9_0(child))
+		node["children"] = children
+		return node
+	node["feature_type"] = TYPES_BEFORE_0_9_0.get(str(node.get("feature_type", "")), FeatureType.NONE)
+	return node
 
 
 # Up to 0.7.0 a group had keyframes and everything under it inherited them.
