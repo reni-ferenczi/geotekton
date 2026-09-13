@@ -150,8 +150,19 @@ def measure(client: AutomationClient, budget_ms: float) -> bool:
     client.call("timeline", button="Play")
     playing = report("playing", sample_frames(client))
     client.call("timeline", button="Pause")
-
     print(f"playback costs {playing - still:+.2f} ms a frame")
+
+    # The same playback colored by age, whose colors move every frame. The span
+    # is longer than any feature's age here, so no color reaches the end of it.
+    client.call("set_view_settings", view_settings={
+        "draw_style": "age", "palette": "ramp", "ramp_span": 3000.0,
+    })
+    client.call("timeline", button="Reset")
+    client.call("timeline", button="Play")
+    aging = report("playing, colored by age", sample_frames(client))
+    client.call("timeline", button="Pause")
+    print(f"the age ramp costs {aging - playing:+.2f} ms a frame over flat colors")
+
     within = playing <= budget_ms
     print(f"{'PASS' if within else 'FAIL'} the median frame while playing is within the budget")
     return within

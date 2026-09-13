@@ -468,6 +468,29 @@ def run_group_style_checks(client: AutomationClient) -> None:
           f"undo takes the style back: {panel.get('style')}")
     check(is_colour(probe_at(client, lat, lon), [1.0, 0.0, 0.0]),
           "and the polygon is red again")
+
+    # GP-0036: the ramp rows. Both ends the same colour, so the probe does not
+    # depend on how old the polygon is.
+    depth = client.call("get_document")["document"]["undo_depth"]
+    ramp = [0.1, 0.6, 0.9, 1.0]
+    client.call("set_property", field="style", value="age")
+    client.call("set_property", field="palette", value="ramp")
+    client.call("set_property", field="ramp_from", value=ramp)
+    client.call("set_property", field="ramp_to", value=ramp)
+    client.call("set_property", field="ramp_span", value=450)
+    style = client.call("get_properties")["properties"]["style"]
+    check(style["palette"] == "ramp" and style["ramp_span"] == 450
+          and all(abs(a - b) < 1e-3 for a, b in zip(style["ramp_from"], ramp))
+          and all(abs(a - b) < 1e-3 for a, b in zip(style["ramp_to"], ramp)),
+          f"the panel reads back the ramp it was given: {style}")
+    check(client.call("get_document")["document"]["undo_depth"] == depth + 5,
+          "five edits of the style, five undo versions")
+    check(is_colour(probe_at(client, lat, lon), ramp),
+          "the group's ramp reaches the polygon under it")
+    for _ in range(5):
+        client.call("menu", item="undo")
+    check(client.call("get_properties")["properties"]["style"]["mode"] == "inherit",
+          "and undo takes the ramp back")
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
 
@@ -1933,6 +1956,19 @@ def run_palette_checks(client: AutomationClient) -> None:
     for name, (lat, lon) in STYLE_PROBES.items():
         check(is_colour(probe_at(client, lat, lon), expected[name]),
               f"the {name[:-1]} takes the palette colour for its age")
+
+    # GP-0036: the root's two colour ramp through the dialog, red to blue over
+    # 200 My. The polyline at 300 and the markers at 900 are past it, so blue.
+    ramp = {"palette": "ramp", "ramp_from": [1.0, 0.0, 0.0, 1.0],
+            "ramp_to": [0.0, 0.0, 1.0, 1.0], "ramp_span": 200.0}
+    client.call("set_view_settings", view_settings=ramp)
+    style = client.call("get_view_settings")["style"]
+    check(all(style[key] == value for key, value in ramp.items()),
+          f"the root group carries the ramp the dialog was given: {style}")
+    for name in ("polylines", "points"):
+        lat, lon = STYLE_PROBES[name]
+        check(is_colour(probe_at(client, lat, lon), [0.0, 0.0, 1.0]),
+              f"the {name[:-1]}, older than the span, is the ramp's second colour")
 
     # The same again from a file rather than from the built in list. The
     # fixture ramps black to red between 0 and 100, then red to white to 200.
