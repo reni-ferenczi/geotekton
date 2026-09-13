@@ -1,9 +1,9 @@
 extends TestCase
 
 # Which class of geometry a feature belongs to, which classes are drawn, and
-# what colour a feature comes out under each draw style. All of it without a
-# window: the styling is resolved where the geometry is flattened, so what the
-# shader is handed says everything about what is drawn.
+# what colour a feature comes out under each draw style and each group style.
+# All of it without a window: the styling is resolved where the geometry is
+# flattened, so what the shader is handed says everything about what is drawn.
 #
 # The fixture holds one feature of every class, laid out well apart from each
 # other, with a distinct colour, feature type and time range on each.
@@ -22,11 +22,15 @@ const TITLES := {
 	Styling.TOPOLOGIES: "Boundary",
 }
 
+const SINGLE := Color(0.2, 0.4, 0.6, 1.0)
+const OTHER_SINGLE := Color(0.7, 0.1, 0.3, 1.0)
+
 
 # Root > Shield, Ridge, Stations, Circle and Boundary, which runs along Ridge.
 func _build_tree() -> Feature:
 	var root := Feature.create_group("Planet")
 	root.is_root = true
+	root.style = GroupStyle.for_root()
 
 	var shield := Feature.create_feature(TITLES[Styling.POLYGONS], Color.RED)
 	shield.feature_type = "polygon"
@@ -141,12 +145,12 @@ func test_a_name_that_is_not_a_class_is_ignored() -> void:
 	assert_eq(Array(settings.hidden_classes), ["polygons"], "only the class it knows")
 
 
-### The draw styles
+### The draw styles, set on the root group
 
 
 func test_the_feature_colour_style_gives_each_feature_its_own_colour() -> void:
-	var root := _build_tree()
-	var colors := _colors_by_class(root, _styled(Styling.BY_FEATURE))
+	var root := _styled(Styling.BY_FEATURE)
+	var colors := _colors_by_class(root)
 	assert_eq(colors[Styling.POLYGONS], Color.RED, "the shield")
 	assert_eq(colors[Styling.POLYLINES], Color.BLUE, "the ridge")
 	assert_eq(colors[Styling.POINTS], Color.GREEN, "the stations")
@@ -154,21 +158,19 @@ func test_the_feature_colour_style_gives_each_feature_its_own_colour() -> void:
 
 
 func test_the_single_colour_style_gives_every_feature_the_same_one() -> void:
-	var root := _build_tree()
-	var settings := _styled(Styling.BY_SINGLE)
-	settings.single_color = Color(0.2, 0.4, 0.6, 1.0)
-	var colors := _colors_by_class(root, settings)
+	var root := _styled(Styling.BY_SINGLE)
+	root.style.color = SINGLE
+	var colors := _colors_by_class(root)
 	for class_id in Styling.CLASSES:
-		assert_eq(colors[class_id], settings.single_color, "%s is the one colour" % class_id)
+		assert_eq(colors[class_id], SINGLE, "%s is the one colour" % class_id)
 
 
 # A feature's age is the older end of its time range: when it came into being.
 func test_the_feature_age_style_reads_the_palette_at_the_start_of_the_range() -> void:
-	var root := _build_tree()
-	var settings := _styled(Styling.BY_AGE)
-	settings.palette = "steps"
+	var root := _styled(Styling.BY_AGE)
+	root.style.palette = "steps"
 	var palette := Palette.built_in("steps")
-	var colors := _colors_by_class(root, settings)
+	var colors := _colors_by_class(root)
 	assert_eq(colors[Styling.POLYGONS], palette.color_at(100.0), "the shield, 100 Ma old")
 	assert_eq(colors[Styling.POLYLINES], palette.color_at(500.0), "the ridge, 500")
 	assert_eq(colors[Styling.POINTS], palette.color_at(900.0), "the stations, 900")
@@ -178,8 +180,7 @@ func test_the_feature_age_style_reads_the_palette_at_the_start_of_the_range() ->
 
 
 func test_the_feature_type_style_gives_the_colour_of_the_type() -> void:
-	var root := _build_tree()
-	var colors := _colors_by_class(root, _styled(Styling.BY_TYPE))
+	var colors := _colors_by_class(_styled(Styling.BY_TYPE))
 	assert_eq(colors[Styling.POLYGONS], FeatureType.color("polygon"), "the shield is a polygon")
 	assert_eq(colors[Styling.POLYLINES], FeatureType.color("line"), "the ridge is a line")
 	assert_eq(colors[Styling.POINTS], FeatureType.color("points"), "the stations are points")
@@ -190,9 +191,8 @@ func test_the_feature_type_style_gives_the_colour_of_the_type() -> void:
 # there were any: each feature in the colour it carries.
 func test_a_document_that_names_no_style_draws_the_feature_colours() -> void:
 	var root := _build_tree()
-	var settings := ViewSettings.new()
-	assert_eq(settings.draw_style, Styling.BY_FEATURE, "the style a fresh block has")
-	assert_eq(_colors_by_class(root, settings)[Styling.POLYGONS], Color.RED, "the shield")
+	assert_eq(root.style.mode, Styling.BY_FEATURE, "the style a fresh root has")
+	assert_eq(_colors_by_class(root)[Styling.POLYGONS], Color.RED, "the shield")
 	# The same again with no styling handed over at all, which is what a caller
 	# that knows nothing about styles gets.
 	var bare := Planet.collect_geometry(root, 0.0)
@@ -208,19 +208,153 @@ func test_a_style_name_from_nowhere_falls_back_to_the_feature_colour() -> void:
 		assert_eq(Styling.normalize_style(style_id), style_id, "%s is its own" % style_id)
 
 
+### Group styles
+
+
+# Root > Outer > Inner > Leaf, every group on inherit and at full opacity.
+func _nested() -> Feature:
+	var root := Feature.create_group("Planet")
+	root.is_root = true
+	root.style = GroupStyle.for_root()
+	var outer := Feature.create_group("Outer")
+	var inner := Feature.create_group("Inner")
+	var leaf := Feature.create_feature("Leaf", Color(1.0, 0.0, 0.0, 0.8))
+	leaf.add_ring(PackedVector2Array(POLYGON_RING), Feature.GeometryKind.POLYGON)
+	root.children.append(outer)
+	outer.children.append(inner)
+	inner.children.append(leaf)
+	return root
+
+
+func _leaf_color(root: Feature) -> Color:
+	var leaf: Feature = root.children[0].children[0].children[0]
+	return Styling.of(ViewSettings.new(), root).color_of(leaf)
+
+
+func test_a_new_group_inherits() -> void:
+	assert_eq(Feature.create_group().style.mode, Styling.INHERIT, "a group leaves it to the one above")
+	assert_eq(Feature.create_group().style.opacity, 1.0, "at full opacity")
+	assert_true(Feature.create_feature().style == null, "and a leaf has no style")
+
+
+func test_a_root_style_reaches_through_two_levels_of_inherit() -> void:
+	var root := _nested()
+	root.style.mode = Styling.BY_SINGLE
+	root.style.color = SINGLE
+	assert_eq(_leaf_color(root), SINGLE, "the root's single colour, past Outer and Inner")
+
+
+func test_the_nearest_group_not_on_inherit_decides() -> void:
+	var root := _nested()
+	root.style.mode = Styling.BY_SINGLE
+	root.style.color = SINGLE
+	var outer: Feature = root.children[0]
+	var inner: Feature = outer.children[0]
+	outer.style.mode = Styling.BY_TYPE
+	assert_eq(_leaf_color(root), FeatureType.color("polygon"), "Outer's type colour over the root")
+	inner.style.mode = Styling.BY_SINGLE
+	inner.style.color = OTHER_SINGLE
+	assert_eq(_leaf_color(root), OTHER_SINGLE, "and Inner's own over both")
+	inner.style.mode = Styling.BY_FEATURE
+	assert_eq(_leaf_color(root), Color(1.0, 0.0, 0.0, 0.8), "Inner on own colours gives the leaf's")
+
+
+func test_the_root_style_is_the_default() -> void:
+	var root := _nested()
+	assert_eq(_leaf_color(root), Color(1.0, 0.0, 0.0, 0.8), "a fresh root draws the leaf's own colour")
+	# A root has nothing above it, so a root on inherit is the same default.
+	root.style.mode = Styling.INHERIT
+	assert_eq(_leaf_color(root), Color(1.0, 0.0, 0.0, 0.8), "and so does a root on inherit")
+	root.style.mode = Styling.BY_TYPE
+	assert_eq(_leaf_color(root), FeatureType.color("polygon"), "while the root decides for all")
+
+
+# Every group's opacity multiplies in, whether it decides the colour or not.
+func test_the_opacity_of_every_group_above_multiplies_down() -> void:
+	var root := _nested()
+	var outer: Feature = root.children[0]
+	var inner: Feature = outer.children[0]
+	root.style.opacity = 0.5
+	outer.style.opacity = 0.5
+	assert_close(_leaf_color(root).a, 0.8 * 0.25, 1e-6, "the leaf's own alpha times both")
+	inner.style.mode = Styling.BY_SINGLE
+	inner.style.color = SINGLE
+	inner.style.opacity = 0.8
+	var color := _leaf_color(root)
+	assert_close(color.a, 0.5 * 0.5 * 0.8, 1e-6, "the single colour times all three")
+	assert_eq(Color(color, 1.0), SINGLE, "and the colour itself is untouched")
+
+
+func test_a_feature_outside_the_tree_keeps_its_own_colour() -> void:
+	var root := _nested()
+	root.style.mode = Styling.BY_SINGLE
+	var stray := Feature.create_feature("Stray", Color.GREEN)
+	assert_eq(Styling.of(ViewSettings.new(), root).color_of(stray), Color.GREEN, "not under the root")
+
+
+func test_a_style_round_trips_through_the_file() -> void:
+	var root := _nested()
+	var outer: Feature = root.children[0]
+	outer.style.mode = Styling.BY_AGE
+	outer.style.color = OTHER_SINGLE
+	outer.style.opacity = 0.25
+	outer.style.palette = "C:/palettes/ages.cpt"
+	var back := Feature.from_json(root.to_json())
+	assert_eq(back.children[0].style.to_json(), outer.style.to_json(), "the group's whole style")
+	assert_eq(back.style.to_json(), root.style.to_json(), "and the root's")
+	assert_true(not (back.children[0].children[0].children[0].to_json() as Dictionary).has("style"),
+		"a leaf writes none")
+
+
+func test_a_style_the_file_garbles_reads_as_inherit_in_range() -> void:
+	var style := GroupStyle.from_json({"mode": "by_plate_id", "opacity": 3.0, "color": "red"})
+	assert_eq(style.mode, Styling.INHERIT, "an unknown mode inherits")
+	assert_eq(style.opacity, 1.0, "the opacity is brought back into range")
+	assert_eq(style.color, Styling.DEFAULT_SINGLE, "and a colour that is not one is the default")
+	assert_eq(GroupStyle.from_json(null).to_json(), GroupStyle.new().to_json(), "no style at all")
+
+
+func test_a_clone_carries_its_own_copy_of_the_style() -> void:
+	var root := _nested()
+	var copy := root.clone()
+	copy.children[0].style.mode = Styling.BY_TYPE
+	assert_eq(root.children[0].style.mode, Styling.INHERIT, "editing the copy leaves the original")
+
+
+func test_a_style_edit_is_one_step_of_the_undo_stack() -> void:
+	var document := Document.new()
+	var group := Feature.create_group("Crust")
+	document.root.children.append(group)
+	document.record()
+	var depth := document.applied
+
+	var style := GroupStyle.new()
+	style.mode = Styling.BY_SINGLE
+	style.opacity = 0.5
+	assert_eq(document.set_style(group, style), "", "a group takes a style")
+	assert_eq(document.applied, depth + 1, "in one undo version")
+	style.opacity = 0.1
+	assert_eq(group.style.opacity, 0.5, "and keeps its own copy of it")
+
+	document.undo()
+	assert_eq(document.root.children[0].style.mode, Styling.INHERIT, "undo takes it back")
+	var leaf := Feature.create_feature("Leaf")
+	assert_true(not document.set_style(leaf, style).is_empty(), "a leaf is refused")
+
+
 ### Helpers
 
 
-func _styled(style_id: String) -> ViewSettings:
-	var settings := ViewSettings.new()
-	settings.draw_style = style_id
-	return settings
+func _styled(mode: String) -> Feature:
+	var root := _build_tree()
+	root.style.mode = mode
+	return root
 
 
 # How many primitives each class contributes to the flattened geometry.
 func _primitives_by_class(root: Feature, settings: ViewSettings) -> Dictionary:
 	var counts := {}
-	var geometry := Planet.collect_geometry(root, 0.0, Styling.of(settings))
+	var geometry := Planet.collect_geometry(root, 0.0, Styling.of(settings, root))
 	for primitive in geometry.primitives:
 		var class_id := Styling.class_of(primitive["feature"] as Feature)
 		counts[class_id] = int(counts.get(class_id, 0)) + 1
@@ -229,9 +363,9 @@ func _primitives_by_class(root: Feature, settings: ViewSettings) -> Dictionary:
 
 # The color each class is drawn in, read off the colors the geometry carries
 # for the shader.
-func _colors_by_class(root: Feature, settings: ViewSettings) -> Dictionary:
+func _colors_by_class(root: Feature) -> Dictionary:
 	var colors := {}
-	var geometry := Planet.collect_geometry(root, 0.0, Styling.of(settings))
+	var geometry := Planet.collect_geometry(root, 0.0, Styling.of(ViewSettings.new(), root))
 	for index in geometry.features.size():
 		colors[Styling.class_of(geometry.features[index])] = geometry.colors[index]
 	return colors
@@ -239,6 +373,6 @@ func _colors_by_class(root: Feature, settings: ViewSettings) -> Dictionary:
 
 # The title of the feature covering a point, empty when nothing is there.
 func _hit(root: Feature, settings: ViewSettings, lat: float, lon: float) -> String:
-	var geometry := Planet.collect_geometry(root, 0.0, Styling.of(settings))
+	var geometry := Planet.collect_geometry(root, 0.0, Styling.of(settings, root))
 	var feature := Planet.hit_test(lat, lon, geometry)
 	return "" if feature == null else feature.title

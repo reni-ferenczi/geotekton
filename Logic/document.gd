@@ -72,10 +72,12 @@ func _init() -> void:
 ### The document as a whole
 
 
-# Start an empty document with a fresh undo stack, as after File > New.
-func reset(settings: ViewSettings = null) -> void:
+# Start an empty document with a fresh undo stack, as after File > New. The
+# style is the root group's, which is the document default for colors.
+func reset(settings: ViewSettings = null, style: GroupStyle = null) -> void:
 	root = Feature.create_group("Planet")
 	root.is_root = true
+	root.style = style.clone() if style != null else GroupStyle.for_root()
 	view = settings.clone() if settings != null else ViewSettings.new()
 	versions.clear()
 	applied = 0
@@ -95,8 +97,11 @@ func is_dirty() -> bool:
 # this records the version, which is what makes the change count and what
 # lets it be undone. A block that still says what the last version says
 # records nothing, so a picker opened and closed again is not an undo step.
+# The View settings dialog edits the root group's style as well, so that counts
+# as part of the block here.
 func view_edited() -> void:
-	if applied > 0 and versions[applied - 1].view.to_json() == view.to_json():
+	if applied > 0 and versions[applied - 1].view.to_json() == view.to_json() \
+			and versions[applied - 1].root.style.to_json() == root.style.to_json():
 		return
 	record()
 
@@ -179,6 +184,16 @@ func set_enabled(node: Feature, enabled: bool) -> void:
 func set_color(feature: Feature, color: Color) -> void:
 	feature.color = color
 	record()
+
+
+# Give a group another style: how the features under it are colored and how
+# opaque they are. Refused on a leaf, which has no style.
+func set_style(group: Feature, style: GroupStyle) -> String:
+	if group == null or not group.is_group:
+		return "Only a group has a style."
+	group.style = style.clone()
+	record()
+	return ""
 
 
 # Give the feature another type, which comes down to making a polygon or a
@@ -471,6 +486,9 @@ func load_from_file(file_path: String) -> String:
 	var migrated := migrate(data)
 	var loaded := Feature.from_json(migrated["features"])
 	loaded.is_root = true
+	# The root has nothing above it to inherit from.
+	if loaded.style != null and loaded.style.mode == Styling.INHERIT:
+		loaded.style.mode = Styling.BY_FEATURE
 
 	root = loaded
 	view = ViewSettings.from_json(migrated.get("view"))
@@ -566,7 +584,7 @@ func resolve_backdrop() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.9.0"):
+	if not _is_older_than(version, "0.10.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -575,13 +593,31 @@ static func migrate(data: Dictionary) -> Dictionary:
 		data["features"] = _to_0_4_0(data.get("features", {}))
 	if _is_older_than(version, "0.8.0"):
 		data["features"] = _to_0_8_0(data.get("features", {}), [])
-	data["features"] = _to_0_9_0(data.get("features", {}))
 	var view: Variant = data.get("view")
-	if view is Dictionary and view.get("hidden_classes") is Array:
-		view["hidden_classes"] = view["hidden_classes"].map(
-			func(name: Variant) -> Variant: return "circles" if name == "small_circles" else name)
-	data["version"] = "0.9.0"
+	if _is_older_than(version, "0.9.0"):
+		data["features"] = _to_0_9_0(data.get("features", {}))
+		if view is Dictionary and view.get("hidden_classes") is Array:
+			view["hidden_classes"] = view["hidden_classes"].map(
+				func(name: Variant) -> Variant: return "circles" if name == "small_circles" else name)
+	_to_0_10_0(data)
+	data["version"] = "0.10.0"
 	return data
+
+
+# 0.10.0 gave groups a style, in place of GPlates layer coloring. The document's
+# draw style, single colour and palette left the view block and became the style
+# of the root group, which is the document default. A block that named none of
+# them leaves the root on its default, each feature's own colour.
+static func _to_0_10_0(data: Dictionary) -> void:
+	var view: Variant = data.get("view")
+	var features: Variant = data.get("features")
+	if view is not Dictionary:
+		return
+	var style := GroupStyle.json_from_view_block(view)
+	for key in GroupStyle.VIEW_KEYS:
+		view.erase(key)
+	if not style.is_empty() and features is Dictionary:
+		features["style"] = style
 
 
 # The eight types up to 0.8.0 and the one each became. Unclassified, and a type

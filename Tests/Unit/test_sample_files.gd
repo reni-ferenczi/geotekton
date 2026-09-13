@@ -67,6 +67,17 @@ const EXPECTED := {
 			[Vector2(5, 40), ""],
 		],
 	},
+	"group_styles.middle-earth": {
+		"version": "0.10.0",
+		"titles": ["Planet", "Continental Crust", "Red Triangle", "Cratons", "Blue Ridge",
+			"Green Stations"],
+		"hits": [
+			[Vector2(-3, 0), "Red Triangle"],
+			[Vector2(0, 40), "Blue Ridge"],
+			[Vector2(-30, -30), "Green Stations"],
+			[Vector2(5, 17), ""],
+		],
+	},
 	"mixed_geometry.middle-earth": {
 		"version": "0.2.0",
 		"titles": ["Planet", "Shapes", "Red Triangle", "Blue Ridge", "Green Stations"],

@@ -24,7 +24,9 @@ the styling to that block, whose defaults are likewise how every file was drawn
 before there were any styles; and 0.8.0 took motion off groups and folds the
 keyframes of a moving group into the leaves under it, which has a step; and
 0.9.0 cut the eight feature types down to five and maps the old ones onto them,
-which has a step too.
+which has a step too; and 0.10.0 gave groups a style and moves the draw style,
+the single colour and the palette out of the view settings onto the root group,
+which has a step as well.
 
 The first public release will have major version 1.
 

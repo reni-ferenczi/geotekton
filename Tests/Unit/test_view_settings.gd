@@ -19,8 +19,11 @@ func test_a_fresh_block_is_the_scene_as_it_was_always_drawn() -> void:
 	assert_true(settings.backdrop_visible, "which would be shown if there were")
 	assert_eq(settings.backdrop_opacity, 1.0, "at full opacity")
 	assert_eq(settings.hidden_classes.size(), 0, "every class of geometry is drawn")
-	assert_eq(settings.draw_style, Styling.BY_FEATURE, "each feature in its own colour")
-	assert_eq(settings.palette, Palette.DEFAULT, "over the default palette")
+	# The colors are the root group's since 0.10.0, not the block's.
+	for key in GroupStyle.VIEW_KEYS:
+		assert_true(not settings.to_json().has(key), "%s is not in the block" % key)
+	assert_eq(Document.new().root.style.mode, Styling.BY_FEATURE,
+		"a new document draws each feature in its own colour")
 
 
 # The graticule is one spacing in degrees; the shader counts divisions of the
@@ -46,10 +49,7 @@ func test_every_setting_round_trips_through_json() -> void:
 	assert_eq(back.backdrop_path, settings.backdrop_path, "the backdrop path")
 	assert_eq(back.backdrop_opacity, settings.backdrop_opacity, "the backdrop opacity")
 	assert_eq(back.backdrop_visible, settings.backdrop_visible, "the backdrop switch")
-	assert_eq(back.hidden_classes, settings.hidden_classes, "the classes switched off")
-	assert_eq(back.draw_style, settings.draw_style, "the draw style")
-	assert_eq(back.single_color, settings.single_color, "the single colour")
-	assert_eq(back.palette, settings.palette, "and the palette")
+	assert_eq(back.hidden_classes, settings.hidden_classes, "and the classes switched off")
 
 
 func test_a_block_that_says_nothing_gets_every_default() -> void:
@@ -81,6 +81,8 @@ func test_a_setting_out_of_range_is_brought_back_into_it() -> void:
 func test_the_settings_survive_a_save_and_a_load() -> void:
 	var document := Document.new()
 	document.view = _edited()
+	document.root.style.mode = Styling.BY_AGE
+	document.root.style.palette = "C:/palettes/plate_id.cpt"
 	document.view_edited()
 	assert_true(document.is_dirty(), "editing the view dirties the document")
 
@@ -91,8 +93,8 @@ func test_the_settings_survive_a_save_and_a_load() -> void:
 	var reopened := Document.new()
 	assert_eq(reopened.load_from_file(path), "", "and read back")
 	assert_eq(reopened.view.to_json(), document.view.to_json(), "with the whole block")
-	assert_eq(reopened.view.draw_style, Styling.BY_AGE, "the active style among it")
-	assert_eq(reopened.view.palette, "C:/palettes/plate_id.cpt", "and the palette it reads")
+	assert_eq(reopened.root.style.mode, Styling.BY_AGE, "the root group's style beside it")
+	assert_eq(reopened.root.style.palette, "C:/palettes/plate_id.cpt", "and the palette it reads")
 	assert_true(not reopened.is_dirty(), "and nothing to save")
 	DirAccess.remove_absolute(path)
 
@@ -108,6 +110,10 @@ func test_a_view_setting_is_one_step_of_the_undo_stack() -> void:
 	assert_true(document.can_undo(), "and it can be undone")
 	document.view_edited()
 	assert_eq(document.applied, depth + 1, "saying it again with nothing changed records nothing")
+	# The dialog edits the root group's style in the same breath.
+	document.root.style.opacity = 0.5
+	document.view_edited()
+	assert_eq(document.applied, depth + 2, "and the root's style counts as part of it")
 
 
 # Every file written before 0.6.0 carries no view block, and opens looking the
@@ -190,7 +196,4 @@ func _edited() -> ViewSettings:
 	settings.backdrop_visible = false
 	settings.hide_class(Styling.POINTS, true)
 	settings.hide_class(Styling.TOPOLOGIES, true)
-	settings.draw_style = Styling.BY_AGE
-	settings.single_color = Color(0.7, 0.2, 0.9, 1.0)
-	settings.palette = "C:/palettes/plate_id.cpt"
 	return settings

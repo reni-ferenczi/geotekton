@@ -5,8 +5,8 @@ extends TestCase
 # triangles cover and dropped the five rule editor switches; 0.4.0 turned the
 # one rotation a leaf carried into the keyframe at time zero; 0.8.0 folded the
 # keyframes of groups into the leaves under them; 0.9.0 cut eight feature types
-# down to five. The samples in Tests/Data are
-# still written in 0.1.0, so they run through every step.
+# down to five; 0.10.0 moved the draw style onto the root group. The samples in
+# Tests/Data are still written in 0.1.0, so they run through every step.
 
 const DATA_DIR := "res://Tests/Data"
 const OLD_SAMPLES := ["triangle.middle-earth", "two_cratons.middle-earth", "empty.middle-earth"]
@@ -30,7 +30,7 @@ func test_the_samples_keep_the_edges_their_triangles_left_on_the_boundary() -> v
 		var before: Array = []
 		_collect_leaves(raw["features"], before)
 		var migrated := Document.migrate(raw.duplicate(true))
-		assert_eq(str(migrated["version"]), "0.9.0", "%s is migrated to 0.9.0" % file_name)
+		assert_eq(str(migrated["version"]), "0.10.0", "%s is migrated to 0.10.0" % file_name)
 
 		var after: Array = []
 		_collect_leaves(migrated["features"], after)
@@ -128,7 +128,7 @@ func test_a_leaf_at_0_4_0_under_no_moving_group_is_left_alone() -> void:
 	var expected: Dictionary = data["features"].duplicate(true)
 	expected["feature_type"] = FeatureType.NONE
 	assert_eq(migrated["features"], expected, "the leaf is as it was, its type left to its geometry")
-	assert_eq(migrated["version"], "0.9.0", "at the current version")
+	assert_eq(migrated["version"], "0.10.0", "at the current version")
 
 
 ### 0.7.0 to 0.8.0: groups stop carrying motion
@@ -221,7 +221,7 @@ func test_a_0_7_0_file_opens_each_old_type_as_one_of_the_five() -> void:
 	var migrated := Document.migrate({"version": "0.7.0",
 		"features": {"type": "Group", "title": "Planet", "children": children},
 		"view": {"hidden_classes": ["small_circles", "points"]}})
-	assert_eq(migrated["version"], "0.9.0", "at the current version")
+	assert_eq(migrated["version"], "0.10.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	for i in OLD_TYPES.size():
 		assert_eq(root.children[i].feature_type, OLD_TYPES[i][2], root.children[i].title)
@@ -255,7 +255,54 @@ func test_every_sample_opens_with_one_of_the_five() -> void:
 	assert_true(opened >= 7, "every sample was opened: %d" % opened)
 
 
+### 0.9.0 to 0.10.0: the draw style becomes the root group's
+
+
+# The three styling keys of a 0.7.0 view block land on the root group, and a
+# document opened from it draws with them.
+func test_a_0_7_0_draw_style_becomes_the_style_of_the_root_group() -> void:
+	var migrated := Document.migrate({"version": "0.7.0",
+		"features": {"type": "Group", "title": "Planet", "children": []},
+		"view": {"draw_style": "single", "single_color": [0.1, 0.6, 0.9, 0.75],
+			"palette": "steps", "ambient": 0.25}})
+	for key in GroupStyle.VIEW_KEYS:
+		assert_true(not migrated["view"].has(key), "%s has left the view block" % key)
+	assert_eq(migrated["view"]["ambient"], 0.25, "and the rest of the block stays")
+	var root := Feature.from_json(migrated["features"])
+	assert_eq(root.style.mode, Styling.BY_SINGLE, "the root carries the style")
+	assert_eq(root.style.color, Color(0.1, 0.6, 0.9, 0.75), "the single colour, alpha and all")
+	assert_eq(root.style.palette, "steps", "the palette")
+	assert_eq(root.style.opacity, 1.0, "at full opacity, so it draws the same")
+
+
+# A block that named no style leaves the root on the default, and so does a
+# style that no version knew, which is what the view block did with one.
+func test_a_block_without_a_style_leaves_the_root_on_its_own_colours() -> void:
+	var path := ProjectSettings.globalize_path("user://test_migration_0_9_0.middle-earth")
+	for view in [{}, {"draw_style": "by_plate_id"}]:
+		var file := FileAccess.open(path, FileAccess.WRITE)
+		file.store_string(JSON.stringify({"application": "middle-earth", "version": "0.9.0",
+			"features": {"type": "Group", "is_group": true, "title": "Planet", "children": []},
+			"view": view}))
+		file.close()
+		var document := Document.new()
+		assert_eq(document.load_from_file(path), "", "a 0.9.0 file opens")
+		assert_eq(document.root.style.mode, Styling.BY_FEATURE, "on own colours from %s" % [view])
+	DirAccess.remove_absolute(path)
+
+
+# 0.9.0 already has the five types, so the step before is not run on it again:
+# mapped twice, every type would be lost.
+func test_a_0_9_0_file_keeps_its_types() -> void:
+	var migrated := Document.migrate({"version": "0.9.0", "features": {
+		"type": "Group", "title": "Planet", "children": [
+			{"type": "Feature", "title": "Ring", "feature_type": "circle", "rings": []}]}})
+	assert_eq(migrated["features"]["children"][0]["feature_type"], "circle", "the circle stays one")
+	assert_eq(migrated["version"], "0.10.0", "at the current version")
+
+
 func test_version_ordering() -> void:
+	assert_true(Document._is_older_than("0.9.0", "0.10.0"), "the minor number is a number")
 	assert_true(Document._is_older_than("0.1.0", "0.2.0"))
 	assert_true(Document._is_older_than("0.1", "0.2.0"))
 	assert_true(not Document._is_older_than("0.2.0", "0.2.0"))

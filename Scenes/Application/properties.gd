@@ -4,7 +4,8 @@ class_name Properties
 # The Properties panel: what the feature tree has selected, laid out so it can
 # be edited. A leaf feature shows its name, type, colour, enabled switch, time
 # range, what its geometry holds and how many keyframes it has; a group shows
-# the name and the switch, because that is all a group has. See
+# the name, the switch and its style: how the features under it are colored.
+# The root group's style is edited in the View settings dialog instead. See
 # Docs/Properties.md.
 #
 # The panel never writes to a feature itself. Every edit goes through the
@@ -54,6 +55,8 @@ var _filling: bool = false
 var placeholder: Label
 var name_edit: LineEdit
 var type_selector: OptionButton
+var style_selector: OptionButton
+var palette_selector: OptionButton
 var color_button: ColorPickerButton
 var opacity_spin: SpinBox
 var enabled_check: CheckBox
@@ -68,7 +71,7 @@ var reverse_button: Button
 var remove_section_button: Button
 
 # Every row of the form, each a label and the control beside it, and whether a
-# group has it too.
+# group and a feature have it.
 var _rows: Array[Dictionary] = []
 # The section table and its buttons, which only a line topology has.
 var _topology_boxes: Array[Control] = []
@@ -130,11 +133,19 @@ func _build() -> void:
 	type_selector.item_selected.connect(_on_type_selected)
 	_row(form, "Type", type_selector)
 
+	style_selector = _selector("Style")
+	for mode_id in Styling.MODES:
+		style_selector.add_item(str(Styling.MODES[mode_id]))
+		style_selector.set_item_metadata(style_selector.item_count - 1, mode_id)
+	style_selector.item_selected.connect(func(_index: int) -> void: _commit_style())
+	_row(form, "Style", style_selector, true, false)
+
 	# The color and its opacity share a row. The picker leaves the alpha alone,
-	# since the box beside it is where the opacity is set.
+	# since the box beside it is where the opacity is set. On a group they are
+	# the single colour of its style and the opacity it multiplies in.
 	var color_row := HBoxContainer.new()
 	color_row.name = "ColorRow"
-	_row(form, "Colour", color_row)
+	_row(form, "Colour", color_row, true)
 
 	color_button = ColorPickerButton.new()
 	color_button.name = "Color"
@@ -155,6 +166,10 @@ func _build() -> void:
 	opacity_spin.tooltip_text = "Opacity: 0 shows what is beneath, 100 covers it"
 	opacity_spin.value_changed.connect(func(_value: float) -> void: _commit_color())
 	color_row.add_child(opacity_spin)
+
+	palette_selector = _selector("Palette")
+	palette_selector.item_selected.connect(func(_index: int) -> void: _commit_style())
+	_row(form, "Palette", palette_selector, true, false)
 
 	enabled_check = CheckBox.new()
 	enabled_check.name = "Enabled"
@@ -267,15 +282,27 @@ func _time_spin(spin_name: String) -> SpinBox:
 	return spin
 
 
-# One labelled row of the form. A row a group does not have is hidden, label and
-# all, while a group or nothing is selected.
-func _row(form: GridContainer, text: String, control: Control, on_a_group: bool = false) -> void:
+# One labelled row of the form. A row is hidden, label and all, while what is
+# selected does not have it.
+func _row(form: GridContainer, text: String, control: Control, on_a_group: bool = false,
+		on_a_feature: bool = true) -> void:
 	var label := Label.new()
 	label.text = text
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	form.add_child(label)
 	form.add_child(control)
-	_rows.append({"label": label, "control": control, "on_a_group": on_a_group})
+	_rows.append({"label": label, "control": control, "on_a_group": on_a_group,
+		"on_a_feature": on_a_feature})
+
+
+# A selector whose longest item does not set the width of the panel: a palette
+# file can have a long name.
+func _selector(selector_name: String) -> OptionButton:
+	var selector := OptionButton.new()
+	selector.name = selector_name
+	selector.fit_to_longest_item = false
+	selector.clip_text = true
+	return selector
 
 
 ### Filling the panel
@@ -294,7 +321,8 @@ func show_node(node_: Feature) -> void:
 	else:
 		placeholder.text = "Nothing is selected."
 	for row in _rows:
-		var shown: bool = is_feature or (editable and row["on_a_group"])
+		var shown: bool = (is_feature and row["on_a_feature"]) \
+			or (editable and node.is_group and row["on_a_group"])
 		(row["label"] as Control).visible = shown
 		(row["control"] as Control).visible = shown
 	# A topology has sections, and no motion of its own: where it is comes from
@@ -318,6 +346,8 @@ func show_node(node_: Feature) -> void:
 		to_spin.value = node.time_range.y
 		geometry_label.text = _geometry_summary(node)
 		_fill_sections()
+	else:
+		_show_style()
 	_filling = false
 	_update_section_buttons()
 	_update_keyframes()
@@ -578,22 +608,71 @@ func _show_color() -> void:
 	opacity_spin.value = roundf(node.color.a * 100.0)
 
 
+# A group's style: the mode, the single colour and the opacity in the color row,
+# and the palette, which lists the built in ones and the file the style names
+# when it names one. Call while _filling.
+func _show_style() -> void:
+	var style := node.style
+	style_selector.select(_item_index(style_selector, style.mode))
+	color_button.color = Color(style.color, 1.0)
+	opacity_spin.value = roundf(style.opacity * 100.0)
+	palette_selector.clear()
+	for key in Palette.BUILT_IN:
+		palette_selector.add_item(str(Palette.BUILT_IN[key]["name"]))
+		palette_selector.set_item_metadata(palette_selector.item_count - 1, key)
+	if not Palette.BUILT_IN.has(style.palette):
+		palette_selector.add_item(style.palette.get_file())
+		palette_selector.set_item_metadata(palette_selector.item_count - 1, style.palette)
+		palette_selector.set_item_tooltip(palette_selector.item_count - 1, style.palette)
+	palette_selector.select(_item_index(palette_selector, style.palette))
+
+
+func _item_index(selector: OptionButton, id: String) -> int:
+	for index in selector.item_count:
+		if str(selector.get_item_metadata(index)) == id:
+			return index
+	return -1
+
+
 # The picker sends a colour for every drag of its cursor. Showing them on the
-# globe is what makes it a picker, so the feature takes them all, but only the
-# one left when the picker closes reaches the undo stack.
+# globe is what makes it a picker, so the feature or the group takes them all,
+# but only the one left when the picker closes reaches the undo stack.
 func _on_color_previewed(color: Color) -> void:
-	if _filling or node == null or node.is_group:
+	if _filling or node == null or node.is_root:
 		return
-	node.color = Color(color, opacity_spin.value / 100.0)
+	if node.is_group:
+		node.style.color = Color(color, node.style.color.a)
+	else:
+		node.color = Color(color, opacity_spin.value / 100.0)
 	previewed.emit()
 
 
 # The picked color at the opacity the box holds. A change of either is one
 # edit, one undo version.
 func _commit_color() -> void:
-	if _filling or node == null or node.is_group:
+	if _filling or node == null or node.is_root:
+		return
+	if node.is_group:
+		_commit_style()
 		return
 	document.set_color(node, Color(color_button.color, opacity_spin.value / 100.0))
+	recolored.emit()
+
+
+# The whole style off the group rows, as one edit. The single colour keeps the
+# alpha it has, since the opacity box is where a group is made see-through.
+func _commit_style() -> void:
+	if _filling or node == null or node.is_root or not node.is_group:
+		return
+	var style := GroupStyle.new()
+	style.mode = str(style_selector.get_item_metadata(style_selector.selected))
+	style.color = Color(color_button.color, node.style.color.a)
+	style.opacity = opacity_spin.value / 100.0
+	style.palette = str(palette_selector.get_item_metadata(palette_selector.selected))
+	var error := document.set_style(node, style)
+	if not error.is_empty():
+		rejected.emit(error)
+		return
 	recolored.emit()
 
 
@@ -630,6 +709,19 @@ func to_json() -> Dictionary:
 		"enabled": enabled_check.button_pressed,
 	}
 	if node.is_group:
+		var mode := style_selector.selected
+		var chosen := palette_selector.selected
+		data["style"] = {
+			"mode": str(style_selector.get_item_metadata(mode)) if mode >= 0 else "",
+			"color": [color_button.color.r, color_button.color.g, color_button.color.b,
+				node.style.color.a],
+			"opacity": int(opacity_spin.value),
+			"palette": str(palette_selector.get_item_metadata(chosen)) if chosen >= 0 else "",
+		}
+		data["styles"] = range(style_selector.item_count).map(
+			func(index: int) -> String: return str(style_selector.get_item_metadata(index)))
+		data["palettes"] = range(palette_selector.item_count).map(
+			func(index: int) -> String: return str(palette_selector.get_item_metadata(index)))
 		return data
 	var picked := type_selector.selected
 	data["feature_type"] = str(type_selector.get_item_metadata(picked)) if picked >= 0 else ""
@@ -684,6 +776,15 @@ func set_field(field: String, value: Variant) -> String:
 			var index := _type_index(str(value))
 			type_selector.select(index)
 			_on_type_selected(index)
+		"style", "palette":
+			if not node.is_group:
+				return "a feature has no %s; its group does" % field
+			var selector := style_selector if field == "style" else palette_selector
+			var at := _item_index(selector, str(value))
+			if at < 0:
+				return "the %s selector offers no %s" % [field, value]
+			selector.select(at)
+			_commit_style()
 		"color":
 			var c: Array = value
 			_filling = true

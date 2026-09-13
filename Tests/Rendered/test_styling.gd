@@ -31,7 +31,7 @@ func test_each_feature_is_drawn_in_its_own_colour() -> void:
 func test_the_single_colour_style_paints_all_three_the_same() -> void:
 	var single := Color(0.1, 0.6, 0.9, 1.0)
 	await _load_styled({"draw_style": Styling.BY_SINGLE})
-	app.document.view.single_color = single
+	app.document.root.style.color = single
 	app.refresh_geometry()
 	await _check(POLYGON, single, "the polygon")
 	await _check(POLYLINE, single, "the polyline")
@@ -133,6 +133,65 @@ func test_a_color_change_uploads_only_the_feature_state() -> void:
 	await _check(POLYGON, Color.BLUE, "the polygon in its new color")
 
 
+### Group styles
+
+
+# group_styles.middle-earth: the root on the feature type style, Continental
+# Crust on a single colour holding the red polygon, Cratons on own colours
+# holding the blue polyline, and the green markers straight under the root.
+const CRUST_COLOR := Color(0.1, 0.6, 0.9, 1.0)
+
+
+func test_a_group_on_a_single_colour_beside_a_group_on_own_colours() -> void:
+	await load_sample("group_styles.middle-earth")
+	await _check(POLYGON, CRUST_COLOR, "the polygon in Continental Crust's single colour")
+	await _check(POLYLINE, Color.BLUE, "the polyline in its own colour under Cratons")
+	await _check(POINT, FeatureType.color("points"), "the markers in the root's type colour")
+
+
+# A group's opacity lays everything under it over the Earth, the way a feature's
+# own does.
+func test_a_group_opacity_lays_its_features_over_the_earth() -> void:
+	await load_sample("group_styles.middle-earth")
+	var crust: Feature = app.document.root.children[0]
+	crust.enabled = false
+	app.refresh_geometry()
+	var earth := await _probe(POLYGON)
+	crust.enabled = true
+
+	crust.style.opacity = 0.5
+	app.refresh_geometry()
+	var half := earth.srgb_to_linear().lerp(CRUST_COLOR.srgb_to_linear(), 0.5).linear_to_srgb()
+	await _check(POLYGON, half, "the polygon at half its group's opacity")
+	await _check(POLYLINE, Color.BLUE, "while the other group is untouched")
+
+
+# A 0.7.0 file drawn in a single colour still is: the migration puts the style on
+# the root group and the probe finds the colour the view block named.
+func test_a_0_7_0_file_in_a_single_colour_opens_drawn_the_same() -> void:
+	var raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(
+		"%s/%s" % [DATA_DIR, "group_styles.middle-earth"]))
+	var crust: Dictionary = raw["features"]["children"][0]
+	crust.erase("style")
+	raw["features"].erase("style")
+	raw["version"] = "0.7.0"
+	raw["view"] = {"draw_style": "single", "single_color": [0.9, 0.5, 0.1, 1.0]}
+	var path := ProjectSettings.globalize_path("user://test_styling_0_7_0.middle-earth")
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(JSON.stringify(raw, "\t"))
+	file.close()
+
+	app.document.load_from_file(path)
+	app._on_craton_hovered(NAN, NAN)
+	app.refresh_geometry()
+	await frames(2)
+	assert_eq(app.document.root.style.mode, Styling.BY_SINGLE, "the root group carries the style")
+	assert_eq(app.document.root.style.color, Color(0.9, 0.5, 0.1, 1.0), "and the colour")
+	await _check(POLYGON, Color(0.9, 0.5, 0.1, 1.0), "the polygon in that colour")
+	await _check(POINT, Color(0.9, 0.5, 0.1, 1.0), "and the markers")
+	DirAccess.remove_absolute(path)
+
+
 ### The palette chooser
 
 
@@ -160,7 +219,7 @@ func test_the_chooser_lists_and_previews_the_built_in_palettes() -> void:
 func test_a_palette_read_from_a_file_joins_the_list_and_previews() -> void:
 	await load_sample("empty.middle-earth")
 	var path := ProjectSettings.globalize_path("res://Tests/Data/Palettes/continuous.cpt")
-	app.document.view.palette = path
+	app.document.root.style.palette = path
 	app.apply_view_settings()
 	app.show_view_settings()
 
@@ -176,7 +235,7 @@ func test_a_palette_read_from_a_file_joins_the_list_and_previews() -> void:
 # read, with the reason underneath it rather than nowhere.
 func test_a_malformed_palette_says_which_lines_it_could_not_read() -> void:
 	await load_sample("empty.middle-earth")
-	app.document.view.palette = ProjectSettings.globalize_path(
+	app.document.root.style.palette = ProjectSettings.globalize_path(
 		"res://Tests/Data/Palettes/malformed.cpt")
 	app.apply_view_settings()
 	app.show_view_settings()
@@ -203,15 +262,18 @@ func _check_preview(expected: Palette, what: String) -> void:
 ### Helpers
 
 
-# Load the fixture and give the document the styling the case is about.
+# Load the fixture and give the document the styling the case is about: the
+# switches in the view block and the style on the root group.
 func _load_styled(block: Dictionary) -> void:
 	await load_sample("mixed_geometry.middle-earth")
 	var settings := ViewSettings.new()
-	settings.draw_style = Styling.normalize_style(str(block.get("draw_style", Styling.BY_FEATURE)))
-	settings.palette = str(block.get("palette", Palette.DEFAULT))
 	for class_id in block.get("hidden_classes", []):
 		settings.hide_class(str(class_id), true)
 	app.document.view = settings
+	var style := GroupStyle.for_root()
+	style.mode = Styling.normalize_style(str(block.get("draw_style", Styling.BY_FEATURE)))
+	style.palette = str(block.get("palette", Palette.DEFAULT))
+	app.document.root.style = style
 	app.apply_view_settings()
 	app.refresh_geometry()
 	await frames(2)

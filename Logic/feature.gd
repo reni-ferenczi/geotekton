@@ -63,6 +63,8 @@ var is_group: bool
 var children: Array[Feature] = []
 var collapsed: bool
 var is_root: bool
+# How the features under the group are colored; null on a leaf.
+var style: GroupStyle = null
 
 # Feature-only fields
 # What the feature is, an id in FeatureType.CATALOG. It follows the geometry:
@@ -116,6 +118,7 @@ static func create_group(title_: String = "Group") -> Feature:
 	group.init_uuid()
 	group.title = title_
 	group.is_group = true
+	group.style = GroupStyle.new()
 	return group
 
 
@@ -255,6 +258,7 @@ func clone() -> Feature:
 	node.is_group = is_group
 	node.collapsed = collapsed
 	node.is_root = is_root
+	node.style = style.clone() if style != null else null
 	node.feature_type = feature_type
 	node.color = color
 	node.geometry_kind = geometry_kind
@@ -361,6 +365,7 @@ func to_json() -> Variant:
 	}
 	if is_group:
 		data["type"] = "Group"
+		data["style"] = (style if style != null else GroupStyle.new()).to_json()
 		var children_data: Array[Variant] = []
 		for child in children:
 			children_data.append(child.to_json())
@@ -399,6 +404,7 @@ static func from_json(data: Variant) -> Feature:
 		node.keyframes = Keyframe.list_from_json(data.get("keyframes", []))
 	if node.is_group:
 		node.collapsed = true
+		node.style = GroupStyle.from_json(data.get("style"))
 		for child_data in data.get("children", []):
 			node.children.append(Feature.from_json(child_data))
 	else:

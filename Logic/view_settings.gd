@@ -65,12 +65,8 @@ var backdrop_visible: bool = true
 # quietly hide something.
 var hidden_classes: PackedStringArray = PackedStringArray()
 
-# How a feature's colour is chosen, an id in Styling.STYLES, the colour every
-# feature comes out under the single colour style, and the palette the feature
-# age style reads: a key of Palette.BUILT_IN or the path of a `.cpt` file.
-var draw_style: String = Styling.BY_FEATURE
-var single_color: Color = Styling.DEFAULT_SINGLE
-var palette: String = Palette.DEFAULT
+# What colour the features come out is not here: since 0.10.0 it is the style
+# of the root group. See GroupStyle.
 
 
 func clone() -> ViewSettings:
@@ -89,9 +85,6 @@ func to_json() -> Dictionary:
 		"backdrop_opacity": backdrop_opacity,
 		"backdrop_visible": backdrop_visible,
 		"hidden_classes": Array(hidden_classes),
-		"draw_style": draw_style,
-		"single_color": _color_to_json(single_color),
-		"palette": palette,
 	}
 
 
@@ -123,11 +116,6 @@ static func from_json(data: Variant) -> ViewSettings:
 	if hidden is Array:
 		for name in hidden:
 			settings.hide_class(str(name), true)
-	settings.draw_style = Styling.normalize_style(
-		str(data.get("draw_style", Styling.BY_FEATURE)))
-	settings.single_color = _color_from_json(
-		data.get("single_color"), Styling.DEFAULT_SINGLE)
-	settings.palette = str(data.get("palette", Palette.DEFAULT))
 	return settings
 
 

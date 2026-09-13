@@ -2,9 +2,9 @@ class_name Styling
 extends RefCounted
 
 # Which features are drawn and what colour they come out. One of these is built
-# from the open document's view settings and the palette they name, and handed
-# to Planet.collect_geometry(), which is the single place either question is
-# asked. See Docs/Styling.md.
+# from the open document's view settings and its feature tree, whose groups
+# carry the styles, and handed to Planet.collect_geometry(), which is the single
+# place either question is asked. See Docs/Styling.md.
 
 # The geometry classes the View menu switches on and off, by the name the file
 # stores against the label the menu shows. A feature belongs to exactly one:
@@ -41,20 +41,56 @@ const BY_SINGLE := "single"
 const BY_AGE := "age"
 const BY_TYPE := "type"
 
+# What a group other than the root may also say: nothing, leaving the choice to
+# the group above it.
+const INHERIT := "inherit"
+const MODES := {
+	"inherit": "Inherit",
+	"feature": "Feature colour",
+	"single": "Single colour",
+	"age": "Feature age",
+	"type": "Feature type",
+}
+
 # What every feature is drawn in under the single colour style until someone
 # picks another.
 const DEFAULT_SINGLE := Color(0.9, 0.9, 0.9, 1.0)
 
-# What the document asks for, and the palette it names, already read.
+# The switches, and the palettes read so far by source, shared with whoever
+# built this so a file is read once rather than on every rebuild.
 var settings: ViewSettings
-var palette: Palette
+var palettes: Dictionary = {}
+
+# For every leaf under the root this was built with, the style that decides its
+# color and the product of the opacities of every group above it.
+var _deciding := {}
+var _opacity := {}
 
 
-static func of(settings_: ViewSettings, palette_: Palette = null) -> Styling:
+# A feature outside the tree given here, or every feature when no tree is
+# given, is drawn in its own colour at its own opacity.
+static func of(settings_: ViewSettings, root: Feature = null, palettes_: Dictionary = {}) -> Styling:
 	var styling := Styling.new()
 	styling.settings = settings_ if settings_ != null else ViewSettings.new()
-	styling.palette = palette_ if palette_ != null else Palette.resolve(styling.settings.palette)
+	styling.palettes = palettes_
+	if root != null:
+		styling._walk(root, GroupStyle.for_root(), 1.0)
 	return styling
+
+
+# One pass down the tree: a group on inherit hands down the style it was handed,
+# and every group multiplies its opacity into what it hands down. The root has
+# nothing above it, so it is handed the document default and a root on inherit
+# draws each feature's own colour.
+func _walk(node: Feature, deciding: GroupStyle, opacity: float) -> void:
+	if not node.is_group:
+		_deciding[node] = deciding
+		_opacity[node] = opacity
+		return
+	var style: GroupStyle = node.style if node.style != null else GroupStyle.new()
+	var handed := deciding if style.mode == INHERIT else style
+	for child in node.children:
+		_walk(child, handed, opacity * style.opacity)
 
 
 # The class a feature is switched on and off with.
@@ -91,12 +127,25 @@ func shows(feature: Feature) -> bool:
 	return settings.shows_class(class_of(feature))
 
 
+# The color a feature is drawn in: what the nearest group not on inherit says,
+# with the alpha multiplied by the opacity of every group above the feature.
 func color_of(feature: Feature) -> Color:
-	match Styling.normalize_style(settings.draw_style):
-		BY_SINGLE:
-			return settings.single_color
-		BY_AGE:
-			return palette.color_at(Styling.age_of(feature))
-		BY_TYPE:
-			return FeatureType.color(feature.feature_type)
-	return feature.color
+	var style: GroupStyle = _deciding.get(feature)
+	var color := feature.color
+	if style != null:
+		match style.mode:
+			BY_SINGLE:
+				color = style.color
+			BY_AGE:
+				color = palette_of(style.palette).color_at(Styling.age_of(feature))
+			BY_TYPE:
+				color = FeatureType.color(feature.feature_type)
+		color.a *= float(_opacity[feature])
+	return color
+
+
+# A palette by source, read the first time it is asked for.
+func palette_of(source: String) -> Palette:
+	if not palettes.has(source):
+		palettes[source] = Palette.resolve(source)
+	return palettes[source]

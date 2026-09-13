@@ -4,7 +4,7 @@ Hand-made `.middle-earth` files used as fixtures by the tests. They are written 
 exact format `Document.save_to_file` produces: tab-indented JSON, keys sorted.
 See `Docs/Persistence.md` for the formats themselves.
 
-Four of the seven are fixtures for the older formats. Three are still written in
+Four of the eight are fixtures for the older formats. Three are still written in
 **0.1.0**, where a feature stored a flat list of
 triangles and no geometry kind. They are the fixtures for `Document.migrate()`, which
 recovers the outline those triangles covered, so leave them as they are.
@@ -15,7 +15,9 @@ either, so all four are fixtures for 0.4.0 as well: the one `rotation` a leaf
 holds becomes its keyframe at time zero, and one keyframe holds at every time, so
 the samples sit where they always did whatever the current time is.
 
-The other three are written in a current format and have nothing to migrate.
+The other four are written in a current format and have nothing to migrate.
+`group_styles.middle-earth` is the one written in **0.10.0**, the fixture for
+group styles.
 `craton.middle-earth` is the fixture for a file the application saved rather
 than one it had to recover: rings, a geometry kind, a feature type, a keyframe
 list and a uuid on every node. `motion.middle-earth` is the one whose keyframe
@@ -232,3 +234,20 @@ the `mixed_geometry` golden scene renders.
 arc really passes through (0, 40) and a probe can sit there. The rendered tests also
 read (3, 33) beside the line and (-27, -33) beside a marker, both far enough off to
 show the Earth.
+
+### group_styles.middle-earth (0.10.0)
+
+The three features of `mixed_geometry.middle-earth`, at the same places, spread
+over group styles: root group `Planet` on the feature type style > group
+`Continental Crust` on a single colour, `[0.1, 0.6, 0.9, 1]`, holding
+`Red Triangle`; group `Cratons` on own colours holding `Blue Ridge`; and
+`Green Stations` straight under the root. Each probe is drawn by a different
+rule: the nearest group's single colour, a feature's own colour under a group
+that says so over a root that says otherwise, and the root's default.
+
+| Probe       | Expected feature | Colour                               |
+| ----------- | ---------------- | ------------------------------------ |
+| (-3, 0)     | Red Triangle     | Continental Crust's `[0.1, 0.6, 0.9]` |
+| (0, 40)     | Blue Ridge       | its own blue, `[0, 0, 1]`            |
+| (-30, -30)  | Green Stations   | the Points type colour, gold         |
+| (5, 17)     | nothing          | the Earth                            |
