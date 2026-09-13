@@ -79,9 +79,9 @@ the very feature being drawn on. The vertices taken back are forgotten by the
 next click, a commit, Escape or a change of tool. The Circle and Measure tools
 hold their points the same way.
 
-Outside drawing, the same overlay traces the geometry of the selected feature:
-one part per ring, closed for a polygon, open for a polyline, markers alone for
-a multipoint.
+Outside drawing, the selected feature is highlighted instead: an outline along
+the rings of a polygon, a thicker line, larger markers on a multipoint, and no
+dots on the vertices. See [Editing](Editing.md#the-feature-tree).
 
 ### Step by Step
 

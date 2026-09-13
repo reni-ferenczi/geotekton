@@ -52,6 +52,20 @@ A right click on the swatch puts the colour back to the one the feature's type
 gives. Everything else about a feature is edited in the
 [Properties](Properties.md) panel.
 
+The feature selected in the tree is highlighted on the planet in yellow:
+
+- a **polygon** gets an outline along its rings;
+- a **line** (a polyline, a topology, or a circle drawn as a line) is drawn
+  thicker;
+- a **multipoint** gets larger markers on its vertices.
+
+A dot on every vertex appears only in the [Vertex tool](#the-vertex-tool),
+where the vertices are there to be picked; there a line is traced at its own
+width instead of thickened. The Circle, Measure and Light tools show their own
+points in place of the highlight, and the Draw tool's preview of the shape
+being drawn is drawn over it as before. See
+[Shader](Shader.md#the-selected-feature).
+
 Up to 0.1.0 the rows also had invert, single, wrap, resize and repeat, five
 switches left over from the rule editor this interface came from. Nothing read
 them and they were dropped in 0.2.0, files included.
