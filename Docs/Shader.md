@@ -235,6 +235,33 @@ boundary and none along the cuts, so the polygon reads as one flat shape. The
 pale rim it carried until GP-0033, with the per triangle edge flags that kept
 the rim off the cuts, is gone.
 
+### The selected feature
+
+The feature selected in the tree is highlighted in yellow, and how depends on
+its kind:
+
+| Kind | Highlight | Drawn by |
+|---|---|---|
+| Polygon | An outline along its rings, with no vertex markers | Outline style 4 |
+| Line (polyline, topology, a circle drawn as a line) | Its segments at twice `geometry_line_width`, opaque yellow | The segment pass, from the `selected` flag |
+| Multipoint | Its vertex markers at twice `outline_dot_radius` | Outline style 5 |
+
+A line is highlighted in the segment pass rather than by the outline overlay,
+because the thicker line is the line itself: it follows the feature's rotation
+like any other segment, and the flag rides in `feature_data`, so nothing is
+uploaded twice. The yellow is opaque, so a line at an opacity of zero still
+shows while it is selected. The fill of a polygon and the markers of a
+multipoint ignore the flag.
+
+`Application._highlighted_feature()` decides which feature carries the flag.
+It is the selected leaf feature in every tool but Vertex, Circle, Light and
+Measure. The last three draw overlays of their own. The Vertex tool traces the
+rings with a dot on every vertex instead, styles 3, 0 and 2, since picking
+vertices is what it is for, and a thick line would cover those dots.
+
+The hit test does not widen with the highlight: a selected line is picked with
+the same `Planet.LINE_HIT_WIDTH` as any other.
+
 ### Winding Order
 
 The half-plane tests assume **counter-clockwise (CCW)** winding, seen from
@@ -257,7 +284,7 @@ the color in the fourth:
 |---|---|---|---|---|
 | 0 | m00 | m10 | m20 | hovered |
 | 1 | m01 | m11 | m21 | visible |
-| 2 | m02 | m12 | m22 | unused |
+| 2 | m02 | m12 | m22 | selected |
 | 3 | red (linear) | green (linear) | blue (linear) | opacity |
 
 The color is what the draw style resolved for the feature, which is why it
@@ -267,7 +294,10 @@ an animation, and neither has to rebuild the geometry texture to do so.
 
 `hovered` is 1 while the pointer rests on the feature, which brightens its
 fill. `visible` is 0 while the feature is outside its time range, so it is
-skipped without the geometry texture being rebuilt.
+skipped without the geometry texture being rebuilt. `selected` is 1 on the
+feature the tree has selected, which draws its segments thicker and yellow; see
+[The selected feature](#the-selected-feature). Selecting another feature
+re-uploads this texture and nothing else.
 
 The pointer is not the only thing that ends a hover. A change of the current
 time moves the features under a pointer that need not have moved at all, so
@@ -363,18 +393,19 @@ Packs the primitives into a `FORMAT_RGBAF` image and sets `geometry_data` and
 `geometry_count` on both the globe and the map material. A geometry with no
 primitives clears everything.
 
-### `Planet.set_feature_state(geometry: Geometry, hovered_feature: Feature = null)`
+### `Planet.set_feature_state(geometry: Geometry, hovered_feature: Feature = null, selected_feature: Feature = null)`
 
-Packs `bases`, `shown`, `colors` and the hover into `feature_data`. This is
-what a step of an animation calls, and it is the only thing it calls. A change
-of color takes the same path: `Application.refresh_colors()` calls
-`geometry.recolor()` and then this, which is what dragging the color picker or
-changing the opacity costs.
+Packs `bases`, `shown`, `colors`, the hover and the selection into
+`feature_data`. This is what a step of an animation calls, and it is the only
+thing it calls. A change of color takes the same path:
+`Application.refresh_colors()` calls `geometry.recolor()` and then this, which
+is what dragging the color picker or changing the opacity costs. So does a
+change of selection or of tool.
 
 ```gdscript
 geometry = Planet.collect_geometry(root, document.current_time)
 planet.set_geometry(geometry)
-planet.set_feature_state(geometry, hovered_feature)
+planet.set_feature_state(geometry, hovered_feature, selected_feature)
 ```
 
 ### `Planet.hit_test(lat, lon, geometry) -> Feature`
@@ -387,8 +418,10 @@ the feature under the point, or null.
 ## Outline Overlay
 
 The shader draws a second, yellow layer over the geometry. It shows the shape
-being drawn while the Draw tool places vertices, and otherwise traces the rings
-of the selected feature.
+being drawn while the Draw tool places vertices, the points of the Circle,
+Measure and Light tools, and otherwise the outline of a selected polygon or
+the markers of a selected multipoint. A selected line is drawn by the segment
+pass instead; see [The selected feature](#the-selected-feature).
 
 ### Outline Uniforms
 
@@ -417,14 +450,18 @@ the same for every vertex of a part:
 | 0 | Open: segments from the first vertex to the last, nothing more |
 | 1 | Closed, with the closing segment faint — a polygon still being drawn |
 | 2 | The vertex markers only — a multipoint |
-| 3 | Closed, every segment alike — the rings of a selected polygon |
+| 3 | Closed, every segment alike — a polygon in the Vertex tool, a closed circle |
+| 4 | Closed like 3, with no vertex markers — the rings of a selected polygon |
+| 5 | The vertex markers only, twice the size — a selected multipoint |
 
-`Planet.OutlineStyle` names the same four values.
+`Planet.OutlineStyle` names the same six values.
 
 ### Outline Math
 
 **Vertex dots**: the chord distance from the fragment to the nearest vertex,
-antialiased via `smoothstep`. Every vertex gets one, whatever the style.
+antialiased via `smoothstep`. Every vertex gets one except in style 4. Style 5
+divides the distance by `SELECTED_MARKER_SCALE`, which draws the same dot twice
+as large.
 
 **Line segments**: the same `arc_distance()` the geometry pass uses, which gives
 each segment rounded caps.
@@ -432,7 +469,7 @@ each segment rounded caps.
 **Closing segment**: a vertex whose successor starts a new part is the last of
 its own. When the style closes the part, that vertex joins back to the vertex
 the part started at, at reduced opacity for style 1 and at full opacity for
-style 3.
+styles 3 and 4.
 
 The outline is composited on top of everything else using yellow color (`vec3(1, 1, 0)`) at the computed alpha.
 
