@@ -117,10 +117,6 @@ func test_sample_files_load_and_hit_test() -> void:
 			assert_eq(title, probe[1], "probe %s in %s" % [point, file_name])
 
 
-# Every sample predates the type field, so all of them are fixtures for the one
-# thing 0.3.0 asks of an older file: that it arrives whole and unclassified.
-# A file older than 0.3.0 carries no type at all, so everything in it has to
-# arrive unclassified; one written since carries the type it names. Which is
 # Every node of a loaded sample is named, whatever format the file is in: 0.5.0
 # and newer name them, and a node arriving from an older file is given an id on
 # load. A line topology resolves through these, so two nodes sharing one would

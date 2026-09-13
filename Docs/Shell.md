@@ -69,7 +69,7 @@ adding an item means adding an enum value and one `add_item` line.
 | Polygons    |          | Draw the polygons, or leave them off; see [Styling](Styling.md#the-visibility-switches) |
 | Polylines   |          | The same for the polylines                |
 | Points      |          | The same for the multipoints              |
-| Small Circles |        | The same for the features typed as small circles |
+| Circles     |          | The same for the features typed as circles |
 | Topologies  |          | The same for the line topologies          |
 | View Settings... |     | The scene around the features and how they are coloured; see [Editing](Editing.md#view-settings) |
 | Full Screen | F11      | Enter or leave full screen                |

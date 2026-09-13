@@ -156,11 +156,11 @@ class of geometry off through the View menu and checks that only its own class
 left the screen, then saves the document and reads the whole styling back; see
 [Styling](Styling.md).
 
-The circle scenario builds a small circle twice over: from a centre and a point
+The circle scenario builds a circle twice over: from a centre and a point
 on the rim, and from three points on the rim with the centre never clicked. Both
 give the same centre and radius back, the polygon holds one vertex per segment
-and the polyline one more, and every committed vertex is checked against the
-angular radius it was asked for.
+and the polyline one more, every committed vertex is checked against the
+angular radius it was asked for, and both features come out typed as a Circle.
 
 The projection scenario asks each of the six views — the globe and the five
 map projections — where the red triangle is, probes the pixel there, reads the
@@ -400,7 +400,7 @@ a round trip is also a wait for the screen to catch up.
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
 | `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a line topology, its `sections` with what each one resolved to |
-| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets |
+| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers |
 | `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `enabled`, `time_from`, `time_to` |
 | `properties {button, part, index}`   | selects a vertex row and presses `Add` or `Remove` in the panel |
 | `keyframes {button, index}`          | selects a keyframe row and presses `Key` or `Delete` in the panel |
@@ -431,7 +431,7 @@ a round trip is also a wait for the screen to catch up.
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
-| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, `skip_older`, `skip_younger`, `keyframe_older`, `keyframe_younger`, and `polygons`, `polylines`, `points`, `small_circles` and `topologies`, the geometry class switches |
+| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, `skip_older`, `skip_younger`, `keyframe_older`, `keyframe_younger`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |
