@@ -507,6 +507,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"circle_points": _points_to_json(app.circle_points),
 				"circle": _circle_to_json(),
 				"segments": app.circle_segments(),
+				"segments_visible": app.segments_spin.is_visible_in_tree(),
 				"status_measure": app.status_measure.text}
 
 		"set_tool":

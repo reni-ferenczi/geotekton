@@ -950,10 +950,18 @@ CIRCLE_TOLERANCE = 0.5
 def build_circle(client: AutomationClient, kind: str, points: list[tuple[float, float]]) -> dict:
     """Start a document, click the points with the Circle tool and commit."""
     start_new_document(client)
+    # The segment count is set while its box is hidden, so the Circle tool has to
+    # pick up a value typed in another tool.
+    client.call("set_tool", tool="move", segments=CIRCLE_SEGMENTS)
+    tool = client.call("get_tool")
+    check(not tool["segments_visible"], f"the Segments box is hidden in the Move tool ({kind})")
+    check(tool["segments"] == CIRCLE_SEGMENTS, f"but set_tool still sets it: {tool['segments']}")
     client.call("toolbar", button="AddFeature")
     client.call("set_tool", tool="draw", kind=kind)
-    client.call("set_tool", tool="circle", segments=CIRCLE_SEGMENTS)
-    check(client.call("get_tool")["tool"] == "circle", f"the Circle tool is armed ({kind})")
+    client.call("set_tool", tool="circle")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "circle", f"the Circle tool is armed ({kind})")
+    check(tool["segments_visible"], f"and shows the Segments box ({kind})")
     if not draw(client, points):
         return {}
     return client.call("get_tool")

@@ -94,6 +94,7 @@ const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false, ViewItem.CONSOLE: f
 @onready var split_button: Button = %Split
 @onready var kind_selector: OptionButton = %GeometryKind
 @onready var segments_spin: SpinBox = %Segments
+@onready var segments_label: Label = %SegmentsLabel
 @onready var projection_selector: OptionButton = %Projection
 @onready var zoom_spin: SpinBox = %Zoom
 @onready var zoom_in_button: Button = %ZoomIn
@@ -1488,6 +1489,9 @@ func set_active_tool(tool: Tool) -> void:
 	circle_button.button_pressed = (tool == Tool.CIRCLE)
 	topology_button.button_pressed = (tool == Tool.TOPOLOGY)
 	light_button.button_pressed = (tool == Tool.LIGHT)
+	# Only the Circle tool reads the segment count, so only it shows the box.
+	segments_label.visible = tool == Tool.CIRCLE
+	segments_spin.visible = tool == Tool.CIRCLE
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
