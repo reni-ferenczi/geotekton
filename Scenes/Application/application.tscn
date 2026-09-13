@@ -168,12 +168,21 @@ layout_mode = 2
 tooltip_text = "What the Draw and Circle tools produce"
 disabled = true
 
+[node name="SegmentsLabel" type="Label" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Segments of a circle: how many the Circle tool cuts it into when it commits"
+mouse_filter = 1
+text = "Circle segments"
+vertical_alignment = 1
+
 [node name="Segments" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(90, 40)
+visible = false
+custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
-tooltip_text = "How many segments a circle is cut into"
-suffix = "seg"
+tooltip_text = "Segments of a circle: how many the Circle tool cuts it into when it commits"
 
 [node name="ViewPanel" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
 custom_minimum_size = Vector2(0, 40)
