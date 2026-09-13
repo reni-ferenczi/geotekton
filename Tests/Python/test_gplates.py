@@ -7,7 +7,7 @@ import re
 import pygplates
 import pytest
 
-from middle_earth.gplates import (ALLOWED_KINDS, FEATURE_TYPES, MAX_PRIMITIVES, MAX_TIME,
+from middle_earth.gplates import (KIND_TYPES, MAX_PRIMITIVES, MAX_TIME,
                                   decompose_rotation_degrees, import_files, import_project)
 
 from conftest import ROOT, geodata
@@ -129,28 +129,23 @@ def test_an_interior_ring_becomes_an_outline_of_its_own(tmp_path):
 ### What a feature is called and what it is
 
 
-def test_a_known_type_is_mapped_and_an_unknown_one_falls_back(tmp_path):
+def test_the_gpgim_types_map_onto_the_five_by_geometry(tmp_path):
+    """Whatever GPlates calls a feature, its Middle Earth type is its geometry's."""
+    line = pygplates.PolylineOnSphere([(0, 0), (10, 10)])
+    points = pygplates.MultiPointOnSphere([(0, 0), (10, 10)])
     features = write_features(tmp_path / "features.gpml", [
         a_feature("gpml:Coastline", a_polygon(), name="Shore"),
         a_feature("gpml:Craton", a_polygon(20), name="Shield"),
         a_feature("gpml:Basin", a_polygon(40), name="Deep"),
+        a_feature("gpml:Coastline", line, name="Shoreline"),
+        a_feature("gpml:MidOceanRidge", line, name="Ridge"),
+        a_feature("gpml:MidOceanRidge", a_polygon(60), name="Ridge Area"),
+        a_feature("gpml:UnclassifiedFeature", points, name="Hot Spots"),
     ])
     document = import_files([features])
     assert {feature.title: feature.feature_type for feature in document.features} == {
-        "Shore": "coastline", "Shield": "craton", "Deep": "unclassified"}
-
-
-def test_a_type_that_will_not_hold_the_geometry_falls_back(tmp_path, caplog):
-    """A mid ocean ridge is a line here, and the ridge type takes only lines."""
-    features = write_features(tmp_path / "features.gpml", [
-        a_feature("gpml:MidOceanRidge", pygplates.PolylineOnSphere([(0, 0), (10, 10)]), name="Line"),
-        a_feature("gpml:MidOceanRidge", a_polygon(), name="Area"),
-    ])
-    with caplog.at_level(logging.DEBUG, logger="middle_earth.gplates"):
-        document = import_files([features])
-    assert {feature.title: feature.feature_type for feature in document.features} == {
-        "Line": "ridge", "Area": "unclassified"}
-    assert "Area is a polygon, which the ridge type does not hold" in caplog.text
+        "Shore": "polygon", "Shield": "polygon", "Deep": "polygon", "Shoreline": "line",
+        "Ridge": "line", "Ridge Area": "polygon", "Hot Spots": "points"}
 
 
 ### What this module copies from the application
@@ -165,18 +160,15 @@ def gdscript(*parts: str) -> str:
     return (ROOT.joinpath(*parts)).read_text(encoding="utf-8")
 
 
-def test_the_catalog_of_feature_types_is_the_application_s():
-    """Every type the mapping names, with the kinds it says that type holds."""
+def test_the_type_of_each_kind_is_the_application_s():
+    """Every type the import gives is in the catalog and holds the kind it is given for."""
     source = gdscript("Logic", "feature_type.gd")
-    every_kind = set(re.findall(r'"(\w+)"', re.search(r"ALL_KINDS := \[(.*?)\]", source).group(1)))
-    catalog = {"unclassified": every_kind}
-    for identifier, kinds in re.findall(r'"(\w+)": \{[^}]*?"kinds": (\[[^]]*\]|ALL_KINDS)', source):
-        catalog[identifier] = every_kind if kinds == "ALL_KINDS" else set(re.findall(r'"(\w+)"', kinds))
-
-    assert set(FEATURE_TYPES.values()) <= set(catalog), "a mapped type the catalog does not have"
-    for identifier, allowed in ALLOWED_KINDS.items():
+    catalog = {identifier: set(re.findall(r'"(\w+)"', kinds))
+               for identifier, kinds in re.findall(r'"(\w+)": \{[^}]*?"kinds": (\[[^]]*\])', source)}
+    for kind, identifier in KIND_TYPES.items():
         assert identifier in catalog, f"{identifier} is not a type the application has"
-        assert allowed <= catalog[identifier], f"{identifier} is said to hold more than it does"
+        assert kind in catalog[identifier], f"{identifier} does not hold a {kind}"
+        assert f'"{kind}": "{identifier}"' in source, f"the application gives a {kind} another type"
 
 
 def test_the_oldest_age_is_the_one_the_application_takes():

@@ -381,7 +381,9 @@ func _add_feature(request_: Dictionary) -> Dictionary:
 	if not Feature.KIND_VALUES.has(kind_name):
 		return {"ok": false, "error": "no geometry kind called %s" % kind_name}
 
-	var type_id := FeatureType.normalize(str(request_.get("feature_type", FeatureType.UNCLASSIFIED)))
+	var type_id := str(request_.get("feature_type", FeatureType.NONE))
+	if not type_id.is_empty() and not FeatureType.CATALOG.has(type_id):
+		return {"ok": false, "error": "no feature type called %s" % type_id}
 	if not FeatureType.allows(type_id, kind_name):
 		return {"ok": false, "error": "a %s cannot be a %s" % [type_id, kind_name]}
 

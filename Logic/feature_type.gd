@@ -1,53 +1,68 @@
 class_name FeatureType
 
-# What a feature is. A type names the geometry kinds a feature of it may hold
-# and the colour a new one starts in; nothing else about it is interpreted yet.
-# This small catalog stands in for the GPGIM, which Middle Earth does not carry
-# over. See Docs/Properties.md.
+# What a feature is. The type follows the geometry the feature holds: a polygon
+# is a Polygon, a polyline a Line, a multipoint Points and a line topology a
+# Topology. Circle is the one type someone chooses, since a circle is drawn as a
+# polygon or a polyline; the Circle tool gives it on commit. Middle Earth is a
+# world building tool and does not carry the GPGIM over. See Docs/Properties.md.
 #
 # A type is stored by its id, which is also what the file holds. The kinds are
 # the names Feature.KIND_NAMES uses, so the catalog is written in the same
 # vocabulary as the file and needs nothing from Feature to be read.
 
-# The type a feature has until someone picks one. It allows every kind, so a
-# feature can be drawn before it is classified and an older file, which carries
-# no type at all, cannot arrive holding a kind its type forbids.
-const UNCLASSIFIED := "unclassified"
+# The type of a feature holding nothing yet. It allows every kind, since the
+# first shape committed is what decides the type.
+const NONE := ""
+const CIRCLE := "circle"
 
 const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]
+
+# The colour a new feature starts in, before it holds anything.
+const NONE_COLOR := Color.CHOCOLATE
 
 # Id to name, allowed geometry kinds and default colour, in the order the type
 # selector lists them.
 const CATALOG := {
-	UNCLASSIFIED: {"name": "Unclassified", "kinds": ALL_KINDS, "color": Color.CHOCOLATE},
-	"craton": {"name": "Craton", "kinds": ["polygon"], "color": Color.TAN},
-	"terrane": {"name": "Terrane", "kinds": ["polygon"], "color": Color.OLIVE},
-	"coastline": {"name": "Coastline", "kinds": ["polygon", "polyline"], "color": Color.STEEL_BLUE},
-	"ridge": {"name": "Ridge", "kinds": ["polyline"], "color": Color.CRIMSON},
-	"marker": {"name": "Marker", "kinds": ["multipoint"], "color": Color.GOLD},
-	"small_circle": {"name": "Small circle", "kinds": ["polygon", "polyline"],
-		"color": Color.DARK_TURQUOISE},
+	"polygon": {"name": "Polygon", "kinds": ["polygon"], "color": Color.CHOCOLATE},
+	"line": {"name": "Line", "kinds": ["polyline"], "color": Color.CRIMSON},
+	"points": {"name": "Points", "kinds": ["multipoint"], "color": Color.GOLD},
+	CIRCLE: {"name": "Circle", "kinds": ["polygon", "polyline"], "color": Color.DARK_TURQUOISE},
 	"topology": {"name": "Topology", "kinds": ["topology"], "color": Color.MEDIUM_PURPLE},
 }
 
+# The type each geometry kind gives a feature that holds it.
+const OF_KIND := {
+	"polygon": "polygon",
+	"polyline": "line",
+	"multipoint": "points",
+	"topology": "topology",
+}
 
-# The id as it can be used, so an unknown one from a file or a script becomes
-# the unclassified type rather than a feature nothing can describe.
-static func normalize(type_id: String) -> String:
-	return type_id if CATALOG.has(type_id) else UNCLASSIFIED
+
+# The type a feature holding geometry of this kind has, given the type it
+# carries. An empty kind is a feature holding nothing, which has no type; a
+# carried type that does not hold the kind, or that the catalog does not know,
+# gives way to the kind's own.
+static func resolve(type_id: String, kind_name: String) -> String:
+	if kind_name.is_empty():
+		return NONE
+	if CATALOG.has(type_id) and allows(type_id, kind_name):
+		return type_id
+	return str(OF_KIND.get(kind_name, NONE))
 
 
 static func label(type_id: String) -> String:
-	return str(CATALOG[normalize(type_id)]["name"])
+	return str(CATALOG[type_id]["name"]) if CATALOG.has(type_id) else ""
 
 
 static func color(type_id: String) -> Color:
-	return CATALOG[normalize(type_id)]["color"] as Color
+	return CATALOG[type_id]["color"] as Color if CATALOG.has(type_id) else NONE_COLOR
 
 
-# The geometry kinds a feature of this type may hold, by name.
+# The geometry kinds a feature of this type may hold, by name. A feature with no
+# type yet may take any.
 static func kinds(type_id: String) -> Array:
-	return CATALOG[normalize(type_id)]["kinds"] as Array
+	return CATALOG[type_id]["kinds"] as Array if CATALOG.has(type_id) else ALL_KINDS
 
 
 static func allows(type_id: String, kind_name: String) -> bool:

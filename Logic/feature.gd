@@ -71,10 +71,13 @@ var collapsed: bool
 var is_root: bool
 
 # Feature-only fields
-# What the feature is, an id in FeatureType.CATALOG. The type says which
-# geometry kinds the feature may hold and which colour it starts in.
-var feature_type: String = FeatureType.UNCLASSIFIED
-var color: Color = FeatureType.color(FeatureType.UNCLASSIFIED)
+# What the feature is, an id in FeatureType.CATALOG. It follows the geometry:
+# a feature holding nothing reads as no type, and a carried type that does not
+# hold the kind reads as the kind's own. Only Circle is carried by choice.
+var feature_type: String = FeatureType.NONE:
+	get:
+		return FeatureType.resolve(feature_type, kind_name() if has_geometry() else "")
+var color: Color = FeatureType.NONE_COLOR
 
 # Geographic data. Each ring is a run of (latitude, longitude) vertices in
 # degrees, in the frame of the feature itself, before the rotation its
@@ -129,7 +132,7 @@ static func create_group(title_: String = "Group") -> Feature:
 
 
 static func create_feature(title_: String = "Feature",
-		color_: Color = FeatureType.color(FeatureType.UNCLASSIFIED)) -> Feature:
+		color_: Color = FeatureType.NONE_COLOR) -> Feature:
 	var feature := Feature.new()
 	feature.init_pnid()
 	feature.init_uuid()
@@ -428,7 +431,7 @@ static func from_json(data: Variant) -> Feature:
 		for child_data in data.get("children", []):
 			node.children.append(Feature.from_json(child_data))
 	else:
-		node.feature_type = FeatureType.normalize(str(data.get("feature_type", FeatureType.UNCLASSIFIED)))
+		node.feature_type = str(data.get("feature_type", FeatureType.NONE))
 		var c: Array = data.get("color", [0.82, 0.41, 0.12, 1.0])
 		node.color = Color(c[0], c[1], c[2], c[3])
 		node.geometry_kind = KIND_VALUES.get(data.get("geometry_kind", "polygon"), GeometryKind.POLYGON)

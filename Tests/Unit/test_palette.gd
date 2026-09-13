@@ -111,7 +111,7 @@ func test_a_categorical_palette_looks_a_key_up() -> void:
 	assert_eq(palette.slices.size(), 0, "and holds no slices")
 	assert_close(palette.color_for("craton"), Color.ORANGE, 1e-3, "a name")
 	assert_close(palette.color_for("701"), GREEN, 1e-3, "a number used as a key")
-	assert_close(palette.color_for("small circle"),
+	assert_close(palette.color_for("open circle"),
 		Color(0.0, 128.0 / 255.0, 1.0), 1e-3, "a key quoted because it has a space in it")
 
 

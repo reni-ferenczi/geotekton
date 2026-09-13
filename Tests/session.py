@@ -294,6 +294,12 @@ def worst_offset(ring: list[list[float]], points: list[tuple[float, float]]) -> 
     )
 
 
+# The five feature types in the order the selector offers them, and the one
+# each drawn kind gives, as Logic/feature_type.gd has them.
+FEATURE_TYPES = ["polygon", "line", "points", "circle", "topology"]
+KIND_TYPES = {"polygon": "polygon", "polyline": "line", "multipoint": "points"}
+
+
 def run_drawing_session(client: AutomationClient) -> None:
     """Draw one feature of each geometry kind and check what it stored."""
     for kind, points in DRAWINGS.items():
@@ -313,6 +319,8 @@ def run_drawing_session(client: AutomationClient) -> None:
 
         feature = client.call("get_selected")["feature"]
         check(feature["geometry_kind"] == kind, f"the feature is a {kind}: {feature['geometry_kind']}")
+        check(feature["feature_type"] == KIND_TYPES[kind],
+              f"and the first shape gives it the type {KIND_TYPES[kind]}: {feature['feature_type']!r}")
         if check(len(feature["rings"]) == 1, f"one ring was committed ({kind})"):
             ring = feature["rings"][0]
             if check(len(ring) == len(points), f"the ring holds {len(points)} vertices ({kind})"):
@@ -327,6 +335,8 @@ def run_drawing_session(client: AutomationClient) -> None:
         client.call("toolbar", button="Undo")
         check(client.call("get_selected")["feature"]["rings"] == [],
               f"undo removes the committed geometry ({kind})")
+        check(client.call("get_properties")["properties"]["feature_type"] == "",
+              f"and with it the type ({kind})")
 
 
 def run_point_undo_session(client: AutomationClient) -> None:
@@ -449,7 +459,8 @@ def run_properties_session(client: AutomationClient) -> None:
     panel = client.call("get_properties")["properties"]
     check(panel["showing"] == "feature", f"selecting a feature fills the panel: {panel['showing']}")
     check(panel["name"] == "Red Triangle", f"with its name: {panel['name']}")
-    check(panel["feature_type"] == "unclassified", f"its type: {panel['feature_type']}")
+    check(panel["feature_type"] == "polygon", f"its type: {panel['feature_type']}")
+    check(panel["types"] == FEATURE_TYPES, f"the type selector offers the five: {panel['types']}")
     check(panel["color"][:3] == [1.0, 0.0, 0.0], f"its colour: {panel['color']}")
     check(panel["enabled"] is True, "its enabled flag")
     check(panel["time_range"] == [0, 2000], f"its time range: {panel['time_range']}")
@@ -478,19 +489,19 @@ def run_properties_session(client: AutomationClient) -> None:
 
     # A type the geometry does not fit is refused, with a message.
     client.call("select", title="Blue Ridge")
-    client.call("set_property", field="feature_type", value="craton")
+    client.call("set_property", field="feature_type", value="points")
     dialog = client.call("get_dialog")["dialog"]
-    if check(dialog is not None, "a polyline cannot be a craton, and the panel says so"):
+    if check(dialog is not None, "a polyline cannot be Points, and the panel says so"):
         client.call("dialog", button="OK")
-    check(client.call("get_properties")["properties"]["feature_type"] == "unclassified",
+    check(client.call("get_properties")["properties"]["feature_type"] == "line",
           "the refused type is off the selector again")
-    check(client.call("get_selected")["feature"]["feature_type"] == "unclassified",
+    check(client.call("get_selected")["feature"]["feature_type"] == "line",
           "and never reached the feature")
 
-    # One that does fit is taken, and leaves the colour the file picked alone.
-    client.call("set_property", field="feature_type", value="ridge")
-    check(client.call("get_selected")["feature"]["feature_type"] == "ridge",
-          "a polyline may be a ridge")
+    # Circle does fit, and leaves the colour the file picked alone.
+    client.call("set_property", field="feature_type", value="circle")
+    check(client.call("get_selected")["feature"]["feature_type"] == "circle",
+          "a polyline may be a circle")
     check(client.call("get_properties")["properties"]["color"] == [0.0, 0.0, 1.0, 1.0],
           "and the blue the file picked survives the type change")
 
@@ -513,19 +524,21 @@ def run_properties_session(client: AutomationClient) -> None:
           "the panel disables the feature")
     client.call("set_property", field="enabled", value=True)
 
-    # The type restricts what the Draw tool offers, while there is no geometry
-    # yet for the kind to be fixed by.
+    # A new feature holds nothing, so it shows no type, may be drawn in any kind
+    # and refuses a type until the first shape gives it one.
     client.call("toolbar", button="AddFeature")
+    panel = client.call("get_properties")["properties"]
+    check(panel["feature_type"] == "" and panel["type_label"] == "",
+          f"a feature holding nothing shows no type: {panel['type_label']!r}")
     check(sorted(client.call("get_tool")["allowed_kinds"])
           == ["multipoint", "polygon", "polyline"],
-          "an unclassified feature may be drawn in any kind")
-    unclassified_color = client.call("get_properties")["properties"]["color"]
-    client.call("set_property", field="feature_type", value="ridge")
-    check(client.call("get_tool")["allowed_kinds"] == ["polyline"],
-          "a ridge may only be drawn as a polyline")
-    # Nobody picked a colour for this one, so it takes the one the type gives.
-    check(client.call("get_properties")["properties"]["color"] != unclassified_color,
-          "and a new feature takes the colour of the type it is given")
+          "and may be drawn in any kind")
+    client.call("set_property", field="feature_type", value="line")
+    dialog = client.call("get_dialog")["dialog"]
+    if check(dialog is not None, "a type is refused before there is a shape"):
+        client.call("dialog", button="OK")
+    check(client.call("get_properties")["properties"]["feature_type"] == "",
+          "and the selector shows none again")
 
 
 def run_coordinate_session(client: AutomationClient) -> None:
@@ -933,7 +946,7 @@ def build_circle(client: AutomationClient, kind: str, points: list[tuple[float, 
 
 
 def run_circle_session(client: AutomationClient) -> None:
-    """A small circle from a centre and a rim point, and one through three points."""
+    """A circle from a centre and a rim point, and one through three points."""
     rim = (CIRCLE_CENTRE[0] + CIRCLE_RADIUS, CIRCLE_CENTRE[1])
     tool = build_circle(client, "polygon", [CIRCLE_CENTRE, rim])
     if not tool:
@@ -954,8 +967,10 @@ def run_circle_session(client: AutomationClient) -> None:
         worst = max(abs(angular_distance(tuple(v), CIRCLE_CENTRE) - CIRCLE_RADIUS) for v in ring)
         check(worst < CIRCLE_TOLERANCE,
               f"every vertex sits the radius from the centre, within {worst:.4f} degrees")
-    check(client.call("get_selected")["feature"]["geometry_kind"] == "polygon",
-          "and the feature is a polygon")
+    feature = client.call("get_selected")["feature"]
+    check(feature["geometry_kind"] == "polygon", "and the feature is a polygon")
+    check(feature["feature_type"] == "circle",
+          f"which the Circle tool makes a Circle: {feature['feature_type']!r}")
 
     # A polyline of the same segment count draws the whole circle, so it repeats
     # its first vertex at the end.
@@ -966,6 +981,7 @@ def run_circle_session(client: AutomationClient) -> None:
         if check(len(feature["rings"]) == 1, "the polyline circle is committed as one part"):
             check(len(feature["rings"][0]) == CIRCLE_SEGMENTS + 1,
                   f"and holds a vertex more than it has segments: {len(feature['rings'][0])}")
+        check(feature["feature_type"] == "circle", "a polyline circle is a Circle too")
 
     # Three points on the rim describe the same circle, without its centre ever
     # being clicked.
@@ -1785,10 +1801,11 @@ def probe_at(client: AutomationClient, lat: float, lon: float) -> list[float]:
 # visibility switches cover, at the probe points Tests/Data/README.md lists.
 STYLE_PROBES = {"polygons": (-3.0, 0.0), "polylines": (0.0, 40.0), "points": (-30.0, -30.0)}
 
-# The colour an unclassified feature takes under the feature type style, which
-# is what everything in the sample is until something gives it a type. Chocolate,
-# as FeatureType.CATALOG gives it in Logic/feature_type.gd.
-UNCLASSIFIED_COLOUR = [0.82, 0.41, 0.12]
+# The colour each feature of the sample takes under the feature type style: the
+# type its geometry gives, as FeatureType.CATALOG colours it in
+# Logic/feature_type.gd. Chocolate, crimson and gold.
+TYPE_COLOURS = {"polygons": [0.824, 0.412, 0.118], "polylines": [0.863, 0.078, 0.235],
+                "points": [1.0, 0.843, 0.0]}
 
 
 def run_styling_session(client: AutomationClient, folder: Path) -> None:
@@ -1806,8 +1823,8 @@ def run_styling_session(client: AutomationClient, folder: Path) -> None:
 
     client.call("set_view_settings", view_settings={"draw_style": "type"})
     for name, (lat, lon) in STYLE_PROBES.items():
-        check(is_colour(probe_at(client, lat, lon), UNCLASSIFIED_COLOUR),
-              f"the feature type style paints the {name[:-1]} unclassified")
+        check(is_colour(probe_at(client, lat, lon), TYPE_COLOURS[name]),
+              f"the feature type style paints the {name[:-1]} in its type's colour")
 
     run_palette_checks(client)
     run_class_switch_checks(client)
@@ -2306,8 +2323,8 @@ def run_import_session(client: AutomationClient, folder: Path) -> None:
           f"the feature carries its plate's sampled rotation: {len(keyframes)}")
     panel = client.call("get_properties")["properties"]
     check(panel["geometry"].startswith("polygon"), f"drawn as a polygon: {panel['geometry']!r}")
-    check(panel["feature_type"] == "coastline",
-          f"typed from the GPML type: {panel['feature_type']!r}")
+    check(panel["feature_type"] == "polygon",
+          f"typed by its geometry: {panel['feature_type']!r}")
 
     # Where GPlates puts the middle of that outline at fifty million years.
     model = pygplates.RotationModel(str(sources[1]))

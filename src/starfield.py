@@ -32,7 +32,7 @@ def create_starfield(width=8192, height=4096, num_stars=250000):
         if star_size == 1:
             draw.point((x, y), fill=color_tint)
         else:
-            # Draw a small circle for larger "closer" stars
+            # Draw a small disc for larger "closer" stars
             r = star_size - 1
             draw.ellipse([x - r, y - r, x + r, y + r], fill=color_tint)
 

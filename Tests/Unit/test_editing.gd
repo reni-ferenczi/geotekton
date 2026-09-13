@@ -30,7 +30,7 @@ func _splittable(kind: Feature.GeometryKind = Feature.GeometryKind.POLYGON) -> D
 	feature.add_ring(PackedVector2Array([
 		Vector2(0, 0), Vector2(10, 0), Vector2(14, 10),
 		Vector2(5, 16), Vector2(0, 12)]), kind)
-	feature.feature_type = FeatureType.CATALOG.keys()[1]
+	feature.feature_type = FeatureType.CIRCLE
 	feature.time_range = Vector2i(20, 800)
 	Keyframe.upsert(feature.keyframes, 0.0, Vector3(5, 0, 0))
 	Keyframe.upsert(feature.keyframes, 300.0, Vector3(40, 10, 0))
@@ -188,48 +188,51 @@ func test_a_colour_change_is_one_undo_version() -> void:
 ### Types
 
 
-func test_a_type_that_allows_the_kind_keeps_the_geometry() -> void:
+func test_a_polygon_may_be_made_a_circle_and_back() -> void:
 	var document := _document()
 	var before := _feature(document).rings.duplicate(true)
-	assert_eq(document.set_feature_type(_feature(document), "craton"), "",
-		"a polygon may be a craton")
-	assert_eq(_feature(document).feature_type, "craton")
+	assert_eq(_feature(document).feature_type, "polygon", "the geometry gives the type")
+	assert_eq(document.set_feature_type(_feature(document), FeatureType.CIRCLE), "",
+		"a polygon may be a circle")
+	assert_eq(_feature(document).feature_type, FeatureType.CIRCLE)
 	assert_eq(_feature(document).rings, before, "the geometry is untouched")
+	assert_eq(document.set_feature_type(_feature(document), "polygon"), "", "and a polygon again")
+	assert_eq(_feature(document).feature_type, "polygon")
 
 
 func test_a_type_that_forbids_the_kind_is_refused() -> void:
 	var document := _document()
 	var versions := document.applied
-	var error := document.set_feature_type(_feature(document), "ridge")
-	assert_true(not error.is_empty(), "a polygon cannot be a ridge, which is a polyline")
-	assert_eq(_feature(document).feature_type, FeatureType.UNCLASSIFIED,
-		"the refused type was not applied")
+	var error := document.set_feature_type(_feature(document), "line")
+	assert_true(not error.is_empty(), "a polygon cannot be a line")
+	assert_eq(_feature(document).feature_type, "polygon", "the refused type was not applied")
 	assert_eq(document.applied, versions, "and nothing was recorded")
 
 
-func test_a_feature_without_geometry_may_take_any_type() -> void:
+func test_a_feature_holding_nothing_takes_no_type() -> void:
 	var document := Document.new()
 	var feature := Feature.create_feature("Empty")
 	document.root.children.append(feature)
 	for type_id in FeatureType.CATALOG:
-		assert_eq(document.set_feature_type(feature, type_id), "",
-			"nothing is drawn yet, so %s is allowed" % type_id)
+		assert_true(not document.set_feature_type(feature, type_id).is_empty(),
+			"nothing is drawn yet, so %s waits for the first shape" % type_id)
+	assert_eq(feature.feature_type, FeatureType.NONE)
 
 
 func test_an_unknown_type_is_refused() -> void:
 	var document := _document()
 	assert_true(not document.set_feature_type(_feature(document), "volcano").is_empty())
-	assert_eq(_feature(document).feature_type, FeatureType.UNCLASSIFIED)
+	assert_eq(_feature(document).feature_type, "polygon")
 
 
 func test_the_colour_follows_the_type_until_someone_picks_one() -> void:
 	var document := _document()
-	document.set_feature_type(_feature(document), "craton")
-	assert_eq(_feature(document).color, FeatureType.color("craton"),
+	document.set_feature_type(_feature(document), FeatureType.CIRCLE)
+	assert_eq(_feature(document).color, FeatureType.color(FeatureType.CIRCLE),
 		"the default colour follows the type")
 
 	document.set_color(_feature(document), Color.MAGENTA)
-	document.set_feature_type(_feature(document), "terrane")
+	document.set_feature_type(_feature(document), "polygon")
 	assert_eq(_feature(document).color, Color.MAGENTA,
 		"a colour someone picked is not overwritten by the next type")
 

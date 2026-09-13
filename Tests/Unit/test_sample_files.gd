@@ -169,32 +169,6 @@ func _assert_uuids_come_from(data: Variant, node: Feature, path: String) -> void
 			"%s/%s" % [path, node.children[i].title])
 
 
-# which comes from the version in EXPECTED, so adding a sample cannot quietly
-# skip the check.
-func test_a_sample_carries_the_type_its_format_allows() -> void:
-	for file_name in EXPECTED:
-		var root := _load("%s/%s" % [DATA_DIR, file_name])
-		if root == null:
-			continue
-		var carries_types := not Document._is_older_than(
-			str(EXPECTED[file_name]["version"]), "0.3.0")
-		var stack: Array[Feature] = [root]
-		while not stack.is_empty():
-			var node: Feature = stack.pop_back()
-			stack.append_array(node.children)
-			if node.is_group:
-				continue
-			if carries_types:
-				assert_true(FeatureType.CATALOG.has(node.feature_type),
-					"%s in %s names a type in the catalog: %s" % [
-						node.title, file_name, node.feature_type])
-			else:
-				assert_eq(node.feature_type, FeatureType.UNCLASSIFIED,
-					"%s in %s carries no type, so it is unclassified" % [node.title, file_name])
-			assert_true(FeatureType.allows(node.feature_type, node.kind_name()),
-				"and its type allows the kind it holds")
-
-
 func test_the_craton_sample_keeps_the_type_and_colour_it_names() -> void:
 	var root := _load("%s/craton.middle-earth" % DATA_DIR)
 	if root == null:
@@ -203,10 +177,10 @@ func test_the_craton_sample_keeps_the_type_and_colour_it_names() -> void:
 	assert_true(shield != null, "the sample holds Old Shield")
 	if shield == null:
 		return
-	assert_eq(shield.feature_type, "craton", "it is a craton")
+	assert_eq(shield.feature_type, "polygon", "it was a craton and is a polygon")
 	assert_eq(shield.color, Color(0, 0, 1, 1),
 		"and keeps the colour the file picked, not the one the type would give")
-	assert_true(shield.color != FeatureType.color("craton"),
+	assert_true(shield.color != FeatureType.color("polygon"),
 		"which are different, so the check means something")
 
 

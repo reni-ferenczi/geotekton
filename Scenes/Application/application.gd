@@ -248,11 +248,11 @@ func _ready() -> void:
 	split_button.pressed.connect(func() -> void: _report(split_at_selected_vertex()))
 	snap_button.button_pressed = Config.get_snap_to_vertices()
 	_build_kind_selector()
-	# The range and the starting value come from SmallCircle, so the scene does
+	# The range and the starting value come from Circle, so the scene does
 	# not carry a second copy of what a circle may be cut into.
-	segments_spin.min_value = SmallCircle.MIN_SEGMENTS
-	segments_spin.max_value = SmallCircle.MAX_SEGMENTS
-	segments_spin.value = SmallCircle.DEFAULT_SEGMENTS
+	segments_spin.min_value = Circle.MIN_SEGMENTS
+	segments_spin.max_value = Circle.MAX_SEGMENTS
+	segments_spin.value = Circle.DEFAULT_SEGMENTS
 	_apply_outline_scale()
 	_build_view_toolbar()
 	_apply_default_view()
@@ -1713,28 +1713,21 @@ func _first_allowed_kind() -> int:
 
 
 # Whether the Topology tool has something to build on: a feature that is a
-# topology already, or one holding nothing yet whose type allows it to become
-# one. A feature that holds vertices of its own cannot also borrow them.
+# topology already, or one holding nothing yet. A feature that holds vertices of
+# its own cannot also borrow them.
 func _can_build_topology(node: Feature) -> bool:
 	if node == null or node.is_group:
 		return false
-	if node.has_geometry():
-		return node.geometry_kind == Feature.GeometryKind.TOPOLOGY
-	return FeatureType.allows(node.feature_type, "topology")
+	return not node.has_geometry() or node.geometry_kind == Feature.GeometryKind.TOPOLOGY
 
 
 # Whether the Draw and Circle tools have a kind they may produce on this
-# feature: the one it already holds, once it holds any, and otherwise a kind its
-# type allows. A topology is neither, since it is built from other features.
+# feature: the one it already holds, once it holds any, and any kind before
+# that. A topology is neither, since it is built from other features.
 func _can_draw(node: Feature) -> bool:
 	if node == null or node.is_group:
 		return false
-	if node.has_geometry():
-		return node.geometry_kind in Feature.DRAWN_KINDS
-	for kind in Feature.DRAWN_KINDS:
-		if FeatureType.allows(node.feature_type, Feature.KIND_NAMES[kind]):
-			return true
-	return false
+	return not node.has_geometry() or node.geometry_kind in Feature.DRAWN_KINDS
 
 
 ### Move tool
@@ -1983,6 +1976,9 @@ func _outline_commit() -> void:
 	# which at the current time is where its keyframes put it.
 	var into_local := Feature.world_basis(
 		features.root, selected, document.current_time).transposed()
+	# The first shape decides the type, whatever an emptied feature still carried.
+	if not selected.has_geometry():
+		selected.feature_type = FeatureType.NONE
 	selected.add_ring(Feature.apply_basis(outline_vertices, into_local), kind)
 
 	outline_vertices = PackedVector2Array()
@@ -2341,7 +2337,7 @@ func split_at_selected_vertex() -> String:
 
 ### The Circle tool
 #
-# A small circle, drawn as a preview and committed as a polygon or a polyline of
+# A circle, drawn as a preview and committed as a polygon or a polyline of
 # a chosen number of segments. Two clicks are a centre and a point on the rim;
 # three are three points the circle passes through. Which one is meant follows
 # from how many points have been clicked, so there is no mode to pick: the
@@ -2367,10 +2363,10 @@ func _on_circle_input(lat: float, lon: float, event: InputEvent) -> void:
 # empty array while they describe none.
 func circle_from_points() -> Array:
 	if circle_points.size() == 2:
-		var radius := SmallCircle.radius_to(circle_points[0], circle_points[1])
+		var radius := Circle.radius_to(circle_points[0], circle_points[1])
 		return [] if radius < 1e-6 else [circle_points[0], radius]
 	if circle_points.size() == 3:
-		return SmallCircle.through(circle_points[0], circle_points[1], circle_points[2])
+		return Circle.through(circle_points[0], circle_points[1], circle_points[2])
 	return []
 
 
@@ -2390,7 +2386,7 @@ func circle_ring() -> PackedVector2Array:
 	var circle := circle_from_points()
 	if circle.is_empty():
 		return PackedVector2Array()
-	return SmallCircle.vertices(circle[0], circle[1], circle_segments(), _circle_is_closed())
+	return Circle.vertices(circle[0], circle[1], circle_segments(), _circle_is_closed())
 
 
 # The clicked points as markers, with the circle they describe over them.
@@ -2426,6 +2422,7 @@ func _circle_commit() -> String:
 	var into_local := Feature.world_basis(
 		features.root, selected, document.current_time).transposed()
 	selected.add_ring(Feature.apply_basis(circle_ring(), into_local), kind)
+	selected.feature_type = FeatureType.CIRCLE
 
 	circle_points = PackedVector2Array()
 	document.record()
@@ -2601,7 +2598,7 @@ func _show_measurement(error: String = "") -> void:
 		var circle := circle_from_points()
 		status_measure.text = "click a centre and the rim, or three points on the rim" 			if circle.is_empty() else "centre %.2f° %.2f°   radius %s   %d segments" % [
 				(circle[0] as Vector2).x, (circle[0] as Vector2).y,
-				SmallCircle.format_radius(circle[1]), circle_segments()]
+				Circle.format_radius(circle[1]), circle_segments()]
 		return
 
 	var radius := Config.get_planet_radius()
