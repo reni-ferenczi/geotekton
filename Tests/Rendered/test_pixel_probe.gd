@@ -3,14 +3,18 @@ extends RenderedCase
 # The cratons of the sample files really are drawn, in their own colour, at the
 # probe points documented in Tests/Data/README.md.
 
-# How wide the pale rim along the boundary of a filled polygon was, as a chord
-# length, before GP-0033 made a polygon one flat colour. Everything closer to
-# the boundary than half of it was drawn white.
-const OLD_RIM_WIDTH := 0.001
-
-# Zoomed in this far a pixel is a small fraction of that rim, so there are
-# pixels inside the polygon well within where it used to be.
+# Zoomed in this far the pale rim a filled polygon carried before GP-0033, 0.001
+# wide as a chord length, would be several pixels across.
 const BOUNDARY_ZOOM := 20.0
+
+# How many pixels either side of the middle of an edge are looked at. The globe
+# is a tessellated mesh, so where a place lands on screen can be a few pixels
+# off the analytic position at this zoom; the square is wide enough to hold the
+# boundary anyway.
+const BOUNDARY_REACH := 10
+
+# How much green a pixel may carry beside a blue polygon on a red backdrop.
+const GREEN_TOLERANCE := 0.1
 
 
 func test_the_red_triangle_is_drawn_where_it_is_hit_tested() -> void:
@@ -50,10 +54,13 @@ func test_an_empty_file_draws_no_craton() -> void:
 	await _check_probe(-3.0, 0.0, "")
 
 
-# GP-0033: a filled polygon is one flat colour right up to its boundary. It used
-# to carry a pale rim there. At the middle of every edge of the ring, the pixel
-# inside the polygon nearest the edge is probed: the place the rim was whitest.
-func test_a_polygon_is_one_flat_colour_up_to_its_boundary() -> void:
+# GP-0033: a filled polygon is one flat color right up to its boundary. It used
+# to carry a pale rim there. The planet wears a flat red backdrop for the test,
+# so around the middle of every edge of the ring every pixel is either the blue
+# fill or the red beneath it, and both are there: a rim would be neither. The
+# Earth itself is no use as the background, since its detail does not come out
+# the same from one frame to the next.
+func test_a_polygon_is_one_flat_color_up_to_its_boundary() -> void:
 	await load_sample("craton.middle-earth")
 	var feature := _first_feature()
 	if feature == null:
@@ -61,6 +68,9 @@ func test_a_polygon_is_one_flat_colour_up_to_its_boundary() -> void:
 	var ring := Feature.apply_basis(feature.rings[0],
 		Feature.world_basis(app.features.root, feature, app.document.current_time))
 
+	var red := Image.create(4, 2, false, Image.FORMAT_RGBA8)
+	red.fill(Color.RED)
+	view().planet.set_backdrop(ImageTexture.create_from_image(red), 1.0)
 	view().set_zoom(BOUNDARY_ZOOM)
 	var probed := 0
 	for i in ring.size():
@@ -75,41 +85,32 @@ func test_a_polygon_is_one_flat_colour_up_to_its_boundary() -> void:
 		var centre: Variant = view().latlon_to_screen(middle.x, middle.y)
 		if centre == null:
 			continue
-		var pixel: Variant = _nearest_pixel_inside(feature, a, b, centre)
-		if pixel == null:
-			continue
+		var image := await capture()
 		probed += 1
-		var color := (await capture()).get_pixel(pixel.x, pixel.y)
-		assert_eq(dominant_channel(color), "blue",
-			"the fill beside the edge %s-%s is not a rim: %s" % [a, b, color])
+		var counts := {"blue": 0, "red": 0}
+		var pale: Array[Color] = []
+		for dy in range(-BOUNDARY_REACH, BOUNDARY_REACH + 1):
+			for dx in range(-BOUNDARY_REACH, BOUNDARY_REACH + 1):
+				var color := image.get_pixel(int(centre.x) + dx, int(centre.y) + dy)
+				var channel := dominant_channel(color)
+				if counts.has(channel):
+					counts[channel] += 1
+				# Neither the fill nor the backdrop has any green, and a pixel on
+				# the boundary itself is a blend of the two, which has none
+				# either. White, which the rim was, is all green.
+				if color.g > GREEN_TOLERANCE:
+					pale.append(color)
+		assert_true(counts["blue"] > 0 and counts["red"] > 0,
+			"the edge %s-%s is in the square: %s" % [a, b, counts])
+		assert_true(pale.is_empty(),
+			"beside the edge %s-%s no pixel is paler than the fill and the backdrop, %d are: %s"
+				% [a, b, pale.size(), pale.slice(0, 4)])
 	view().set_zoom(PlanetView.DEFAULT_ZOOM)
+	view().planet.set_backdrop(null, 0.0)
 	await frames(2)
 
 	assert_true(probed >= 10,
 		"there were ring edges away from the graticule to probe, found %d" % probed)
-
-
-# The window pixel near a screen position whose centre lies inside the feature
-# and closest to the arc from a to b, when that is within where the old rim was
-# drawn white. Null when no pixel is. Pixels closer than a hair are left out,
-# where the graphics card and the hit test could disagree on the side.
-func _nearest_pixel_inside(feature: Feature, a: Vector2, b: Vector2, centre: Vector2) -> Variant:
-	var unit_a := Planet._latlon_to_unit(deg_to_rad(a.x), deg_to_rad(a.y))
-	var unit_b := Planet._latlon_to_unit(deg_to_rad(b.x), deg_to_rad(b.y))
-	var best: Variant = null
-	var best_distance := OLD_RIM_WIDTH * 0.5
-	for dy in range(-6, 7):
-		for dx in range(-6, 7):
-			var pixel := Vector2i(int(centre.x) + dx, int(centre.y) + dy)
-			var place: Variant = view().screen_to_latlon(Vector2(pixel) + Vector2(0.5, 0.5))
-			if place == null or Planet.hit_test(place.x, place.y, app.geometry) != feature:
-				continue
-			var p := Planet._latlon_to_unit(deg_to_rad(place.x), deg_to_rad(place.y))
-			var distance := Planet.arc_distance(unit_a, unit_b, p)
-			if distance > 2e-5 and distance < best_distance:
-				best_distance = distance
-				best = pixel
-	return best
 
 
 # The graticule runs along every fifteenth degree of latitude and longitude.
