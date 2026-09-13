@@ -82,7 +82,7 @@ below are what change the open document, and each one records an undo step.
 | `app.add_group(title, parent="")`           | Add a group                             |
 | `app.edit_feature(uuid, **fields)`          | Change `title`, `enabled`, `feature_type`, `color`, `time_range` or `rings` |
 | `app.delete_feature(uuid)`                  | Take a node out of the tree             |
-| `app.set_keyframe(uuid, time, rotation)`    | Where the feature stands at a time      |
+| `app.set_keyframe(uuid, time, rotation)`    | Where the feature stands at a time; relative to the parent inside a [coupling](Time.md#coupling) |
 | `app.delete_keyframe(uuid, time)`           | Drop the keyframe at that time          |
 
 `parent` is a group's uuid, and the root group when it is empty. A ring is a
