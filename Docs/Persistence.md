@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "features": { ... },
   "view": { ... }
 }
@@ -188,6 +188,7 @@ draws each feature in its own colour.
   "geometry_kind": "polygon",
   "rings": [[[45.0, 30.0], [46.0, 31.0], [45.0, 32.0]]],
   "keyframes": [{"time": 0.0, "rotation": [0, 0, 0]}],
+  "couplings": [{"from": 500.0, "to": 200.0, "parent": "6b0d6b1e-2c1f-4a3d-9a7e-2f0f1d9c5b31"}],
   "time_range": [0, 2000]
 }
 ```
@@ -243,6 +244,14 @@ present and `rotation` the three angles above. Only a leaf has them; a group
 carries no motion since 0.8.0. The file is written at full float
 precision, so a keyframe time comes back as the exact time it was written at;
 see [Time](Time.md#precision).
+
+`couplings` is what the feature rides on and when: a list of
+`{from, to, parent}`, `from` the older age where the span starts, `to` the
+younger one where it ends, and `parent` the uuid of the feature ridden on, the
+way a section names its feature. Inside a span the keyframes are relative to
+the parent; see [Time](Time.md#coupling). Only a leaf has them, and spans on one
+feature do not overlap. A span whose parent is not in the file is kept as it
+stands, like a section whose feature is missing.
 
 The triangles a polygon is filled with are not in the file. They are derived
 from the rings on load, so the file keeps the shape and not the way it happened
@@ -382,6 +391,12 @@ The Feature age style also changed what it reads, from the age a feature came
 into existence at to the age it has reached at the current time. Nothing in the
 file changes for that. At the present the two are the same number, so a file
 opens at the present looking the way it did.
+
+#### 0.11.0 to 0.12.0
+
+0.12.0 added `couplings` to a leaf feature. There is no migration step: a leaf
+without the key rides on nothing, and its keyframes are world rotations, which
+is what every feature's keyframes were before.
 
 ## The config file
 

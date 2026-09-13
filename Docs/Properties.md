@@ -69,6 +69,9 @@ follows the feature tree selection, through
 | To (Ma)    | Number             | no         |
 | Geometry   | Label              | no         |
 | Keyframes  | Count, Key, Delete | no         |
+| Coupled to | Parent, Decouple   | no         |
+| Ride on    | Picker, Couple     | no         |
+| Couplings  | List, Remove       | no         |
 | Sections   | Table, Reverse, Remove | no     |
 
 The panel lists no coordinates. Middle Earth is for building worlds, and a
@@ -76,9 +79,10 @@ vertex is placed, moved, inserted and deleted on the globe with the
 [Draw](Draw.md) and [Vertex](Editing.md#the-vertex-tool) tools. The Geometry row
 still says what the feature holds.
 
-A feature shows either the keyframe row or the section table, never both: a
-[line topology](Editing.md#line-topologies) borrows its vertices instead of
-holding them, and where it is comes from the features its sections run along.
+A feature shows either the keyframe and coupling rows or the section table,
+never both: a [line topology](Editing.md#line-topologies) borrows its vertices
+instead of holding them, and where it is comes from the features its sections
+run along.
 
 With nothing selected the panel says so and shows no rows at all, and so does
 the root group, which has no name of its own to change and no switch — the same
@@ -139,6 +143,35 @@ current time.
 The panel does not list the keyframes' times or angles. A keyframe is placed by
 dragging with the Move tool.
 
+On a feature that [rides on another](Time.md#coupling) at the current time,
+`Key` records the pose relative to the parent, which is what holds it where it
+stands.
+
+### Coupling
+
+Two rows and a list, all about which feature this one
+[rides on](Time.md#coupling).
+
+- **Coupled to** names the parent in effect at the current time, or says
+  `nothing`. `Decouple` beside it ends that span at the current time and is
+  greyed out while the feature rides on nothing.
+- **Ride on** is a picker of every feature this one could ride on, in tree
+  order: every leaf but itself and the topologies. `Couple` starts a span on the
+  picked feature at the current time and is greyed out while the feature
+  already rides on something then.
+- **Couplings** lists every span: the parent, `From` and `To` in Ma. `Remove`
+  takes the selected span away, or the last one when none is selected, and
+  leaves every keyframe where it was on the globe.
+
+A span whose parent cannot be followed, because it was deleted, is kept in the
+list and drawn in the warning colour a broken section has, with the reason as
+its tooltip. The Coupled to row takes the same colour while the time is inside
+that span. Undo brings the parent back and the colour goes.
+
+A refused Couple, such as a parent that already rides on this feature, shows
+the reason in an error dialog and changes nothing. The rows follow the current
+time, since the parent in effect changes with it.
+
 ### The section table
 
 Only a [line topology](Editing.md#line-topologies) has one. One row per section:
@@ -176,6 +209,9 @@ undo version:
 | `split_feature_along`   | anything but a polygon, a part that is not there, fewer than two points, both ends on one edge, and a cut that runs outside the shape or crosses an edge or itself |
 | `set_keyframe`          | a group; the time it names replaces or is added    |
 | `remove_keyframe`       | a group, and a keyframe that is not there          |
+| `couple`                | a group or a topology on either side, the feature itself, a feature already riding on something at that time, a parent that rides on the feature down any chain, and a parent not there over the whole span |
+| `decouple`              | a feature riding on nothing at that time, and the present on a span that runs to it |
+| `remove_coupling`       | a span that is not there                           |
 | `add_section`           | a group, a feature holding vertices of its own, and a target that is a group, a topology, the topology itself or has no vertices |
 | `remove_section`        | anything but a topology, and a section that is not there |
 | `reverse_section`       | the same                                           |

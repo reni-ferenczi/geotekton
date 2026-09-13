@@ -112,3 +112,11 @@ def test_the_version_this_package_writes_is_the_application_version():
     """A document the package builds has to say what the application says."""
     settings = (ROOT / "project.godot").read_text(encoding="utf-8")
     assert 'config/version="%s"' % CURRENT_VERSION in settings
+
+
+def test_a_feature_reads_the_spans_it_rides_on():
+    feature = Feature({"type": "Feature", "is_group": False, "couplings": [
+        {"from": 500.0, "to": 200.0, "parent": "6b0d6b1e"}]})
+    assert feature.couplings == [{"from": 500.0, "to": 200.0, "parent": "6b0d6b1e"}]
+    assert Feature.new_feature("Rider").couplings == []
+    assert Feature.new_group("Plates").couplings == []

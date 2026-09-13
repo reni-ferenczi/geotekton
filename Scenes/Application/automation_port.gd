@@ -354,6 +354,28 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"coupling":
+			# Couple rides on the picked parent and Decouple stops riding, both at
+			# the current time; Remove takes a span of the list away.
+			if request.has("parent"):
+				var pick_error := app.properties.pick_parent(str(request["parent"]))
+				if not pick_error.is_empty():
+					return {"ok": false, "error": pick_error}
+			if request.has("index"):
+				app.properties.select_span(int(request["index"]))
+			var coupling_button: Button = {
+				"Couple": app.properties.couple_button,
+				"Decouple": app.properties.decouple_button,
+				"Remove": app.properties.remove_span_button,
+			}.get(str(request.get("button", "")))
+			if coupling_button == null:
+				return {"ok": false, "error": "no coupling button called %s" % request.get("button", "")}
+			if coupling_button.disabled:
+				return {"ok": false, "error": "the %s button is disabled" % request.get("button", "")}
+			coupling_button.pressed.emit()
+			await _frames(2)
+			return {"ok": true}
+
 		"keyframes":
 			# Both buttons work at the current time, so there is no row to pick.
 			var key_button: Button = {
@@ -1074,6 +1096,7 @@ func _feature_to_json(feature: Feature) -> Variant:
 		"color": [feature.color.r, feature.color.g, feature.color.b, feature.color.a],
 		"rotation": [rotation.x, rotation.y, rotation.z],
 		"keyframes": Keyframe.list_to_json(feature.keyframes),
+		"couplings": Coupling.list_to_json(feature.couplings),
 		"geometry_kind": Feature.KIND_NAMES[feature.geometry_kind],
 		"rings": Feature.rings_to_json(feature.rings),
 		"world_rings": Feature.rings_to_json(world_rings),

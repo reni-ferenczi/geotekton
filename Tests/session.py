@@ -642,6 +642,149 @@ def run_keyframe_row_session(client: AutomationClient) -> None:
     check(refused != "", f"so pressing it again is refused: {refused}")
 
 
+COUPLING_SAMPLE = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+COUPLED_AT = 500.0
+DECOUPLED_AT = 200.0
+# Inside the span, where the rider is dragged on its own.
+RIDER_MOVED_AT = 350.0
+# How far the parent is dragged each time, in degrees of longitude.
+PARENT_DRAG = 10.0
+
+
+def coupling_row(client: AutomationClient) -> dict:
+    return client.call("get_properties")["properties"]["coupling"]
+
+
+def centroid_of(client: AutomationClient, title: str) -> tuple[float, float]:
+    client.call("select", title=title)
+    return world_centroid(client)
+
+
+def run_coupling_session(client: AutomationClient, folder: Path) -> None:
+    """Couple the blue quad to the red triangle, drag each, decouple, and keep the spans."""
+    client.call("load", path=str(COUPLING_SAMPLE))
+    client.call("set_view", lat=15.0, lon=20.0, angle=0.0)
+    planet = client.call("latlon_to_screen", lat=15.0, lon=20.0)["screen"]
+    client.call("select", title="Red Triangle")
+    red = client.call("get_selected")["feature"]
+    client.call("select", title="Blue Quad")
+    client.call("set_time", time=COUPLED_AT)
+
+    row = coupling_row(client)
+    check(row["coupled_to"] == "nothing" and not row["decouple"] and row["spans"] == [],
+          f"an uncoupled feature rides on nothing: {row}")
+    check("Red Triangle" in row["parents"] and "Blue Quad" not in row["parents"],
+          f"and the picker offers every other feature: {row['parents']}")
+
+    before = client.call("get_selected")["feature"]
+    versions = undo_depth(client)
+    client.call("coupling", button="Couple", parent="Red Triangle")
+    after = client.call("get_selected")["feature"]
+    check(after["couplings"] == [{"from": COUPLED_AT, "to": 0.0, "parent": red["uuid"]}],
+          f"Couple starts a span at the current time running to the present: {after['couplings']}")
+    check(worst_offset(after["world_rings"][0], [tuple(v) for v in before["world_rings"][0]]) < 1e-3,
+          "without moving the feature on the globe")
+    check(undo_depth(client) == versions + 1, "in one undo step")
+    row = coupling_row(client)
+    check(row["coupled_to"] == "Red Triangle" and row["decouple"] and not row["couple"]
+          and row["spans"] == [{"parent": "Red Triangle", "from": COUPLED_AT, "to": 0.0, "broken": False}],
+          f"the panel names the parent and lists the span: {row}")
+    bars = client.call("get_timeline")["timeline"]["couplings"]
+    check(len(bars) == 1 and bars[0]["from"] == COUPLED_AT and bars[0]["screen"][0] < bars[0]["screen"][1],
+          f"the timeline draws the span as a bar from older to younger: {bars}")
+    check(client.call("latlon_to_screen", lat=15.0, lon=20.0)["screen"] == planet,
+          "the coupling rows leave the planet where it was")
+
+    # Couple, drag the parent: the child moves with it.
+    client.call("set_time", time=DECOUPLED_AT)
+    rider = centroid_of(client, "Blue Quad")
+    parent = centroid_of(client, "Red Triangle")
+    if not drag(client, parent[0], parent[1] + PARENT_DRAG):
+        return
+    moved_parent = world_centroid(client)
+    moved_rider = centroid_of(client, "Blue Quad")
+    check(angular_distance(rider, moved_rider) > PARENT_DRAG / 2.0,
+          f"dragging the parent carries the rider: {rider} to {moved_rider}")
+    check(abs(angular_distance(moved_parent, moved_rider) - angular_distance(parent, rider)) < DRAG_TOLERANCE,
+          "and keeps it as far from the parent as it was")
+
+    # Decouple, drag the parent: the child stays.
+    before = client.call("get_selected")["feature"]
+    client.call("coupling", button="Decouple")
+    after = client.call("get_selected")["feature"]
+    check(after["couplings"] == [{"from": COUPLED_AT, "to": DECOUPLED_AT, "parent": red["uuid"]}],
+          f"Decouple ends the span at the current time: {after['couplings']}")
+    check(DECOUPLED_AT in [k["time"] for k in after["keyframes"]],
+          f"with a keyframe there: {after['keyframes']}")
+    check(worst_offset(after["world_rings"][0], [tuple(v) for v in before["world_rings"][0]]) < 1e-3,
+          "and nothing on the globe moves")
+    check(coupling_row(client)["coupled_to"] == "nothing", "the panel says it rides on nothing now")
+    parent = centroid_of(client, "Red Triangle")
+    if not drag(client, parent[0], parent[1] + PARENT_DRAG):
+        return
+    client.call("select", title="Blue Quad")
+    stayed = client.call("get_selected")["feature"]
+    check(worst_offset(stayed["world_rings"][0], [tuple(v) for v in after["world_rings"][0]]) < 1e-3,
+          "dragging the parent after decoupling leaves the rider where it is")
+
+    # Dragging the rider inside the span writes a keyframe relative to the
+    # parent, which has moved by then, and still lands where it was dropped.
+    client.call("set_time", time=RIDER_MOVED_AT)
+    lat, lon = world_centroid(client)
+    if not drag(client, lat - 5.0, lon):
+        return
+    got = world_centroid(client)
+    check(abs(got[0] - (lat - 5.0)) < DRAG_TOLERANCE and abs(got[1] - lon) < DRAG_TOLERANCE,
+          f"a rider dragged inside the span lands where it was dropped: {got}")
+
+    run_coupling_refusal_checks(client)
+    run_coupling_round_trip(client, folder)
+
+
+def run_coupling_refusal_checks(client: AutomationClient) -> None:
+    """A cycle is refused with the reason, and a deleted parent leaves the span broken."""
+    client.call("select", title="Red Triangle")
+    versions = undo_depth(client)
+    client.call("coupling", button="Couple", parent="Blue Quad")
+    dialog = client.call("get_dialog")["dialog"]
+    if check(dialog is not None and "circle" in dialog["text"],
+             f"coupling the parent to its own rider is refused: {dialog}"):
+        client.call("dialog", button="OK")
+    check(undo_depth(client) == versions and client.call("get_selected")["feature"]["couplings"] == [],
+          "and changes nothing")
+
+    client.call("menu", item="delete")
+    client.call("select", title="Blue Quad")
+    row = coupling_row(client)
+    check([span["broken"] for span in row["spans"]] == [True],
+          f"a deleted parent leaves the span in place, drawn as broken: {row['spans']}")
+    client.call("menu", item="undo")
+    client.call("select", title="Blue Quad")
+    row = coupling_row(client)
+    check([span["broken"] for span in row["spans"]] == [False], f"and undo mends it: {row['spans']}")
+
+
+def run_coupling_round_trip(client: AutomationClient, folder: Path) -> None:
+    """Save, load, undo and redo keep the spans."""
+    client.call("select", title="Blue Quad")
+    spans = client.call("get_selected")["feature"]["couplings"]
+    saved = folder / "coupled.middle-earth"
+    client.call("expect_file_dialog", path=str(saved))
+    client.call("menu", item="save_as")
+    client.call("load", path=str(saved))
+    client.call("select", title="Blue Quad")
+    check(client.call("get_selected")["feature"]["couplings"] == spans,
+          f"save and load keep the spans: {spans}")
+
+    client.call("coupling", button="Remove", index=0)
+    check(client.call("get_selected")["feature"]["couplings"] == [], "Remove takes the span away")
+    for item, wanted in (("undo", spans), ("redo", []), ("undo", spans)):
+        client.call("menu", item=item)
+        client.call("select", title="Blue Quad")
+        got = client.call("get_selected")["feature"]["couplings"]
+        check(got == wanted, f"{item} gives the spans {wanted}: {got}")
+
+
 def run_colour_session(client: AutomationClient) -> None:
     """A colour picked in the panel reaches the globe."""
     open_mixed_geometry(client)
@@ -2579,6 +2722,11 @@ def main(argv: list[str]) -> int:
         run_escape_session(client)
         run_properties_session(client)
         run_keyframe_row_session(client)
+        folder = Path(tempfile.mkdtemp(prefix="middle-earth-coupling-"))
+        try:
+            run_coupling_session(client, folder)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
         run_colour_session(client)
         run_globe_menu_session(client)
         run_edit_menu_session(client)

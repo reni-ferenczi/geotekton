@@ -29,7 +29,7 @@ EXTENSION = ".middle-earth"
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
-CURRENT_VERSION = "0.11.0"
+CURRENT_VERSION = "0.12.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.82, 0.41, 0.12, 1.0]
@@ -159,6 +159,16 @@ class Feature:
     def keyframes(self) -> list[Keyframe]:
         return [Keyframe(entry) for entry in self.data.get("keyframes", [])]
 
+    @property
+    def couplings(self) -> list[dict]:
+        """The spans over which the feature rides on another, since 0.12.0.
+
+        Each is `from`, the older age, `to`, the younger one, and the `parent`
+        uuid. Inside a span the keyframes are relative to the parent, so a
+        keyframe written there by `set_keyframe` is too. A group has none.
+        """
+        return self.data.get("couplings", []) if not self.is_group else []
+
     def set_keyframe(self, time: float, rotation) -> Keyframe:
         """Write the keyframe at this time, replacing one already there.
 
@@ -228,6 +238,7 @@ class Feature:
             "enabled": True,
             "is_group": False,
             "keyframes": [],
+            "couplings": [],
             "feature_type": feature_type,
             "geometry_kind": geometry_kind,
             "color": list(DEFAULT_COLOR),

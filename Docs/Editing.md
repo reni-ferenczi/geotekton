@@ -198,6 +198,10 @@ on existing over the same span. The first keeps the title and every other part
 the feature had; the second is named after it, `Laurentia` and `Laurentia 2`,
 and holds its half alone. A split is one undo version.
 
+Both halves also keep the [couplings](Time.md#coupling) of the feature they came
+from, so both go on riding on the same parent. A feature that rode on the one
+that was split rides on the first half, which keeps the original's uuid.
+
 ## The Split tool
 
 The Split tool cuts the selected polygon in two along a line drawn across it.

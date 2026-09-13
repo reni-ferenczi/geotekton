@@ -7,7 +7,7 @@ Moving a feature rotates its vertices on the sphere rather than shifting lat/lon
 A node stores a list of keyframes alongside the `rings` its geometry is made
 of, each one a time and a `Vector3` of degrees. The rings are never modified
 during a move; only the keyframes change. What a node's rotation is at a given
-time, and how a group's reaches the features under it, is in
+time, and how a coupling puts one feature's motion on another, is in
 [Time](Time.md#keyframes); this document is about the rotation itself.
 
 ---
@@ -96,6 +96,20 @@ Keyframe.upsert(node.keyframes, time, Feature.compute_move_rotation(
 
 Only a leaf feature is dragged. A group carries no motion, so a drag of one
 would have nothing to write; see [Time](Time.md#groups-do-not-move).
+
+### Dragging a coupled feature
+
+A feature that [rides on another](Time.md#coupling) at the current time is
+dragged in world space all the same: the drag starts from its world rotation,
+`Feature.world_basis()`, and the rotation that comes out is put into the frame
+in effect at the current time before it is written, by
+`Coupling.rotation_for()`. Inside a span that is the pose relative to the
+parent, so the keyframe is relative and the feature lands where it was dropped.
+
+Dragging a parent moves whatever rides on it at that time. Nothing is written
+to the riders: their keyframes are relative already, and
+`Planet.Geometry.resolve()` works every rider out from its parent's world
+rotation, parents first and each once.
 
 ---
 

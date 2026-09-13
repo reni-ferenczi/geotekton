@@ -37,9 +37,11 @@ middle of the outline rather than of the area inside it; for the shapes anyone
 draws the two are close, and this one is also defined for a polyline and for a
 multipoint, which have no area at all.
 
-**Where it is** at a time is that point carried through the rotation the
-feature's own keyframes give it, which is the rotation the world sees; a group
-above it moves nothing. See [Time](Time.md#groups-do-not-move).
+**Where it is** at a time is that point carried through the feature's world
+rotation, which is what the user sees move: its own keyframes, composed with
+the parent's world rotation while it [rides on another feature](Time.md#coupling).
+A group above it moves nothing. So the graphs of a coupled feature plot its
+world path, not its keyframes relative to the parent.
 
 **The rate** is worked out between one keyframe time and the next: the single
 turn that carries where the node stands at one to where it stands at the other,
@@ -61,13 +63,16 @@ A rate has no direction. A turn back the way it came is as fast as the turn out,
 and the bar for that span is as tall.
 
 The times the rate can change at are the feature's keyframe times: a feature
-with three keyframes has two spans.
+with three keyframes has two spans. A coupled feature's world motion can also
+change where a coupling starts or ends, and wherever its parent's motion
+changes while it rides on it, so those times are added: both ends of every
+coupling, and every such time of the parent that falls inside the span,
+followed up the chain (`Kinematics.motion_times()`).
 
 ## What has no graph
 
-- **A group**, which has no geometry of its own and so no middle to follow. It
-  still carries motion; it is the features under it that show where that motion
-  goes.
+- **A group**, which has no geometry of its own and so no middle to follow, and
+  carries no motion either.
 - **A line topology**, which borrows every vertex of it from the features its
   sections run along and is resolved afresh at each time. Its own rotation
   carries nothing, so a path drawn from it would be a fiction.
