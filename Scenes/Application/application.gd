@@ -37,7 +37,7 @@ const PALETTE_PREVIEW_STEPS := 128
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT }
+enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT, SPLIT }
 
 # How near, in window pixels, a click has to be to take hold of a vertex or an
 # edge, and how near a dragged vertex has to come to another before snapping
@@ -254,7 +254,7 @@ func _ready() -> void:
 	light_button.pressed.connect(func() -> void: set_active_tool(Tool.LIGHT))
 	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
 	snap_button.toggled.connect(_on_snap_toggled)
-	split_button.pressed.connect(func() -> void: _report(split_at_selected_vertex()))
+	split_button.pressed.connect(func() -> void: set_active_tool(Tool.SPLIT))
 	snap_button.button_pressed = Config.get_snap_to_vertices()
 	_build_kind_selector()
 	# The range and the starting value come from Circle, so the scene does
@@ -1537,6 +1537,8 @@ func set_active_tool(tool: Tool) -> void:
 		circle_points = PackedVector2Array()
 	if active_tool == Tool.LIGHT and tool != Tool.LIGHT:
 		_light_dragging = false
+	if active_tool == Tool.SPLIT and tool != Tool.SPLIT:
+		split_points = PackedVector2Array()
 	active_tool = tool
 	move_button.button_pressed = (tool == Tool.MOVE)
 	draw_button.button_pressed = (tool == Tool.DRAW)
@@ -1545,6 +1547,7 @@ func set_active_tool(tool: Tool) -> void:
 	circle_button.button_pressed = (tool == Tool.CIRCLE)
 	topology_button.button_pressed = (tool == Tool.TOPOLOGY)
 	light_button.button_pressed = (tool == Tool.LIGHT)
+	split_button.button_pressed = (tool == Tool.SPLIT)
 	# Only the Circle tool reads the segment count, so only it shows the box.
 	segments_label.visible = tool == Tool.CIRCLE
 	segments_spin.visible = tool == Tool.CIRCLE
@@ -1567,14 +1570,15 @@ func snapping() -> bool:
 
 # The Vertex tool needs a leaf feature holding vertices of its own; there is
 # nothing to take hold of otherwise, and a topology's vertices belong to the
-# features it runs along. Measure needs nothing at all.
+# features it runs along. Measure needs nothing at all, and Split a polygon.
 func _update_tool_buttons() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var editable := selected != null and not selected.is_group and selected.has_own_vertices()
 	vertex_button.disabled = not editable
 	snap_button.disabled = active_tool != Tool.VERTEX
-	split_button.disabled = not _split_problem().is_empty()
-	split_button.tooltip_text = _split_tooltip()
+	split_button.disabled = not _can_split_along(selected)
+	split_button.tooltip_text = "Split the selected polygon along a line drawn across it" \
+		if not split_button.disabled else "Select a polygon to split it"
 
 
 ### Feature selection
@@ -1612,6 +1616,8 @@ func _on_feature_selected(node: Feature) -> void:
 	# not survive an undo.
 	var editable := node == null or (not node.is_group and node.has_own_vertices())
 	if active_tool == Tool.VERTEX and not editable:
+		set_active_tool(Tool.MOVE)
+	if active_tool == Tool.SPLIT and node != null and not _can_split_along(node):
 		set_active_tool(Tool.MOVE)
 
 	var is_leaf := node != null and not node.is_group
@@ -1870,6 +1876,8 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 			_on_topology_input(lat, lon, event)
 		Tool.LIGHT:
 			_on_light_input(lat, lon, event)
+		Tool.SPLIT:
+			_on_split_input(lat, lon, event)
 
 
 # The background behind the globe. A drag of a vertex that ends out there is
@@ -1941,6 +1949,8 @@ func _tool_points() -> PackedVector2Array:
 			return circle_points
 		Tool.MEASURE:
 			return measure_points
+		Tool.SPLIT:
+			return split_points
 	return PackedVector2Array()
 
 
@@ -1956,6 +1966,10 @@ func _set_tool_points(points: PackedVector2Array) -> void:
 			_show_measurement()
 		Tool.MEASURE:
 			measure_points = points
+			_refresh_selection_outline()
+			_show_measurement()
+		Tool.SPLIT:
+			split_points = points
 			_refresh_selection_outline()
 			_show_measurement()
 	_update_edit_menu()
@@ -2010,6 +2024,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_report(_circle_commit())
 			elif event.keycode == KEY_ESCAPE:
 				circle_points = PackedVector2Array()
+				taken_back = PackedVector2Array()
+				_refresh_selection_outline()
+				_show_measurement()
+			else:
+				return
+		Tool.SPLIT:
+			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				_report(split_along_points())
+			elif event.keycode == KEY_ESCAPE:
+				split_points = PackedVector2Array()
 				taken_back = PackedVector2Array()
 				_refresh_selection_outline()
 				_show_measurement()
@@ -2342,10 +2366,11 @@ func _after_vertex_edit() -> void:
 ### Splitting
 
 
-# Why the selected feature cannot be split where the tool is pointing, or an
-# empty string when it can. A polyline is cut at the picked vertex; a polygon
-# between it and the one held with Split From.
-func _split_problem() -> String:
+# Why the Vertex tool cannot split the selected feature where it is pointing, or
+# an empty string when it can. A polyline is cut at the picked vertex; a polygon
+# between it and the one held with Shift+S. The Split tool cuts a polygon along
+# a drawn line instead; this is the same cut with no points in between.
+func vertex_split_problem() -> String:
 	if active_tool != Tool.VERTEX:
 		return "Splitting belongs to the Vertex tool."
 	var feature := features.feature_tree.get_selected_node()
@@ -2357,14 +2382,9 @@ func _split_problem() -> String:
 			return GeometryEdit.polyline_split_problem(ring, selected_vertex.y)
 		Feature.GeometryKind.POLYGON:
 			if split_from == NO_VERTEX or split_from.x != selected_vertex.x:
-				return "A polygon is cut between two vertices; hold the first with Split From."
+				return "A polygon is cut between two vertices; hold the first with Shift+S."
 			return GeometryEdit.polygon_split_problem(ring, split_from.y, selected_vertex.y)
 	return "A multipoint is separate markers, so it has no path to split."
-
-
-func _split_tooltip() -> String:
-	var problem := _split_problem()
-	return "Split the feature in two" if problem.is_empty() else problem
 
 
 # Hold the picked vertex as one end of a polygon cut. The other end is whichever
@@ -2381,7 +2401,7 @@ func hold_split_from() -> String:
 
 
 func split_at_selected_vertex() -> String:
-	var problem := _split_problem()
+	var problem := vertex_split_problem()
 	if not problem.is_empty():
 		return problem
 	var feature := features.feature_tree.get_selected_node()
@@ -2394,6 +2414,62 @@ func split_at_selected_vertex() -> String:
 	features.reload()
 	refresh_geometry()
 	_update_tool_buttons()
+	return ""
+
+
+### The Split tool
+#
+# Cutting the selected polygon in two along a line drawn across it. Clicks place
+# the points of the cut in world coordinates, previewed over the polygon's
+# outline; Enter commits them and Escape lets them all go. The two ends need not
+# be clicked on the boundary: the commit puts them on the nearest point of it.
+# See Docs/Editing.md#the-split-tool.
+
+var split_points := PackedVector2Array()
+
+
+# The Split tool needs a leaf polygon holding vertices of its own.
+func _can_split_along(node: Feature) -> bool:
+	return node != null and not node.is_group and node.has_own_vertices() \
+		and node.geometry_kind == Feature.GeometryKind.POLYGON
+
+
+func _on_split_input(lat: float, lon: float, event: InputEvent) -> void:
+	if event is not InputEventMouseButton or not event.is_pressed():
+		return
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		_place_point(Vector2(lat, lon))
+	elif event.button_index == MOUSE_BUTTON_RIGHT and not split_points.is_empty():
+		undo()
+
+
+# Cut the selected polygon along the points clicked. The part cut is the one
+# whose boundary is nearest the first point. A refused cut keeps its points, so
+# the one at fault can be taken back rather than the whole cut clicked again.
+func split_along_points() -> String:
+	var feature := features.feature_tree.get_selected_node()
+	if not _can_split_along(feature):
+		return "Select a polygon to split."
+	if split_points.size() < 2:
+		return "Click where the cut starts and where it ends."
+	# The points were clicked in world space; a feature keeps its own frame.
+	var into_local := Feature.world_basis(
+		features.root, feature, document.current_time).transposed()
+	var path := Feature.apply_basis(split_points, into_local)
+	var part := 0
+	var nearest := INF
+	for index in feature.rings.size():
+		var distance: float = GeometryEdit.nearest_segment(feature.rings[index], path[0], true)[1]
+		if distance < nearest:
+			nearest = distance
+			part = index
+	var error := document.split_feature_along(feature, part, path)
+	if not error.is_empty():
+		return error
+	split_points = PackedVector2Array()
+	features.reload()
+	refresh_geometry()
+	set_active_tool(Tool.MOVE)
 	return ""
 
 
@@ -2676,6 +2752,11 @@ func _show_measurement(error: String = "") -> void:
 	if active_tool == Tool.MEASURE:
 		status_measure.text = "click two points to measure"
 		return
+	if active_tool == Tool.SPLIT:
+		status_measure.text = "click across the polygon, from one edge to another" \
+			if split_points.size() < 2 \
+			else "%d points   Enter splits the polygon along them" % split_points.size()
+		return
 
 	var selected := features.feature_tree.get_selected_node()
 	var length := Measure.geometry_length(selected, radius)
@@ -2898,6 +2979,10 @@ func _refresh_selection_outline() -> void:
 			"vertices": Feature.apply_basis(ring, m),
 			"style": style,
 		})
+	# The Split tool previews its cut over the polygon's outline, the way the
+	# Draw tool previews a shape.
+	if active_tool == Tool.SPLIT and not split_points.is_empty():
+		parts.append({"vertices": split_points, "style": Planet.OutlineStyle.OPEN})
 	planet_view.planet.set_outline(parts)
 
 

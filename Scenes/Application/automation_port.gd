@@ -15,6 +15,7 @@ const TOOL_NAMES := {
 	Application.Tool.CIRCLE: "circle",
 	Application.Tool.TOPOLOGY: "topology",
 	Application.Tool.LIGHT: "light",
+	Application.Tool.SPLIT: "split",
 }
 
 # The wheel is here so a run can zoom the way a person does, with the pointer
@@ -501,7 +502,9 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"selected_vertex": _vertex_to_json(app.selected_vertex),
 				"hovered_vertex": _vertex_to_json(app.hovered_vertex),
 				"split_from": _vertex_to_json(app.split_from),
-				"can_split": not app.split_button.disabled,
+				"can_split": app.vertex_split_problem().is_empty(),
+				"split_enabled": not app.split_button.disabled,
+				"split_points": _points_to_json(app.split_points),
 				"measure_points": _points_to_json(app.measure_points),
 				"measure_label": _measure_label_to_json(),
 				"circle_points": _points_to_json(app.circle_points),
@@ -538,6 +541,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				if app.light_button.disabled:
 					return {"ok": false, "error": "the light is dragged on the globe"}
 				app.set_active_tool(Application.Tool.LIGHT)
+			elif tool_name == "split":
+				if app.split_button.disabled:
+					return {"ok": false, "error": "the Split tool needs a polygon selected"}
+				app.set_active_tool(Application.Tool.SPLIT)
 			elif tool_name == "move":
 				app.set_active_tool(Application.Tool.MOVE)
 			elif not tool_name.is_empty():

@@ -156,8 +156,9 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Split the feature in two"
+tooltip_text = "Split the selected polygon along a line drawn across it"
 disabled = true
+toggle_mode = true
 icon = ExtResource("11_toolsplit")
 expand_icon = true
 
