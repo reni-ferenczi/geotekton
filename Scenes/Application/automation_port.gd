@@ -595,6 +595,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {
 				"ok": true,
 				"view_settings": app.document.view.to_json(),
+				# The root group's style, which the same dialog edits.
+				"style": app.document.root.style.to_json(),
 				# Why the backdrop image is not on the planet, empty while it is.
 				"backdrop_error": app.backdrop.error,
 				# What could not be read of the palette the document names.
@@ -625,6 +627,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true, "preferences": {
 				"default_view": Config.get_default_view(),
 				"view_defaults": Config.get_view_defaults().to_json(),
+				"style_defaults": Config.get_style_defaults().to_json(),
 				"planet_radius_km": Config.get_planet_radius(),
 				"vertex_marker_scale": Config.get_vertex_marker_scale(),
 				"line_width_scale": Config.get_line_width_scale(),
@@ -793,7 +796,7 @@ func _fill_view_dialog(block: Dictionary) -> String:
 			# A palette is a built in name or the path of a file, and a path is
 			# not in the list until the document names it, which is what
 			# picking one through the dialog's Load button comes to.
-			app.document.view.palette = str(block[key])
+			app.document.root.style.palette = str(block[key])
 			app._fill_palette_choices()
 			continue
 		if not fields.has(name):

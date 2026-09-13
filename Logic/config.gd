@@ -186,8 +186,23 @@ static func get_view_defaults() -> ViewSettings:
 	return ViewSettings.from_json(get_value("view_defaults"))
 
 
-static func set_view_defaults(settings: ViewSettings) -> void:
-	set_value("view_defaults", settings.to_json())
+# The root group style a new document starts from, kept in the same block as
+# `style`. A block saved before 0.10.0 names the style by the view keys it had
+# then, and is read through them.
+static func get_style_defaults() -> GroupStyle:
+	var block: Variant = get_value("view_defaults")
+	if block is not Dictionary:
+		return GroupStyle.for_root()
+	var style := GroupStyle.from_json(block.get("style", GroupStyle.json_from_view_block(block)))
+	if style.mode == Styling.INHERIT:
+		style.mode = Styling.BY_FEATURE
+	return style
+
+
+static func set_view_defaults(settings: ViewSettings, style: GroupStyle = null) -> void:
+	var block := settings.to_json()
+	block["style"] = (style if style != null else GroupStyle.for_root()).to_json()
+	set_value("view_defaults", block)
 
 
 

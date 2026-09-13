@@ -191,6 +191,10 @@ var _backdrop_path: String = ""
 # not be read of it.
 var palette := Palette.resolve(Palette.DEFAULT)
 
+# Every palette read so far, by source: the root group's and whatever other
+# groups name. Styling reads a palette it has not seen into it.
+var palettes := {}
+
 # What to do once the unsaved changes prompt has been answered.
 var _pending_action: Callable
 
@@ -633,7 +637,7 @@ func new_document() -> void:
 
 # An empty document, drawn the way the preferences say a new one should be.
 func _reset_document() -> void:
-	document.reset(Config.get_view_defaults())
+	document.reset(Config.get_view_defaults(), Config.get_style_defaults())
 	_apply_default_view()
 
 
@@ -757,15 +761,16 @@ func apply_view_settings() -> void:
 		backdrop_warning.text = backdrop.error
 
 
-# Read the palette the document names, unless it is the one already in hand.
-# A palette that cannot be read is not a failure of the document either: what
-# did parse of it is used and the reasons are pushed as warnings.
+# Read the palette the root group names, unless it has been read already. A
+# palette that cannot be read is not a failure of the document either: what did
+# parse of it is used and the reasons are pushed as warnings.
 func _load_palette() -> void:
-	if palette.source == document.view.palette:
-		return
-	palette = Palette.resolve(document.view.palette)
-	for problem in palette.errors:
-		push_warning("%s: %s" % [document.view.palette, problem])
+	var source := document.root.style.palette
+	if not palettes.has(source):
+		palettes[source] = Palette.resolve(source)
+		for problem in palettes[source].errors:
+			push_warning("%s: %s" % [source, problem])
+	palette = palettes[source]
 
 
 # Put the image the document names on the planet. The file is read only when the
@@ -993,8 +998,10 @@ func _build_view_content() -> Control:
 		ViewSettings.MIN_AMBIENT, ViewSettings.MAX_AMBIENT, 0.05)
 	_view_check(form, "backdrop_visible", "Backdrop image shown")
 	_view_spin(form, "backdrop_opacity", "Backdrop opacity", 0.0, 1.0, 0.05)
+	# The root group's style, which is the document default for colors.
 	_view_option(form, "draw_style", "Draw style", Styling.STYLES)
 	_view_color(form, "single_color", "Single colour")
+	_view_spin(form, "opacity", "Feature opacity", 0.0, 1.0, 0.05)
 
 	box.add_child(_view_section("Palette"))
 	var palette_row := HBoxContainer.new()
@@ -1062,7 +1069,7 @@ func _build_view_content() -> Control:
 	remember.text = "Save as default"
 	remember.tooltip_text = "Start every new document with these settings"
 	remember.pressed.connect(func() -> void:
-		Config.set_view_defaults(document.view)
+		Config.set_view_defaults(document.view, document.root.style)
 		Config.set_default_view(projection_selector.get_item_text(
 			projection_selector.selected)))
 	defaults.add_child(remember)
@@ -1073,6 +1080,7 @@ func _build_view_content() -> Control:
 	restore.tooltip_text = "Put this document back to the settings a new one starts with"
 	restore.pressed.connect(func() -> void:
 		document.view = Config.get_view_defaults()
+		document.root.style = Config.get_style_defaults()
 		document.view_edited()
 		_fill_view_fields()
 		apply_view_settings()
@@ -1174,7 +1182,7 @@ func choose_backdrop() -> void:
 func choose_palette() -> void:
 	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Colour palette",
 		func(path: String) -> void:
-			document.view.palette = path
+			document.root.style.palette = path
 			_fill_palette_choices()
 			_on_view_field_changed(),
 		PALETTE_FILTERS)
@@ -1195,7 +1203,7 @@ func _fill_palette_choices() -> void:
 	for key in Palette.BUILT_IN:
 		choice.add_item(str(Palette.BUILT_IN[key]["name"]))
 		choice.set_item_metadata(choice.item_count - 1, key)
-	var named := document.view.palette
+	var named := document.root.style.palette
 	if not named.is_empty() and not Palette.BUILT_IN.has(named):
 		choice.add_item(named.get_file())
 		choice.set_item_metadata(choice.item_count - 1, named)
@@ -1232,8 +1240,10 @@ func _fill_view_fields() -> void:
 	view_fields["backdrop_visible"].set_pressed_no_signal(settings.backdrop_visible)
 	view_fields["backdrop_opacity"].set_value_no_signal(settings.backdrop_opacity)
 	view_fields["backdrop_path"].text = settings.backdrop_path
-	select_option(view_fields["draw_style"], Styling.normalize_style(settings.draw_style))
-	view_fields["single_color"].color = settings.single_color
+	var style := document.root.style
+	select_option(view_fields["draw_style"], Styling.normalize_style(style.mode))
+	view_fields["single_color"].color = style.color
+	view_fields["opacity"].set_value_no_signal(style.opacity)
 	_fill_palette_choices()
 	_show_palette_preview()
 
@@ -1254,9 +1264,11 @@ func _on_view_field_changed(commit: bool = true) -> void:
 	settings.backdrop_visible = view_fields["backdrop_visible"].button_pressed
 	settings.backdrop_opacity = view_fields["backdrop_opacity"].value
 	settings.backdrop_path = view_fields["backdrop_path"].text
-	settings.single_color = view_fields["single_color"].color
-	settings.draw_style = option_value(view_fields["draw_style"])
-	settings.palette = option_value(view_fields["palette"])
+	var style := document.root.style
+	style.color = view_fields["single_color"].color
+	style.mode = option_value(view_fields["draw_style"])
+	style.opacity = view_fields["opacity"].value
+	style.palette = option_value(view_fields["palette"])
 	if commit:
 		document.view_edited()
 	apply_view_settings()
@@ -2740,7 +2752,7 @@ func _resolve_hover() -> bool:
 
 func refresh_geometry() -> void:
 	geometry = Planet.collect_geometry(
-		features.root, document.current_time, Styling.of(document.view, palette))
+		features.root, document.current_time, Styling.of(document.view, features.root, palettes))
 	planet_view.planet.set_geometry(geometry)
 	_refresh_feature_state()
 
@@ -2765,7 +2777,7 @@ func refresh_motion() -> void:
 # lives in the per feature texture, so dragging the color picker costs what a
 # step of an animation costs.
 func refresh_colors() -> void:
-	geometry.recolor(Styling.of(document.view, palette))
+	geometry.recolor(Styling.of(document.view, features.root, palettes))
 	_refresh_feature_state()
 
 
