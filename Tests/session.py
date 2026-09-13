@@ -1818,7 +1818,7 @@ def run_split_session(client: AutomationClient) -> None:
     check(client.call("get_tool")["split_from"] == [0, 0], "the first end is held")
     if not pick_vertex(client, whole["world_rings"][0][2]):
         return
-    check(client.call("get_tool")["can_split"], "the Split button is offered")
+    check(client.call("get_tool")["can_split"], "the Vertex tool can split there")
     client.call("vertex", action="split")
 
     titles = [f["title"] for f in client.call("get_features")["features"]]
