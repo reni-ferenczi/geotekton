@@ -2491,6 +2491,104 @@ def run_split_tool_session(client: AutomationClient) -> None:
           "with the outline it had")
 
 
+# Where the shape scenario works: the middle of `Blue Quad`, the quad spanning
+# latitude 20 to 40 and longitude 30 to 60, and the colour the copy of it is
+# given, which is nothing else in the sample.
+QUAD_MIDDLE = (30.0, 45.0)
+TRACE_COLOUR = [1.0, 0.0, 1.0, 1.0]
+
+# A short polyline west of the quad, drawn into a Line feature so that a polygon
+# shape has something of another kind to be refused by.
+TRACE_LINE = [(10.0, 10.0), (0.0, 20.0)]
+
+
+def world_offset(first: list[list[float]], second: list[list[float]]) -> float:
+    """The largest difference between two rings of world coordinates, in degrees."""
+    return max(
+        max(abs(a[0] - b[0]), abs(a[1] - b[1]))
+        for a, b in zip(first, second, strict=True)
+    )
+
+
+def run_copy_shape_session(client: AutomationClient) -> None:
+    """Copy the shape of one feature into another and edit it there."""
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "two_cratons.middle-earth"))
+    client.call("set_time", time=0.0)
+    client.call("set_view", show_map=False, lat=QUAD_MIDDLE[0], lon=QUAD_MIDDLE[1],
+                angle=0.0, zoom=1.0)
+    client.call("select", title="Blue Quad")
+    source = client.call("get_selected")["feature"]
+    depth = undo_depth(client)
+
+    client.call("menu", item="copy_shape")
+    check(undo_depth(client) == depth, "Copy Shape changes the document in no way")
+    status = client.call("get_status")["status"]["measure"]
+    check("Copied 1 part" in status, f"and says what it took: {status!r}")
+
+    # The root, so the copy is appended at the end of the tree and is drawn over
+    # the feature it was taken from rather than under it.
+    client.call("select", title=None)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Traced Quad")
+    client.call("set_property", field="color", value=TRACE_COLOUR)
+    depth = undo_depth(client)
+
+    client.call("menu", item="paste_shape")
+    check(undo_depth(client) == depth + 1, "the paste recorded exactly one version")
+    check(client.call("get_tool")["tool"] == "vertex",
+          "and armed the Vertex tool, so the vertices can be edited at once")
+    pasted = client.call("get_selected")["feature"]
+    check(pasted["title"] == "Traced Quad", f"on the feature it was pasted into: {pasted['title']}")
+    check(pasted["geometry_kind"] == "polygon" and pasted["feature_type"] == "polygon",
+          f"which took the kind with the shape: {pasted['geometry_kind']}")
+    if check(len(pasted["rings"]) == 1, f"one part was pasted: {len(pasted['rings'])}"):
+        check(len(pasted["rings"][0]) == len(source["rings"][0]),
+              f"holding the {len(source['rings'][0])} vertices of the original: "
+              f"{len(pasted['rings'][0])}")
+        offset = world_offset(pasted["world_rings"][0], source["world_rings"][0])
+        check(offset < 1e-3,
+              f"at the same world points as the feature it came from: {offset:.6f} degrees")
+
+    client.call("menu", item="paste_shape")
+    check(len(client.call("get_selected")["feature"]["rings"]) == 2,
+          "pasting again appends a second part")
+    client.call("menu", item="undo")
+    check(len(client.call("get_selected")["feature"]["rings"]) == 1, "undo takes it off again")
+    client.call("menu", item="undo")
+    check(client.call("get_selected")["feature"]["rings"] == [],
+          "and another undo leaves the feature empty, as the paste found it")
+    client.call("menu", item="redo")
+    check(len(client.call("get_selected")["feature"]["rings"]) == 1, "redo puts the shape back")
+
+    run_traced_pixel_checks(client)
+    run_shape_refusal_checks(client)
+
+
+def run_traced_pixel_checks(client: AutomationClient) -> None:
+    """The traced shape is drawn where the feature it was copied from is."""
+    client.call("set_tool", tool="move")
+    client.call("select", title="Blue Quad")
+    client.call("set_property", field="enabled", value=False)
+    # Off the shape, since whatever is under the pointer is drawn highlighted.
+    away = client.call("latlon_to_screen", lat=QUAD_MIDDLE[0], lon=QUAD_MIDDLE[1] - 40.0)["screen"]
+    client.call("mouse_move", x=away[0], y=away[1])
+    pixel = probe_at(client, QUAD_MIDDLE[0], QUAD_MIDDLE[1])
+    check(is_colour(pixel, TRACE_COLOUR),
+          f"with the original switched off, the copy paints the quad: {pixel}")
+
+
+def run_shape_refusal_checks(client: AutomationClient) -> None:
+    """A feature already holding another kind refuses the shape."""
+    if not add_polyline(client, "A Line", TRACE_LINE):
+        return
+    depth = undo_depth(client)
+    client.call("menu", item="paste_shape")
+    status = client.call("get_status")["status"]["measure"]
+    check(status == "A polyline cannot take a polygon.",
+          f"a Line feature refuses a polygon shape, with the reason: {status!r}")
+    check(undo_depth(client) == depth, "and nothing was recorded")
+
+
 ### Helpers for the vertex scenarios
 
 
@@ -3218,6 +3316,7 @@ def main(argv: list[str]) -> int:
         run_measure_session(client)
         run_split_session(client)
         run_split_tool_session(client)
+        run_copy_shape_session(client)
         run_circle_session(client)
         run_topology_session(client)
         run_kinematics_session(client)
