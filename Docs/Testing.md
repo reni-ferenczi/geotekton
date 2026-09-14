@@ -148,9 +148,20 @@ moved with it and kept its distance, decouples the quad there, and drags the
 triangle again to check that the quad now stays. At 350 Ma, inside the span, it
 drags the quad itself, which lands where it was dropped. Coupling the triangle
 to the quad is refused as a cycle with the reason in a dialog; deleting the
-triangle leaves the span listed as broken and undo mends it. Last, it saves,
+triangle leaves the span listed as broken and undo mends it. It then saves,
 loads, removes the span, and checks that undo, redo and undo give the spans
 back each time.
+
+Last it opens the sample again for the
+[cut in time](Time.md#a-coupling-edit-is-a-cut-in-time). The triangle is dragged
+at 1000 and at 0 Ma, so it turns the whole way through, and the quad is coupled
+to it at 900 Ma. A quad that is not dragged keeps its distance from the triangle
+exactly, at 800, 700, 600 and 500 Ma. Dragging the quad at 200 Ma moves it
+against the triangle over all of that stretch; decoupling at 500 Ma then drops
+the keyframe at 200 Ma, leaves the distance at each of those times as the drag
+left it, and the quad holds its world pose from 500 Ma to the present. Pixel
+probes at 900 and 500 Ma show each feature drawn at the middle its world
+vertices give.
 
 The time scenario draws a triangle whose middle sits on the equator, so that
 turning it about the poles keeps it there and the path between two of its

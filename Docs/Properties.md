@@ -163,6 +163,11 @@ Two rows and a list, all about which feature this one
   takes the selected span away, or the last one when none is selected, and
   leaves every keyframe where it was on the globe.
 
+`Couple` and `Decouple` are a [cut in time](Time.md#a-coupling-edit-is-a-cut-in-time):
+they change nothing older than the current time and drop the keyframes the span
+covers younger than it, so the feature is rigid from there until it is moved
+again. `Remove` is the exception and keeps them all.
+
 A span whose parent cannot be followed, because it was deleted, is kept in the
 list and drawn in the warning colour a broken section has, with the reason as
 its tooltip. The Coupled to row takes the same colour while the time is inside

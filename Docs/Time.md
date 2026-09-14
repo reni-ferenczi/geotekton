@@ -103,11 +103,6 @@ Both act at the current time, from the Properties panel's
   since nothing is younger than that.
 - **Remove** takes a span away altogether.
 
-Every one of these re-expresses each keyframe of the feature in the frame in
-effect at its own time afterwards, so nothing on the globe moves at any
-keyframe. So a span boundary always has a keyframe on each side of it: the one
-at `from` inside, the one at `to` outside.
-
 Couple is refused, with the reason, when:
 
 - the feature already rides on something at that time;
@@ -118,6 +113,39 @@ Couple is refused, with the reason, when:
   to where the span would end.
 
 A topology cannot ride either, having no motion of its own.
+
+### A coupling edit is a cut in time
+
+Couple and Decouple change nothing older than the time they act at, neither at a
+keyframe nor between two of them, and they write no keyframe but the one at that
+time. Younger than it the feature does what was asked for at that moment and
+nothing else, so the keyframes the span covers younger than the current time are
+dropped. A feature is rigidly attached from the moment it is coupled and holds
+the pose it had from the moment it is released, until it is moved again. Undo
+brings the dropped keyframes back.
+
+Keyframes older than the current time, and keyframes in the feature's other
+spans, are left as they are, in the frames they were already in. This is what
+GPlates does with a plate whose fixed plate changes mid sequence, where the
+poles younger than the change belong to the new frame.
+
+A span boundary still has a keyframe on each side of it: the one at `from`
+inside, the one at `to` outside.
+
+**Remove** is the exception. It keeps every keyframe and re-expresses it in the
+frame in effect at its own time, so the feature stands where it stood at each of
+them and the path between two of them changes. Taking a relation away is
+expected to change how a feature gets from one keyframe to the next, and undo
+brings the old path back.
+
+### Moving a parent moves its riders
+
+Moving a feature with any tool changes the world path of everything riding on
+it, since a rider's pose is worked out from its parent's. A rider whose span
+ends in a world keyframe, the one Decouple wrote, is pulled towards that
+keyframe as the time runs on to it, and can jump there when the parent has been
+moved far since. That is the model rather than a defect: the rider follows the
+parent inside the span, and the keyframe says where it is when the span ends.
 
 ### Between keyframes in different frames
 
