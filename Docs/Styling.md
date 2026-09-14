@@ -68,7 +68,8 @@ plate ID colouring GPlates does: Middle Earth has no plate IDs, and a feature's
 own colour is the thing it identifies itself by.
 
 **Feature age** is how long the feature has existed at the current time: the
-older end of its [time range](Time.md#being-there-at-all), where it came into
+older end of its [time range](Time.md#being-there-at-all), the panel's `From`,
+where it came into
 existence, minus the current time, and never below zero. Ages run backwards, so
 that end is the larger of the two numbers. GPlates colors by age the same way:
 begin time minus current time. At the present the age is the whole of that end,

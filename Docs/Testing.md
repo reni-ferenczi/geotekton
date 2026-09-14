@@ -129,9 +129,12 @@ uv run Tests/golden.py check|update [--port N]
 
 `session.py` runs several scenarios against one launch of the application: the
 globe, which checks what is drawn and what a click selects; the document, which
-checks New, Open, Save, Save As, the unsaved changes prompt, the recent file list
-and a View toggle; drawing, one feature of each geometry kind; the Properties
-panel, which checks what selecting a feature fills in, what an edit does to the
+checks New, Open, Save, Save As, the unsaved changes prompt, the recent file list,
+a View toggle and that a new or opened document opens at the oldest age of the
+animation; drawing, one feature of each geometry kind; the Properties
+panel, which checks what selecting a feature fills in, that `From` is the older
+end of the time range and `To` the younger, that a feature added at 1500 Ma
+exists from 1500 Ma to the present, what an edit does to the
 tree row and the globe, a group's style set through the panel, probed on the
 globe and undone, what the document refuses, `Key` between two keyframes
 leaving the feature where it is and `Delete` working only on a keyframe's time,
@@ -383,8 +386,10 @@ wrong everywhere at once, which no tolerance hides.
 
 A scene states more than its view: whether the kinematics panel is up, what is
 selected and what the time is. Loading a document clears the selection and puts
-the time back to the present, so a scene only has to name what it wants beyond
-that, and no scene depends on the one before it.
+the time at the [oldest age](Time.md#the-time-control) the animation covers, so
+a scene only has to name what it wants beyond that, and no scene depends on the
+one before it. Only `kinematics` names a time of its own; the other sixteen
+references show the timeline at 2000 Ma.
 
 A scene that wants its own view settings is rendered from a copy of the sample
 with the block already in the file, written into the run's temporary folder.
@@ -442,8 +447,8 @@ a round trip is also a wait for the screen to catch up.
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
 | `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `keyframes`, `couplings`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a line topology, its `sections` with what each one resolved to |
-| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed, and `coupling`: what it is `coupled_to` now, the `parents` the picker offers and the `parent` it shows, whether `couple`, `decouple` and `remove` can be pressed, and the `spans` listed with whether each is `broken`. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100, `palette`, `ramp_from`, `ramp_to` and `ramp_span`) and the `styles` and `palettes` its selectors offer |
-| `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `opacity` (0 to 100), `enabled`, `time_from`, `time_to`, and on a group `style`, `palette`, `ramp_from`, `ramp_to` and `ramp_span`, where `color` and `opacity` are the style's |
+| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers, the `time_range` in the file's order and the `time_from` and `time_to` the two boxes show, and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed, and `coupling`: what it is `coupled_to` now, the `parents` the picker offers and the `parent` it shows, whether `couple`, `decouple` and `remove` can be pressed, and the `spans` listed with whether each is `broken`. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100, `palette`, `ramp_from`, `ramp_to` and `ramp_span`) and the `styles` and `palettes` its selectors offer |
+| `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `opacity` (0 to 100), `enabled`, `time_from` (the older end of the time range) and `time_to` (the younger one), and on a group `style`, `palette`, `ramp_from`, `ramp_to` and `ramp_span`, where `color` and `opacity` are the style's |
 | `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
 | `coupling {button, parent, index}`   | presses `Couple` with the `parent` picked by title, `Decouple`, both at the current time, or `Remove` on the span at `index` in the panel's list |
 | `sections {button, index}`            | selects a section row of a line topology and presses `Reverse` or `Remove` in the panel |

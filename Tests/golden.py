@@ -115,9 +115,10 @@ def capture(client: AutomationClient, temp_dir: Path) -> dict[str, Path]:
     client.call("set_clipboard", text="")
     shots: dict[str, Path] = {}
     for name, sample, view, settings, steps in SCENES:
-        # Loading clears the selection and puts the time back to the present, so
-        # a scene only has to state what it wants beyond that. The kinematics
-        # panel is not part of a document, so every scene says whether it is up.
+        # Loading clears the selection and puts the time at the oldest age the
+        # animation covers, so a scene only has to state what it wants beyond
+        # that. The kinematics panel is not part of a document, so every scene
+        # says whether it is up.
         client.call("load", path=str(sample_with_settings(sample, settings, temp_dir, name)))
         client.call("set_view", **(DEFAULT_VIEW | view))
         show_kinematics(client, steps.get("kinematics", False))
