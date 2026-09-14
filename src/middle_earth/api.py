@@ -154,3 +154,15 @@ class App:
 
     def select(self, uuid: str) -> None:
         self._ask("select", uuid=uuid)
+
+    ### Exporting
+
+    def export_image(self, path: str, width: int | None = None) -> tuple[int, int]:
+        """Write the map at the current age to a PNG and answer its size.
+
+        The height follows from the projection, so `width` settles both. Left
+        out, it is the one the preferences hold. Refused while the globe is
+        shown, which is a view of one side of the planet rather than a map.
+        """
+        size = self._ask("export_image", path=str(path), width=int(width or 0))["size"]
+        return int(size[0]), int(size[1])

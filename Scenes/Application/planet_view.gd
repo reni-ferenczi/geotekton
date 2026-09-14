@@ -67,6 +67,10 @@ var _measure_label_at := Vector2.INF
 var move_rotating: bool = false
 var move_on_globe: bool = false
 
+# True while a frame is being rendered for export. The camera is fitted to the
+# map sheet for it rather than to the window, so nothing else may move it.
+var exporting: bool = false
+
 
 func _ready() -> void:
 	measure_label = Label.new()
@@ -82,12 +86,19 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if exporting:
+		return
+	_place_camera()
+	_place_measure_label()
+
+
+# Where the camera stands for what is on screen. The camera is what turns and
+# slides; the globe turns to face the latitude and longitude it is pointed at,
+# and a map re-projects about them.
+func _place_camera() -> void:
 	camera.fov = _fov_for_view()
-	# The camera is what turns and slides; the globe turns to face the latitude
-	# and longitude it is pointed at, and a map re-projects about them.
 	camera.rotation.z = deg_to_rad(planet.angle)
 	camera.position.y = _camera_offset()
-	_place_measure_label()
 
 
 ### The measurement label
@@ -192,6 +203,50 @@ func _fov_for_view() -> float:
 		needed = maxf(MapProjection.extent(planet.projection), 1.0 / aspect)
 	var half_height := tan(deg_to_rad(BASE_FOV) * 0.5) * needed / GLOBE_RADIUS / zoom
 	return rad_to_deg(2.0 * atan(half_height))
+
+
+### Rendering a frame on its own
+#
+# A picture of the map at the current age, with nothing the window draws over
+# the planet in it. The measurement label is a child of this container rather
+# than of the viewport, so it is left out by itself; what the planet draws over
+# the geometry — the selection and the tool overlay — is taken off by the
+# caller, which is what knows how to put it back.
+
+
+# The size an export of a projection comes out at. The sheet is two units wide
+# and two extents tall, so the height follows the width and every export of one
+# projection is the same size whatever the window is.
+static func export_size(kind: MapProjection.Kind, width: int) -> Vector2i:
+	return Vector2i(width, maxi(roundi(width * MapProjection.extent(kind)), 1))
+
+
+# Render the map into an image of the given size, the sheet filling it exactly.
+# The view is put back the way it was found before this returns, so a failure
+# further along leaves nothing behind.
+func render_export(size: Vector2i) -> Image:
+	var was_stretching := stretch
+	var was_size := viewport.size
+	exporting = true
+	stretch = false
+	viewport.size = size
+	# Half the sheet's height at the distance the camera stands from it, which
+	# puts the top and bottom edges of the sheet on the edges of the image. The
+	# width follows from the aspect, and that is the sheet's own.
+	camera.fov = rad_to_deg(
+		2.0 * atan(MapProjection.extent(planet.projection) / camera.position.z))
+	camera.rotation.z = 0.0
+	camera.position.y = 0.0
+	# The first frame takes the new size and the camera, the second is drawn
+	# with them.
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var image := viewport.get_texture().get_image()
+	viewport.size = was_size
+	stretch = was_stretching
+	_place_camera()
+	exporting = false
+	return image
 
 
 func start_moving(anchor_lat: float, anchor_lon: float) -> void:

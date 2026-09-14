@@ -242,14 +242,21 @@ func _receive(line: String) -> void:
 		return
 
 	if message.has("cmd"):
-		var reply := _serve(message)
-		reply["id"] = message.get("id")
-		_send(reply)
+		_answer(message)
 		return
 
 	var id := int(message.get("id", 0))
 	if _waiting.erase(id):
 		replied.emit(id, message)
+
+
+# Answer one command and send the reply back. Started without awaiting it, so a
+# command that takes frames does not hold up the line pump; the interpreter
+# waits for one reply at a time, so the replies still go out in order.
+func _answer(message: Dictionary) -> void:
+	var reply: Dictionary = await _serve(message)
+	reply["id"] = message.get("id")
+	_send(reply)
 
 
 ### What a script may ask of the application
@@ -368,6 +375,17 @@ func _serve(request_: Dictionary) -> Dictionary:
 
 		"delete_keyframe":
 			return _delete_keyframe(request_)
+
+		"export_image":
+			# A picture of the map at the current age; see
+			# Docs/Shell.md#exporting-a-picture-of-the-map.
+			var width := int(request_.get("width", 0))
+			var size := app.export_size(width)
+			var problem: String = await app.export_image(
+				str(request_.get("path", "")), width)
+			if not problem.is_empty():
+				return {"ok": false, "error": problem}
+			return {"ok": true, "size": [size.x, size.y]}
 
 	return {"ok": false, "error": "unknown command: %s" % cmd}
 

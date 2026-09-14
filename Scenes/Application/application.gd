@@ -19,6 +19,9 @@ static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Docum
 static var IMAGE_FILTERS := PackedStringArray(
 	["*.%s ; Images" % ", *.".join(Backdrop.EXTENSIONS)])
 static var PALETTE_FILTERS := PackedStringArray(["*.cpt ; Colour Palette Tables"])
+# What File > Export Image writes. One format, since the picture is what the
+# planet was drawn into and PNG keeps it exactly.
+static var IMAGE_EXPORT_FILTERS := PackedStringArray(["*.png ; PNG Images"])
 static var SCRIPT_FILTERS := PackedStringArray(["*.py ; Python Scripts"])
 # What File > Import takes: a GPlates project, or the feature collection and
 # rotation files a project would name. See Docs/Import.md.
@@ -66,7 +69,7 @@ const SNAP_PIXELS := 12.0
 # a drag turns the feature about it.
 const DRAG_PIXELS := 4.0
 
-enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, RUN_SCRIPT, PREFERENCES, QUIT }
+enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, RUN_SCRIPT, PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, CONSOLE, STATUS_BAR, SETTINGS, FULL_SCREEN }
 enum TimeItem { OLDER, YOUNGER, OLDER_KEYFRAME, YOUNGER_KEYFRAME }
@@ -203,6 +206,7 @@ var default_folder_edit: LineEdit
 var radius_spin: SpinBox
 var marker_spin: SpinBox
 var line_spin: SpinBox
+var export_width_spin: SpinBox
 var interpreter_edit: LineEdit
 var script_directories_edit: TextEdit
 var view_dialog: AcceptDialog
@@ -394,6 +398,8 @@ func _build_menus() -> void:
 	file_menu.add_item("Save", FileItem.SAVE, KEY_MASK_CTRL | KEY_S)
 	file_menu.add_item("Save As...", FileItem.SAVE_AS, KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_S)
 	file_menu.add_separator()
+	file_menu.add_item("Export Image...", FileItem.EXPORT_IMAGE)
+	file_menu.add_separator()
 	file_menu.add_item("Run Script...", FileItem.RUN_SCRIPT)
 	scripts_menu = PopupMenu.new()
 	scripts_menu.name = "Scripts"
@@ -497,6 +503,7 @@ func _on_file_menu_id_pressed(id: int) -> void:
 		FileItem.IMPORT: import_document()
 		FileItem.SAVE: save_document()
 		FileItem.SAVE_AS: save_document_as()
+		FileItem.EXPORT_IMAGE: export_image_as()
 		FileItem.RUN_SCRIPT: run_script()
 		FileItem.PREFERENCES: show_preferences()
 		FileItem.QUIT: quit_application()
@@ -714,6 +721,70 @@ func save_document_as(after: Callable = Callable()) -> void:
 		if not path.ends_with(Document.EXTENSION):
 			path += Document.EXTENSION
 		_write_to(path, after))
+
+
+### Exporting a picture of the map
+#
+# The map at the age the timeline shows, on its own: the whole sheet, nothing
+# but the sheet, and the same size every time a projection is exported. The
+# graticule, the background, the star field and the backdrop are whatever the
+# view settings have them as; the panels, the measurement label, the selection
+# and the tool marks are not in it.
+
+
+# Why a picture cannot be exported, empty when it can. The globe shows one side
+# of the planet rather than a map of the whole of it, so there is no sheet for
+# a picture to be the size of.
+func export_problem() -> String:
+	return "" if planet_view.planet.show_map \
+		else "Pick a map projection to export a picture of it."
+
+
+# The size an export comes out at. A width of zero is the one the preferences
+# hold; the height is what the projection's aspect asks for.
+func export_size(width: int = 0) -> Vector2i:
+	return PlanetView.export_size(planet_view.planet.projection,
+		width if width > 0 else Config.get_export_width())
+
+
+# One frame of the map, rendered on its own. The selection highlight and the
+# tool overlay come off for it and the planet is drawn again as it was
+# afterwards. GP-0061's video export renders its frames through here.
+func export_frame(width: int = 0) -> Image:
+	planet_view.planet.set_feature_state(geometry, null, null)
+	planet_view.planet.set_outline([])
+	var image: Image = await planet_view.render_export(export_size(width))
+	_refresh_feature_state()
+	return image
+
+
+# Write that frame to a PNG. The answer is empty when it was written and says
+# why not when it was not.
+func export_image(path: String, width: int = 0) -> String:
+	var problem := export_problem()
+	if not problem.is_empty():
+		return problem
+	var image: Image = await export_frame(width)
+	if image.save_png(path) != OK:
+		return "Cannot write %s" % path
+	return ""
+
+
+# File > Export Image: ask where the picture goes and write it there.
+func export_image_as() -> void:
+	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_SAVE_FILE, "Export Image",
+		func(path: String) -> void:
+			if path.get_extension().to_lower() != "png":
+				path += ".png"
+			var size := export_size()
+			var problem: String = await export_image(path)
+			if problem.is_empty():
+				_show_measurement("Exported %s at %d by %d" % [
+					path.get_file(), size.x, size.y])
+				Config.set_last_directory_from_file(path)
+			else:
+				_show_error(problem),
+		IMAGE_EXPORT_FILTERS)
 
 
 func quit_application() -> void:
@@ -992,6 +1063,8 @@ func _build_preferences_content() -> Control:
 		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
 	line_spin = _preference_spin(form, "LineWidthScale", "Outline line width",
 		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
+	export_width_spin = _preference_spin(form, "ExportWidth", "Export width (pixels)",
+		Config.MIN_EXPORT_WIDTH, Config.MAX_EXPORT_WIDTH, 10.0)
 
 	# Python: which interpreter runs the scripting bridge and where the scripts
 	# that become menu entries are looked for, one directory per line.
@@ -1425,6 +1498,7 @@ func show_preferences() -> void:
 	radius_spin.value = Config.get_planet_radius()
 	marker_spin.value = Config.get_vertex_marker_scale()
 	line_spin.value = Config.get_line_width_scale()
+	export_width_spin.value = Config.get_export_width()
 	interpreter_edit.text = Config.get_python_interpreter()
 	script_directories_edit.text = "
 ".join(PackedStringArray(Config.get_script_directories()))
@@ -1437,6 +1511,7 @@ func _on_preferences_confirmed() -> void:
 	Config.set_planet_radius(radius_spin.value)
 	Config.set_vertex_marker_scale(marker_spin.value)
 	Config.set_line_width_scale(line_spin.value)
+	Config.set_export_width(int(export_width_spin.value))
 	_apply_outline_scale()
 	_show_measurement()
 	_apply_python_preferences()
@@ -1779,6 +1854,9 @@ func _update_view_toolbar() -> void:
 	light_button.disabled = planet.show_map
 	if planet.show_map and active_tool == Tool.LIGHT:
 		set_active_tool(Tool.MOVE)
+	# A picture is of a map sheet, so the globe has nothing to export.
+	file_menu.set_item_disabled(
+		file_menu.get_item_index(FileItem.EXPORT_IMAGE), not planet.show_map)
 	var id := int(planet.projection) if planet.show_map else GLOBE_PROJECTION_ID
 	var index := projection_selector.get_item_index(id)
 	if projection_selector.selected != index:

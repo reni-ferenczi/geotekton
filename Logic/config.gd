@@ -186,6 +186,23 @@ static func set_split_ridge(enabled: bool) -> void:
 	set_value("split_ridge", enabled)
 
 
+# How wide a picture File > Export Image writes. The height follows from the
+# projection, so this one number settles the size of every export. The default
+# is large enough to print and the bounds are what a viewport can be asked for.
+const DEFAULT_EXPORT_WIDTH := 3600
+const MIN_EXPORT_WIDTH := 64
+const MAX_EXPORT_WIDTH := 8192
+
+
+static func get_export_width() -> int:
+	return clampi(int(get_value("export_width", DEFAULT_EXPORT_WIDTH)),
+		MIN_EXPORT_WIDTH, MAX_EXPORT_WIDTH)
+
+
+static func set_export_width(width: int) -> void:
+	set_value("export_width", clampi(width, MIN_EXPORT_WIDTH, MAX_EXPORT_WIDTH))
+
+
 ### The view
 #
 # What a new document starts from: the scene settings it is given, and which
