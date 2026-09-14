@@ -739,6 +739,110 @@ def run_coupling_session(client: AutomationClient, folder: Path) -> None:
 
     run_coupling_refusal_checks(client)
     run_coupling_round_trip(client, folder)
+    run_rigid_coupling_checks(client)
+
+
+# The cut in time, on a parent that turns over the whole timeline: the rider is
+# coupled at RIGID_COUPLED_AT, dragged on its own at RIGID_DRAGGED_AT and then
+# decoupled between the two. A rider that has not been dragged keeps its
+# distance from the parent exactly; the drag is what moves it against the
+# parent, and the decoupling leaves every time older than itself as the drag
+# left it, dropping only the keyframe it wrote.
+# See Docs/Time.md#a-coupling-edit-is-a-cut-in-time.
+RIGID_COUPLED_AT = 900.0
+RIGID_DECOUPLED_AT = 500.0
+RIGID_DRAGGED_AT = 200.0
+# The times between the two the checks below walk through.
+RIGID_SAMPLES = (RIGID_COUPLED_AT, 800.0, 700.0, 600.0, RIGID_DECOUPLED_AT)
+
+
+def rider_gaps(client: AutomationClient) -> dict[float, float]:
+    """How far the rider is from its parent at each sampled time, in degrees."""
+    gaps = {}
+    for time in RIGID_SAMPLES:
+        client.call("set_time", time=time)
+        gaps[time] = angular_distance(centroid_of(client, "Blue Quad"),
+                                      centroid_of(client, "Red Triangle"))
+    return gaps
+
+
+def turn_parent(client: AutomationClient) -> bool:
+    """Drag Red Triangle at each end of the timeline, so it turns all the way through."""
+    client.call("select", title="Red Triangle")
+    for time, by_lat, by_lon in ((1000.0, 0.0, -15.0), (0.0, 10.0, 20.0)):
+        client.call("set_time", time=time)
+        lat, lon = world_centroid(client)
+        if not drag(client, lat + by_lat, lon + by_lon):
+            return False
+    return True
+
+
+def run_rigid_coupling_checks(client: AutomationClient) -> None:
+    """A rider keeps its distance from the parent right down to where it is decoupled."""
+    client.call("load", path=str(COUPLING_SAMPLE))
+    client.call("set_view", lat=15.0, lon=20.0, angle=0.0)
+    if not turn_parent(client):
+        return
+
+    client.call("select", title="Blue Quad")
+    client.call("set_time", time=RIGID_COUPLED_AT)
+    client.call("coupling", button="Couple", parent="Red Triangle")
+    rigid = rider_gaps(client)
+    apart = rigid[RIGID_COUPLED_AT]
+    for time, gap in rigid.items():
+        check(abs(gap - apart) < DRAG_TOLERANCE,
+              f"a rider that is not dragged is {gap:.2f} degrees from the parent at {time} Ma,"
+              f" as it was at {apart:.2f} when it was coupled")
+
+    # A drag younger than where the rider will be decoupled, which is what moves
+    # it against the parent, from the moment it is coupled to the drag itself.
+    client.call("select", title="Blue Quad")
+    client.call("set_time", time=RIGID_DRAGGED_AT)
+    lat, lon = world_centroid(client)
+    if not drag(client, lat - 8.0, lon + 8.0):
+        return
+    dragged = rider_gaps(client)
+    check(abs(dragged[RIGID_DECOUPLED_AT] - apart) > DRAG_TOLERANCE,
+          f"the drag moves it against the parent: {dragged[RIGID_DECOUPLED_AT]:.2f}")
+
+    client.call("select", title="Blue Quad")
+    client.call("set_time", time=RIGID_DECOUPLED_AT)
+    client.call("coupling", button="Decouple")
+    times = [k["time"] for k in client.call("get_selected")["feature"]["keyframes"]]
+    check(times == [RIGID_DECOUPLED_AT, RIGID_COUPLED_AT],
+          f"decoupling drops the keyframe the span covered younger than it: {times}")
+
+    for time, gap in rider_gaps(client).items():
+        check(abs(gap - dragged[time]) < DRAG_TOLERANCE,
+              f"the rider and the parent keep the distance they had at {time} Ma:"
+              f" {gap:.2f} against {dragged[time]:.2f}")
+
+    client.call("set_time", time=RIGID_DECOUPLED_AT)
+    left = centroid_of(client, "Blue Quad")
+    for time in (400.0, RIGID_DRAGGED_AT, 0.0):
+        client.call("set_time", time=time)
+        stood = centroid_of(client, "Blue Quad")
+        check(angular_distance(stood, left) < DRAG_TOLERANCE,
+              f"and the rider holds its world pose at {time} Ma: {stood} against {left}")
+
+    # And the pixels agree with the world rings the distances came from.
+    for time in (RIGID_COUPLED_AT, RIGID_DECOUPLED_AT):
+        client.call("set_time", time=time)
+        for title, colour in (("Blue Quad", "blue"), ("Red Triangle", "red")):
+            lat, lon = centroid_of(client, title)
+            client.call("set_view", show_map=False, lat=lat, lon=lon, angle=0.0, zoom=1.0)
+            # The feature under the pointer is drawn highlighted, so keep the
+            # pointer well clear of the centroid, which is now facing the camera.
+            away = client.call("latlon_to_screen", lat=lat - 45.0 if lat > 0 else lat + 45.0,
+                               lon=lon)["screen"]
+            if not check(away is not None, f"a place to park the pointer away from {title}"):
+                return
+            client.call("mouse_move", x=away[0], y=away[1])
+            screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+            pixel = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+            check(dominant(pixel) == colour,
+                  f"{title} is drawn at ({lat:.1f}, {lon:.1f}) at {time} Ma: {pixel}")
+    client.call("set_view", lat=15.0, lon=20.0, angle=0.0, zoom=1.0, show_map=False)
 
 
 def run_coupling_refusal_checks(client: AutomationClient) -> None:
