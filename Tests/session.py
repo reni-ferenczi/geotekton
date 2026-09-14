@@ -2502,6 +2502,149 @@ TRACE_COLOUR = [1.0, 0.0, 1.0, 1.0]
 TRACE_LINE = [(10.0, 10.0), (0.0, 20.0)]
 
 
+# The ridge scenario cuts the craton along the same line, at an age old enough
+# to leave room for the halves to drift, then drags the east half away at the
+# present and looks at the two of them halfway between.
+RIDGE_CUT_AT = 400.0
+RIDGE_BETWEEN = 200.0
+
+# How far east the drag carries the half, in degrees, and how near the ridge has
+# to sit to halfway between the halves' shared edges. A drag along the equator
+# turns the half about an axis near the pole, so the great circle midpoint of two
+# matching vertices is where the half stage rotation puts the ridge to within a
+# tenth of a degree; the tolerance leaves room for the drag landing on a pixel.
+RIDGE_DRIFT = 24.0
+RIDGE_TOLERANCE = 1.0
+
+# How far inside its shared edge each half is probed. A pixel on the boundary
+# itself is as likely to land off the shape as on it.
+RIDGE_INSIDE = 2.0
+
+
+def is_red(pixel: list[float]) -> bool:
+    """Whether a probed pixel is the crimson a Line feature is painted in."""
+    return pixel[0] > max(pixel[1], pixel[2]) + 0.3
+
+
+def step_toward(place: tuple[float, float], target: tuple[float, float],
+                degrees: float) -> tuple[float, float]:
+    """A place moved that far along the great circle towards another place."""
+    gap = angular_distance(place, target)
+    if gap <= degrees:
+        return target
+    omega, part = math.radians(gap), degrees / gap
+    first, second = unit(*place), unit(*target)
+    near = math.sin((1.0 - part) * omega) / math.sin(omega)
+    far = math.sin(part * omega) / math.sin(omega)
+    return place_of(tuple(near * first[i] + far * second[i] for i in range(3)))
+
+
+def world_ring(client: AutomationClient, title: str) -> list[list[float]]:
+    client.call("select", title=title)
+    return client.call("get_selected")["feature"]["world_rings"][0]
+
+
+def nearest_vertex(ring: list[list[float]], vertex: list[float]) -> tuple[int, float]:
+    """Which vertex of a ring is nearest a point, and how far away it is."""
+    return min(((i, angular_distance(tuple(v), tuple(vertex))) for i, v in enumerate(ring)),
+               key=lambda pair: pair[1])
+
+
+def run_ridge_session(client: AutomationClient) -> None:
+    """The Split tool leaving a ridge that stays midway between the halves."""
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.middle-earth"))
+    client.call("set_view", show_map=False, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+    client.call("set_time", time=RIDGE_CUT_AT)
+    client.call("select", title="Old Shield")
+    depth = undo_depth(client)
+
+    client.call("set_tool", tool="split", ridge=True)
+    tool = client.call("get_tool")
+    check(tool["ridge"] and tool["ridge_visible"],
+          f"the Ridge switch is on and shown with the Split tool: {tool['ridge_visible']}")
+    if not draw(client, SPLIT_CUT):
+        return
+    client.call("key", key="Enter")
+    check(undo_depth(client) == depth + 1, "the split and the ridge are one version")
+    check(not client.call("get_tool")["ridge_visible"],
+          "and the switch goes with the tool")
+
+    titles = [f["title"] for f in client.call("get_features")["features"]]
+    check(titles[-3:] == ["Old Shield", "Old Shield 2", "Old Shield ridge"],
+          f"the cut left the two halves and a ridge: {titles}")
+    status = client.call("get_status")["status"]["measure"]
+    check(all(title in status for title in titles[-3:]),
+          f"the status bar names all three: {status!r}")
+
+    client.call("select", title="Old Shield ridge")
+    ridge = client.call("get_selected")["feature"]
+    check(ridge["geometry_kind"] == "polyline" and ridge["feature_type"] == "line",
+          f"the ridge is a Line: {ridge['geometry_kind']}, {ridge['feature_type']}")
+    check(ridge["time_range"] == [0, int(RIDGE_CUT_AT)],
+          f"there from the cut to the present: {ridge['time_range']}")
+    client.call("select", title="Old Shield")
+    west_uuid = client.call("get_selected")["feature"]["uuid"]
+    client.call("select", title="Old Shield 2")
+    east_uuid = client.call("get_selected")["feature"]["uuid"]
+    check(ridge["couplings"] == [{"from": RIDGE_CUT_AT, "to": 0.0,
+                                 "parent": west_uuid, "parent_b": east_uuid}],
+          f"riding on both halves from the cut on: {ridge['couplings']}")
+    client.call("select", title="Old Shield ridge")
+    check(coupling_row(client)["coupled_to"] == "Old Shield and Old Shield 2, midway",
+          f"which the panel says: {coupling_row(client)['coupled_to']!r}")
+
+    # Where each of the ridge's vertices sits on the two halves at the cut.
+    on_ridge = world_ring(client, "Old Shield ridge")
+    shared = []
+    for vertex in on_ridge:
+        west = nearest_vertex(world_ring(client, "Old Shield"), vertex)
+        east = nearest_vertex(world_ring(client, "Old Shield 2"), vertex)
+        shared.append((west[0], east[0]))
+        check(max(west[1], east[1]) < 0.01,
+              f"the ridge vertex {vertex} is on both halves at the cut: {west[1]}, {east[1]}")
+
+    # Hold the second half where it is at the cut, then carry it away from the
+    # first at the present, whichever side of the cut it came from.
+    client.call("select", title="Old Shield")
+    stays = world_centroid(client)
+    client.call("select", title="Old Shield 2")
+    client.call("keyframes", button="Key")
+    client.call("set_time", time=0.0)
+    away = world_centroid(client)
+    if not drag(client, away[0], away[1] + (RIDGE_DRIFT if away[1] > stays[1] else -RIDGE_DRIFT)):
+        return
+
+    client.call("set_time", time=RIDGE_BETWEEN)
+    on_ridge = world_ring(client, "Old Shield ridge")
+    west_ring = world_ring(client, "Old Shield")
+    east_ring = world_ring(client, "Old Shield 2")
+    for vertex, (west, east) in zip(on_ridge, shared, strict=True):
+        halfway = midpoint(west_ring[west], east_ring[east])
+        off = angular_distance(tuple(vertex), halfway)
+        check(off < RIDGE_TOLERANCE,
+              f"the ridge vertex is halfway between the halves: {off:.3f} degrees off")
+    apart = angular_distance(tuple(west_ring[shared[1][0]]), tuple(east_ring[shared[1][1]]))
+    check(apart > 5.0, f"and the two halves have come apart by then: {apart:.1f} degrees")
+
+    # The pixels: the ridge's own colour where the middle of it is, and the
+    # craton's blue just inside each half's shared edge, which is what the ridge
+    # is now halfway between. Nothing is selected, so no outline is in the way.
+    client.call("select", title=None)
+    middle = on_ridge[1]
+    pixel = probe_at(client, middle[0], middle[1])
+    check(is_red(pixel), f"the ridge is drawn along the middle of the gap: {pixel}")
+    for title, ring, index in (("Old Shield", west_ring, shared[1][0]),
+                               ("Old Shield 2", east_ring, shared[1][1])):
+        inside = step_toward(tuple(ring[index]), centroid([ring]), RIDGE_INSIDE)
+        pixel = probe_at(client, inside[0], inside[1])
+        check(is_blue(pixel), f"and {title} reaches its side of the gap: {pixel}")
+
+    for _ in range(3):
+        client.call("menu", item="undo")
+    titles = [f["title"] for f in client.call("get_features")["features"]]
+    check(titles[-1:] == ["Old Shield"], f"undo puts the one craton back: {titles}")
+
+
 def world_offset(first: list[list[float]], second: list[list[float]]) -> float:
     """The largest difference between two rings of world coordinates, in degrees."""
     return max(
@@ -3489,6 +3632,7 @@ def main(argv: list[str]) -> int:
         run_measure_session(client)
         run_split_session(client)
         run_split_tool_session(client)
+        run_ridge_session(client)
         run_copy_shape_session(client)
         run_rotate_session(client)
         run_circle_session(client)

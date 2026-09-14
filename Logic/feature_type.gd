@@ -31,7 +31,7 @@ const NONE_COLOR := Color.CHOCOLATE
 # selector lists them.
 const CATALOG := {
 	"polygon": {"name": "Polygon", "kinds": ["polygon"], "color": Color.CHOCOLATE},
-	LINE: {"name": "Line", "kinds": ["polyline"], "color": Color.CRIMSON},
+	"line": {"name": "Line", "kinds": ["polyline"], "color": Color.CRIMSON},
 	"points": {"name": "Points", "kinds": ["multipoint"], "color": Color.GOLD},
 	CIRCLE: {"name": "Circle", "kinds": ["polygon", "polyline"], "color": Color.DARK_TURQUOISE},
 	"topology": {"name": "Topology", "kinds": ["topology"], "color": Color.MEDIUM_PURPLE},
