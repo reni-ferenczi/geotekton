@@ -453,7 +453,7 @@ func remove_keyframe(node: Feature, index: int) -> String:
 # changes at all, and the keyframes the span covered younger than that time are
 # dropped, so the feature is rigid from the cut until the user moves it again.
 # Remove is the exception and converts pointwise. Each records one version.
-# See Logic/coupling.gd and Docs/Time.md#coupling-and-decoupling.
+# See Logic/coupling.gd and Docs/Time.md#a-coupling-edit-is-a-cut-in-time.
 
 
 # Start a span at the time: the feature rides on the parent from then until the

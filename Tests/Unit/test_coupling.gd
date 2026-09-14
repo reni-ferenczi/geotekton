@@ -310,6 +310,9 @@ func test_decoupling_drops_the_keyframes_the_span_covered() -> void:
 		_assert_basis(_world(document, child, time), left,
 			"and the feature holds its world pose at %s Ma" % time)
 
+	document.undo()
+	assert_eq(_times(_named(document, "Rider")), [100.0, 900.0], "undo brings the keyframe back")
+
 
 func test_a_coupling_edit_keeps_every_remaining_keyframe_in_its_own_frame() -> void:
 	var document := _document()
