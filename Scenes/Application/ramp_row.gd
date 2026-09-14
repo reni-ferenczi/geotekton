@@ -51,6 +51,8 @@ func _init(max_span: float, span_suffix: String = "") -> void:
 	span_spin.max_value = max_span
 	span_spin.step = 1
 	span_spin.suffix = span_suffix
+	# The box keeps its own height beside the first line when the stops wrap.
+	span_spin.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	span_spin.tooltip_text = SPAN_TOOLTIP % ("" if not span_suffix.is_empty() else ", in My,")
 	span_spin.value_changed.connect(func(_value: float) -> void: committed.emit())
 	add_child(span_spin)

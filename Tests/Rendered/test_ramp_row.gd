@@ -85,6 +85,11 @@ func test_a_long_ramp_wraps_inside_the_panel() -> void:
 	var drop := row.find_child("DropRampColor7", true, false) as Control
 	assert_eq(drop.get_global_rect().position.y, last.get_global_rect().position.y,
 		"a − stays on the line of its colour")
+	var span := row.span_spin
+	assert_eq(span.size.y, span.get_combined_minimum_size().y,
+		"the span box keeps its own height rather than the row's")
+	assert_eq(span.get_global_rect().position.y, first.get_global_rect().position.y,
+		"and sits beside the first line")
 
 
 func test_a_mouse_click_on_plus_in_the_view_dialog_adds_a_colour() -> void:
