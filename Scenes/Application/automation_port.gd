@@ -485,6 +485,25 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"focus":
+			# Where the keyboard is: name a widget to give it the focus, the
+			# way a click on it would, or ask what holds it. The single key
+			# shortcuts turn on the answer.
+			var widget := str(request.get("widget", ""))
+			var holder := app.get_viewport().gui_get_focus_owner()
+			if bool(request.get("release", false)):
+				if holder != null:
+					holder.release_focus()
+				await _frames(2)
+			elif not widget.is_empty():
+				var control := app.find_child(widget, true, false) as Control
+				if control == null or control.focus_mode == Control.FOCUS_NONE:
+					return {"ok": false, "error": "no widget called %s takes the focus" % widget}
+				control.grab_focus()
+				await _frames(2)
+			holder = app.get_viewport().gui_get_focus_owner()
+			return {"ok": true, "focus": "" if holder == null else str(holder.name)}
+
 		"latlon_to_screen":
 			var screen: Variant = app.planet_view.latlon_to_screen(
 				float(request.get("lat", 0.0)), float(request.get("lon", 0.0)))
@@ -1189,4 +1208,10 @@ func _send_key(keycode: int, ctrl: bool, shift: bool, pressed: bool) -> void:
 	event.ctrl_pressed = ctrl
 	event.shift_pressed = shift
 	event.pressed = pressed
+	# A real keyboard sends the character along with a printable key, and a text
+	# field types nothing without it. Ctrl held is a shortcut rather than a
+	# character.
+	if not ctrl and keycode >= KEY_SPACE and keycode <= KEY_ASCIITILDE:
+		var text := String.chr(keycode)
+		event.unicode = (text if shift else text.to_lower()).unicode_at(0)
 	Input.parse_input_event(event)

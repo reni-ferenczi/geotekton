@@ -1262,6 +1262,54 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(client.call("get_time")["time"] > 300.0,
           f"Play from the end starts over: {client.call('get_time')['time']}")
 
+    run_space_checks(client)
+
+
+def run_space_checks(client: AutomationClient) -> None:
+    """Space plays and pauses, unless the keyboard belongs to a text field."""
+    client.call("set_animation", animation={"speed": 50.0})
+    client.call("timeline", button="Reset")
+    client.call("key", key="Space")
+    check(client.call("get_timeline")["timeline"]["playing"], "Space starts the animation")
+    client.call("key", key="Space")
+    check(not client.call("get_timeline")["timeline"]["playing"], "and Space again pauses it")
+    moved = 400.0 - client.call("get_time")["time"]
+    check(0.0 < moved < 50.0, f"the time ran on while it played: {moved} My")
+
+    # A name being typed is a name being typed. The field takes the space and
+    # the animation hears nothing.
+    focus = client.call("focus", widget="Name")
+    if check(focus["focus"] == "Name", f"the name field can be typed in: {focus['focus']}"):
+        before = client.call("get_properties")["properties"]["name"]
+        client.call("key", key="Space")
+        after = client.call("get_properties")["properties"]["name"]
+        check(after != before and after.replace(" ", "") == before.replace(" ", ""),
+              f"Space types a space into the name: {before!r} became {after!r}")
+        check(not client.call("get_timeline")["timeline"]["playing"],
+              "and the animation did not start")
+        client.call("set_property", field="name", value=before)
+
+    # A click leaves the focus on the button it pressed, and a focused Button
+    # answers Space itself. Play must not be pressed a second time.
+    client.call("timeline", button="Reset")
+    focus = client.call("focus", widget="Play")
+    if check(focus["focus"] == "Play", f"the Play button holds the focus: {focus['focus']}"):
+        client.call("timeline", button="Play")
+        check(client.call("get_timeline")["timeline"]["playing"], "the Play button starts playback")
+        client.call("key", key="Space")
+        check(not client.call("get_timeline")["timeline"]["playing"],
+              "and Space pauses rather than pressing Play again")
+    client.call("focus", release=True)
+    client.call("timeline", button="Reset")
+
+    # A dialog has the keyboard while it is up, so Space is its own.
+    client.call("menu", item="about")
+    client.call("key", key="Space")
+    check(not client.call("get_timeline")["timeline"]["playing"],
+          "Space over an open dialog does not reach the animation")
+    if client.call("get_dialog")["dialog"] is not None:
+        client.call("dialog", button="OK")
+
 
 def run_keyframe_jump_checks(client: AutomationClient) -> None:
     """The keyframe marks are clickable and the >> and << buttons walk them."""

@@ -93,6 +93,10 @@ tree toolbar as well, and Duplicate and Delete are also on a right click on the
 globe; see [Properties](Properties.md#edit-commands). The toolbar also has Save
 and Load buttons, which run the File > Save and File > Open commands.
 
+**Space** is the one shortcut that is not a menu item. It starts the animation
+and stops it again, from anywhere but a text field, which takes it as the
+character it is; see [Time](Time.md#the-time-control).
+
 ## Full screen
 
 F11 switches the window between `MODE_WINDOWED` and `MODE_FULLSCREEN`. The menu

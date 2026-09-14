@@ -236,8 +236,8 @@ The panel under the globe, `Scenes/Timeline/timeline.gd`:
 | `<<` and `>>`  | The selected node's next keyframe towards the older or the younger end; greyed out when there is none that way |
 | `<` and `>`    | One skip towards the older or the younger end, by the number beside them |
 | The skip       | How far `<` and `>` jump, in millions of years; 50 to start with, remembered between runs |
-| Play           | Run the animation from where the time is, or from the start when it is at the end |
-| Pause          | Stop where it is                                         |
+| Play           | Run the animation from where the time is, or from the start when it is at the end; **Space** |
+| Pause          | Stop where it is; **Space** again                         |
 | Reset          | Back to the start of the animation, stopped              |
 | The number     | Type a time                                              |
 | Configure...   | The animation dialog                                     |
@@ -250,6 +250,14 @@ types 10 into the box, and nothing about the document or the animation
 changes with it. **Page Up** and **Page Down** make the same two skips from
 the keyboard, wherever the focus is; they are the Time menu's items, which is
 what gives a shortcut that reach. A skip never leaves the animation range.
+
+**Space** starts the animation and stops it again, the one shortcut that is a
+key on its own. A key without a modifier is also a character, so Space belongs
+to whichever text field has the keyboard: while a name, a time or a line at the
+console prompt is being typed, Space is a space and the animation does not hear
+it. Everywhere else it reaches the application, including straight after a
+click on a button, which a shortcut left to the usual order would not, since a
+focused button answers Space by pressing itself.
 
 Landing on a keyframe is a click on its mark, or `<<` and `>>` with
 **Ctrl+Page Up** and **Ctrl+Page Down**, which go to the selected node's next
