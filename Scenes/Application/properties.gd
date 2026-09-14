@@ -164,8 +164,7 @@ func _build() -> void:
 	color_row.name = "ColorRow"
 	_row(form, "Colour", color_row, true)
 
-	color_button = ColorPickerButton.new()
-	color_button.name = "Color"
+	color_button = Helpers.color_button("Color", Helpers.COLOR_TOOLTIP)
 	color_button.custom_minimum_size = Vector2(0, 28)
 	color_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	color_button.edit_alpha = false
@@ -880,6 +879,18 @@ func _item_index(selector: OptionButton, id: String) -> int:
 	return -1
 
 
+# Open the picker of the Colour row. The feature tree's swatch asks for this
+# rather than carrying a picker of its own, so the colour is picked where it is
+# shown and there is still only one place it is edited.
+func open_color_picker() -> void:
+	if node == null or node.is_root or not color_button.is_visible_in_tree():
+		return
+	var popup := color_button.get_popup()
+	popup.reset_size()
+	popup.popup(Rect2i(Vector2i(color_button.get_screen_position())
+		+ Vector2i(0, int(color_button.size.y)), popup.size))
+
+
 # The picker sends a colour for every drag of its cursor. Showing them on the
 # globe is what makes it a picker, so the feature or the group takes them all,
 # but only the one left when the picker closes reaches the undo stack.
@@ -964,6 +975,8 @@ func to_json() -> Dictionary:
 		"width": size.x,
 		"name": name_edit.text,
 		"enabled": enabled_check.button_pressed,
+		"color_picker_open": color_button.get_popup().visible,
+		"color_presets": _presets_to_json(),
 	}
 	if node.is_group:
 		var mode := style_selector.selected
@@ -1009,6 +1022,15 @@ func to_json() -> Dictionary:
 		data["coupling"] = _coupling_to_json()
 	data["sections"] = _sections_to_json()
 	return data
+
+
+# The colours the Colour row's picker offers as presets, which it takes from the
+# shared list whenever it opens.
+func _presets_to_json() -> Array:
+	var list: Array = []
+	for color in color_button.get_picker().get_presets():
+		list.append([color.r, color.g, color.b, color.a])
+	return list
 
 
 # The coupling rows and the span list as they stand, read off the widgets.

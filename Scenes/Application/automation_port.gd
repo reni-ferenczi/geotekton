@@ -270,6 +270,9 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"swatch":
+			return await _swatch(request)
+
 		"get_selected":
 			return {"ok": true, "feature": _feature_to_json(app.features.feature_tree.get_selected_node())}
 
@@ -1060,6 +1063,26 @@ func _collect_features(node: Feature, depth: int, list: Array) -> void:
 	list.append({"pnid": node.pnid, "title": node.title, "is_group": node.is_group, "depth": depth})
 	for child in node.children:
 		_collect_features(child, depth + 1, list)
+
+
+# Click the colour swatch of a feature's row where it is drawn, so the tree's
+# own button handling is what answers. The tree is asked which button is under
+# the point before the click goes out, since a swatch that has moved would
+# otherwise be a click on nothing and a check that passes for the wrong reason.
+func _swatch(request: Dictionary) -> Dictionary:
+	var feature := _find_feature(request)
+	var tree := app.features.feature_tree
+	if feature == null or not tree.items.has(feature.pnid):
+		return {"ok": false, "error": "feature not found"}
+	var area := tree.get_item_area_rect(tree.items[feature.pnid], 0, FeatureTree.COLOR_BUTTON)
+	var local := area.get_center()
+	if tree.get_button_id_at_position(local) != FeatureTree.COLOR_BUTTON:
+		return {"ok": false, "error": "no swatch under the %s row" % feature.title}
+	request = request.duplicate()
+	var point := tree.get_global_position() + local
+	request["x"] = point.x
+	request["y"] = point.y
+	return await _click(request)
 
 
 func _find_feature(request: Dictionary) -> Feature:

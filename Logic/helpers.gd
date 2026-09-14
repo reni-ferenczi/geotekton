@@ -91,6 +91,68 @@ static func get_rule_option_icon(shape: int, show_icon: bool = true, enabled: bo
 #################################
 
 
+# Colour pickers. Every place a colour is picked uses the same button, so the
+# picker offers the same things wherever it is opened from. See Docs/Properties.md.
+
+# What every button that opens a picker says. The feature tree's swatch adds
+# what its right click does, since that is the one it has of its own.
+const COLOR_TOOLTIP := "Pick a colour"
+const SWATCH_TOOLTIP := COLOR_TOOLTIP + "\nRight click: the type's default"
+
+# What the pickers offer as presets: the default colour of each feature type to
+# start with, and every colour committed since the application started, so a
+# palette built for one feature is a click away on the next. The list lives for
+# the session and is not written to the settings file.
+static var _color_presets: Array[Color] = []
+
+
+static func color_presets() -> Array[Color]:
+	if _color_presets.is_empty():
+		for type_id in FeatureType.CATALOG:
+			_color_presets.append(FeatureType.color(type_id))
+	return _color_presets.duplicate()
+
+
+# Offer a colour in every picker from now on. A colour already there stays where
+# it is rather than moving to the end.
+static func remember_color(color: Color) -> void:
+	var opaque := Color(color, 1.0)
+	if opaque not in color_presets():
+		_color_presets.append(opaque)
+
+
+# A colour picker button showing all of Godot's picker: the screen sampler, the
+# hex field, the presets, the colour modes and the sliders. Whether the alpha
+# can be edited is left to the caller, since a row with an opacity box beside it
+# keeps the alpha out of the picker.
+static func color_button(button_name: String, tooltip: String) -> ColorPickerButton:
+	var button := ColorPickerButton.new()
+	button.name = button_name
+	button.tooltip_text = tooltip
+	var picker := button.get_picker()
+	picker.sampler_visible = true
+	picker.hex_visible = true
+	picker.presets_visible = true
+	picker.color_modes_visible = true
+	picker.sliders_visible = true
+	_offer_presets(picker)
+	# The presets are shared and the picker's own copy is not, so it is brought
+	# up to date every time it opens rather than when something else changed.
+	button.get_popup().about_to_popup.connect(_offer_presets.bind(picker))
+	button.popup_closed.connect(func() -> void: remember_color(button.color))
+	return button
+
+
+static func _offer_presets(picker: ColorPicker) -> void:
+	var shown := picker.get_presets()
+	for color in color_presets():
+		if color not in shown:
+			picker.add_preset(color)
+
+
+#################################
+
+
 const ATLAS_TILE_RECT := Rect2i(0, 0, 32, 32)
 
 # Cache
