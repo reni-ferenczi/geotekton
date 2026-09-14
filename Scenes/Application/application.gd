@@ -2025,9 +2025,9 @@ func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 # _unhandled_key_input would press whichever button was last clicked instead of
 # reaching the application.
 func _input(event: InputEvent) -> void:
-	if event is not InputEventKey or not event.is_pressed() or event.is_echo():
-		return
 	var key := event as InputEventKey
+	if key == null or not key.is_pressed() or key.is_echo():
+		return
 	# A single key means a single key: Ctrl+S and the rest belong to the menus.
 	if key.ctrl_pressed or key.shift_pressed or key.alt_pressed or key.meta_pressed:
 		return
