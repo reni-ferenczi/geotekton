@@ -1127,6 +1127,8 @@ func set_field(field: String, value: Variant) -> String:
 			type_selector.select(index)
 			_on_type_selected(index)
 		"icon":
+			if node.is_group:
+				return "a group has no icon; only a feature has one"
 			var at := _item_index(icon_selector, str(value))
 			if at < 0:
 				return "the icon selector offers no %s" % value
