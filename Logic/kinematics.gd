@@ -84,16 +84,18 @@ static func _add_motion_times(node: Feature, nodes: Dictionary, visiting: Array,
 	for span in node.couplings:
 		_add_time(times, span.from)
 		_add_time(times, span.to)
-		var parent: Feature = nodes.get(span.parent)
-		if parent == null or visiting.has(parent):
-			continue
-		var inside := PackedFloat64Array()
-		visiting.append(parent)
-		_add_motion_times(parent, nodes, visiting, inside)
-		visiting.pop_back()
-		for time in inside:
-			if span.holds(time):
-				_add_time(times, time)
+		# Both parents of a ridge, since either one turning moves the midpoint.
+		for uuid in span.parents():
+			var parent: Feature = nodes.get(uuid)
+			if parent == null or visiting.has(parent):
+				continue
+			var inside := PackedFloat64Array()
+			visiting.append(parent)
+			_add_motion_times(parent, nodes, visiting, inside)
+			visiting.pop_back()
+			for time in inside:
+				if span.holds(time):
+					_add_time(times, time)
 
 
 static func _add_time(times: PackedFloat64Array, time: float) -> void:

@@ -18,6 +18,8 @@ const POLYGON := "polygon"
 # No type at all, which is what a file written before 0.3.0 carries. It allows
 # every kind, since nothing in the file said which one was meant.
 const NONE := ""
+# The type a ridge left by the Split tool is given.
+const LINE := "line"
 const CIRCLE := "circle"
 
 const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]

@@ -209,6 +209,14 @@ layout_mode = 2
 tooltip_text = "Commit the circle as an outline, a polyline, rather than a filled polygon"
 text = "Outline"
 
+[node name="Ridge" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+tooltip_text = "Leave a ridge along the cut, a line riding on both halves at one half"
+text = "Ridge"
+
 [node name="ViewPanel" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2

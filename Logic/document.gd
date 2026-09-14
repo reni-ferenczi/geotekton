@@ -369,7 +369,11 @@ func split_feature(feature: Feature, part: int, first: int, second: int = -1) ->
 # The first and last points of the path go onto the ring and the points between
 # them go to both halves; see GeometryEdit.split_along(). Otherwise the same as
 # split_feature(): both halves carry what the feature was, and one version.
-func split_feature_along(feature: Feature, part: int, path: PackedVector2Array) -> String:
+#
+# With `ridge` on, a Line feature is left along the cut as well, riding on both
+# halves at one half; see _add_ridge() and Docs/Editing.md#the-ridge.
+func split_feature_along(feature: Feature, part: int, path: PackedVector2Array,
+		ridge: bool = false) -> String:
 	if feature == null or feature.is_group \
 			or feature.geometry_kind != Feature.GeometryKind.POLYGON:
 		return "Only a polygon is split along a cut."
@@ -378,12 +382,16 @@ func split_feature_along(feature: Feature, part: int, path: PackedVector2Array) 
 	var problem := GeometryEdit.split_along_problem(feature.rings[part], path)
 	if not problem.is_empty():
 		return problem
-	return _split_into(feature, part, GeometryEdit.split_along(feature.rings[part], path))
+	var edge := GeometryEdit.shared_edge(feature.rings[part], path) if ridge \
+		else PackedVector2Array()
+	return _split_into(feature, part, GeometryEdit.split_along(feature.rings[part], path), edge)
 
 
 # Put the first half in place of the part and the second in a new feature beside
-# the original, named after it.
-func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array]) -> String:
+# the original, named after it. `edge` is the cut both halves share, in the
+# feature's own frame, and is what the ridge is drawn along when there is one.
+func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array],
+		edge := PackedVector2Array()) -> String:
 	var parent := root.find_parent(feature)
 	if parent == null:
 		return "%s is not in the tree." % feature.title
@@ -394,11 +402,31 @@ func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array])
 	other.rings = only
 	other.rebuild_triangles()
 
+	var into_world := Feature.world_basis(root, feature, current_time)
 	feature.rings[part] = halves[0]
 	feature.rebuild_triangles()
 	parent.children.insert(parent.find_child(feature) + 1, other)
+	if not edge.is_empty():
+		_add_ridge(parent, feature, other, Feature.apply_basis(edge, into_world))
 	record()
 	return ""
+
+
+# The rift the cut leaves behind: a Line along the shared edge, riding on both
+# halves from the current time to the present. Its frame is theirs at one half,
+# so it stays midway between them however far they drift apart. Both halves have
+# the polygon's pose at the split time, so the one keyframe written there puts
+# the ridge exactly on the cut. Part of the split's own undo version.
+func _add_ridge(parent: Feature, first: Feature, second: Feature,
+		world_edge: PackedVector2Array) -> void:
+	var ridge := Feature.create_feature(Feature.clamp_title("%s ridge" % first.title),
+		FeatureType.color(FeatureType.LINE), Vector2i(0, int(round(current_time))))
+	ridge.feature_type = FeatureType.LINE
+	ridge.add_ring(world_edge, Feature.GeometryKind.POLYLINE)
+	ridge.couplings.append(Coupling.create(current_time, 0.0, first.uuid, second.uuid))
+	parent.children.insert(parent.find_child(second) + 1, ridge)
+	Keyframe.upsert(ridge.keyframes, current_time,
+		Coupling.rotation_for(ridge, current_time, Basis(), Coupling.index(root)))
 
 
 ### Line topologies
@@ -563,9 +591,8 @@ func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 		return "Both features have to be in the document."
 	var current := Coupling.span_at(child, time)
 	if current != null:
-		var rides_on: Feature = nodes.get(current.parent)
 		return "%s already rides on %s at %s Ma; decouple it first." % [
-			child.title, rides_on.title if rides_on != null else "a missing feature", time]
+			child.title, Coupling.parents_label(nodes, current), time]
 	if Coupling.reaches(nodes, parent, child):
 		return "%s already rides on %s, so the chain would go round in a circle." % [
 			parent.title, child.title]
@@ -817,7 +844,7 @@ func resolve_backdrop() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.14.0"):
+	if not _is_older_than(version, "0.15.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -842,7 +869,10 @@ static func migrate(data: Dictionary) -> Dictionary:
 		_to_0_13_0(data.get("features", {}))
 	# 0.14.0 gave a leaf an icon for its tree row. A leaf without the key has
 	# none, which is what every feature had before, so there is no step.
-	data["version"] = "0.14.0"
+	# 0.15.0 let a coupling span name a second parent. A span without the key
+	# rides on one parent, which is what every span did before, so there is
+	# none either.
+	data["version"] = "0.15.0"
 	return data
 
 

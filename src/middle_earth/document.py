@@ -29,7 +29,7 @@ EXTENSION = ".middle-earth"
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
-CURRENT_VERSION = "0.14.0"
+CURRENT_VERSION = "0.15.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.82, 0.41, 0.12, 1.0]
@@ -181,6 +181,10 @@ class Feature:
         Each is `from`, the older age, `to`, the younger one, and the `parent`
         uuid. Inside a span the keyframes are relative to the parent, so a
         keyframe written there by `set_keyframe` is too. A group has none.
+
+        Since 0.15.0 a span may also carry `parent_b`, a second uuid, which a
+        ridge left by the Split tool rides on. Its frame is then midway
+        between the two.
         """
         return self.data.get("couplings", []) if not self.is_group else []
 

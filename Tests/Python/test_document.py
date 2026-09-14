@@ -137,3 +137,15 @@ def test_a_feature_reads_the_spans_it_rides_on():
     assert feature.couplings == [{"from": 500.0, "to": 200.0, "parent": "6b0d6b1e"}]
     assert Feature.new_feature("Rider").couplings == []
     assert Feature.new_group("Plates").couplings == []
+
+
+def test_a_ridge_reads_the_second_parent_it_rides_on(tmp_path):
+    """A span may name two parents since 0.15.0, and the file keeps both."""
+    document = Document.empty(CURRENT_VERSION)
+    ridge = Feature.new_feature("Shield ridge", geometry_kind="polyline")
+    ridge.data["couplings"] = [
+        {"from": 400.0, "to": 0.0, "parent": "half-one", "parent_b": "half-two"}]
+    document.root.add(ridge)
+    read = Document.load(document.save(tmp_path / "ridge.middle-earth"))
+    span = read.named("Shield ridge").couplings[0]
+    assert (span["parent"], span["parent_b"]) == ("half-one", "half-two")

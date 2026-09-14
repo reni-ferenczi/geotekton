@@ -236,6 +236,11 @@ Two rows and a list, all about which feature this one
   takes the selected span away, or the last one when none is selected, and
   leaves every keyframe where it was on the globe.
 
+A [ridge](Editing.md#the-ridge) rides on two features at once, and both rows
+name them the way `Laurentia and Laurentia 2, midway` does. The picker makes
+single parent spans only; see
+[Riding on two parents](Time.md#riding-on-two-parents).
+
 `Couple` and `Decouple` are a [cut in time](Time.md#a-coupling-edit-is-a-cut-in-time):
 they change nothing older than the current time and drop the keyframes the span
 covers younger than it, so the feature is rigid from there until it is moved

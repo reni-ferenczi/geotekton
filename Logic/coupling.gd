@@ -15,22 +15,38 @@ extends RefCounted
 #
 # The parent is named by uuid, the way a topology section names a feature, so a
 # parent that is deleted leaves the span in place and unresolved.
+#
+# A span may name a second parent, which is what a ridge left by the Split tool
+# rides on. Its frame is then midway between the two, the half stage rotation
+# GPlates reconstructs a mid ocean ridge by; see Docs/Time.md#riding-on-two-parents.
 
 var from: float
 var to: float
 var parent: String
+# The second parent, empty for the ordinary single parent span.
+var parent_b: String = ""
 
 
-static func create(from_: float, to_: float, parent_: String) -> Coupling:
+static func create(from_: float, to_: float, parent_: String,
+		parent_b_: String = "") -> Coupling:
 	var span := Coupling.new()
 	span.from = from_
 	span.to = to_
 	span.parent = parent_
+	span.parent_b = parent_b_
 	return span
 
 
 func clone() -> Coupling:
-	return Coupling.create(from, to, parent)
+	return Coupling.create(from, to, parent, parent_b)
+
+
+# The uuids the span follows: one ordinarily, two while it rides midway.
+func parents() -> Array[String]:
+	var result: Array[String] = [parent]
+	if not parent_b.is_empty():
+		result.append(parent_b)
+	return result
 
 
 # Whether the span is in effect at a time: its older end counts as inside, its
@@ -64,9 +80,30 @@ static func index(root: Feature) -> Dictionary:
 	return nodes
 
 
-# Why the parent of a span cannot be followed, or an empty string when it can.
+# Why a parent of a span cannot be followed, or an empty string when every one
+# of them can. A span with two parents needs both.
 static func parent_problem(nodes: Dictionary, node: Feature, span: Coupling) -> String:
-	var parent: Feature = nodes.get(span.parent)
+	for uuid in span.parents():
+		var problem := _one_parent_problem(nodes, node, uuid)
+		if not problem.is_empty():
+			return problem
+	return ""
+
+
+# What a span rides on, as the panel and a refusal name it: the parent's title,
+# or both titles when it rides midway between two.
+static func parents_label(nodes: Dictionary, span: Coupling) -> String:
+	var titles := PackedStringArray()
+	for uuid in span.parents():
+		var parent: Feature = nodes.get(uuid)
+		titles.append(parent.title if parent != null else "(missing)")
+	if titles.size() == 1:
+		return titles[0]
+	return "%s and %s, midway" % [titles[0], titles[1]]
+
+
+static func _one_parent_problem(nodes: Dictionary, node: Feature, uuid: String) -> String:
+	var parent: Feature = nodes.get(uuid)
 	if parent == null:
 		return "The feature it rode on is no longer in the document."
 	if parent.is_group:
@@ -90,11 +127,12 @@ static func reaches(nodes: Dictionary, start: Feature, target: Feature) -> bool:
 			continue
 		visited[node] = true
 		for span in node.couplings:
-			var parent: Feature = nodes.get(span.parent)
-			if parent == target:
-				return true
-			if parent != null:
-				stack.append(parent)
+			for uuid in span.parents():
+				var parent: Feature = nodes.get(uuid)
+				if parent == target:
+					return true
+				if parent != null:
+					stack.append(parent)
 	return false
 
 
@@ -189,13 +227,26 @@ static func _out_of_frame(span: Coupling, time: float, world: Basis, nodes: Dict
 	return _parent_basis(span, time, nodes, cache, visiting).transposed() * world
 
 
-# The parent's world rotation at a time. A parent that cannot be followed —
+# The frame a span puts its rider in at a time. With one parent that is the
+# parent's world rotation; with two it is the slerp of theirs at one half, the
+# half stage rotation, so the rider sits midway between them however far they
+# have diverged.
+static func _parent_basis(span: Coupling, time: float, nodes: Dictionary, cache,
+		visiting: Array) -> Basis:
+	var first := _one_parent_basis(span.parent, time, nodes, cache, visiting)
+	if span.parent_b.is_empty():
+		return first
+	var second := _one_parent_basis(span.parent_b, time, nodes, cache, visiting)
+	return Basis(Quaternion(first).slerp(Quaternion(second), 0.5))
+
+
+# One parent's world rotation at a time. A parent that cannot be followed —
 # missing, a group, a topology, or already on the chain being followed — does
 # not turn, so the child's relative keyframes read as world rotations until it
 # is mended.
-static func _parent_basis(span: Coupling, time: float, nodes: Dictionary, cache,
+static func _one_parent_basis(uuid: String, time: float, nodes: Dictionary, cache,
 		visiting: Array) -> Basis:
-	var parent: Feature = nodes.get(span.parent)
+	var parent: Feature = nodes.get(uuid)
 	if parent == null or parent.is_group or visiting.has(parent) \
 			or parent.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return Basis()
@@ -220,12 +271,16 @@ static func sort(spans: Array[Coupling]) -> void:
 
 
 func to_json() -> Dictionary:
-	return {"from": from, "to": to, "parent": parent}
+	var result := {"from": from, "to": to, "parent": parent}
+	# Only a ridge has a second parent, so an ordinary span reads as it always did.
+	if not parent_b.is_empty():
+		result["parent_b"] = parent_b
+	return result
 
 
 static func from_json(data: Variant) -> Coupling:
 	return Coupling.create(float(data.get("from", 0.0)), float(data.get("to", 0.0)),
-		str(data.get("parent", "")))
+		str(data.get("parent", "")), str(data.get("parent_b", "")))
 
 
 static func list_to_json(spans: Array[Coupling]) -> Array:
