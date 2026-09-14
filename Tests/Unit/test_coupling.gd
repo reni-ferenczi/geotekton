@@ -519,6 +519,175 @@ func test_a_split_half_decoupled_between_keyframes_does_not_drift() -> void:
 			"while the other one rides on at %s Ma" % time)
 
 
+### Riding on two parents
+#
+# A span that names a second parent puts its rider midway between the two: the
+# slerp of their world rotations at one half, which is the half stage rotation
+# GPlates reconstructs a mid ocean ridge by. See Docs/Time.md#riding-on-two-parents.
+
+
+# Two features standing still at 500 Ma and turning as told by the present, with
+# a rider on both of them over that span.
+func _midway(west: Vector3, east: Vector3) -> Document:
+	var document := Document.new()
+	var names := {"West": west, "East": east}
+	for title in names:
+		var half := _polygon(title)
+		Keyframe.upsert(half.keyframes, 500.0, Vector3.ZERO)
+		Keyframe.upsert(half.keyframes, 0.0, names[title])
+		document.root.children.append(half)
+	var rider := _polygon("Ridge")
+	Keyframe.upsert(rider.keyframes, 500.0, Vector3.ZERO)
+	rider.couplings.append(Coupling.create(500.0, 0.0,
+		_named(document, "West").uuid, _named(document, "East").uuid))
+	document.root.children.append(rider)
+	document.record()
+	return document
+
+
+func test_a_two_parent_span_turns_by_half_of_what_one_parent_does() -> void:
+	var document := _midway(Vector3.ZERO, Vector3(60, 0, 0))
+	var rider := _named(document, "Ridge")
+	_assert_basis(_world(document, rider, 500.0), Basis(),
+		"on the cut where the span starts")
+	_assert_basis(_world(document, rider, 0.0),
+		Feature.build_rotation_basis(Vector3(30, 0, 0)),
+		"half of the 60 degrees the one parent turned")
+
+
+func test_a_two_parent_span_follows_parents_that_turn_alike() -> void:
+	var document := _midway(Vector3(60, 0, 0), Vector3(60, 0, 0))
+	var rider := _named(document, "Ridge")
+	for time in [400.0, 200.0, 0.0]:
+		_assert_basis(_world(document, rider, time), _world(document, _named(document, "West"), time),
+			"the rider turns with both of them at %s Ma" % time)
+
+
+func test_a_cycle_through_the_second_parent_is_refused() -> void:
+	var document := _midway(Vector3.ZERO, Vector3(60, 0, 0))
+	var east := _named(document, "East")
+	var rider := _named(document, "Ridge")
+	assert_true(not document.couple(east, rider, 900.0).is_empty(),
+		"a parent of the rider cannot ride on the rider")
+	assert_eq(east.couplings.size(), 0, "and the refusal changed nothing")
+
+	# A hand written file naming the rider itself as the second parent.
+	rider.couplings[0].parent_b = rider.uuid
+	assert_true(not Coupling.parent_problem(
+		Coupling.index(document.root), rider, rider.couplings[0]).is_empty(),
+		"and a span that names the rider itself says so")
+
+
+func test_a_span_keeps_its_second_parent_through_json() -> void:
+	var document := _midway(Vector3.ZERO, Vector3(60, 0, 0))
+	var rider := _named(document, "Ridge")
+	var plain := _named(document, "West")
+	plain.couplings.append(Coupling.create(900.0, 600.0, rider.uuid))
+
+	for node in [rider, plain]:
+		var read := Feature.from_json(JSON.parse_string(JSON.stringify(node.to_json())))
+		assert_eq(Coupling.list_to_json(read.couplings), Coupling.list_to_json(node.couplings),
+			"%s reads back the way it was written" % node.title)
+		assert_eq(read.couplings[0].parent_b, node.couplings[0].parent_b,
+			"%s keeps the second parent it had" % node.title)
+	assert_true(rider.couplings[0].to_json().has("parent_b"),
+		"the ridge's span writes a second parent")
+	assert_true(not plain.couplings[0].to_json().has("parent_b"),
+		"and an ordinary span writes no key for one")
+
+
+func test_the_motion_times_of_a_ridge_count_both_parents() -> void:
+	var document := _midway(Vector3.ZERO, Vector3(60, 0, 0))
+	Keyframe.upsert(_named(document, "West").keyframes, 350.0, Vector3.ZERO)
+	Keyframe.upsert(_named(document, "East").keyframes, 120.0, Vector3(30, 0, 0))
+	assert_eq(Array(Kinematics.motion_times(document.root, _named(document, "Ridge"))),
+		[0.0, 120.0, 350.0, 500.0], "either parent turning moves the midpoint")
+
+
+### The ridge a split leaves
+
+
+# How near two world vertices count as the same point, in degrees.
+const ON_THE_EDGE := 1e-3
+
+
+func _nearest(points: PackedVector2Array, target: Vector2) -> float:
+	var best := INF
+	for point in points:
+		best = minf(best, point.distance_to(target))
+	return best
+
+
+func _world_ring(document: Document, node: Feature, time: float) -> PackedVector2Array:
+	return Feature.apply_basis(node.rings[0], Feature.world_basis(document.root, node, time))
+
+
+func test_a_split_with_a_ridge_leaves_three_features_in_one_version() -> void:
+	var document := Document.new()
+	var craton := _polygon("Shield")
+	Keyframe.upsert(craton.keyframes, 400.0, Vector3(20, 35, 10))
+	document.root.children.append(craton)
+	document.current_time = 400.0
+	document.record()
+	var versions := document.applied
+
+	assert_eq(document.split_feature_along(craton, 0,
+		PackedVector2Array([Vector2(5, -1), Vector2(6, 8), Vector2(5, 20)]), true), "")
+	assert_eq(document.applied, versions + 1, "the split and the ridge are one version")
+	assert_eq(document.root.children.map(func(n: Feature) -> String: return n.title),
+		["Shield", "Shield 2", "Shield ridge"], "the halves and the ridge behind them")
+
+	var ridge := _named(document, "Shield ridge")
+	assert_eq(ridge.geometry_kind, Feature.GeometryKind.POLYLINE, "the ridge is a line")
+	assert_eq(ridge.feature_type, FeatureType.LINE, "typed as one")
+	assert_eq(ridge.time_range, Vector2i(0, 400), "there from the split time to the present")
+	assert_eq(ridge.couplings.size(), 1, "riding on one span")
+	assert_eq([ridge.couplings[0].parent, ridge.couplings[0].parent_b],
+		[_named(document, "Shield").uuid, _named(document, "Shield 2").uuid],
+		"whose parents are the two halves")
+
+	# Every vertex of the ridge is a vertex of both halves at the split time,
+	# which is what "on the shared edge" means.
+	var on_ridge := _world_ring(document, ridge, 400.0)
+	assert_eq(on_ridge.size(), 3, "the cut's three points")
+	for title in ["Shield", "Shield 2"]:
+		var half := _world_ring(document, _named(document, title), 400.0)
+		for vertex in on_ridge:
+			assert_true(_nearest(half, vertex) < ON_THE_EDGE,
+				"%s holds the ridge vertex %s" % [title, vertex])
+
+	document.undo()
+	assert_eq(document.root.children.size(), 1, "undo puts the one craton back")
+
+
+func test_a_ridge_stays_midway_while_one_half_turns() -> void:
+	var document := Document.new()
+	var craton := _polygon("Shield")
+	document.root.children.append(craton)
+	document.current_time = 300.0
+	document.record()
+	assert_eq(document.split_feature_along(craton, 0,
+		PackedVector2Array([Vector2(5, -1), Vector2(6, 8), Vector2(5, 20)]), true), "")
+	var second := _named(document, "Shield 2")
+	var ridge := _named(document, "Shield ridge")
+	assert_eq(document.set_keyframe(second, 300.0, Vector3.ZERO), "")
+	assert_eq(document.set_keyframe(second, 0.0, Vector3(40, 0, 0)), "")
+
+	# The one half turned forty degrees and the ridge turned twenty.
+	_assert_basis(_world(document, ridge, 0.0), Feature.build_rotation_basis(Vector3(20, 0, 0)),
+		"the ridge turns by half of what the half that moved did")
+
+	document.root.children.erase(second)
+	document.record()
+	var nodes := Coupling.index(document.root)
+	assert_true(not Coupling.parent_problem(nodes, ridge, ridge.couplings[0]).is_empty(),
+		"deleting a half leaves the ridge's span broken")
+	document.undo()
+	ridge = _named(document, "Shield ridge")
+	assert_eq(Coupling.parent_problem(Coupling.index(document.root), ridge, ridge.couplings[0]), "",
+		"and undo mends it")
+
+
 ### The graphs
 
 
