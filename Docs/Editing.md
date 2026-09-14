@@ -55,9 +55,10 @@ disabled node is neither drawn nor hit tested, itself and everything under it.
 A row is greyed out while its feature is outside its time range at the current
 time, which is when the globe leaves it out as well; see
 [Time](Time.md#being-there-at-all).
-A right click on the swatch puts the colour back to the one the feature's type
-gives. Everything else about a feature is edited in the
-[Properties](Properties.md) panel.
+A left click on the swatch selects the feature and opens the colour picker of
+the [Properties](Properties.md) panel, so the colour is picked where it is
+shown; a right click puts the colour back to the one the feature's type gives.
+Everything else about a feature is edited in the Properties panel.
 
 The feature selected in the tree is highlighted on the planet in yellow:
 

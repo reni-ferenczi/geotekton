@@ -920,6 +920,7 @@ func _commit_color() -> void:
 		_commit_style()
 		return
 	document.set_color(node, Color(color_button.color, opacity_spin.value / 100.0))
+	Helpers.remember_color(color_button.color)
 	recolored.emit()
 
 
@@ -939,6 +940,7 @@ func _commit_style() -> void:
 	if not error.is_empty():
 		rejected.emit(error)
 		return
+	Helpers.remember_color(style.color)
 	recolored.emit()
 
 

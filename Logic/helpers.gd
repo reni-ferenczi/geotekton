@@ -113,8 +113,9 @@ static func color_presets() -> Array[Color]:
 	return _color_presets.duplicate()
 
 
-# Offer a colour in every picker from now on. A colour already there stays where
-# it is rather than moving to the end.
+# Offer a colour in every picker from now on, which is what committing one to a
+# feature or a group does. A colour already there stays where it is rather than
+# moving to the end.
 static func remember_color(color: Color) -> void:
 	var opaque := Color(color, 1.0)
 	if opaque not in color_presets():
@@ -139,7 +140,6 @@ static func color_button(button_name: String, tooltip: String) -> ColorPickerBut
 	# The presets are shared and the picker's own copy is not, so it is brought
 	# up to date every time it opens rather than when something else changed.
 	button.get_popup().about_to_popup.connect(_offer_presets.bind(picker))
-	button.popup_closed.connect(func() -> void: remember_color(button.color))
 	return button
 
 

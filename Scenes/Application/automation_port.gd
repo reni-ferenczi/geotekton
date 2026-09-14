@@ -1065,24 +1065,42 @@ func _collect_features(node: Feature, depth: int, list: Array) -> void:
 		_collect_features(child, depth + 1, list)
 
 
-# Click the colour swatch of a feature's row where it is drawn, so the tree's
-# own button handling is what answers. The tree is asked which button is under
-# the point before the click goes out, since a swatch that has moved would
-# otherwise be a click on nothing and a check that passes for the wrong reason.
+# Press the colour swatch of a feature's row. The groups above the row are
+# opened first, since a row nobody can see is not one anybody could click, and
+# the tree is asked which button sits under the middle of the swatch before the
+# press goes out, so a swatch that has moved or gone is a failure rather than a
+# check that passes for the wrong reason. The press itself is the tree's own
+# signal rather than a synthetic mouse click, because Godot's Tree reads the
+# real cursor when it decides which button a click released over, which a
+# scripted run has no way to move.
 func _swatch(request: Dictionary) -> Dictionary:
 	var feature := _find_feature(request)
 	var tree := app.features.feature_tree
 	if feature == null or not tree.items.has(feature.pnid):
 		return {"ok": false, "error": "feature not found"}
-	var area := tree.get_item_area_rect(tree.items[feature.pnid], 0, FeatureTree.COLOR_BUTTON)
-	var local := area.get_center()
+	var item: TreeItem = tree.items[feature.pnid]
+	var index := item.get_button_by_id(0, FeatureTree.COLOR_BUTTON)
+	if index < 0:
+		return {"ok": false, "error": "the %s row has no swatch" % feature.title}
+	var button_name := str(request.get("button", "left"))
+	if not BUTTONS.has(button_name):
+		return {"ok": false, "error": "unknown button: %s" % button_name}
+	var ancestor := item.get_parent()
+	while ancestor != null:
+		var group := ancestor.get_metadata(0) as Feature
+		if group != null:
+			tree.collapse(group, false)
+		ancestor = ancestor.get_parent()
+	tree.scroll_to_item(item, true)
+	await _frames(2)
+
+	var local := tree.get_item_area_rect(item, 0, index).get_center()
 	if tree.get_button_id_at_position(local) != FeatureTree.COLOR_BUTTON:
-		return {"ok": false, "error": "no swatch under the %s row" % feature.title}
-	request = request.duplicate()
-	var point := tree.get_global_position() + local
-	request["x"] = point.x
-	request["y"] = point.y
-	return await _click(request)
+		return {"ok": false, "error": "the swatch of %s is not at %s" % [feature.title, local]}
+	await _move_mouse(tree.get_global_position() + local)
+	tree.button_clicked.emit(item, 0, FeatureTree.COLOR_BUTTON, int(BUTTONS[button_name]))
+	await _frames(2)
+	return {"ok": true}
 
 
 func _find_feature(request: Dictionary) -> Feature:
