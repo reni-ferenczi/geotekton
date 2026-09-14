@@ -106,8 +106,11 @@ var couplings: Array[Coupling] = []
 
 # The ages between which a feature exists, in millions of years before present.
 # A feature outside it at the current time is neither drawn nor hit tested. Only
-# a leaf feature has one; a group is there whenever its children are.
-var time_range: Vector2i = Vector2i(0, 2000)
+# a leaf feature has one; a group is there whenever its children are. The order
+# is (younger, older), which is what the file keeps; the Properties panel reads
+# the older end as From and the younger one as To.
+const DEFAULT_TIME_RANGE := Vector2i(0, 2000)
+var time_range: Vector2i = DEFAULT_TIME_RANGE
 
 # Numbering
 static var next_pnid: int = 1
@@ -128,13 +131,15 @@ static func create_group(title_: String = "Group") -> Feature:
 
 
 static func create_feature(title_: String = "Feature",
-		color_: Color = FeatureType.NONE_COLOR) -> Feature:
+		color_: Color = FeatureType.NONE_COLOR,
+		time_range_: Vector2i = DEFAULT_TIME_RANGE) -> Feature:
 	var feature := Feature.new()
 	feature.init_pnid()
 	feature.init_uuid()
 	feature.title = title_
 	feature.color = color_
 	feature.is_group = false
+	feature.time_range = time_range_
 	return feature
 
 

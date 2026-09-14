@@ -104,9 +104,18 @@ every group above the feature is multiplied in whatever the style; see
 [Styling](Styling.md#group-styles).
 
 The time range is two ages in millions of years before the present, the same
-axis the timeline slider runs on, so `From` is the younger end. A feature
-outside it at the current time is neither drawn nor hit tested, and its tree row
-is greyed out. See [Time](Time.md#being-there-at-all).
+axis the timeline slider runs on, read the way the work runs: `From` is the age
+the feature appears at, the older end, and `To` the age it disappears at, 0 at
+the present. Both boxes carry that as a tooltip, on the number and on its label.
+A range whose `To` is older than its `From` is refused, with the reason in a
+dialog. A feature outside its range at the current time is neither drawn nor hit
+tested, and its tree row is greyed out. See
+[Time](Time.md#being-there-at-all).
+
+The file keeps the pair younger first, and so does `time_range` in what
+`get_properties` answers with. The two boxes are `time_from` and `time_to`,
+which is what `set_property` drives and what `get_properties` reports beside
+the pair.
 
 A group has no keyframe row, since a group carries no motion. It has its
 [style](Styling.md#group-styles) instead: how the features under it are colored.
@@ -206,7 +215,7 @@ undo version:
 | `set_color`             | nothing                                            |
 | `set_style`             | a leaf, which has no style                         |
 | `set_feature_type`      | an unknown type, one that does not hold the kind the feature holds, and any type on a feature holding nothing |
-| `set_time_range`        | a range that ends before it starts                 |
+| `set_time_range`        | a range that ends older than it starts             |
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |
 | `remove_vertex`         | a part or vertex that is not there                 |

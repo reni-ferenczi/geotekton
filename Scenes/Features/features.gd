@@ -139,8 +139,16 @@ func add_new_group_at(parent: Feature, index: int) -> void:
 	feature_tree.collapse(parent, false)
 
 
+# The age a feature added now starts at: the one the timeline is showing. It
+# then exists until the present, which is the direction the work runs in. A
+# feature added at 0 Ma is there at the present only, which is what the rule
+# says; the From box changes it. See Docs/Time.md.
+func _new_time_range() -> Vector2i:
+	return Vector2i(0, int(round(document.current_time)))
+
+
 func add_new_feature(parent: Feature) -> void:
-	var feature := Feature.create_feature()
+	var feature := Feature.create_feature("Feature", FeatureType.NONE_COLOR, _new_time_range())
 	parent.children.append(feature)
 	document.record()
 	reload()
@@ -149,7 +157,7 @@ func add_new_feature(parent: Feature) -> void:
 
 
 func add_new_feature_at(parent: Feature, index: int) -> void:
-	var feature := Feature.create_feature()
+	var feature := Feature.create_feature("Feature", FeatureType.NONE_COLOR, _new_time_range())
 	parent.children.insert(index, feature)
 	document.record()
 	reload()

@@ -29,6 +29,11 @@ signal rejected(message: String)
 # The oldest age either end of a time range can name.
 const TIME_LIMIT := int(Document.MAX_TIME)
 
+# The two ends of the time range, read the way the work runs: from the oldest
+# age towards the present. `From` is the older end, which is `time_range.y`.
+const FROM_TOOLTIP := "The age the feature appears at, in millions of years ago; larger is older"
+const TO_TOOLTIP := "The age it disappears at; 0 is the present"
+
 # The columns of the section table of a line topology: the feature the section
 # runs along, the vertices of it the section covers, counted from one, and which
 # way round it is walked.
@@ -209,10 +214,10 @@ func _build() -> void:
 	enabled_check.toggled.connect(_on_enabled_toggled)
 	_row(form, "Enabled", enabled_check, true)
 
-	from_spin = _time_spin("From")
-	_row(form, "From (Ma)", from_spin)
-	to_spin = _time_spin("To")
-	_row(form, "To (Ma)", to_spin)
+	from_spin = _time_spin("From", FROM_TOOLTIP)
+	_row(form, "From (Ma)", from_spin, false, true, FROM_TOOLTIP)
+	to_spin = _time_spin("To", TO_TOOLTIP)
+	_row(form, "To (Ma)", to_spin, false, true, TO_TOOLTIP)
 
 	geometry_label = Label.new()
 	geometry_label.name = "Geometry"
@@ -382,22 +387,28 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	buttons.add_child(remove_span_button)
 
 
-func _time_spin(spin_name: String) -> SpinBox:
+func _time_spin(spin_name: String, tooltip: String) -> SpinBox:
 	var spin := SpinBox.new()
 	spin.name = spin_name
 	spin.min_value = 0
 	spin.max_value = TIME_LIMIT
 	spin.step = 1
+	spin.tooltip_text = tooltip
 	spin.value_changed.connect(func(_value: float) -> void: _commit_time_range())
 	return spin
 
 
 # One labelled row of the form. A row is hidden, label and all, while what is
-# selected does not have it.
+# selected does not have it. A tooltip is put on the label as well as on the
+# control, so that pointing at either says what the row means.
 func _row(form: GridContainer, text: String, control: Control, on_a_group: bool = false,
-		on_a_feature: bool = true) -> void:
+		on_a_feature: bool = true, tooltip: String = "") -> void:
 	var label := Label.new()
 	label.text = text
+	if not tooltip.is_empty():
+		label.tooltip_text = tooltip
+		# A Label lets the mouse through, so its tooltip would never show.
+		label.mouse_filter = Control.MOUSE_FILTER_STOP
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	form.add_child(label)
 	form.add_child(control)
@@ -465,8 +476,8 @@ func show_node(node_: Feature) -> void:
 	if is_feature:
 		type_selector.select(_type_index(node.feature_type))
 		_show_color()
-		from_spin.value = node.time_range.x
-		to_spin.value = node.time_range.y
+		from_spin.value = node.time_range.y
+		to_spin.value = node.time_range.x
 		geometry_label.text = _geometry_summary(node)
 		_fill_sections()
 		_fill_coupling()
@@ -953,14 +964,16 @@ func _commit_style() -> void:
 func _commit_time_range() -> void:
 	if _filling or node == null or node.is_group:
 		return
-	var wanted := Vector2i(int(from_spin.value), int(to_spin.value))
+	# From is the older end and To the younger one; the vector keeps the file's
+	# order, younger first.
+	var wanted := Vector2i(int(to_spin.value), int(from_spin.value))
 	if wanted == node.time_range:
 		return
 	var error := document.set_time_range(node, wanted)
 	if not error.is_empty():
 		_filling = true
-		from_spin.value = node.time_range.x
-		to_spin.value = node.time_range.y
+		from_spin.value = node.time_range.y
+		to_spin.value = node.time_range.x
 		_filling = false
 		rejected.emit(error)
 		return
@@ -1010,7 +1023,13 @@ func to_json() -> Dictionary:
 	data["color"] = [color_button.color.r, color_button.color.g,
 		color_button.color.b, opacity_spin.value / 100.0]
 	data["opacity"] = int(opacity_spin.value)
-	data["time_range"] = [int(from_spin.value), int(to_spin.value)]
+	# `time_range` keeps the file's order, younger first, whatever the two boxes
+	# are labelled; `time_from` and `time_to` are what each box is showing and
+	# are the fields `set_property` drives.
+	data["time_range"] = [int(to_spin.value), int(from_spin.value)]
+	data["time_from"] = int(from_spin.value)
+	data["time_to"] = int(to_spin.value)
+	data["tooltips"] = {"time_from": from_spin.tooltip_text, "time_to": to_spin.tooltip_text}
 	data["geometry"] = geometry_label.text
 	if keyframe_count.get_parent().visible:
 		data["keyframes"] = {

@@ -37,7 +37,9 @@ the middle button always works.
 Undo and redo leave the active tool alone: they put another version of the same
 document in place, which is no reason to take a tool out of someone's hand mid
 edit. File > New and File > Open do go back to Move, since whatever was half
-drawn or half picked belonged to the document being left.
+drawn or half picked belonged to the document being left. Both also put the
+time at the oldest age of the animation; see
+[Time](Time.md#the-time-control).
 
 ## The feature tree
 

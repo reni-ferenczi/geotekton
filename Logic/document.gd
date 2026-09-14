@@ -218,9 +218,11 @@ func set_feature_type(feature: Feature, type_id: String) -> String:
 	return ""
 
 
+# The vector is (younger, older), the order the file keeps. A range runs from
+# its older end to its younger one, so the end may not be older than the start.
 func set_time_range(feature: Feature, time_range: Vector2i) -> String:
 	if time_range.y < time_range.x:
-		return "The time range ends at %d, before it starts at %d." % [time_range.y, time_range.x]
+		return "The time range ends at %d, after it starts at %d." % [time_range.x, time_range.y]
 	feature.time_range = time_range
 	record()
 	return ""

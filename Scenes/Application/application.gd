@@ -317,6 +317,9 @@ func _ready() -> void:
 
 	if not isolated:
 		_restore_session()
+	# The timeline starts at the oldest age the animation covers, whatever
+	# document came up, the way it does after a New or an Open.
+	document.set_time(timeline.oldest())
 	_update_document_labels()
 	_on_cursor_moved(NAN, NAN)
 
@@ -742,6 +745,11 @@ func _on_root_replaced(same_document: bool) -> void:
 	# being left behind.
 	if not same_document:
 		set_active_tool(Tool.MOVE)
+		# A new or opened document is looked at from the oldest age the animation
+		# covers, since the work runs from there towards the present. The
+		# document itself opens at 0, so the headless tests and the file model
+		# see no change; the animation range is the application's to know.
+		document.set_time(timeline.oldest())
 	# The version carries the view settings as well as the tree, so the scene
 	# and the dialog showing it follow every step of the stack.
 	apply_view_settings()

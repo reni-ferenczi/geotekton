@@ -9,7 +9,8 @@ the application says the same thing:
 - The timeline slider runs from the oldest time on the left to 0 on the right.
 - An animation normally starts at a large time and ends at 0, so it plays from
   left to right and the Earth is watched forwards.
-- A feature's time range is an age span, so its `To` is the older end.
+- A feature's time range runs the same way: `From` is the age it appears at,
+  the older end, and `To` the age it disappears at, towards the present.
 
 Ages run up to `Document.MAX_TIME`, ten thousand million years, which is older
 than the Earth and so out of the way of anything anyone models.
@@ -18,7 +19,12 @@ than the Earth and so out of the way of anything anyone models.
 
 `Logic/document.gd` owns it. It says where the document is being looked at
 rather than anything about the planet, so moving it records no undo version and
-leaves the dirty flag alone, and a file always opens at the present.
+leaves the dirty flag alone.
+
+The document itself starts at 0, and `Application` moves the time to
+`Timeline.oldest()` whenever a new or opened document arrives, since the
+animation range belongs to the application rather than to the file. See
+[The time control](#the-time-control).
 
 Everything that moves the time asks the document to move it and then follows the
 `time_changed` signal back:
@@ -212,6 +218,15 @@ not hit tested, and greyed out in the tree; it is still in the document and
 still in the file. Both ends count as inside. A group has no range of its own
 and is there whenever its children are.
 
+The panel calls the older end `From` and the younger one `To`: a feature that
+exists between 2000 and 0 Ma appears at 2000 and disappears at 0. A range whose
+`To` is older than its `From` is refused. The file keeps the pair the other way
+round, younger first, which nothing outside `Logic/` has to know.
+
+A feature added to the tree takes the age the timeline is showing as its `From`
+and runs to the present, so it is there from the moment being worked on
+onwards. One added at 0 Ma is there at the present only.
+
 ## The time control
 
 The panel under the globe, `Scenes/Timeline/timeline.gd`:
@@ -246,6 +261,11 @@ the mark; between two marks a click does nothing.
 The slider holds the negative of the time, which is what puts the oldest end on
 the left: a slider always grows to the right and an age grows into the past. It
 spans the animation range, so configuring a different range lays it out again.
+
+A document opens at the oldest age the animation covers, 2000 Ma unless the
+range says otherwise, and so does the application itself. The work runs from
+there towards the present, so that is where the slider starts. A scene that
+wants another time says so, the way `Tests/golden.py` does.
 
 ## The animation
 
