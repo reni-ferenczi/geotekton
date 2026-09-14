@@ -78,11 +78,14 @@ func _stored(node: Feature) -> Dictionary:
 # at `written`. Compared as rotations rather than as angles, since _rebase()
 # takes each one through a basis and back.
 func _assert_stored(node: Feature, before: Dictionary, written: float, what: String) -> void:
-	for time in _stored(node):
+	var after := _stored(node)
+	for time in after:
 		if is_equal_approx(time, written):
 			continue
-		assert_true(before.has(time), "%s at %s Ma is one it had" % [what, time])
-		_assert_basis(Feature.build_rotation_basis(_stored(node)[time]),
+		if not before.has(time):
+			assert_true(false, "%s at %s Ma is one it had before" % [what, time])
+			continue
+		_assert_basis(Feature.build_rotation_basis(after[time]),
 			Feature.build_rotation_basis(before[time]), "%s at %s Ma alone" % [what, time])
 
 
@@ -245,7 +248,7 @@ func test_what_cannot_be_coupled_is_refused_with_a_reason() -> void:
 		"a span running to the present is not decoupled at the present")
 
 
-### Nothing on the globe moves
+### A coupling edit is a cut in time
 
 
 # Times older than the coupling edits below, keyframe times and times strictly
