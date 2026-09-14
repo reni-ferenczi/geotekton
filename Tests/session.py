@@ -1302,6 +1302,14 @@ def run_space_checks(client: AutomationClient) -> None:
     client.call("focus", release=True)
     client.call("timeline", button="Reset")
 
+    # A dialog has the keyboard while it is up, so Space is its own.
+    client.call("menu", item="about")
+    client.call("key", key="Space")
+    check(not client.call("get_timeline")["timeline"]["playing"],
+          "Space over an open dialog does not reach the animation")
+    if client.call("get_dialog")["dialog"] is not None:
+        client.call("dialog", button="OK")
+
 
 def run_keyframe_jump_checks(client: AutomationClient) -> None:
     """The keyframe marks are clickable and the >> and << buttons walk them."""
