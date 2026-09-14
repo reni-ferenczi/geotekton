@@ -112,7 +112,7 @@ follows the feature tree selection, through
 | Geometry   | Label              | no         |
 | Keyframes  | Count, Key, Delete | no         |
 | Coupled to | Parent, Decouple   | no         |
-| Ride on    | Picker, Couple     | no         |
+| Ride on    | Picker, Couple, pointer | no    |
 | Couplings  | List, Remove       | no         |
 | Sections   | Table, Reverse, Remove | no     |
 
@@ -223,7 +223,15 @@ Two rows and a list, all about which feature this one
 - **Ride on** is a picker of every feature this one could ride on, in tree
   order: every leaf but itself and the topologies. `Couple` starts a span on the
   picked feature at the current time and is greyed out while the feature
-  already rides on something then.
+  already rides on something then. The pointer button beside them fills the
+  picker from the planet instead of from the list: press it and the next left
+  click on the globe or the map names whatever it lands on. The status bar says
+  `Pick the feature to ride on` while it is armed. A click on the ocean, on the
+  feature itself or on a topology says so in the status bar and leaves the
+  pointer armed, so only a click the picker can take ends it. So do Escape and
+  pressing the button again. Nothing else moves: the selection, the current
+  tool and the globe are where they were, and the picked parent is still
+  coupled with `Couple`.
 - **Couplings** lists every span: the parent, `From` and `To` in Ma. `Remove`
   takes the selected span away, or the last one when none is selected, and
   leaves every keyframe where it was on the globe.

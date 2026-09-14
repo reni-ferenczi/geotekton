@@ -26,6 +26,10 @@ signal recolored()
 # An edit was refused, with the message saying why.
 signal rejected(message: String)
 
+# The pointer button on the Ride on row was pressed or let go. The Application
+# owns the pick mode; the button only asks for it and shows whether it is on.
+signal pick_parent_requested(on: bool)
+
 # The oldest age either end of a time range can name.
 const TIME_LIMIT := int(Document.MAX_TIME)
 
@@ -38,6 +42,9 @@ const TO_TOOLTIP := "The age it disappears at; 0 is the present"
 # runs along, the vertices of it the section covers, counted from one, and which
 # way round it is walked.
 const SECTION_COLUMNS = ["Feature", "From", "To", "Way"]
+
+# The pointer on the Ride on row, which picks the parent off the planet.
+const PICK_PARENT_ICON := "res://Assets/Icons/Pointer.svg"
 
 # A section whose feature can no longer be found, or cannot be followed at the
 # current time, is drawn in this rather than dropped, so a topology says what it
@@ -85,6 +92,7 @@ var coupled_label: Label
 var decouple_button: Button
 var parent_selector: OptionButton
 var couple_button: Button
+var pick_parent_button: Button
 var spans: Tree
 var remove_span_button: Button
 
@@ -352,6 +360,15 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	couple_button.pressed.connect(_on_couple_pressed)
 	couple_row.add_child(couple_button)
 
+	pick_parent_button = Button.new()
+	pick_parent_button.name = "PickParent"
+	pick_parent_button.toggle_mode = true
+	pick_parent_button.icon = load(PICK_PARENT_ICON)
+	pick_parent_button.tooltip_text = "Click a feature on the planet to ride on it"
+	pick_parent_button.toggled.connect(
+		func(on: bool) -> void: pick_parent_requested.emit(on))
+	couple_row.add_child(pick_parent_button)
+
 	var heading := Label.new()
 	heading.name = "SpanHeading"
 	heading.text = "Couplings"
@@ -432,6 +449,11 @@ func _selector(selector_name: String) -> OptionButton:
 # Show a feature, a group, or nothing at all. The root group is nothing to edit:
 # it has no name of its own to change and no switch, the same as on its tree row.
 func show_node(node_: Feature) -> void:
+	# The pick mode belongs to the feature that asked for it, so showing another
+	# one ends it rather than letting the next click pick a parent for it.
+	if node_ != node and pick_parent_button != null and pick_parent_button.button_pressed:
+		pick_parent_button.set_pressed_no_signal(false)
+		pick_parent_requested.emit(false)
 	node = node_
 	var editable := node != null and not node.is_root
 	var is_feature := editable and not node.is_group
@@ -756,6 +778,29 @@ func pick_parent(title: String) -> String:
 	return "the picker offers no %s" % title
 
 
+# Pick a parent by uuid, which is what a click on the planet comes back with.
+# Returns why the picker does not offer it, or an empty string once it shows it.
+func pick_parent_uuid(uuid: String) -> String:
+	for index in parent_selector.item_count:
+		if str(parent_selector.get_item_metadata(index)) == uuid:
+			parent_selector.select(index)
+			_update_coupling()
+			return ""
+	if node != null and node.uuid == uuid:
+		return "A feature cannot ride on itself."
+	return "That feature is not one of the ones to ride on."
+
+
+# Whether the pick mode is on, which is what the button shows. The mode itself
+# is the Application's; see Docs/Properties.md#coupling.
+func picking_parent() -> bool:
+	return pick_parent_button.button_pressed
+
+
+func show_picking(on: bool) -> void:
+	pick_parent_button.set_pressed_no_signal(on)
+
+
 # What the feature rides on at the current time, and which buttons work there.
 func _update_coupling() -> void:
 	var feature := document != null and node != null and not node.is_group
@@ -774,6 +819,7 @@ func _update_coupling() -> void:
 			coupled_label.tooltip_text = problem
 	decouple_button.disabled = span == null
 	couple_button.disabled = not feature or span != null or parent_selector.selected < 0
+	pick_parent_button.disabled = not feature or parent_selector.item_count == 0
 	remove_span_button.disabled = not feature or node.couplings.is_empty()
 
 
@@ -1088,6 +1134,8 @@ func _coupling_to_json() -> Dictionary:
 			if parent_selector.selected >= 0 else "",
 		"couple": not couple_button.disabled,
 		"decouple": not decouple_button.disabled,
+		"pick": not pick_parent_button.disabled,
+		"picking": pick_parent_button.button_pressed,
 		"remove": not remove_span_button.disabled,
 		"spans": rows,
 	}

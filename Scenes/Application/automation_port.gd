@@ -359,7 +359,16 @@ func _dispatch(request: Dictionary) -> Dictionary:
 
 		"coupling":
 			# Couple rides on the picked parent and Decouple stops riding, both at
-			# the current time; Remove takes a span of the list away.
+			# the current time; Remove takes a span of the list away. `pick` arms
+			# the pointer instead, so the next `click` on the planet names the
+			# parent, and `pick: false` puts it away again.
+			if request.has("pick"):
+				if bool(request["pick"]):
+					app.start_parent_pick()
+				else:
+					app.end_parent_pick()
+				await _frames(2)
+				return {"ok": true}
 			if request.has("parent"):
 				var pick_error := app.properties.pick_parent(str(request["parent"]))
 				if not pick_error.is_empty():

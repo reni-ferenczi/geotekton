@@ -807,6 +807,86 @@ def run_coupling_session(client: AutomationClient, folder: Path) -> None:
     run_coupling_refusal_checks(client)
     run_coupling_round_trip(client, folder)
     run_rigid_coupling_checks(client)
+    run_pick_parent_checks(client)
+
+
+# The green craton of the sample sits at longitude -60 and the red triangle at
+# 0, so a view between the two has both well inside the limb. Nothing is drawn
+# at PICK_EMPTY, which is probed before it is clicked.
+PICK_VIEW = (0.0, -30.0)
+PICK_EMPTY = (-40.0, -30.0)
+
+
+def run_pick_parent_checks(client: AutomationClient) -> None:
+    """The pointer on the Ride on row takes its parent from a click on the planet."""
+    client.call("load", path=str(COUPLING_SAMPLE))
+    client.call("set_view", lat=PICK_VIEW[0], lon=PICK_VIEW[1], angle=0.0, zoom=1.0,
+                show_map=False)
+    client.call("set_time", time=COUPLED_AT)
+    green = centroid_of(client, "Green Moved")
+    green_uuid = client.call("get_selected")["feature"]["uuid"]
+    client.call("select", title="Red Triangle")
+
+    row = coupling_row(client)
+    check(row["pick"] and not row["picking"],
+          f"the pointer is offered and is not armed to start with: {row}")
+
+    client.call("coupling", pick=True)
+    check(coupling_row(client)["picking"], "pressing it arms the pick")
+    status = client.call("get_status")["status"]["measure"]
+    check(status == "Pick the feature to ride on", f"and the status bar says so: {status!r}")
+
+    # A click on the ocean says why and leaves the pointer armed.
+    screen = client.call("latlon_to_screen", lat=PICK_EMPTY[0], lon=PICK_EMPTY[1])["screen"]
+    if not check(screen is not None, f"{PICK_EMPTY} is on screen"):
+        return
+    pixel = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+    if not check(dominant(pixel) == "", f"and nothing is drawn there: {pixel}"):
+        return
+    client.call("click", x=screen[0], y=screen[1])
+    status = client.call("get_status")["status"]["measure"]
+    check(coupling_row(client)["picking"] and status == "Click a feature to ride on it.",
+          f"a click on the ocean stays in the mode with the reason: {status!r}")
+
+    # And so does a click on the feature that is doing the riding.
+    own = world_centroid(client)
+    screen = client.call("latlon_to_screen", lat=own[0], lon=own[1])["screen"]
+    if not check(screen is not None, f"the feature itself is on screen at {own}"):
+        return
+    client.call("click", x=screen[0], y=screen[1])
+    status = client.call("get_status")["status"]["measure"]
+    check(coupling_row(client)["picking"] and status == "A feature cannot ride on itself.",
+          f"a click on the feature itself does too: {status!r}")
+
+    # A click on the green craton picks it, and nothing else moves.
+    planet = client.call("latlon_to_screen", lat=PICK_VIEW[0], lon=PICK_VIEW[1])["screen"]
+    screen = client.call("latlon_to_screen", lat=green[0], lon=green[1])["screen"]
+    if not check(screen is not None, f"the green craton is on screen at {green}"):
+        return
+    client.call("click", x=screen[0], y=screen[1])
+    row = coupling_row(client)
+    check(row["parent"] == "Green Moved" and not row["picking"],
+          f"a click on the green craton picks it and ends the mode: {row}")
+    check(client.call("get_selected")["feature"]["title"] == "Red Triangle",
+          "the selection is still the feature that asked for the parent")
+    check(client.call("get_tool")["tool"] == "move", "and the tool is still the Move tool")
+    check(client.call("latlon_to_screen", lat=PICK_VIEW[0], lon=PICK_VIEW[1])["screen"] == planet,
+          "and the planet did not move")
+
+    # Couple works on the picked parent the way it does on a listed one.
+    client.call("coupling", button="Couple")
+    spans = client.call("get_selected")["feature"]["couplings"]
+    check(spans == [{"from": COUPLED_AT, "to": 0.0, "parent": green_uuid}],
+          f"Couple then rides on what was clicked: {spans}")
+
+    # Escape puts the pointer away.
+    client.call("coupling", pick=True)
+    check(coupling_row(client)["picking"], "the pointer is armed again")
+    client.call("key", key="Escape")
+    row = coupling_row(client)
+    status = client.call("get_status")["status"]["measure"]
+    check(not row["picking"] and status != "Pick the feature to ride on",
+          f"and Escape ends it: {row['picking']}, {status!r}")
 
 
 # The cut in time, on a parent that turns over the whole timeline: the rider is

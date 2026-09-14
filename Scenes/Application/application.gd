@@ -230,6 +230,8 @@ func _ready() -> void:
 		features.reload()
 		refresh_colors())
 	properties.rejected.connect(_show_error)
+	properties.pick_parent_requested.connect(
+		func(on: bool) -> void: start_parent_pick() if on else end_parent_pick())
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
 	document.time_changed.connect(_on_time_changed)
@@ -1883,6 +1885,10 @@ var outline_vertices := PackedVector2Array()
 # Move tool is not here: selecting, dragging and the right click menu are the
 # view's own, and it leaves them alone while a tool owns the clicks.
 func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
+	# The pick mode takes the click ahead of every tool, whichever one is armed.
+	if picking_parent:
+		_on_pick_parent_input(lat, lon, event)
+		return
 	match active_tool:
 		Tool.DRAW:
 			_on_draw_input(lat, lon, event)
@@ -2048,6 +2054,12 @@ func _typing() -> bool:
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is not InputEventKey or not event.is_pressed():
+		return
+
+	# Escape ends the parent pick whatever the tool, since the mode is not one.
+	if picking_parent and event.keycode == KEY_ESCAPE:
+		end_parent_pick()
+		get_viewport().set_input_as_handled()
 		return
 
 	match active_tool:
@@ -2778,6 +2790,10 @@ func _show_measurement(error: String = "") -> void:
 		status_measure.text = error
 		return
 
+	if picking_parent:
+		status_measure.text = "Pick the feature to ride on"
+		return
+
 	if active_tool == Tool.TOPOLOGY:
 		var building := features.feature_tree.get_selected_node()
 		var count := 0 if building == null else building.sections.size()
@@ -2871,6 +2887,57 @@ func _ring_on_screen(feature: Feature, part: int) -> PackedVector2Array:
 		if screen != null:
 			points.append(screen)
 	return points
+
+
+### Picking the parent off the planet
+#
+# The pointer button on the Ride on row of the Properties panel arms a one shot
+# pick: the next left click on the planet names the feature under it in the
+# picker, and nothing else about the application changes. The selection stays
+# where it is and so does the tool, so the planet's own clicks are held back
+# with `tool_handles_clicks` and given back once the mode is over. A click that
+# picks nothing the picker offers says why and leaves the mode on, so a miss
+# costs one more click. See Docs/Properties.md#coupling.
+
+var picking_parent: bool = false
+
+
+func start_parent_pick() -> void:
+	if picking_parent:
+		return
+	picking_parent = true
+	planet_view.tool_handles_clicks = true
+	properties.show_picking(true)
+	_show_measurement()
+
+
+func end_parent_pick() -> void:
+	if not picking_parent:
+		return
+	picking_parent = false
+	# What _set_tool() would have left it as, rather than what it was when the
+	# mode started, so a tool picked while the pointer was armed still decides.
+	planet_view.tool_handles_clicks = active_tool != Tool.MOVE
+	properties.show_picking(false)
+	_show_measurement()
+
+
+func _on_pick_parent_input(lat: float, lon: float, event: InputEvent) -> void:
+	var button := event as InputEventMouseButton
+	if button == null or not button.is_pressed() or button.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var hit := Planet.hit_test(lat, lon, geometry)
+	if hit == null:
+		_report("Click a feature to ride on it.")
+		return
+	if hit.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		_report("A topology is not something to ride on.")
+		return
+	var problem := properties.pick_parent_uuid(hit.uuid)
+	if not problem.is_empty():
+		_report(problem)
+		return
+	end_parent_pick()
 
 
 ### Craton interaction
