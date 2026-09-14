@@ -563,9 +563,8 @@ func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 		return "Both features have to be in the document."
 	var current := Coupling.span_at(child, time)
 	if current != null:
-		var rides_on: Feature = nodes.get(current.parent)
 		return "%s already rides on %s at %s Ma; decouple it first." % [
-			child.title, rides_on.title if rides_on != null else "a missing feature", time]
+			child.title, Coupling.parents_label(nodes, current), time]
 	if Coupling.reaches(nodes, parent, child):
 		return "%s already rides on %s, so the chain would go round in a circle." % [
 			parent.title, child.title]

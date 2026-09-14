@@ -739,10 +739,9 @@ func _fill_coupling() -> void:
 	var root := spans.create_item()
 	for index in node.couplings.size():
 		var span: Coupling = node.couplings[index]
-		var parent: Feature = nodes.get(span.parent)
 		var item := spans.create_item(root)
 		item.set_metadata(0, index)
-		item.set_text(0, parent.title if parent != null else "(missing)")
+		item.set_text(0, Coupling.parents_label(nodes, span))
 		item.set_text(1, String.num(span.from))
 		item.set_text(2, String.num(span.to))
 		var problem := Coupling.parent_problem(nodes, node, span)
@@ -811,8 +810,7 @@ func _update_coupling() -> void:
 		coupled_label.text = "nothing"
 	else:
 		var nodes := Coupling.index(document.root)
-		var parent: Feature = nodes.get(span.parent)
-		coupled_label.text = parent.title if parent != null else "(missing)"
+		coupled_label.text = Coupling.parents_label(nodes, span)
 		var problem := Coupling.parent_problem(nodes, node, span)
 		if not problem.is_empty():
 			coupled_label.add_theme_color_override("font_color", BROKEN_SECTION_COLOR)
