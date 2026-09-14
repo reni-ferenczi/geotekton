@@ -2932,6 +2932,9 @@ func _on_pick_parent_input(lat: float, lon: float, event: InputEvent) -> void:
 	if hit == null:
 		_report("Click a feature to ride on it.")
 		return
+	if hit.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		_report("A topology is not something to ride on.")
+		return
 	var problem := properties.pick_parent_uuid(hit.uuid)
 	if not problem.is_empty():
 		_report(problem)

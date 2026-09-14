@@ -155,6 +155,13 @@ triangle leaves the span listed as broken and undo mends it. It then saves,
 loads, removes the span, and checks that undo, redo and undo give the spans
 back each time.
 
+The pick checks arm the pointer on the Ride on row and click the planet with
+it. A click on the ocean, shown to be empty by a pixel probe first, leaves the
+pointer armed with the reason in the status bar; a click on the green craton
+names it in the picker and puts the pointer away, with the selection, the tool
+and the globe where they were; `Couple` then rides on what was clicked; and
+Escape puts an armed pointer away too.
+
 Last it opens the sample again for the
 [cut in time](Time.md#a-coupling-edit-is-a-cut-in-time). The triangle is dragged
 at 1000 and at 0 Ma, so it turns the whole way through, and the quad is coupled

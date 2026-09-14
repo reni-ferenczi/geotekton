@@ -786,7 +786,9 @@ func pick_parent_uuid(uuid: String) -> String:
 			parent_selector.select(index)
 			_update_coupling()
 			return ""
-	return "The Ride on picker does not offer that feature."
+	if node != null and node.uuid == uuid:
+		return "A feature cannot ride on itself."
+	return "That feature is not one of the ones to ride on."
 
 
 # Whether the pick mode is on, which is what the button shows. The mode itself
