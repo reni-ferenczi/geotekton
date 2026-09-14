@@ -199,9 +199,11 @@ names the features its sections run along by it; see
 [Editing](Editing.md#line-topologies). A duplicate and a paste each get a fresh
 one, so no two nodes of a document share an id.
 
-`feature_type` is an id from the catalog in `Logic/feature_type.gd`, or empty
-for a feature holding nothing; see
-[Properties](Properties.md#the-type-catalog). `geometry_kind` is `"polygon"`,
+`feature_type` is an id from the catalog in `Logic/feature_type.gd`. A feature
+holding nothing carries the type it was given, which says what the tools will
+draw into it; empty is read as no type at all, which only a file written before
+0.3.0 holds. See [Properties](Properties.md#the-type-catalog).
+`geometry_kind` is `"polygon"`,
 `"polyline"`, `"multipoint"` or `"topology"`, and `rings`
 holds one array of `[latitude, longitude]` vertices per part. A ring is closed
 only for a polygon, and several rings on one polygon are separate outlines

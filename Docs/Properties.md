@@ -18,29 +18,34 @@ The kinds are written as the names the file uses, so the catalog needs nothing
 from `Feature` to be read and says the same words the `geometry_kind` field
 does.
 
-### The type follows the geometry
+### The type is picked before the shape
 
-A feature's type is what it holds. Committing the first shape sets it: a
-polygon makes a Polygon, a polyline a Line, a multipoint Points and the first
-section of a line topology a Topology. A feature holding nothing has no type,
-and the selector shows none. Emptying a feature takes its type away again, and
-the next shape committed decides it afresh.
+A new feature is a Polygon. The Type selector of the Properties panel is the one
+place the type is picked, and on a feature holding nothing it takes any of the
+five, because the type is what the tools then draw: Polygon a polygon, Line a
+polyline, Points a multipoint, Circle either of the first two through the
+[Circle tool](Editing.md#the-circle-tool) and Topology a boundary built with the
+[Topology tool](Editing.md#line-topologies).
 
-Circle is the one type someone chooses, because a circle is drawn as a polygon
-or a polyline. The [Circle tool](Editing.md#the-circle-tool) gives it on
-commit, and the selector turns a polygon or a polyline into a Circle and back.
+Once a feature holds a shape, its type has to hold that shape's kind. A polygon
+is a Polygon or a Circle, a polyline a Line or a Circle, a multipoint Points and
+a line topology a Topology; anything else is refused. A type the feature carries
+that does not hold its kind, or that the catalog does not know, gives way to the
+kind's own, so a hand-written file cannot make a polyline a Polygon.
 
 `Feature.feature_type` works this out every time it is read, through
-`FeatureType.resolve()`. A type the feature carries that does not hold its kind,
-or that the catalog does not know, gives way to the kind's own type, so a
-hand-written file cannot make a polyline a Polygon.
+`FeatureType.resolve()`. On a feature holding nothing the stored type is what
+comes back, so a Line stays a Line until something is drawn into it, and so it
+does through an undo that takes the geometry off again.
 
 ### What the type restricts
 
-- **Which type can be picked.** Only one that holds the kind the feature
-  already holds; anything else is refused, and so is every type on a feature
-  holding nothing yet. The Draw tool's kind selector offers every kind until
-  the first shape is committed.
+- **Which type can be picked.** Any of the five on a feature holding nothing;
+  once it holds a shape, only one that holds that kind.
+- **Which tool draws the feature.** Draw for a Polygon, a Line and Points,
+  Circle for a Circle and Topology for a Topology. The other two buttons are
+  greyed out, and picking a type arms the tool it calls for; see
+  [Tools](Editing.md#tools).
 - **The color.** A new feature starts in chocolate. Changing the type changes
   the color to the new type's default, but only while the color is still the
   one the old type gave. A color someone picked is never overwritten. Drawing
@@ -214,7 +219,7 @@ undo version:
 | `set_enabled`           | nothing                                            |
 | `set_color`             | nothing                                            |
 | `set_style`             | a leaf, which has no style                         |
-| `set_feature_type`      | an unknown type, one that does not hold the kind the feature holds, and any type on a feature holding nothing |
+| `set_feature_type`      | an unknown type, and one that does not hold the kind the feature holds |
 | `set_time_range`        | a range that ends older than it starts             |
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |

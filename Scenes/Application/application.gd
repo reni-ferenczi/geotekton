@@ -1654,12 +1654,13 @@ func _on_feature_selected(node: Feature) -> void:
 	_show_selection(node)
 
 	if is_leaf:
-		# A tool that cannot work on what is now selected gives way to Move,
-		# rather than staying armed and swallowing the clicks meant for the
-		# globe. Nothing selected is left alone: rebuilding the tree clears the
-		# selection for a moment before it puts it back.
+		# A tool that cannot work on what is now selected gives way to the one
+		# the feature's type is drawn with, or to Move, rather than staying
+		# armed and swallowing the clicks meant for the globe. Nothing selected
+		# is left alone: rebuilding the tree clears the selection for a moment
+		# before it puts it back.
 		if not _tool_fits(node):
-			set_active_tool(Tool.MOVE)
+			set_active_tool(_tool_for(node))
 		# On a feature with no geometry yet, arm the tool its type is drawn with.
 		elif not node.has_geometry() and _tool_for(node) != Tool.MOVE:
 			set_active_tool(_tool_for(node))

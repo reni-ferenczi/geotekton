@@ -28,7 +28,7 @@ const NONE_COLOR := Color.CHOCOLATE
 # Id to name, allowed geometry kinds and default colour, in the order the type
 # selector lists them.
 const CATALOG := {
-	POLYGON: {"name": "Polygon", "kinds": ["polygon"], "color": Color.CHOCOLATE},
+	"polygon": {"name": "Polygon", "kinds": ["polygon"], "color": Color.CHOCOLATE},
 	"line": {"name": "Line", "kinds": ["polyline"], "color": Color.CRIMSON},
 	"points": {"name": "Points", "kinds": ["multipoint"], "color": Color.GOLD},
 	CIRCLE: {"name": "Circle", "kinds": ["polygon", "polyline"], "color": Color.DARK_TURQUOISE},

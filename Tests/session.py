@@ -311,15 +311,25 @@ KIND_TYPES = {"polygon": "polygon", "polyline": "line", "multipoint": "points"}
 
 
 def run_drawing_session(client: AutomationClient) -> None:
-    """Draw one feature of each geometry kind and check what it stored."""
+    """Draw one feature of each geometry kind and check what it stored.
+
+    The kind comes from the feature's type, which is picked in the Properties
+    panel before anything is drawn.
+    """
     for kind, points in DRAWINGS.items():
         start_new_document(client)
         client.call("toolbar", button="AddFeature")
 
         tool = client.call("get_tool")
         check(tool["tool"] == "draw", f"the Draw tool arms itself on an empty feature ({kind})")
-        check(not tool["kind_locked"], f"the kind can still be chosen ({kind})")
-        client.call("set_tool", tool="draw", kind=kind)
+        check("kind" not in tool and "allowed_kinds" not in tool,
+              f"and the tool strip has no geometry kind box of its own ({kind})")
+        panel = client.call("get_properties")["properties"]
+        check(panel["feature_type"] == "polygon",
+              f"which a new feature is, before anything is drawn: {panel['feature_type']!r}")
+        client.call("set_property", field="feature_type", value=KIND_TYPES[kind])
+        check(client.call("get_tool")["tool"] == "draw",
+              f"the Draw tool draws all three of those types ({kind})")
 
         if not draw(client, points):
             continue
@@ -338,15 +348,13 @@ def run_drawing_session(client: AutomationClient) -> None:
                 check(offset < CLICK_TOLERANCE,
                       f"the stored vertices match the clicked points within "
                       f"{CLICK_TOLERANCE} degrees ({kind}): {offset:.6f}")
-        check(client.call("get_tool")["kind_locked"],
-              f"the kind is fixed once the feature holds geometry ({kind})")
-
-        # Undo takes the geometry off again, leaving the empty feature behind.
+        # Undo takes the geometry off again, leaving the empty feature behind
+        # with the type that was picked for it.
         client.call("toolbar", button="Undo")
         check(client.call("get_selected")["feature"]["rings"] == [],
               f"undo removes the committed geometry ({kind})")
-        check(client.call("get_properties")["properties"]["feature_type"] == "",
-              f"and with it the type ({kind})")
+        check(client.call("get_properties")["properties"]["feature_type"] == KIND_TYPES[kind],
+              f"and the feature keeps its type ({kind})")
 
 
 def run_point_undo_session(client: AutomationClient) -> None:
@@ -358,7 +366,7 @@ def run_point_undo_session(client: AutomationClient) -> None:
     """
     start_new_document(client)
     client.call("toolbar", button="AddFeature")
-    client.call("set_tool", tool="draw", kind="polygon")
+    client.call("set_tool", tool="draw")
     depth = client.call("get_document")["document"]["undo_depth"]
     points = DRAWINGS["polygon"]
     if not draw(client, points):
@@ -391,6 +399,11 @@ def run_point_undo_session(client: AutomationClient) -> None:
     for tool, field in (("circle", "circle_points"), ("measure", "measure_points")):
         # Redo put the feature back but not the selection.
         client.call("select", title="Feature")
+        if tool == "circle":
+            # The Circle tool is offered on a Circle, and a polygon may be one.
+            # Picking the type is an edit, so the stack is read again after it.
+            client.call("set_property", field="feature_type", value="circle")
+            depth = undo_depth(client)
         client.call("set_tool", tool=tool)
         if not draw(client, points[:2]):
             continue
@@ -409,7 +422,7 @@ def run_escape_session(client: AutomationClient) -> None:
     """Escape throws the shape being drawn away without touching the feature."""
     start_new_document(client)
     client.call("toolbar", button="AddFeature")
-    client.call("set_tool", tool="draw", kind="polygon")
+    client.call("set_tool", tool="draw")
     if not draw(client, DRAWINGS["polygon"]):
         return
     check(client.call("get_tool")["drawing_vertices"] == 3, "three vertices are placed")
@@ -616,19 +629,22 @@ def run_properties_session(client: AutomationClient) -> None:
     check((panel["time_from"], panel["time_to"]) == (1500, 0),
           f"which the panel reads as From 1500 To 0: {panel['time_from']}, {panel['time_to']}")
 
-    # It holds nothing, so it shows no type, may be drawn in any kind and
-    # refuses a type until the first shape gives it one.
-    check(panel["feature_type"] == "" and panel["type_label"] == "",
-          f"a feature holding nothing shows no type: {panel['type_label']!r}")
-    check(sorted(client.call("get_tool")["allowed_kinds"])
-          == ["multipoint", "polygon", "polyline"],
-          "and may be drawn in any kind")
+    # It is a Polygon before anything is drawn into it, and the type is free to
+    # change until a shape has to hold it.
+    check(panel["feature_type"] == "polygon" and panel["type_label"] == "Polygon",
+          f"a new feature is a Polygon: {panel['type_label']!r}")
     client.call("set_property", field="feature_type", value="line")
-    dialog = client.call("get_dialog")["dialog"]
-    if check(dialog is not None, "a type is refused before there is a shape"):
-        client.call("dialog", button="OK")
-    check(client.call("get_properties")["properties"]["feature_type"] == "",
-          "and the selector shows none again")
+    check(client.call("get_dialog")["dialog"] is None,
+          "a type on a feature holding nothing is accepted")
+    check(client.call("get_selected")["feature"]["feature_type"] == "line",
+          "and the empty feature keeps it")
+    check(client.call("get_tool")["draw_enabled"],
+          "the Draw tool draws a Line as a polyline")
+    client.call("set_property", field="feature_type", value="topology")
+    tool = client.call("get_tool")
+    check(tool["topology_enabled"] and not tool["draw_enabled"],
+          "a Topology is built with the Topology tool instead")
+    client.call("set_property", field="feature_type", value="polygon")
 
 
 def run_keyframe_row_session(client: AutomationClient) -> None:
@@ -1092,7 +1108,7 @@ def run_time_session(client: AutomationClient) -> None:
     """Move a feature at two times and read it back between them."""
     start_new_document(client)
     client.call("toolbar", button="AddFeature")
-    client.call("set_tool", tool="draw", kind="polygon")
+    client.call("set_tool", tool="draw")
     if not draw(client, TIME_TRIANGLE):
         return
     client.call("key", key="Enter")
@@ -1303,7 +1319,12 @@ CIRCLE_TOLERANCE = 0.5
 
 
 def build_circle(client: AutomationClient, kind: str, points: list[tuple[float, float]]) -> dict:
-    """Start a document, click the points with the Circle tool and commit."""
+    """Start a document, click the points with the Circle tool and commit.
+
+    The Circle tool is offered on a Circle, which is picked in the Properties
+    panel; the Outline switch beside the segment box says whether the circle is
+    committed as a polygon or as a polyline.
+    """
     start_new_document(client)
     # The segment count is set while its box is hidden, so the Circle tool has to
     # pick up a value typed in another tool.
@@ -1315,11 +1336,15 @@ def build_circle(client: AutomationClient, kind: str, points: list[tuple[float, 
     # splitter would give way and the planet would jump sideways under the pointer.
     before = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
     client.call("toolbar", button="AddFeature")
-    client.call("set_tool", tool="draw", kind=kind)
-    client.call("set_tool", tool="circle")
+    check(not client.call("get_tool")["circle_enabled"],
+          f"the Circle tool waits for a Circle ({kind})")
+    client.call("set_property", field="feature_type", value="circle")
     tool = client.call("get_tool")
-    check(tool["tool"] == "circle", f"the Circle tool is armed ({kind})")
-    check(tool["segments_visible"], f"and shows the Segments box ({kind})")
+    check(tool["tool"] == "circle", f"picking the type arms the Circle tool ({kind})")
+    check(not tool["draw_enabled"], f"and takes the Draw tool away ({kind})")
+    client.call("set_tool", tool="circle", outline=kind == "polyline")
+    tool = client.call("get_tool")
+    check(tool["segments_visible"], f"which shows the Segments box ({kind})")
     after = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
     check(after == before, f"without moving the planet: {before} then {after}")
     if not draw(client, points):
@@ -1363,6 +1388,8 @@ def run_circle_session(client: AutomationClient) -> None:
         if check(len(feature["rings"]) == 1, "the polyline circle is committed as one part"):
             check(len(feature["rings"][0]) == CIRCLE_SEGMENTS + 1,
                   f"and holds a vertex more than it has segments: {len(feature['rings'][0])}")
+        check(feature["geometry_kind"] == "polyline",
+              f"Outline commits the circle as a polyline: {feature['geometry_kind']}")
         check(feature["feature_type"] == "circle", "a polyline circle is a Circle too")
 
     # Three points on the rim describe the same circle, without its centre ever
@@ -1411,7 +1438,8 @@ def add_polyline(client: AutomationClient, name: str,
     """Add a named feature and draw one polyline on it."""
     client.call("toolbar", button="AddFeature")
     client.call("set_property", field="name", value=name)
-    client.call("set_tool", tool="draw", kind="polyline")
+    client.call("set_property", field="feature_type", value="line")
+    client.call("set_tool", tool="draw")
     if not draw(client, points):
         return False
     client.call("key", key="Enter")
@@ -1438,8 +1466,9 @@ def run_topology_session(client: AutomationClient) -> None:
     # A third feature, holding nothing, becomes the topology.
     client.call("toolbar", button="AddFeature")
     client.call("set_property", field="name", value="Boundary")
-    client.call("set_tool", tool="topology")
-    check(client.call("get_tool")["tool"] == "topology", "the Topology tool is armed")
+    client.call("set_property", field="feature_type", value="topology")
+    check(client.call("get_tool")["tool"] == "topology",
+          "picking the Topology type arms the Topology tool")
 
     if not click_at(client, WEST_CLICK) or not click_at(client, EAST_CLICK):
         return
@@ -1834,7 +1863,7 @@ def run_vertex_session(client: AutomationClient) -> None:
     """
     start_new_document(client)
     client.call("toolbar", button="AddFeature")
-    client.call("set_tool", tool="draw", kind="polygon")
+    client.call("set_tool", tool="draw")
     if not draw(client, VERTEX_POLYGON):
         return
     client.call("key", key="Enter")
@@ -1949,14 +1978,14 @@ def run_snap_session(client: AutomationClient) -> None:
     """A dragged vertex jumps onto a vertex of another feature."""
     start_new_document(client)
     client.call("toolbar", button="AddFeature")
-    client.call("set_tool", tool="draw", kind="polygon")
+    client.call("set_tool", tool="draw")
     if not draw(client, VERTEX_POLYGON):
         return
     client.call("key", key="Enter")
     client.call("set_property", field="name", value="Anchor")
 
     client.call("toolbar", button="AddFeature")
-    client.call("set_tool", tool="draw", kind="polygon")
+    client.call("set_tool", tool="draw")
     if not draw(client, SNAP_POLYGON):
         return
     client.call("key", key="Enter")
@@ -2073,7 +2102,7 @@ def run_split_session(client: AutomationClient) -> None:
     """Cutting a polygon in two, with both halves keeping what they were."""
     start_new_document(client)
     client.call("toolbar", button="AddFeature")
-    client.call("set_tool", tool="draw", kind="polygon")
+    client.call("set_tool", tool="draw")
     if not draw(client, SPLIT_POLYGON):
         return
     client.call("key", key="Enter")
