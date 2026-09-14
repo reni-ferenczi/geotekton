@@ -313,6 +313,12 @@ they work wherever the focus is, and a text field still keeps Ctrl+C and Ctrl+V
 for its own text, because a focused control is offered a key before a menu
 accelerator is.
 
+**Copy Shape** (`Ctrl+Shift+C`) and **Paste Shape** (`Ctrl+Shift+V`) are on the
+same menu, under a separator of their own. They carry the vertices of one
+feature into another rather than the feature itself, and the paste leaves the
+Vertex tool armed on what it added; see
+[Editing](Editing.md#copying-a-shape).
+
 A right click on the globe or the map selects whatever is under the pointer and
 offers Duplicate and Delete on it. Only in the Move tool: in the Draw tool a
 right click takes the last placed vertex back, and in the Measure tool it takes

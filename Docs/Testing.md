@@ -253,6 +253,16 @@ the craton along three points. It checks one undo version, two features holding
 the original vertices once and the cut twice, a blue pixel inside each half,
 and that undo brings back the one outline.
 
+`run_copy_shape_session` copies the shape of `Blue Quad` on the two cratons
+sample and pastes it into a feature added for it. It checks that Copy Shape
+records nothing and says what it took, that the paste records one version, arms
+the Vertex tool and lands the same number of vertices on the same world points
+the original holds, that a second paste appends a second part and two undos
+leave the feature as empty as the paste found it, and that the copy, given a
+colour of its own and probed with the original switched off, paints the middle
+of the quad. A Line feature already holding a polyline then refuses the polygon
+shape, with the reason in the status bar and nothing recorded.
+
 The Python scenarios run last against the interpreter the application started.
 `run_python_session` builds a feature and two keyframes entirely from the
 console and then asks the port what the document holds, so the check is the
@@ -492,7 +502,7 @@ a round trip is also a wait for the screen to catch up.
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
-| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, `skip_older`, `skip_younger`, `keyframe_older`, `keyframe_younger`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
+| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, `skip_older`, `skip_younger`, `keyframe_older`, `keyframe_younger`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |

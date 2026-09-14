@@ -176,6 +176,38 @@ fall under the minimum its kind needs — three for a polygon, two for a polylin
 one for a multipoint — and the status bar says so. On the globe the alternative
 is a triangle disappearing under a single key press.
 
+### Copying a shape
+
+**Edit > Copy Shape** (`Ctrl+Shift+C`) takes the vertices of the selected
+feature, every part of it, and holds on to them. **Edit > Paste Shape**
+(`Ctrl+Shift+V`) adds them to whatever feature is selected then and arms the
+Vertex tool on it, so the copy can be dragged into shape straight away. A paste
+is one undo version.
+
+The shape travels in world coordinates at the time it was copied and is put into
+the frame the receiving feature has at the time it is pasted, so it lands where
+it was seen whatever either of the two has been turned by; see
+[Editing a feature that has moved](#editing-a-feature-that-has-moved).
+
+A feature holding nothing takes the kind that came with the shape, and its type
+follows the kind: a polygon pasted into a new feature makes it a Polygon. A
+feature already holding another kind refuses it, with the reason in the status
+bar, since the parts of one feature are all of one kind. Pasting into a feature
+that holds the same kind appends another part, so the same shape can be laid
+down twice and the second copy moved off the first.
+
+A [line topology](#line-topologies) has no vertices of its own, but Copy Shape
+takes what its sections resolve to at the current time, one run per section.
+That is the way to turn a boundary into a polyline someone can edit.
+
+The shape is held by the application rather than by the system clipboard, which
+Copy and Paste use for whole features. Copying a shape therefore leaves the
+clipboard alone, and a shape outlives the document it came from.
+
+The feature tree selects one feature at a time. To gather the shapes of several
+features into one, copy and paste them one after another: each paste appends a
+part.
+
 ## Snapping
 
 The **Snap** button in the toolbar decides whether a dragged vertex jumps onto a
