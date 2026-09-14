@@ -94,6 +94,24 @@ A span that runs to the present holds the present too.
 The parent may itself ride on another feature, and the chain is followed to its
 end.
 
+### Riding on two parents
+
+A span may name a second parent, `parent_b`. The frame it then puts its rider in
+is midway between the two: the slerp of the parents' world rotations at one
+half, which is the half stage rotation GPlates reconstructs a mid ocean ridge
+by. The rider keeps its place between the two however far they diverge, and
+turns by half of whatever either one of them does.
+
+The [ridge](Editing.md#the-ridge) the Split tool leaves along a cut is the one
+thing that makes such a span. The Ride on picker builds single parent spans, so
+a second parent arrives only from a split or from a file. Everything else about
+the span is the same: the relative keyframe at its start, the blending between
+keyframes, the cycle check, and the chain being followed through both parents.
+A parent that cannot be followed counts as not turning, as it does on a single
+parent span, so losing one half leaves the ridge halfway to where the other half
+stands. The Properties panel writes both names in the Coupled to row and in the
+spans list, `Laurentia and Laurentia 2, midway`.
+
 ### Coupling and decoupling
 
 Both act at the current time, from the Properties panel's
@@ -179,7 +197,8 @@ the rider's relative keyframes read as world rotations.
 Both halves of a [split](Editing.md#splitting) keep the couplings of the
 feature they came from, so both go on riding on the same parent. A feature
 that rode on the one split rides on the first half, which keeps the original's
-uuid.
+uuid. The [ridge](Editing.md#the-ridge) a split leaves rides on both halves at
+once; see [Riding on two parents](#riding-on-two-parents).
 
 ### Precision
 

@@ -32,6 +32,9 @@ number:
 - **Outline** — Whether the Circle tool commits a polyline rather than a
   polygon. Shown beside the segment box, and remembered between sessions; see
   [What it commits](#what-it-commits).
+- **Ridge** — Whether the Split tool leaves a line along the cut. Shown only
+  while that tool is active, on to start with, and remembered between sessions;
+  see [The ridge](#the-ridge).
 
 Which of Draw, Circle and Topology is offered follows the selected feature's
 [type](Properties.md#what-the-type-restricts), which is picked in the Properties
@@ -342,7 +345,33 @@ A cut is refused, with the reason in the status bar, when:
 
 A refused cut keeps its points, so the one at fault can be taken back with
 Ctrl+Z. A cut that is made records one undo version and goes back to the Move
-tool, with the first half selected.
+tool, with the first half selected. The status bar names what the cut left
+behind, `Split into Laurentia, Laurentia 2, Laurentia ridge`.
+
+### The ridge
+
+With the **Ridge** switch on, which is how it starts, the cut also leaves a
+line where the two halves parted, the rift or mid ocean ridge that opens between
+two continents as they drift apart. It is a Line feature named after the
+polygon, `Laurentia ridge`, placed after the second half, holding the shared cut
+as its one part: the two ends where they landed on the boundary and every point
+clicked between them.
+
+The ridge rides on both halves at once, over a span from the age the cut was
+made at to the present, and its frame is theirs at one half. That is the half
+stage rotation GPlates reconstructs a ridge by, so the line stays midway between
+the two halves as they diverge and turns by half of whatever either one does.
+See [Riding on two parents](Time.md#riding-on-two-parents). Both halves have the
+polygon's own pose at the moment of the cut, so the ridge starts out lying
+exactly on it. Its time range runs from that age to the present, since it did
+not exist before the continent broke.
+
+The ridge is part of the split's one undo version, so undo takes all three
+features away together. Deleting a half afterwards leaves the span with a parent
+that cannot be followed, drawn in the warning color like a missing parent
+anywhere else, and undo mends it.
+
+With the switch off the cut leaves the two halves and nothing else.
 
 The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
 operation with no points between the ends, and `GeometryEdit` works both out
