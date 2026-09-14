@@ -16,8 +16,9 @@ extends RefCounted
 # Three colours stand outside either: below everything the palette covers, above
 # it, and for a value it says nothing about. See Docs/Styling.md.
 
-# The palettes the chooser offers without a file. Each is written in the same
-# format a file is and read by the same parser, so there is one way in.
+# The tables the chooser offers without a file, beside the custom ramp below.
+# Each is written in the same format a file is and read by the same parser, so
+# there is one way in.
 const BUILT_IN := {
 	"rainbow": {
 		"name": "Rainbow",

@@ -68,7 +68,7 @@ follows the feature tree selection, through
 | Style      | Selector           | only       |
 | Colour     | Colour picker, opacity | yes    |
 | Palette    | Selector           | only       |
-| Ramp       | Two colour pickers, span | only |
+| Ramp       | Colour pickers, +, −, span | only |
 | Enabled    | Switch             | yes        |
 | From (Ma)  | Number             | no         |
 | To (Ma)    | Number             | no         |
