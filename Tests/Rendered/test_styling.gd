@@ -59,6 +59,9 @@ func test_the_feature_age_style_paints_the_palette_at_each_age() -> void:
 	var ages := {POLYGON: 100, POLYLINE: 300, POINT: 900}
 	for at in ages:
 		_feature_at(at).time_range = Vector2i(0, int(ages[at]))
+	# A document opens at the oldest age the animation covers, which is older
+	# than any of the three. Each is as old as its range at the present.
+	app.document.set_time(0.0)
 	app.refresh_geometry()
 	for at in ages:
 		await _check(at, palette.color_at(float(ages[at])), "%s Ma old" % ages[at])

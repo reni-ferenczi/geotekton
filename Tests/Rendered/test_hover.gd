@@ -51,6 +51,9 @@ func test_the_time_moving_a_feature_off_the_pointer_ends_the_hover() -> void:
 		Keyframe.create(THEN, Vector3(-60, 0, 0)),
 	]
 	green.keyframes = keyframes
+	# A document opens at the oldest age the animation covers, and the probe
+	# point the README documents is where the feature stands at NOW.
+	app.document.set_time(NOW)
 	app.refresh_geometry()
 	await frames(2)
 
