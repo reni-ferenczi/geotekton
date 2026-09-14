@@ -1655,14 +1655,12 @@ func _on_feature_selected(node: Feature) -> void:
 
 	if is_leaf:
 		# A tool that cannot work on what is now selected gives way to the one
-		# the feature's type is drawn with, or to Move, rather than staying
-		# armed and swallowing the clicks meant for the globe. Nothing selected
-		# is left alone: rebuilding the tree clears the selection for a moment
-		# before it puts it back.
-		if not _tool_fits(node):
-			set_active_tool(_tool_for(node))
-		# On a feature with no geometry yet, arm the tool its type is drawn with.
-		elif not node.has_geometry() and _tool_for(node) != Tool.MOVE:
+		# the feature's type is drawn with, rather than staying armed and
+		# swallowing the clicks meant for the globe; and a feature holding
+		# nothing yet arms that tool whatever was armed before, so drawing can
+		# start straight away. Nothing selected is left alone: rebuilding the
+		# tree clears the selection for a moment before it puts it back.
+		if not _tool_fits(node) or _tool_for(node) != Tool.MOVE:
 			set_active_tool(_tool_for(node))
 	else:
 		# Can't draw or build a topology on groups or nothing — force Move
@@ -1789,23 +1787,23 @@ func _on_outline_toggled(enabled: bool) -> void:
 # is left the three types clicked out vertex by vertex. A feature carrying no
 # type at all, which only a file written before 0.3.0 holds, is drawn like a
 # Polygon.
-const DRAW_TYPES := [FeatureType.NONE, FeatureType.POLYGON, "line", "points"]
+const DRAW_TYPES := [FeatureType.NONE, "polygon", "line", "points"]
 
 
-func _type_of(node: Feature, types: Array) -> bool:
+func _has_type(node: Feature, types: Array) -> bool:
 	return node != null and not node.is_group and node.feature_type in types
 
 
 func _can_build_topology(node: Feature) -> bool:
-	return _type_of(node, ["topology"])
+	return _has_type(node, ["topology"])
 
 
 func _can_draw(node: Feature) -> bool:
-	return _type_of(node, DRAW_TYPES)
+	return _has_type(node, DRAW_TYPES)
 
 
 func _can_draw_circle(node: Feature) -> bool:
-	return _type_of(node, [FeatureType.CIRCLE])
+	return _has_type(node, [FeatureType.CIRCLE])
 
 
 # The tool the feature's type calls for, or Move when nothing draws it: a
