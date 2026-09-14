@@ -20,6 +20,8 @@
 [ext_resource type="Texture2D" uid="uid://clt0hnssu7kmd" path="res://Assets/GodotIcons/RotateRight.svg" id="18_rotateright"]
 [ext_resource type="Texture2D" uid="uid://bu7s3wqnnfknb" path="res://Assets/GodotIcons/Reload.svg" id="19_reload"]
 [ext_resource type="Texture2D" uid="uid://pd4kwykj2jsn" path="res://Assets/GodotIcons/DirectionalLight3D.svg" id="20_toollight"]
+[ext_resource type="Texture2D" uid="uid://csahgmxw80sow" path="res://Assets/GodotIcons/ToolRotate.svg" id="23_toolrotate"]
+[ext_resource type="Texture2D" uid="uid://bsc43ulc3g5q7" path="res://Assets/GodotIcons/EditorPivot.svg" id="24_toolpole"]
 [ext_resource type="Script" uid="uid://slxddfcw6y2" path="res://Scenes/Application/kinematics_panel.gd" id="21_kinematics"]
 [ext_resource type="Script" uid="uid://duylqjxos6ufm" path="res://Scenes/Application/console_panel.gd" id="22_console"]
 
@@ -73,22 +75,43 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 [node name="Tools" type="HBoxContainer" parent="LeftSplitter/RightSplitter/Center/PanelContainer"]
 layout_mode = 2
 size_flags_vertical = 0
+theme_override_constants/separation = 2
 
 [node name="Move" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Move"
+tooltip_text = "Move [M]"
 toggle_mode = true
 button_pressed = true
 icon = ExtResource("6_toolmove")
+expand_icon = true
+
+[node name="Rotate" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Turn the selected feature about its own middle [R]"
+disabled = true
+toggle_mode = true
+icon = ExtResource("23_toolrotate")
+expand_icon = true
+
+[node name="Pole" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+tooltip_text = "Turn the selected feature about a pole placed with a click [P]"
+disabled = true
+toggle_mode = true
+icon = ExtResource("24_toolpole")
 expand_icon = true
 
 [node name="Draw" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Draw"
+tooltip_text = "Draw [D]"
 disabled = true
 toggle_mode = true
 icon = ExtResource("7_tooldraw")
@@ -98,7 +121,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Edit the vertices of the selected feature"
+tooltip_text = "Edit the vertices of the selected feature [V]"
 disabled = true
 toggle_mode = true
 icon = ExtResource("8_toolvertex")
@@ -108,7 +131,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Measure distances on the planet"
+tooltip_text = "Measure distances on the planet [E]"
 toggle_mode = true
 icon = ExtResource("9_toolmeasure")
 expand_icon = true
@@ -117,7 +140,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Draw a circle by its centre or through three points"
+tooltip_text = "Draw a circle by its centre or through three points [C]"
 disabled = true
 toggle_mode = true
 icon = ExtResource("12_toolcircle")
@@ -127,7 +150,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Build a line topology by clicking the features it runs along"
+tooltip_text = "Build a line topology by clicking the features it runs along [T]"
 disabled = true
 toggle_mode = true
 icon = ExtResource("13_tooltopology")
@@ -137,7 +160,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Drag the light around the globe"
+tooltip_text = "Drag the light around the globe [L]"
 toggle_mode = true
 icon = ExtResource("20_toollight")
 expand_icon = true
@@ -156,7 +179,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Split the selected polygon along a line drawn across it"
+tooltip_text = "Split the selected polygon along a line drawn across it [X]"
 disabled = true
 toggle_mode = true
 icon = ExtResource("11_toolsplit")

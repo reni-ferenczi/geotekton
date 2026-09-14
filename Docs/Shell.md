@@ -93,9 +93,14 @@ tree toolbar as well, and Duplicate and Delete are also on a right click on the
 globe; see [Properties](Properties.md#edit-commands). The toolbar also has Save
 and Load buttons, which run the File > Save and File > Open commands.
 
-**Space** is the one shortcut that is not a menu item. It starts the animation
-and stops it again, from anywhere but a text field, which takes it as the
-character it is; see [Time](Time.md#the-time-control).
+**Space** and the tool letters are the shortcuts that are not menu items. Space
+starts the animation and stops it again; see
+[Time](Time.md#the-time-control). A letter picks a tool, `M` for Move, `R` for
+Rotate and so on, as listed in
+[Editing](Editing.md#the-tool-keys). All of them are read from anywhere but a
+text field, which takes the key as the character it is, and all of them are
+single keys: every menu accelerator carries Ctrl or is a key of its own, so
+none of them collide.
 
 ## Full screen
 

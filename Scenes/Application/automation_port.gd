@@ -9,6 +9,8 @@ class_name AutomationPort
 # The tool names a scripted run uses, matching the toolbar buttons.
 const TOOL_NAMES := {
 	Application.Tool.MOVE: "move",
+	Application.Tool.ROTATE: "rotate",
+	Application.Tool.POLE: "pole",
 	Application.Tool.DRAW: "draw",
 	Application.Tool.VERTEX: "vertex",
 	Application.Tool.MEASURE: "measure",
@@ -544,6 +546,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"tool": TOOL_NAMES[app.active_tool],
 				"drawing_vertices": app.outline_vertices.size(),
 				"vertex_enabled": not app.vertex_button.disabled,
+				"pole": null if app.pole_at == Application.NO_POLE
+					else [app.pole_at.x, app.pole_at.y],
 				"snapping": app.snapping(),
 				"selected_vertex": _vertex_to_json(app.selected_vertex),
 				"hovered_vertex": _vertex_to_json(app.hovered_vertex),
@@ -579,6 +583,12 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				app.set_active_tool(Application.Tool.VERTEX)
 			elif tool_name == "measure":
 				app.set_active_tool(Application.Tool.MEASURE)
+			elif tool_name == "rotate" or tool_name == "pole":
+				if app.rotate_button.disabled:
+					return {"ok": false, "error":
+						"turning a feature needs one holding vertices of its own"}
+				app.set_active_tool(Application.Tool.ROTATE if tool_name == "rotate"
+					else Application.Tool.POLE)
 			elif tool_name == "circle":
 				if app.circle_button.disabled:
 					return {"ok": false, "error": "the Circle tool needs a feature selected"}

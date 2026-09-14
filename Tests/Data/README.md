@@ -184,6 +184,14 @@ it craton-like, not the colour.
 | (13, 6)    | Old Shield       | inside the neck                 |
 | (2, 19)    | nothing          | the mouth of the bay            |
 | (-3, -37)  | nothing          | well clear to the west          |
+| (-15.64, -19.48) | Old Shield | out towards the southwest rim, 30° from the middle |
+
+The middle of the outline, which is what the
+[Rotate tool](../../Docs/Editing.md#turning-a-feature) turns it about, is at
+(3.05, 4.68). The southwest probe is far enough out that a quarter turn about
+that middle carries the outline off it: it lies 3.7° inside the outline before
+the turn and 4.1° outside it after, which is what `run_rotate_session` reads off
+the pixel there.
 
 ### motion.middle-earth (0.7.0)
 

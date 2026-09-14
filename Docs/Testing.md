@@ -263,6 +263,20 @@ colour of its own and probed with the original switched off, paints the middle
 of the quad. A Line feature already holding a polyline then refuses the polygon
 shape, with the reason in the status bar and nothing recorded.
 
+`run_rotate_session` turns the sample craton, first about its own middle and
+then about a pole. `R` picks the Rotate tool and a drag from a point out towards
+the rim turns the craton a quarter of the way about its middle: the status bar
+says so, one version is recorded, one keyframe is written, the middle is where
+it was to within half a degree, the pixel there is still the craton's blue and
+the pixel out towards the rim is not. Undo puts the craton back over that point.
+`P` then picks the Pole tool, a click west of the craton places the pole, and a
+drag turns the craton about it; where the middle lands is held against the place
+the same turn about the same pole gives it, worked out in the test, and probed
+on the globe. Escape takes the pole away. Last it presses each tool key in turn,
+checks that the key of a tool the toolbar greys out does nothing, and types
+three of those letters into the name field, which takes them as characters and
+leaves the tool alone.
+
 The Python scenarios run last against the interpreter the application started.
 `run_python_session` builds a feature and two keyframes entirely from the
 console and then asks the port what the document holds, so the check is the
@@ -475,8 +489,8 @@ a round trip is also a wait for the screen to catch up.
 | `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
 | `coupling {button, parent, index, pick}` | presses `Couple` with the `parent` picked by title, `Decouple`, both at the current time, or `Remove` on the span at `index` in the panel's list. `pick: true` arms the pointer instead, so the next `click` on the planet names the parent, and `pick: false` puts it away |
 | `sections {button, index}`            | selects a section row of a line topology and presses `Reverse` or `Remove` in the panel |
-| `get_tool`                           | `tool` (`move`, `draw`, `vertex`, `measure` or `circle`), how many vertices the shape being drawn holds, which of the three drawing tools the selected feature's type offers (`draw_enabled`, `circle_enabled`, `topology_enabled`), the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split` (whether its `S` would split now), whether the Split tool is offered (`split_enabled`) and its `split_points`, the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`), its `outline` switch and the `circle` its clicks describe |
-| `set_tool {tool, snap, segments, outline}` | picks the tool (`move`, `draw`, `vertex`, `measure`, `circle`, `topology`, `light` or `split`), the snap switch, the segment count and the Circle tool's Outline switch, refusing what the toolbar itself would not allow. Which kind the Draw and Circle tools produce comes from the feature's type, which `set_property` sets |
+| `get_tool`                           | `tool` (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure` or `circle`), the Pole tool's `pole` as `[lat, lon]` or null, how many vertices the shape being drawn holds, which of the three drawing tools the selected feature's type offers (`draw_enabled`, `circle_enabled`, `topology_enabled`), the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split` (whether its `S` would split now), whether the Split tool is offered (`split_enabled`) and its `split_points`, the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`), its `outline` switch and the `circle` its clicks describe |
+| `set_tool {tool, snap, segments, outline}` | picks the tool (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `circle`, `topology`, `light` or `split`), the snap switch, the segment count and the Circle tool's Outline switch, refusing what the toolbar itself would not allow. Which kind the Draw and Circle tools produce comes from the feature's type, which `set_property` sets |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
 | `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed. `get_preferences` also reports the `default_view`, the `view_defaults` and the `style_defaults` a new document starts from |

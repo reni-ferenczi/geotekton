@@ -2,10 +2,15 @@
 
 ## Tools
 
-The toolbar contains eight mutually exclusive tool buttons, two switches and a
+The toolbar contains ten mutually exclusive tool buttons, two switches and a
 number:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
+- **Rotate** — Turns the selected feature about its own middle; see
+  [Turning a feature](#turning-a-feature). Needs a leaf feature holding vertices
+  of its own, as the Vertex tool does.
+- **Pole** — Turns the selected feature about a pole placed with a click; see
+  [Turning a feature](#turning-a-feature).
 - **Draw** — Enables drawing on the globe surface. See `Docs/Draw.md` for full details.
   Offered on a Polygon, a Line and Points.
 - **Vertex** — Edits the vertices of the selected feature. Needs a leaf feature
@@ -18,8 +23,8 @@ number:
   [Line topologies](#line-topologies). Offered on a Topology.
 - **Light** — Drags the light around the globe; see
   [The Light tool](#the-light-tool). Offered on the globe alone.
-- **Snap** — Whether a dragged vertex jumps onto a nearby one. Only the Vertex
-  tool uses it; see [Snapping](#snapping).
+- **Snap** — Whether a dragged vertex, or a pole being placed, jumps onto a
+  nearby vertex. The Vertex and Pole tools use it; see [Snapping](#snapping).
 - **Split** — Cuts the selected polygon in two along a line drawn across it;
   see [The Split tool](#the-split-tool). Offered while a polygon is selected.
 - **Circle segments** — Shown only while the Circle tool is active; see
@@ -34,11 +39,32 @@ panel and is the one place it is picked. Picking a type on a feature holding
 nothing arms the tool that draws it, so a new feature can be drawn straight
 away.
 
-Only one of Move, Draw, Vertex, Measure, Circle, Topology, Light and Split is
-active at a time. Everything but
+Only one of Move, Rotate, Pole, Draw, Vertex, Measure, Circle, Topology, Light
+and Split is active at a time. Everything but
 Move takes the clicks on the planet for itself, so selecting a feature, moving
 one and the right click menu wait until Move comes back. Rotating the globe with
 the middle button always works.
+
+### The tool keys
+
+Each tool has a letter of its own, pressed without a modifier, which is what the
+tooltip ends with. The letters are GPlates' where GPlates has one for the same
+tool:
+
+| Key | Tool     | Key | Tool     |
+| --- | -------- | --- | -------- |
+| M   | Move     | C   | Circle   |
+| R   | Rotate   | T   | Topology |
+| P   | Pole     | L   | Light    |
+| D   | Draw     | X   | Split    |
+| V   | Vertex   |     |          |
+| E   | Measure  |     |          |
+
+A key of a tool the toolbar greys out for what is selected does nothing. A text
+field with the keyboard takes the letter as the character it is, so typing a
+name never picks a tool; the same rule covers Space, which plays and pauses the
+animation. See [Shell](Shell.md#menus). The Vertex tool's own **S** and
+**Shift+S** are read while that tool is armed and are not tool keys.
 
 Undo and redo leave the active tool alone: they put another version of the same
 document in place, which is no reason to take a tool out of someone's hand mid
@@ -114,6 +140,44 @@ time, so moving at two times is what makes something move at all — see
 ### Auto-select After Drawing
 
 After committing a shape (pressing Enter in the Draw tool), the Move tool is automatically selected. This prevents accidentally drawing a second shape on the same feature.
+
+## Turning a feature
+
+The Move tool carries a feature along a great circle: the point that was grabbed
+follows the pointer and the feature keeps facing the way it did. Turning one in
+place is a different rotation, and two tools do it.
+
+- The **Rotate** tool turns the selected feature about its own middle, the axis
+  through the sum of its world vertices.
+- The **Pole** tool turns it about a pole placed with a click, which is how a
+  plate is turned about a rotation pole somewhere else on the planet.
+
+Both need a leaf feature holding vertices of its own, so a group, a topology and
+a feature holding nothing are refused the way the Move tool is disabled for
+them. Both write the keyframe at the current time as the drag goes and record
+one undo version on the release, exactly as a move does; a release off the
+planet puts the keyframe list back. A feature that
+[rides on another](Time.md#coupling) is turned in world space and its keyframe
+is written in the frame in effect at the time. The status bar says how far the
+drag has turned it.
+
+| Input | Action |
+|-------|--------|
+| **LMB drag** on the planet | Turn the feature to follow the pointer |
+| **LMB click** (Pole tool) | Place the pole to turn about |
+| **Escape** (Pole tool) | Take the pole away |
+
+The pole is drawn as a dot with a short cross through it, in the same yellow the
+selection is traced in, and it stays while the Pole tool is armed, so several
+features can be turned about one pole in turn. Picking another tool takes it
+away. With [Snap](#snapping) on, a pole lands on the nearest vertex of any
+feature instead of where it was clicked.
+
+A drag whose pointer comes within about three degrees of the axis, or of the
+point opposite it, is ignored: there is no direction about an axis from the axis
+itself. It is the same refusal an antipodal drag of the Move tool meets.
+
+The arithmetic is in [Moving](Moving.md#rotating).
 
 ## The Vertex tool
 
@@ -211,7 +275,8 @@ part.
 ## Snapping
 
 The **Snap** button in the toolbar decides whether a dragged vertex jumps onto a
-nearby one when it is dropped. Every vertex of every feature the current time
+nearby one when it is dropped, and whether the [Pole tool](#turning-a-feature)
+puts its pole on one. Every vertex of every feature the current time
 shows is a candidate, not only those of the feature being edited, so two
 features can be made to meet exactly. The vertex being dragged is left out of
 the candidates; it is always nearest to itself.
