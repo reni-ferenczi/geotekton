@@ -368,3 +368,125 @@ func test_a_multipoint_keeps_its_last_vertex_until_it_is_removed() -> void:
 	document.remove_vertex(_feature(document), 0, 0)
 	document.remove_vertex(_feature(document), 0, 0)
 	assert_eq(_feature(document).rings.size(), 0, "the part goes with the last marker")
+
+
+### The shape clipboard
+
+
+# A document holding a feature a keyframe has turned and an empty one beside it,
+# so a shape can be carried from a frame that has moved into one that has not.
+func _shapes() -> Document:
+	var document := Document.new()
+	var source := Feature.create_feature("Rodinia")
+	source.add_ring(PackedVector2Array([
+		Vector2(0, 0), Vector2(10, 5), Vector2(0, 10)]), Feature.GeometryKind.POLYGON)
+	Keyframe.upsert(source.keyframes, 0.0, Vector3(30, -40, 15))
+	document.root.children.append(source)
+	document.root.children.append(Feature.create_feature("Tracing"))
+	document.record()
+	return document
+
+
+func _world_ring(document: Document, feature: Feature, part: int) -> PackedVector2Array:
+	return Feature.apply_basis(feature.rings[part],
+		Feature.world_basis(document.root, feature, document.current_time))
+
+
+func test_a_shape_copied_from_a_rotated_feature_lands_on_the_same_world_points() -> void:
+	var document := _shapes()
+	var source: Feature = document.root.children[0]
+	var target: Feature = document.root.children[1]
+	var world := _world_ring(document, source, 0)
+	assert_true(world != source.rings[0], "the keyframe really has turned the source")
+
+	var shape := document.shape_of(source)
+	assert_eq(shape["kind"], Feature.GeometryKind.POLYGON, "the shape carries the kind")
+	var versions := document.applied
+	assert_eq(document.paste_shape(target, shape), "")
+	assert_eq(document.applied, versions + 1, "the paste recorded exactly one version")
+
+	var pasted := _world_ring(document, target, 0)
+	assert_eq(pasted.size(), world.size(), "the pasted part holds the same vertices")
+	for index in world.size():
+		assert_close(pasted[index].x, world[index].x, 1e-4,
+			"vertex %d is at the latitude it was copied from" % index)
+		assert_close(pasted[index].y, world[index].y, 1e-4,
+			"vertex %d is at the longitude it was copied from" % index)
+
+
+func test_a_feature_holding_nothing_takes_the_kind_with_the_shape() -> void:
+	var document := _shapes()
+	var target: Feature = document.root.children[1]
+	assert_eq(target.feature_type, FeatureType.POLYGON, "a new feature is a Polygon")
+
+	var line := Feature.create_feature("Ridge")
+	line.add_ring(PackedVector2Array([Vector2(0, 0), Vector2(5, 5)]),
+		Feature.GeometryKind.POLYLINE)
+	document.root.children.append(line)
+
+	assert_eq(document.paste_shape(target, document.shape_of(line)), "")
+	assert_eq(target.geometry_kind, Feature.GeometryKind.POLYLINE,
+		"the empty feature took the kind the shape carried")
+	assert_eq(target.feature_type, "line", "and its type followed the kind")
+
+
+func test_pasting_again_appends_another_part() -> void:
+	var document := _shapes()
+	var source: Feature = document.root.children[0]
+	var target: Feature = document.root.children[1]
+	var shape := document.shape_of(source)
+	document.paste_shape(target, shape)
+	assert_eq(document.paste_shape(target, shape), "")
+	assert_eq(target.rings.size(), 2, "the second paste appended a second part")
+	document.undo()
+	assert_eq(document.root.children[1].rings.size(), 1, "undo takes it off again")
+
+
+func test_a_shape_of_another_kind_is_refused() -> void:
+	var document := _shapes()
+	var source: Feature = document.root.children[0]
+	var line := Feature.create_feature("Ridge")
+	line.add_ring(PackedVector2Array([Vector2(0, 0), Vector2(5, 5)]),
+		Feature.GeometryKind.POLYLINE)
+	document.root.children.append(line)
+	document.record()
+
+	var versions := document.applied
+	var error := document.paste_shape(line, document.shape_of(source))
+	assert_eq(error, "A polyline cannot take a polygon.",
+		"the parts of a feature are all of one kind")
+	assert_eq(line.rings.size(), 1, "the refused shape was not added")
+	assert_eq(document.applied, versions, "and nothing was recorded")
+
+
+func test_a_group_and_an_empty_feature_have_no_shape_to_copy() -> void:
+	var document := _shapes()
+	assert_eq(document.shape_of(document.root), {}, "a group holds no vertices of its own")
+	assert_eq(document.shape_of(document.root.children[1]), {},
+		"and neither does a feature holding nothing yet")
+	assert_eq(document.paste_shape(document.root, document.shape_of(document.root.children[0])),
+		"Only a feature takes a shape.")
+
+
+func test_a_topology_copies_the_runs_its_sections_resolve_to() -> void:
+	var document := _shapes()
+	var source: Feature = document.root.children[0]
+	var topology := Feature.create_feature("Boundary")
+	topology.geometry_kind = Feature.GeometryKind.TOPOLOGY
+	topology.sections.append(TopologySection.whole_part(source, 0))
+	document.root.children.append(topology)
+
+	var shape := document.shape_of(topology)
+	assert_eq(shape["kind"], Feature.GeometryKind.POLYLINE,
+		"a topology comes out as the line it resolves to")
+	var runs: Array = shape["rings"]
+	assert_eq(runs.size(), 1, "one run per section that resolved")
+	var world := _world_ring(document, source, 0)
+	assert_eq(runs[0], world, "holding the world vertices the section runs along")
+
+	var target: Feature = document.root.children[1]
+	assert_eq(document.paste_shape(target, shape), "")
+	assert_eq(target.geometry_kind, Feature.GeometryKind.POLYLINE,
+		"which is what makes a topology editable")
+	assert_eq(document.paste_shape(topology, shape),
+		"A topology borrows its vertices, so a shape cannot be added to it.")

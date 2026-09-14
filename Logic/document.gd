@@ -276,6 +276,60 @@ func remove_vertex(feature: Feature, part: int, index: int) -> String:
 	return ""
 
 
+# The shape of a feature, in world coordinates at the current time, as
+# {"kind": GeometryKind, "rings": Array[PackedVector2Array]}, or an empty
+# dictionary when there is nothing to take. This is what Copy Shape holds on to.
+#
+# A topology has no vertices of its own, so what comes out of one is what its
+# sections resolve to, one run per section, which is a polyline. That is the one
+# way to turn a topology into a line someone can edit.
+func shape_of(feature: Feature) -> Dictionary:
+	if feature == null or feature.is_group or not feature.has_geometry():
+		return {}
+
+	var rings: Array[PackedVector2Array] = []
+	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		for entry in Topology.resolve(root, feature, current_time):
+			var run: PackedVector2Array = entry["vertices"]
+			if not run.is_empty():
+				rings.append(run)
+		if rings.is_empty():
+			return {}
+		return {"kind": Feature.GeometryKind.POLYLINE, "rings": rings}
+
+	var to_world := Feature.world_basis(root, feature, current_time)
+	for ring in feature.rings:
+		rings.append(Feature.apply_basis(ring, to_world))
+	return {"kind": feature.geometry_kind, "rings": rings}
+
+
+# Append a shape taken with shape_of() to a feature, in the frame that feature
+# has at the current time, so the vertices land where they were copied from.
+# This is what Paste Shape does, in one undo version.
+#
+# A feature holding nothing takes the shape's kind, and its type follows the
+# kind. One already holding another kind is refused: the parts of a feature are
+# all of one kind.
+func paste_shape(feature: Feature, shape: Dictionary) -> String:
+	if feature == null or feature.is_group:
+		return "Only a feature takes a shape."
+	if shape.is_empty():
+		return "There is no shape to paste."
+
+	var kind: Feature.GeometryKind = shape["kind"]
+	if feature.has_geometry():
+		if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+			return "A topology borrows its vertices, so a shape cannot be added to it."
+		if feature.geometry_kind != kind:
+			return "A %s cannot take a %s." % [feature.kind_name(), Feature.KIND_NAMES[kind]]
+
+	var into_local := Feature.world_basis(root, feature, current_time).transposed()
+	for ring in shape["rings"]:
+		feature.add_ring(Feature.apply_basis(ring, into_local), kind)
+	record()
+	return ""
+
+
 # Cut one part of a feature in two, leaving two features side by side in the
 # tree. A polyline is cut at one vertex and a polygon between two, and both
 # halves keep the vertex or vertices the cut runs through.

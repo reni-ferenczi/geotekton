@@ -988,6 +988,8 @@ func _menu_item(name: String) -> Array:
 		"paste": return [app.edit_menu, Application.EditItem.PASTE]
 		"duplicate": return [app.edit_menu, Application.EditItem.DUPLICATE]
 		"delete": return [app.edit_menu, Application.EditItem.DELETE]
+		"copy_shape": return [app.edit_menu, Application.EditItem.COPY_SHAPE]
+		"paste_shape": return [app.edit_menu, Application.EditItem.PASTE_SHAPE]
 		"new": return [app.file_menu, Application.FileItem.NEW]
 		"open": return [app.file_menu, Application.FileItem.OPEN]
 		"save": return [app.file_menu, Application.FileItem.SAVE]
