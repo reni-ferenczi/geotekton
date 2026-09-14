@@ -75,6 +75,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 [node name="Tools" type="HBoxContainer" parent="LeftSplitter/RightSplitter/Center/PanelContainer"]
 layout_mode = 2
 size_flags_vertical = 0
+theme_override_constants/separation = 2
 
 [node name="Move" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true

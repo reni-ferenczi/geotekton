@@ -2589,6 +2589,179 @@ def run_shape_refusal_checks(client: AutomationClient) -> None:
     check(undo_depth(client) == depth, "and nothing was recorded")
 
 
+### The Rotate and Pole tools
+
+
+# The degree sign the status bar writes the angle with, kept out of the source
+# as an escape so the file stays plain ASCII.
+DEGREE = "°"
+
+# Where the pole scenario puts its pole, well clear of the craton to the west,
+# and how far the craton is turned about it.
+POLE_AT = (0.0, -40.0)
+POLE_TURN = 35.0
+
+# How far the Rotate tool turns the craton about its own middle, and the point
+# out towards the rim that a turn that far carries off the craton, which
+# Tests/Data/README.md lists among the probe points.
+SPIN_TURN = 90.0
+CRATON_RIM = (-15.64, -19.48)
+
+
+def place_of(point: tuple[float, float, float]) -> tuple[float, float]:
+    """The place a point on the unit sphere is at, the inverse of unit()."""
+    return (math.degrees(math.asin(max(-1.0, min(1.0, point[1])))),
+            math.degrees(math.atan2(point[2], point[0])))
+
+
+def turn_about(place: tuple[float, float], axis: tuple[float, float],
+               degrees: float) -> tuple[float, float]:
+    """Where a place ends up when it is turned about an axis, both as latitude/longitude."""
+    point, pole, angle = unit(*place), unit(*axis), math.radians(degrees)
+    along = sum(a * b for a, b in zip(pole, point, strict=True))
+    turned = (pole[1] * point[2] - pole[2] * point[1],
+              pole[2] * point[0] - pole[0] * point[2],
+              pole[0] * point[1] - pole[1] * point[0])
+    return place_of(tuple(
+        point[i] * math.cos(angle) + turned[i] * math.sin(angle)
+        + pole[i] * along * (1.0 - math.cos(angle)) for i in range(3)))
+
+
+def is_blue(pixel: list[float]) -> bool:
+    """Whether a probed pixel is the blue the sample craton is painted in."""
+    return pixel[2] > max(pixel[0], pixel[1]) + 0.3
+
+
+def turn(client: AutomationClient, grab: tuple[float, float],
+         release: tuple[float, float]) -> bool:
+    """Drag from one place on the planet to another, which is what turns a feature."""
+    start = client.call("latlon_to_screen", lat=grab[0], lon=grab[1])["screen"]
+    end = client.call("latlon_to_screen", lat=release[0], lon=release[1])["screen"]
+    if not check(start is not None and end is not None,
+                 f"the drag from {grab} to {release} is on the visible hemisphere"):
+        return False
+    client.call("press", x=start[0], y=start[1])
+    client.call("mouse_move", x=end[0], y=end[1])
+    client.call("release", x=end[0], y=end[1])
+    return True
+
+
+def status_angle(client: AutomationClient) -> float:
+    """The angle the status bar says the last drag turned the feature by."""
+    status = client.call("get_status")["status"]["measure"]
+    if not status.startswith("Rotating "):
+        check(False, f"the status bar reports the angle: {status!r}")
+        return math.nan
+    return float(status.removeprefix("Rotating ").rstrip(DEGREE))
+
+
+def look_at(client: AutomationClient, place: tuple[float, float]) -> None:
+    """Turn the globe so a place faces the camera, which is where a drag is accurate."""
+    client.call("set_view", show_map=False, lat=place[0], lon=place[1], angle=0.0, zoom=1.0)
+
+
+def run_rotate_session(client: AutomationClient) -> None:
+    """Turning the sample craton in place and about a pole."""
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.middle-earth"))
+    client.call("set_time", time=0.0)
+    client.call("select", title="Old Shield")
+    middle = world_centroid(client)
+
+    client.call("key", key="R")
+    check(client.call("get_tool")["tool"] == "rotate", "R picks the Rotate tool")
+    check(is_blue(probe_at(client, middle[0], middle[1])), "the middle of the craton is blue")
+    check(is_blue(probe_at(client, CRATON_RIM[0], CRATON_RIM[1])),
+          "and so is the point out towards the rim")
+
+    look_at(client, middle)
+    depth = undo_depth(client)
+    if turn(client, CRATON_RIM, turn_about(CRATON_RIM, middle, SPIN_TURN)):
+        check(abs(status_angle(client) - SPIN_TURN) < 2.0,
+              "the drag turns the craton a quarter of the way about its own middle")
+        check(undo_depth(client) == depth + 1, "and records exactly one version")
+        after = client.call("get_selected")["feature"]
+        check(len(after["keyframes"]) == 1,
+              f"written as one keyframe: {len(after['keyframes'])}")
+        check(angular_distance(centroid(after["world_rings"]), middle) < 0.5,
+              "a turn in place leaves the middle of the craton where it was")
+        check(is_blue(probe_at(client, middle[0], middle[1])),
+              "which the pixel there still shows")
+        check(not is_blue(probe_at(client, CRATON_RIM[0], CRATON_RIM[1])),
+              "while the point out towards the rim is off the craton now")
+
+    client.call("menu", item="undo")
+    check(client.call("get_selected")["feature"]["keyframes"] == [],
+          "undo takes the keyframe away again")
+    check(is_blue(probe_at(client, CRATON_RIM[0], CRATON_RIM[1])),
+          "and the craton is back over the rim point")
+
+    run_pole_checks(client, middle)
+    run_tool_key_checks(client)
+
+
+def run_pole_checks(client: AutomationClient, middle: tuple[float, float]) -> None:
+    """A pole placed with a click, and a drag that turns the craton about it."""
+    look_at(client, middle)
+    client.call("key", key="P")
+    check(client.call("get_tool")["tool"] == "pole", "P picks the Pole tool")
+    check(client.call("get_tool")["pole"] is None, "which starts with no pole placed")
+
+    screen = client.call("latlon_to_screen", lat=POLE_AT[0], lon=POLE_AT[1])["screen"]
+    if not check(screen is not None, f"the pole at {POLE_AT} is on the visible hemisphere"):
+        return
+    client.call("click", x=screen[0], y=screen[1])
+    placed = client.call("get_tool")["pole"]
+    if not check(placed is not None and angular_distance(tuple(placed), POLE_AT) < 1.0,
+                 f"a click places the pole: {placed}"):
+        return
+
+    depth = undo_depth(client)
+    wanted = turn_about(middle, POLE_AT, POLE_TURN)
+    if not turn(client, middle, wanted):
+        return
+    check(abs(status_angle(client) - POLE_TURN) < 2.0,
+          "the status bar shows how far the drag turned the craton")
+    check(undo_depth(client) == depth + 1, "and the drag records one version")
+    landed = world_centroid(client)
+    check(angular_distance(landed, wanted) < 1.0,
+          f"the craton turned about the pole rather than about itself: {landed} for {wanted}")
+    check(client.call("get_tool")["pole"] is not None, "and the pole stays for the next turn")
+    check(is_blue(probe_at(client, landed[0], landed[1])),
+          "the craton is drawn where the turn about the pole put it")
+
+    client.call("key", key="Escape")
+    check(client.call("get_tool")["pole"] is None, "Escape clears the pole")
+    client.call("menu", item="undo")
+
+
+def run_tool_key_checks(client: AutomationClient) -> None:
+    """The tool keys, and the text field that swallows them."""
+    client.call("set_tool", tool="move")
+    for key, tool in [("V", "vertex"), ("E", "measure"), ("L", "light"), ("X", "split"),
+                      ("R", "rotate"), ("P", "pole"), ("M", "move")]:
+        client.call("key", key=key)
+        picked = client.call("get_tool")["tool"]
+        check(picked == tool, f"{key} picks the {tool} tool: {picked}")
+
+    # A key of a tool the toolbar greys out for what is selected does nothing.
+    client.call("key", key="T")
+    check(client.call("get_tool")["tool"] == "move",
+          "a key of a tool that is not offered leaves the tool alone")
+
+    # A name being typed is a name being typed, whatever the letters are.
+    focus = client.call("focus", widget="Name")
+    if check(focus["focus"] == "Name", f"the name field can be typed in: {focus['focus']}"):
+        before = client.call("get_properties")["properties"]["name"]
+        for key in ["R", "P", "V"]:
+            client.call("key", key=key)
+        after = client.call("get_properties")["properties"]["name"]
+        # The caret is at the front of the field the focus was handed to.
+        check(after == "rpv" + before, f"the keys are typed into the name: {after!r}")
+        check(client.call("get_tool")["tool"] == "move", "and no tool was picked by them")
+        client.call("set_property", field="name", value=before)
+    client.call("focus", release=True)
+
+
 ### Helpers for the vertex scenarios
 
 
@@ -3317,6 +3490,7 @@ def main(argv: list[str]) -> int:
         run_split_session(client)
         run_split_tool_session(client)
         run_copy_shape_session(client)
+        run_rotate_session(client)
         run_circle_session(client)
         run_topology_session(client)
         run_kinematics_session(client)
