@@ -31,7 +31,9 @@ whose defaults nothing drew with before, so it reads a 0.10.0 file as it stands;
 and 0.12.0 added couplings to a leaf feature, and a leaf without them rides on
 nothing, so it reads a 0.11.0 file as it stands too; and 0.13.0 made the group
 style's ramp a list of colours and cut the built in palettes down to Rainbow,
-which has a step for the two ends and the palettes that went.
+which has a step for the two ends and the palettes that went; and 0.14.0 gave a
+leaf feature the icon of its tree row, and a leaf without one carries none, so
+it reads a 0.13.0 file as it stands.
 
 The first public release will have major version 1.
 

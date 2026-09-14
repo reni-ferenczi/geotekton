@@ -54,6 +54,42 @@ does through an undo that takes the geometry off again.
   menu rather than with the polygons or the polylines; see
   [Styling](Styling.md#the-visibility-switches).
 
+## The icon
+
+A feature's tree row can carry one of sixteen built in glyphs, so that a
+mountain range, a coastline and a rift are told apart at a glance. The Icon row
+of the Properties panel lists them with their pictures, None first, and a
+feature starts with none.
+
+| Id          | Name      | What it draws                          |
+| ----------- | --------- | -------------------------------------- |
+| `continent` | Continent | A landmass outline                     |
+| `craton`    | Craton    | A shield                               |
+| `island`    | Island    | A small landmass over water            |
+| `ocean`     | Ocean     | Three waves                            |
+| `sea`       | Sea       | An enclosed water body                 |
+| `mountain`  | Mountain  | Two peaks, which is also an orogeny    |
+| `volcano`   | Volcano   | A cone with a plume                    |
+| `rift`      | Rift      | Two walls pulling apart                |
+| `ridge`     | Ridge     | A ridge offset by a transform          |
+| `trench`    | Trench    | A line with subduction teeth           |
+| `plateau`   | Plateau   | A flat topped mesa                     |
+| `basin`     | Basin     | Two contours of a depression           |
+| `river`     | River     | A meander                              |
+| `ice`       | Ice       | A snowflake                            |
+| `crater`    | Crater    | A rim and a floor                      |
+| `marker`    | Marker    | A map pin, for anything else           |
+
+`Logic/feature_icon.gd` holds the catalog. Each id is the stem of a 16 pixel
+SVG under `Assets/Icons/Features`, drawn in white on nothing, so the tree tints
+it the way it tints the rule icon. Nothing else in the program reads the icon:
+it changes what the row shows and no more. A group's row says whether the group
+is open, as before, and takes no icon of its own.
+
+A file written by hand can name an icon this version does not know. Such a
+feature keeps the name, shows the rule icon on its row, and the Icon row of the
+panel stands empty until something is picked.
+
 ## The Properties panel
 
 `Scenes/Application/properties.gd` builds the panel in code; the scene is the
@@ -65,6 +101,7 @@ follows the feature tree selection, through
 | ---------- | ------------------ | ---------- |
 | Name       | Line edit          | yes        |
 | Type       | Selector           | no         |
+| Icon       | Selector           | no         |
 | Style      | Selector           | only       |
 | Colour     | Colour picker, opacity | yes    |
 | Palette    | Selector           | only       |
@@ -234,6 +271,7 @@ undo version:
 | `set_color`             | nothing                                            |
 | `set_style`             | a leaf, which has no style                         |
 | `set_feature_type`      | an unknown type, and one that does not hold the kind the feature holds |
+| `set_icon`              | a group, and an icon the catalog does not have      |
 | `set_time_range`        | a range that ends older than it starts             |
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |

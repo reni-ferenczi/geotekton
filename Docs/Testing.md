@@ -174,6 +174,12 @@ with a pixel probe there showing the feature colour. Outside its time range the
 same probe shows the Earth, and widening the range brings it back, so the probe
 point is shown to be the right one either way.
 
+The icon scenario picks a glyph for a feature through the panel and reads the
+picture the tree row is actually showing, not the field behind it: `get_features`
+answers with the stem of the row's texture, so a row that kept the rule icon
+fails there. It saves, loads, undoes and redoes, and checks that a glyph nobody
+offers and a group are both refused.
+
 The Edit menu scenario copies a feature, so a run puts a `.middle-earth` feature
 on the clipboard of whoever is running it. A golden run empties it, for the same
 reason: the Paste button of the feature tree toolbar is greyed out by what the
@@ -444,11 +450,11 @@ a round trip is also a wait for the screen to catch up.
 | ------------------------------------ | ---------------------------------------------------------------- |
 | `ping`                               | `version`, the application version                               |
 | `load {path}`                        | loads a `.middle-earth` file, absolute path                      |
-| `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` |
+| `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` and `row_icon`, the file stem of the picture the row is showing |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
 | `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `keyframes`, `couplings`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a line topology, its `sections` with what each one resolved to |
-| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers, whether the colour picker is open (`color_picker_open`) and the `color_presets` it offers, the `time_range` in the file's order, the `time_from` and `time_to` the two boxes show with their `tooltips`, and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed, and `coupling`: what it is `coupled_to` now, the `parents` the picker offers and the `parent` it shows, whether `couple`, `decouple` and `remove` can be pressed, and the `spans` listed with whether each is `broken`. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100, `palette`, `ramp_colors` and `ramp_span`) and the `styles` and `palettes` its selectors offer |
-| `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `color`, `opacity` (0 to 100), `enabled`, `time_from` (the older end of the time range) and `time_to` (the younger one), and on a group `style`, `palette`, `ramp_colors` (a list of two colours or more) and `ramp_span`, where `color` and `opacity` are the style's |
+| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers, the `icon` the feature carries and the `icons` the selector offers, whether the colour picker is open (`color_picker_open`) and the `color_presets` it offers, the `time_range` in the file's order, the `time_from` and `time_to` the two boxes show with their `tooltips`, and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed, and `coupling`: what it is `coupled_to` now, the `parents` the picker offers and the `parent` it shows, whether `couple`, `decouple` and `remove` can be pressed, and the `spans` listed with whether each is `broken`. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100, `palette`, `ramp_colors` and `ramp_span`) and the `styles` and `palettes` its selectors offer |
+| `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `icon` (a glyph id or empty for none), `color`, `opacity` (0 to 100), `enabled`, `time_from` (the older end of the time range) and `time_to` (the younger one), and on a group `style`, `palette`, `ramp_colors` (a list of two colours or more) and `ramp_span`, where `color` and `opacity` are the style's |
 | `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
 | `coupling {button, parent, index}`   | presses `Couple` with the `parent` picked by title, `Decouple`, both at the current time, or `Remove` on the span at `index` in the panel's list |
 | `sections {button, index}`            | selects a section row of a line topology and presses `Reverse` or `Remove` in the panel |
