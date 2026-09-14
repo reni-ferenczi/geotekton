@@ -840,12 +840,17 @@ func export_image_as() -> void:
 # picture of the same age are the same image.
 
 
-# The size a video comes out at, which is the size of a picture with both sides
-# rounded to an even number. H.264 in yuv420p samples the colour at half the
-# width and half the height, so an odd side has no place to put.
-func video_size(width: int = 0) -> Vector2i:
-	var size := export_size(width)
+# A size an encoder can take: both sides even, rounded down rather than up so
+# the picture is never stretched into a pixel that was not drawn. H.264 in
+# yuv420p samples the colour at half the width and half the height, so an odd
+# side has half a sample nowhere to put.
+static func even_size(size: Vector2i) -> Vector2i:
 	return Vector2i(maxi(size.x - size.x % 2, 2), maxi(size.y - size.y % 2, 2))
+
+
+# The size a video comes out at, which is the size of a picture made even.
+func video_size(width: int = 0) -> Vector2i:
+	return even_size(export_size(width))
 
 
 # How many frames a video holds: one at the age it starts from, then one every
@@ -902,8 +907,14 @@ static func find_ffmpeg() -> String:
 	var configured := Config.get_ffmpeg()
 	if not configured.is_empty():
 		return configured if FileAccess.file_exists(configured) else ""
-	if OS.execute("ffmpeg", ["-version"]) == 0:
-		return "ffmpeg"
+	# The directories of the path, read rather than tried: running a program to
+	# find out whether it is there prints an engine error when it is not.
+	var windows := OS.get_name() == "Windows"
+	var executable := "ffmpeg.exe" if windows else "ffmpeg"
+	for directory in OS.get_environment("PATH").split(";" if windows else ":", false):
+		var on_path := directory.strip_edges().replace("\\", "/").path_join(executable)
+		if FileAccess.file_exists(on_path):
+			return on_path
 	for candidate in FFMPEG_CANDIDATES:
 		if FileAccess.file_exists(candidate):
 			return candidate

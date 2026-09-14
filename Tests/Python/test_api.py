@@ -114,6 +114,15 @@ class FakeApplication:
         self.exported_to = request["path"]
         return {"size": [width, width // 2]}
 
+    def do_export_video(self, request):
+        # The application walks the ages and hands the frames to ffmpeg; the
+        # fake answers with the frame count the options come to.
+        options = request["options"]
+        self.exported_to = request["path"]
+        span = abs(options.get("from", 2000.0) - options.get("to", 0.0))
+        frames = int(span / options.get("speed", 50.0) * options.get("fps", 30.0)) + 1
+        return {"frames": frames, "encoded": True, "path": request["path"], "folder": ""}
+
 
 @pytest.fixture
 def fake():
@@ -218,3 +227,19 @@ def test_export_image_sends_the_path_and_the_width(app, fake):
     # No width is the preference, which the application resolves.
     assert app.export_image("C:/tmp/big.png") == (3600, 1800)
     assert fake.requests[-1]["width"] == 0
+
+
+def test_export_video_sends_the_options_it_was_given(app, fake):
+    answer = app.export_video("C:/tmp/run.mp4", from_=2000, to=1900, speed=100, fps=10)
+    assert answer == {"frames": 11, "encoded": True, "path": "C:/tmp/run.mp4", "folder": ""}
+    assert fake.exported_to == "C:/tmp/run.mp4"
+    # `from` is a keyword in Python, so the API takes it with a trailing
+    # underscore and the bridge receives the name the application knows.
+    assert fake.requests[-1] == {"cmd": "export_video", "path": "C:/tmp/run.mp4",
+                                 "options": {"from": 2000.0, "to": 1900.0,
+                                             "speed": 100.0, "fps": 10.0}}
+
+    # Nothing said is the animation's own range and speed, which only the
+    # application knows.
+    app.export_video("C:/tmp/whole.mp4")
+    assert fake.requests[-1]["options"] == {}
