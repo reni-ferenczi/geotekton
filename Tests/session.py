@@ -1057,6 +1057,69 @@ def run_color_picker_checks(client: AutomationClient) -> None:
           "and leaves the picker closed")
 
 
+def refusal(client: AutomationClient, cmd: str, **params) -> str:
+    """What the port said no with, or an empty string when it went through."""
+    try:
+        client.call(cmd, **params)
+    except RuntimeError as error:
+        return str(error)
+    return ""
+
+
+def row_icon(client: AutomationClient, title: str) -> str:
+    """The file stem of the picture the feature's tree row is showing."""
+    for feature in client.call("get_features")["features"]:
+        if feature["title"] == title:
+            return feature["row_icon"]
+    return ""
+
+
+def run_icon_checks(client: AutomationClient, folder: Path) -> None:
+    """The glyph picked in the panel is the picture the tree row shows."""
+    open_mixed_geometry(client)
+    client.call("select", title="Red Triangle")
+    panel = client.call("get_properties")["properties"]
+    check(panel["icon"] == "", f"a feature starts with no icon: {panel['icon']}")
+    check(panel["icons"][0] == "" and "mountain" in panel["icons"],
+          f"the selector offers None first and the glyphs after it: {panel['icons']}")
+    check(row_icon(client, "Red Triangle") == "RuleEnabled",
+          "and its row shows the rule icon, as it did before there were any")
+
+    check(refusal(client, "set_property", field="icon", value="sombrero") != "",
+          "an icon the selector does not offer is refused")
+
+    versions = undo_depth(client)
+    client.call("set_property", field="icon", value="mountain")
+    check(client.call("get_selected")["feature"]["icon"] == "mountain",
+          "the icon reaches the feature")
+    check(row_icon(client, "Red Triangle") == "mountain",
+          f"and the tree row shows it: {row_icon(client, 'Red Triangle')}")
+    check(undo_depth(client) == versions + 1, "in one undo step")
+
+    saved = folder / "iconed.middle-earth"
+    client.call("expect_file_dialog", path=str(saved))
+    client.call("menu", item="save_as")
+    client.call("load", path=str(saved))
+    check(row_icon(client, "Red Triangle") == "mountain",
+          "save and load keep it on the row")
+    client.call("select", title="Red Triangle")
+    check(client.call("get_properties")["properties"]["icon"] == "mountain",
+          "and the panel shows it again")
+
+    client.call("set_property", field="icon", value="")
+    check(row_icon(client, "Red Triangle") == "RuleEnabled",
+          "None puts the rule icon back")
+    for item, wanted in (("undo", "mountain"), ("redo", "RuleEnabled"), ("undo", "mountain")):
+        client.call("menu", item=item)
+        got = row_icon(client, "Red Triangle")
+        check(got == wanted, f"{item} gives the row {wanted}: {got}")
+
+    # A group's row says whether the group is open, whatever is under it.
+    client.call("select", title="Shapes")
+    check(refusal(client, "set_property", field="icon", value="ocean") != "",
+          "a group has no icon")
+
+
 def run_globe_menu_session(client: AutomationClient) -> None:
     """Clone and delete from the right click menu on the globe."""
     open_mixed_geometry(client)
@@ -3051,6 +3114,11 @@ def main(argv: list[str]) -> int:
         finally:
             shutil.rmtree(folder, ignore_errors=True)
         run_colour_session(client)
+        folder = Path(tempfile.mkdtemp(prefix="middle-earth-icons-"))
+        try:
+            run_icon_checks(client, folder)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
         run_globe_menu_session(client)
         run_edit_menu_session(client)
         run_time_session(client)

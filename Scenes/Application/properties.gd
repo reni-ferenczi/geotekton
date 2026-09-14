@@ -65,6 +65,7 @@ var _filling: bool = false
 var placeholder: Label
 var name_edit: LineEdit
 var type_selector: OptionButton
+var icon_selector: OptionButton
 var style_selector: OptionButton
 var palette_selector: OptionButton
 var ramp_row: RampRow
@@ -149,6 +150,20 @@ func _build() -> void:
 		type_selector.set_item_metadata(type_selector.item_count - 1, type_id)
 	type_selector.item_selected.connect(_on_type_selected)
 	_row(form, "Type", type_selector)
+
+	# The glyph the feature's tree row carries. It is for whoever is looking;
+	# nothing else in the program reads it.
+	icon_selector = OptionButton.new()
+	icon_selector.name = "Icon"
+	icon_selector.tooltip_text = "The picture on the feature's tree row"
+	icon_selector.add_item("None")
+	icon_selector.set_item_metadata(0, FeatureIcon.NONE)
+	for icon_id in FeatureIcon.CATALOG:
+		icon_selector.add_item(FeatureIcon.label(icon_id))
+		icon_selector.set_item_icon(icon_selector.item_count - 1, FeatureIcon.texture(icon_id))
+		icon_selector.set_item_metadata(icon_selector.item_count - 1, icon_id)
+	icon_selector.item_selected.connect(_on_icon_selected)
+	_row(form, "Icon", icon_selector)
 
 	style_selector = _selector("Style")
 	for mode_id in Styling.MODES:
@@ -447,6 +462,7 @@ func show_node(node_: Feature) -> void:
 	enabled_check.button_pressed = node.enabled
 	if is_feature:
 		type_selector.select(_type_index(node.feature_type))
+		icon_selector.select(_item_index(icon_selector, node.icon))
 		_show_color()
 		from_spin.value = node.time_range.y
 		to_spin.value = node.time_range.x
@@ -843,6 +859,19 @@ func _on_type_selected(index: int) -> void:
 	edited.emit()
 
 
+func _on_icon_selected(index: int) -> void:
+	if _filling or node == null:
+		return
+	var error := document.set_icon(node, str(icon_selector.get_item_metadata(index)))
+	if not error.is_empty():
+		_filling = true
+		icon_selector.select(_item_index(icon_selector, node.icon))
+		_filling = false
+		rejected.emit(error)
+		return
+	edited.emit()
+
+
 # The color on the button and the opacity in percent beside it. Call while
 # _filling, so the box does not take its own new value for an edit.
 func _show_color() -> void:
@@ -1003,6 +1032,10 @@ func to_json() -> Dictionary:
 	data["type_label"] = type_selector.get_item_text(picked) if picked >= 0 else ""
 	data["types"] = range(type_selector.item_count).map(
 		func(index: int) -> String: return str(type_selector.get_item_metadata(index)))
+	var chosen_icon := icon_selector.selected
+	data["icon"] = str(icon_selector.get_item_metadata(chosen_icon)) if chosen_icon >= 0 else ""
+	data["icons"] = range(icon_selector.item_count).map(
+		func(index: int) -> String: return str(icon_selector.get_item_metadata(index)))
 	data["color"] = [color_button.color.r, color_button.color.g,
 		color_button.color.b, opacity_spin.value / 100.0]
 	data["opacity"] = int(opacity_spin.value)
@@ -1093,6 +1126,14 @@ func set_field(field: String, value: Variant) -> String:
 			var index := _type_index(str(value))
 			type_selector.select(index)
 			_on_type_selected(index)
+		"icon":
+			if node.is_group:
+				return "a group has no icon; only a feature has one"
+			var at := _item_index(icon_selector, str(value))
+			if at < 0:
+				return "the icon selector offers no %s" % value
+			icon_selector.select(at)
+			_on_icon_selected(at)
 		"style", "palette":
 			if not node.is_group:
 				return "a feature has no %s; its group does" % field

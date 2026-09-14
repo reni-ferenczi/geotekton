@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "features": { ... },
   "view": { ... }
 }
@@ -186,6 +186,7 @@ draws each feature in its own colour.
   "type": "Feature",
   "feature_type": "polygon",
   "color": [0.82, 0.41, 0.12, 1.0],
+  "icon": "craton",
   "geometry_kind": "polygon",
   "rings": [[[45.0, 30.0], [46.0, 31.0], [45.0, 32.0]]],
   "keyframes": [{"time": 0.0, "rotation": [0, 0, 0]}],
@@ -204,6 +205,11 @@ one, so no two nodes of a document share an id.
 holding nothing carries the type it was given, which says what the tools will
 draw into it; empty is read as no type at all, which only a file written before
 0.3.0 holds. See [Properties](Properties.md#the-type-catalog).
+`icon` is the glyph the feature's tree row carries, an id from
+`Logic/feature_icon.gd` and the stem of the file under
+`Assets/Icons/Features`. It is written only when there is one, and a feature
+without it shows the same row icon it showed before there were any. Nothing but
+the row reads it; see [Properties](Properties.md#the-icon).
 `geometry_kind` is `"polygon"`,
 `"polyline"`, `"multipoint"` or `"topology"`, and `rings`
 holds one array of `[latitude, longitude]` vertices per part. A ring is closed
@@ -410,6 +416,11 @@ white. The palette list is Custom and Rainbow now, so a style naming one of the
 three built in tables that went — `age`, `grayscale` and `steps` — takes the
 custom ramp, which is what replaced them. A style naming a `.cpt` file keeps it.
 The step is `Document._to_0_13_0()`.
+
+#### 0.13.0 to 0.14.0
+
+0.14.0 added `icon` to a leaf feature. There is no migration step: a leaf
+without the key carries no icon, which is what every feature carried before.
 
 ## The config file
 

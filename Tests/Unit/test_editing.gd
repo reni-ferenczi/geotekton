@@ -31,6 +31,7 @@ func _splittable(kind: Feature.GeometryKind = Feature.GeometryKind.POLYGON) -> D
 		Vector2(0, 0), Vector2(10, 0), Vector2(14, 10),
 		Vector2(5, 16), Vector2(0, 12)]), kind)
 	feature.feature_type = FeatureType.CIRCLE
+	feature.icon = "craton"
 	feature.time_range = Vector2i(20, 800)
 	Keyframe.upsert(feature.keyframes, 0.0, Vector3(5, 0, 0))
 	Keyframe.upsert(feature.keyframes, 300.0, Vector3(40, 10, 0))
@@ -66,6 +67,7 @@ func test_both_halves_carry_what_the_feature_was() -> void:
 		assert_eq(half.geometry_kind, Feature.GeometryKind.POLYGON, "%s is a polygon" % half.title)
 		assert_eq(half.feature_type, type, "%s keeps the type" % half.title)
 		assert_eq(half.color, color, "%s keeps the colour" % half.title)
+		assert_eq(half.icon, "craton", "%s keeps the icon" % half.title)
 		assert_eq(half.time_range, time_range, "%s keeps the time range" % half.title)
 		assert_eq(half.keyframes.size(), keyframes.size(), "%s keeps the keyframes" % half.title)
 		for i in range(keyframes.size()):
@@ -194,6 +196,26 @@ func test_disabling_a_group_collapses_it() -> void:
 	document.set_enabled(group, false)
 	assert_true(not group.enabled)
 	assert_true(group.collapsed, "a disabled group is collapsed, as in the tree")
+
+
+# The glyph the tree row shows. Only a leaf has one, and only one the catalog
+# knows; the rest of the program never reads it.
+func test_an_icon_is_picked_from_the_catalog_and_is_one_undo_version() -> void:
+	var document := _document()
+	var versions := document.applied
+	assert_eq(document.set_icon(_feature(document), "mountain"), "")
+	assert_eq(_feature(document).icon, "mountain")
+	assert_eq(document.applied, versions + 1)
+
+	assert_true(not document.set_icon(_feature(document), "sombrero").is_empty(),
+		"an icon the catalog does not know is refused")
+	assert_eq(_feature(document).icon, "mountain", "and the feature keeps the one it had")
+	assert_true(not document.set_icon(document.root, "mountain").is_empty(),
+		"a group has no icon")
+
+	assert_eq(document.set_icon(_feature(document), FeatureIcon.NONE), "",
+		"and it can be taken off again")
+	assert_eq(_feature(document).icon, FeatureIcon.NONE)
 
 
 func test_a_colour_change_is_one_undo_version() -> void:

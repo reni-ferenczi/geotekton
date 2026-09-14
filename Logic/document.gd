@@ -186,6 +186,18 @@ func set_color(feature: Feature, color: Color) -> void:
 	record()
 
 
+# Give the feature one of the built in glyphs for its tree row, or none. Only a
+# leaf carries one; a group's row shows whether the group is open.
+func set_icon(feature: Feature, icon: String) -> String:
+	if feature == null or feature.is_group:
+		return "Only a feature has an icon."
+	if not icon.is_empty() and not FeatureIcon.CATALOG.has(icon):
+		return "There is no icon called %s." % icon
+	feature.icon = icon
+	record()
+	return ""
+
+
 # Give a group another style: how the features under it are colored and how
 # opaque they are. Refused on a leaf, which has no style.
 func set_style(group: Feature, style: GroupStyle) -> String:
@@ -751,7 +763,7 @@ func resolve_backdrop() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.13.0"):
+	if not _is_older_than(version, "0.14.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -772,8 +784,11 @@ static func migrate(data: Dictionary) -> Dictionary:
 	# default ramp, which nothing drew with before, so there is no step.
 	# 0.12.0 added couplings to a leaf. A leaf without them rides on nothing,
 	# which is what every feature did before, so there is no step either.
-	_to_0_13_0(data.get("features", {}))
-	data["version"] = "0.13.0"
+	if _is_older_than(version, "0.13.0"):
+		_to_0_13_0(data.get("features", {}))
+	# 0.14.0 gave a leaf an icon for its tree row. A leaf without the key has
+	# none, which is what every feature had before, so there is no step.
+	data["version"] = "0.14.0"
 	return data
 
 

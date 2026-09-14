@@ -29,13 +29,16 @@ EXTENSION = ".middle-earth"
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
-CURRENT_VERSION = "0.13.0"
+CURRENT_VERSION = "0.14.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.82, 0.41, 0.12, 1.0]
 DEFAULT_TIME_RANGE = [0, 2000]
 DEFAULT_GEOMETRY_KIND = "polygon"
 DEFAULT_FEATURE_TYPE = ""
+# The glyph a feature's tree row carries; empty is none, which is the default
+# and is left out of the file. Ids are in Logic/feature_icon.gd.
+DEFAULT_ICON = ""
 
 
 def dumps(data: Any) -> str:
@@ -114,6 +117,18 @@ class Feature:
     @feature_type.setter
     def feature_type(self, value: str) -> None:
         self.data["feature_type"] = str(value)
+
+    @property
+    def icon(self) -> str:
+        return str(self.data.get("icon", DEFAULT_ICON))
+
+    @icon.setter
+    def icon(self, value: str) -> None:
+        # No icon is written as no key, the way the application writes it.
+        if str(value):
+            self.data["icon"] = str(value)
+        else:
+            self.data.pop("icon", None)
 
     @property
     def geometry_kind(self) -> str:

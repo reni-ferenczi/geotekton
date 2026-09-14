@@ -76,6 +76,10 @@ var feature_type: String = FeatureType.NONE:
 		return FeatureType.resolve(feature_type, kind_name() if has_geometry() else "")
 var color: Color = FeatureType.NONE_COLOR
 
+# The glyph the tree row shows, an id in FeatureIcon.CATALOG, empty for none.
+# It is picked in the Properties panel and nothing but the row reads it.
+var icon: String = FeatureIcon.NONE
+
 # Geographic data. Each ring is a run of (latitude, longitude) vertices in
 # degrees, in the frame of the feature itself, before the rotation its
 # keyframes give it at the current time is applied. What a ring means follows
@@ -276,6 +280,7 @@ func clone() -> Feature:
 	node.style = style.clone() if style != null else null
 	node.feature_type = feature_type
 	node.color = color
+	node.icon = icon
 	node.geometry_kind = geometry_kind
 	node.sections = TopologySection.clone_list(sections)
 	for ring in rings:
@@ -392,6 +397,10 @@ func to_json() -> Variant:
 		data["couplings"] = Coupling.list_to_json(couplings)
 		data["feature_type"] = feature_type
 		data["color"] = [color.r, color.g, color.b, color.a]
+		# Written only when there is one, so a file of features nobody gave an
+		# icon reads the same as it did before there were any.
+		if not icon.is_empty():
+			data["icon"] = icon
 		data["geometry_kind"] = KIND_NAMES[geometry_kind]
 		# A topology's rings are resolved from its sections whenever the tree or
 		# the time moves, so writing them would be writing down a derived value.
@@ -429,6 +438,7 @@ static func from_json(data: Variant) -> Feature:
 		node.feature_type = str(data.get("feature_type", FeatureType.NONE))
 		var c: Array = data.get("color", [0.82, 0.41, 0.12, 1.0])
 		node.color = Color(c[0], c[1], c[2], c[3])
+		node.icon = str(data.get("icon", FeatureIcon.NONE))
 		node.geometry_kind = KIND_VALUES.get(data.get("geometry_kind", "polygon"), GeometryKind.POLYGON)
 		node.sections = TopologySection.list_from_json(data.get("sections", []))
 		node.rings = rings_from_json(data.get("rings", []))

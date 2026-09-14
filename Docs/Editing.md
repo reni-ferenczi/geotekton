@@ -52,6 +52,9 @@ time at the oldest age of the animation; see
 Each row of the tree carries the title of the feature or group and two buttons:
 a colour swatch, on a feature only, and a switch that enables the node. A
 disabled node is neither drawn nor hit tested, itself and everything under it.
+The picture in front of the title is the [icon](Properties.md#the-icon) the
+feature was given, greyed out while the feature is disabled; a feature with no
+icon shows the plain row picture instead, and a group shows whether it is open.
 A row is greyed out while its feature is outside its time range at the current
 time, which is when the globe leaves it out as well; see
 [Time](Time.md#being-there-at-all).

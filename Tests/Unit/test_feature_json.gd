@@ -118,6 +118,33 @@ func test_a_node_without_a_uuid_is_given_one() -> void:
 	assert_true(leaf.uuid != other.uuid, "and two of them do not get the same one")
 
 
+### The glyph a tree row carries
+
+
+func test_a_feature_with_an_icon_round_trips_it() -> void:
+	var feature := Feature.create_feature("Andes")
+	feature.icon = "mountain"
+	var data: Dictionary = feature.to_json()
+	assert_eq(data.get("icon"), "mountain", "the icon is written")
+	assert_eq(Feature.from_json(JSON.parse_string(JSON.stringify(data))).icon, "mountain",
+		"and read back")
+
+
+func test_a_feature_without_an_icon_writes_no_key() -> void:
+	var data: Dictionary = Feature.create_feature("Plain").to_json()
+	assert_true(not data.has("icon"), "a feature nobody gave an icon writes no key")
+	# Which is what every file written before 0.14.0 looks like.
+	assert_eq(Feature.from_json({"title": "Old", "type": "Feature"}).icon, FeatureIcon.NONE,
+		"and such a file reads with no icon")
+
+
+func test_clone_and_duplicate_keep_the_icon() -> void:
+	var feature := Feature.create_feature("Andes")
+	feature.icon = "mountain"
+	assert_eq(feature.clone().icon, "mountain", "a clone keeps it")
+	assert_eq(feature.duplicate().icon, "mountain", "and so does a duplicate")
+
+
 func _assert_same_uuids(a: Feature, b: Feature, path: String) -> void:
 	assert_eq(a.uuid, b.uuid, "%s uuid" % path)
 	for i in range(mini(a.children.size(), b.children.size())):
@@ -149,6 +176,7 @@ func _build_tree() -> Feature:
 	laurentia.add_ring(PackedVector2Array([
 		Vector2(-10, -10), Vector2(10, 0), Vector2(-10, 10)]), Feature.GeometryKind.POLYGON)
 	laurentia.feature_type = FeatureType.CIRCLE
+	laurentia.icon = "craton"
 	Keyframe.upsert(laurentia.keyframes, 0.0, Vector3(30, -20, 10))
 	Keyframe.upsert(laurentia.keyframes, 750.5, Vector3(75, -20, 10))
 	laurentia.time_range = Vector2i(540, 1800)
@@ -184,6 +212,7 @@ func _assert_same_tree(a: Feature, b: Feature, path: String) -> void:
 		return
 	assert_eq(a.feature_type, b.feature_type, "%s feature type" % path)
 	assert_close(a.color, b.color, 1e-6, "%s color" % path)
+	assert_eq(a.icon, b.icon, "%s icon" % path)
 	assert_eq(a.geometry_kind, b.geometry_kind, "%s geometry kind" % path)
 	assert_eq(a.rings, b.rings, "%s rings" % path)
 	assert_eq(a.triangles, b.triangles, "%s triangles" % path)
