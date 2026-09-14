@@ -207,11 +207,11 @@ func _fov_for_view() -> float:
 
 ### Rendering a frame on its own
 #
-# A picture of the map at the current age, with nothing the window draws over
-# the planet in it. The measurement label is a child of this container rather
-# than of the viewport, so it is left out by itself; what the planet draws over
-# the geometry — the selection and the tool overlay — is taken off by the
-# caller, which is what knows how to put it back.
+# A picture of the planet at the current age, with nothing the window draws over
+# it in it. The measurement label is a child of this container rather than of
+# the viewport, so it is left out by itself; what the planet draws over the
+# geometry — the selection and the tool overlay — is taken off by the caller,
+# which is what knows how to put it back.
 
 
 # The size an export of a projection comes out at. The sheet is two units wide
@@ -221,22 +221,31 @@ static func export_size(kind: MapProjection.Kind, width: int) -> Vector2i:
 	return Vector2i(width, maxi(roundi(width * MapProjection.extent(kind)), 1))
 
 
-# Render the map into an image of the given size, the sheet filling it exactly.
-# The view is put back the way it was found before this returns, so a failure
-# further along leaves nothing behind.
+# Render the planet into an image of the given size. A map sheet fills it
+# exactly; the globe is drawn the way it is being watched, so a square size is
+# what a picture of it is asked for at. The view is put back the way it was
+# found before this returns, so a failure further along leaves nothing behind.
 func render_export(size: Vector2i) -> Image:
 	var was_stretching := stretch
 	var was_size := viewport.size
 	exporting = true
 	stretch = false
 	viewport.size = size
-	# Half the sheet's height at the distance the camera stands from it, which
-	# puts the top and bottom edges of the sheet on the edges of the image. The
-	# width follows from the aspect, and that is the sheet's own.
-	camera.fov = rad_to_deg(
-		2.0 * atan(MapProjection.extent(planet.projection) / camera.position.z))
-	camera.rotation.z = 0.0
-	camera.position.y = 0.0
+	if planet.show_map:
+		# Half the sheet's height at the distance the camera stands from it,
+		# which puts the top and bottom edges of the sheet on the edges of the
+		# image. The width follows from the aspect, and that is the sheet's own.
+		camera.fov = rad_to_deg(
+			2.0 * atan(MapProjection.extent(planet.projection) / camera.position.z))
+		camera.rotation.z = 0.0
+		camera.position.y = 0.0
+	else:
+		# The globe keeps the camera it is watched with: which way it faces,
+		# how far it is zoomed in and which way up it stands are what the
+		# picture is of. Its field of view is the globe's radius against the
+		# zoom and does not read the size, so the square is filled the way the
+		# window is.
+		_place_camera()
 	# The first frame takes the new size and the camera, the second is drawn
 	# with them.
 	await RenderingServer.frame_post_draw

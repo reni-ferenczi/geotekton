@@ -552,6 +552,42 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true, "path": request.get("path", ""), "size": [size.x, size.y]}
 
+		"export_video":
+			# File > Export Video without the dialogs. The whole export is
+			# awaited unless the request says `wait: false`, which starts it and
+			# leaves the run free to watch it with get_export and stop it with
+			# cancel_export; nothing else can reach those while a command of its
+			# own is being answered.
+			var options := {}
+			for key in ["from", "to", "speed", "fps", "width"]:
+				if request.has(key):
+					options[key] = float(request[key])
+			var video_path := str(request.get("path", ""))
+			if not bool(request.get("wait", true)):
+				app.export_video(video_path, options)
+				await _frames(1)
+				return {"ok": true, "started": app.video_total > 0}
+			var answer: Dictionary = await app.export_video(video_path, options)
+			if not str(answer.get("error", "")).is_empty():
+				return {"ok": false, "error": answer["error"]}
+			return {"ok": true, "frames": answer["frames"], "encoded": answer["encoded"],
+				"cancelled": answer["cancelled"], "path": answer["path"],
+				"folder": answer["folder"]}
+
+		"get_export":
+			return {"ok": true, "export": {
+				"running": app.video_total > 0,
+				"frames": app.video_frames,
+				"total": app.video_total,
+				"cancelled": app.video_cancelled,
+				# What the last export answered, empty while one is running.
+				"result": app.video_result,
+			}}
+
+		"cancel_export":
+			app.cancel_export()
+			return {"ok": true, "running": app.video_total > 0}
+
 		"get_tool":
 			return {"ok": true,
 				"tool": TOOL_NAMES[app.active_tool],
@@ -706,6 +742,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"vertex_marker_scale": Config.get_vertex_marker_scale(),
 				"line_width_scale": Config.get_line_width_scale(),
 				"export_width": Config.get_export_width(),
+				"ffmpeg": Config.get_ffmpeg(),
 				"snap_to_vertices": Config.get_snap_to_vertices(),
 				"python_interpreter": Config.get_python_interpreter(),
 				"script_directories": Config.get_script_directories(),
@@ -724,6 +761,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				app.line_spin.value = float(wanted["line_width_scale"])
 			if wanted.has("export_width"):
 				app.export_width_spin.value = float(wanted["export_width"])
+			if wanted.has("ffmpeg"):
+				app.ffmpeg_edit.text = str(wanted["ffmpeg"])
 			if wanted.has("python_interpreter"):
 				app.interpreter_edit.text = str(wanted["python_interpreter"])
 			if wanted.has("script_directories"):
@@ -1024,6 +1063,7 @@ func _menu_item(name: String) -> Array:
 		"save": return [app.file_menu, Application.FileItem.SAVE]
 		"save_as": return [app.file_menu, Application.FileItem.SAVE_AS]
 		"export_image": return [app.file_menu, Application.FileItem.EXPORT_IMAGE]
+		"export_video": return [app.file_menu, Application.FileItem.EXPORT_VIDEO]
 		"import": return [app.file_menu, Application.FileItem.IMPORT]
 		"preferences": return [app.file_menu, Application.FileItem.PREFERENCES]
 		"quit": return [app.file_menu, Application.FileItem.QUIT]

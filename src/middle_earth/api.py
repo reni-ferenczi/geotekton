@@ -166,3 +166,19 @@ class App:
         """
         size = self._ask("export_image", path=str(path), width=int(width or 0))["size"]
         return int(size[0]), int(size[1])
+
+    def export_video(self, path: str, **options: float) -> dict:
+        """Write the animation to a video and answer what came of it.
+
+        The options are `from_`, `to`, `speed`, `fps` and `width`; whatever is
+        left out is the animation's own setting, thirty frames a second and the
+        Export width preference. The answer holds `frames`, how many were
+        rendered, `encoded`, whether ffmpeg made a file of them, and `folder`,
+        where they were left when it did not. `from` is a keyword in Python, so
+        the first age is spelled `from_` here.
+        """
+        wanted = {("from" if key == "from_" else key): float(value)
+                  for key, value in options.items()}
+        reply = self._ask("export_video", path=str(path), options=wanted)
+        return {"frames": int(reply["frames"]), "encoded": bool(reply["encoded"]),
+                "path": str(reply["path"]), "folder": str(reply["folder"])}
