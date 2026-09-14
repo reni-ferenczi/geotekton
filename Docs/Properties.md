@@ -130,10 +130,10 @@ A group has no keyframe row, since a group carries no motion. It has its
 - **Colour** is the color the Single colour mode paints with, and the box beside
   it is the group's opacity, multiplied into every feature under the group.
 - **Palette** is what the Feature age mode reads. It lists the built in palettes
-  and the file the style names, if it names one, with Two colour ramp first.
-- **Ramp** is the [two colour ramp](Styling.md#the-two-colour-ramp): the color
-  at age zero, the color at the end of the span, and the span in My. Only the
-  Two colour ramp palette reads it.
+  and the file the style names, if it names one, with Custom first.
+- **Ramp** is the [custom ramp](Styling.md#the-custom-ramp): a color picker per
+  stop, a **+** that adds another stop and a **−** on every one past the second,
+  and the span between two of them in My. Only the Custom palette reads it.
 
 Every row is shown whatever the mode, since the opacity applies in all of them
 and a color or a palette picked ahead is kept for when the mode is switched.

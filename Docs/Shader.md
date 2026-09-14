@@ -512,7 +512,7 @@ On an AMD Radeon 8060S, at 1800x900, with every feature moving
 The 2,000 and 5,000 rows were measured again once GP-0033 had moved the color
 into `feature_data` and dropped the rim. The other rows are older.
 
-Playing under the Feature age style with the two colour ramp, which works out
+Playing under the Feature age style with the custom ramp, which works out
 every feature's color again on every frame (GP-0036), measured 16.7 ms at 2,000
 triangles against 17.0 ms playing in flat colors, and 34.5 ms at 5,000 against
 33.3 ms. The engine reports whole frames per second, so 33.3 and 34.5 ms are

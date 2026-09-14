@@ -29,7 +29,9 @@ the single colour and the palette out of the view settings onto the root group,
 which has a step as well; and 0.11.0 added the age ramp to the group style,
 whose defaults nothing drew with before, so it reads a 0.10.0 file as it stands;
 and 0.12.0 added couplings to a leaf feature, and a leaf without them rides on
-nothing, so it reads a 0.11.0 file as it stands too.
+nothing, so it reads a 0.11.0 file as it stands too; and 0.13.0 made the group
+style's ramp a list of colours and cut the built in palettes down to Rainbow,
+which has a step for the two ends and the palettes that went.
 
 The first public release will have major version 1.
 
