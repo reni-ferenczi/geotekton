@@ -47,7 +47,7 @@ const VERTEX_PICK_PIXELS := 12.0
 const SNAP_PIXELS := 12.0
 
 enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, RUN_SCRIPT, PREFERENCES, QUIT }
-enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE }
+enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, CONSOLE, STATUS_BAR, SETTINGS, FULL_SCREEN }
 enum TimeItem { OLDER, YOUNGER, OLDER_KEYFRAME, YOUNGER_KEYFRAME }
 enum HelpItem { DOCUMENTATION, ABOUT }
@@ -430,6 +430,9 @@ func _add_edit_items(menu: PopupMenu) -> void:
 	menu.add_separator()
 	menu.add_item("Duplicate", EditItem.DUPLICATE, KEY_MASK_CTRL | KEY_D)
 	menu.add_item("Delete", EditItem.DELETE, KEY_DELETE)
+	menu.add_separator()
+	menu.add_item("Copy Shape", EditItem.COPY_SHAPE, KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_C)
+	menu.add_item("Paste Shape", EditItem.PASTE_SHAPE, KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_V)
 
 
 func _add_menu(title: String) -> PopupMenu:
@@ -475,6 +478,8 @@ func _on_edit_menu_id_pressed(id: int) -> void:
 		EditItem.PASTE: features._on_paste_pressed()
 		EditItem.DUPLICATE: features.duplicate_node(selected)
 		EditItem.DELETE: features.delete_node(selected)
+		EditItem.COPY_SHAPE: copy_shape()
+		EditItem.PASTE_SHAPE: paste_shape()
 
 
 # What the Edit menus offer, following the feature tree toolbar. The globe menu
@@ -484,6 +489,7 @@ func _update_edit_menu() -> void:
 		return
 	var selected := features.feature_tree.get_selected_node()
 	var is_node := selected != null and not selected.is_root
+	var is_leaf := is_node and not selected.is_group
 	var pasteable := Document.APPLICATION in DisplayServer.clipboard_get()
 	var disabled := {
 		EditItem.UNDO: not document.can_undo() and _tool_points().is_empty(),
@@ -493,6 +499,8 @@ func _update_edit_menu() -> void:
 		EditItem.PASTE: not pasteable,
 		EditItem.DUPLICATE: not is_node,
 		EditItem.DELETE: not is_node,
+		EditItem.COPY_SHAPE: not (is_leaf and selected.has_geometry()),
+		EditItem.PASTE_SHAPE: shape_clipboard.is_empty() or not is_leaf,
 	}
 	for menu in [edit_menu, globe_menu]:
 		for item in disabled:
@@ -2163,6 +2171,49 @@ func _drawing_outline_style() -> Planet.OutlineStyle:
 			if outline_vertices.size() >= 3:
 				return Planet.OutlineStyle.CLOSED_PREVIEW
 	return Planet.OutlineStyle.OPEN
+
+
+### The shape clipboard
+#
+# Copy Shape and Paste Shape carry the vertices of one feature into another,
+# where the Vertex tool can then move, insert and delete them. The shape travels
+# in world coordinates at the time it was copied, so it lands where it was seen
+# whatever either feature has done since. The system clipboard is left out of
+# it: that one carries whole features, for Copy and Paste.
+#
+# See Docs/Editing.md#copying-a-shape.
+
+
+# The shape being held, as Document.shape_of() gives it, empty when nothing has
+# been copied. It outlives the document it came from, which is what makes a
+# shape carryable from one file into another.
+var shape_clipboard: Dictionary = {}
+
+
+func copy_shape() -> void:
+	var selected := features.feature_tree.get_selected_node()
+	var shape := document.shape_of(selected)
+	if shape.is_empty():
+		_report("There is no shape to copy.")
+		return
+	shape_clipboard = shape
+	_update_edit_menu()
+	var parts: int = (shape["rings"] as Array).size()
+	_report("Copied %d part%s of %s." % [parts, "" if parts == 1 else "s", selected.title])
+
+
+func paste_shape() -> void:
+	var selected := features.feature_tree.get_selected_node()
+	var error := document.paste_shape(selected, shape_clipboard)
+	if not error.is_empty():
+		_report(error)
+		return
+	features.reload()
+	refresh_geometry()
+	# The Vertex tool, so the pasted vertices can be edited straight away, which
+	# is what copying a shape into a feature is for.
+	set_active_tool(Tool.VERTEX)
+	_report("")
 
 
 ### The Vertex tool
