@@ -452,6 +452,8 @@ more than the last change.
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |
 | `vertex_marker_scale`, `line_width_scale` | How large the outline overlay is drawn, as multiples of the shader defaults |
 | `snap_to_vertices`                 | Whether a dragged vertex snaps onto a nearby one |
+| `export_width`                     | How wide an exported picture or video is; the height follows from what is being shown |
+| `ffmpeg`                           | Which ffmpeg encodes the frames of a video; the path is searched when unset |
 | `default_view`                     | Which view a new document opens in, by the name the projection selector shows |
 | `view_defaults`                    | The [view settings](#view-settings) block a new document starts from |
 | `python_interpreter`               | Which Python runs the scripting bridge; the project's own `.venv` when unset |

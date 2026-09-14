@@ -387,6 +387,18 @@ func _serve(request_: Dictionary) -> Dictionary:
 				return {"ok": false, "error": problem}
 			return {"ok": true, "size": [size.x, size.y]}
 
+		"export_video":
+			# The animation as a video; see Docs/Shell.md#exporting-a-video-of-
+			# the-animation. Whatever the options leave out is the animation's
+			# own setting.
+			var answer: Dictionary = await app.export_video(
+				str(request_.get("path", "")), request_.get("options", {}))
+			if not str(answer.get("error", "")).is_empty():
+				return {"ok": false, "error": answer["error"]}
+			return {"ok": true, "frames": answer["frames"],
+				"encoded": answer["encoded"], "path": answer["path"],
+				"folder": answer["folder"]}
+
 	return {"ok": false, "error": "unknown command: %s" % cmd}
 
 

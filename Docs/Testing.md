@@ -230,6 +230,21 @@ four edges. The Export width preference is read at its default of 3600, set to
 zoom, the field of view, the camera, the projection and the window are all where
 they were before.
 
+The video scenario makes videos of the same sample. Nothing in it moves, so the
+green craton is given 1950 Ma as the age it appears at and the frames have to
+show the difference. The ffmpeg preference is pointed at a file that is not
+there, which is how a machine says it has no encoder: an export of 2000 to 1900
+Ma at 100 My a second and ten frames a second then leaves eleven 240 by 120
+PNGs in a folder named after the video and no video, the first frame is not the
+last, and the craton is missing from the first and drawn in the last. The time
+and the view are where the export found them afterwards. A video of the globe
+comes out square. An export started with `wait: false` is watched through
+`get_export` and stopped with `cancel_export`, which leaves neither frames nor
+file. Last the preference is cleared so the application looks for an ffmpeg of
+its own: where it finds one the video is on disk and not empty and the frames
+are gone, and where it does not the eleven frames are what is checked, since the
+suite may not depend on this machine having an encoder.
+
 The scene scenario edits every setting of the scene block, saves the document,
 reads it back and checks each one survived, with the backdrop image beside the
 project so the path in the file is the relative one. It then drags the light
@@ -316,7 +331,9 @@ drops a script in a scratch directory, adds it to the preferences, rescans and
 runs it from the menu and from a path, and checks that a file without a
 docstring is not listed. `run_export_from_console` exports a picture from the prompt, checks that
 `app.export_image` answers with the size and that the file is on disk, and that
-the globe is refused as an `AppError` a script can catch.
+the globe is refused as an `AppError` a script can catch. It then exports a two
+frame video of the globe, which is not refused, and checks the frame count it
+answers with and that a video or the frames of one were left.
 `run_bad_interpreter_checks` points the preferences at
 a path that is not an interpreter and checks that the reason reaches the console
 and that the application carries on. `run_no_python_session` launches a second
@@ -525,7 +542,7 @@ a round trip is also a wait for the screen to catch up.
 | `set_tool {tool, snap, segments, outline, ridge}` | picks the tool (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `circle`, `topology`, `light` or `split`), the snap switch, the segment count, the Circle tool's Outline switch and the Split tool's Ridge switch, refusing what the toolbar itself would not allow. Which kind the Draw and Circle tools produce comes from the feature's type, which `set_property` sets |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
-| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields, `export_width` among them; only the keys given are changed. `get_preferences` also reports the `default_view`, the `view_defaults` and the `style_defaults` a new document starts from |
+| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields, `export_width` and `ffmpeg` among them; only the keys given are changed. `get_preferences` also reports the `default_view`, the `view_defaults` and the `style_defaults` a new document starts from |
 | `get_view_settings` | `view_settings`, the scene block the open document carries, `style`, the root group's style the same dialog edits, `backdrop_error`, why the image it names is not on the planet, and `palette_errors`, what could not be read of the palette the root names |
 | `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. The root group's style is set through the dialog's `draw_style`, `single_color`, `opacity`, `palette`, `ramp_colors` and `ramp_span` fields. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
@@ -547,9 +564,12 @@ a round trip is also a wait for the screen to catch up.
 | `get_pixel {x, y}`                   | `color: [r, g, b, a]` in the range 0 to 1                        |
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
 | `export_image {path, width}`         | File > Export Image without the dialog: writes the map at the current age and answers `size: [width, height]`. A width of zero or none is the Export width preference; refused while the globe is shown |
+| `export_video {path, from, to, speed, fps, width, wait}` | File > Export Video without the dialogs: renders the animation and answers `frames`, `encoded`, `cancelled`, `path` and `folder`, the folder the frames were left in when no ffmpeg was found. Whatever is left out is the animation's own setting. `wait: false` starts the export and answers at once, so the run can watch it |
+| `get_export`                         | `export` with whether one is `running`, how many `frames` are done of the `total`, whether it was `cancelled` and the `result` the last one answered with |
+| `cancel_export`                      | stops a running export at its next frame                         |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
-| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, `skip_older`, `skip_younger`, `keyframe_older`, `keyframe_younger`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
+| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `export_image`, `export_video`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, `skip_older`, `skip_younger`, `keyframe_older`, `keyframe_younger`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |

@@ -2132,6 +2132,140 @@ def run_export_width_checks(client: AutomationClient, folder: Path) -> None:
     client.call("set_preferences", preferences={"export_width": 3600})
 
 
+### The video scenario
+
+
+# What the scenario makes a video of: a hundred million years at a hundred a
+# second and ten frames a second, which is ten steps and so eleven frames.
+VIDEO_RANGE = {"from": 2000.0, "to": 1900.0, "speed": 100.0, "fps": 10.0}
+VIDEO_WIDTH = 240
+
+# The age the green craton is given as its older end, halfway through that
+# range, so the first frame of the video is without it and the last has it.
+GREEN_APPEARS_AT = 1950
+
+# How long a scenario waits for an export it is not waiting on the port for.
+EXPORT_TIMEOUT = 30.0
+
+
+def frame_files(folder: Path) -> list[Path]:
+    """The frames of a video export, in the order they were rendered."""
+    return sorted(folder.glob("frame_*.png"))
+
+
+def await_export(client: AutomationClient, done) -> dict:
+    """Ask after the running export until done() likes the answer, or time runs out."""
+    deadline = time.monotonic() + EXPORT_TIMEOUT
+    while True:
+        state = client.call("get_export")["export"]
+        if done(state) or time.monotonic() > deadline:
+            return state
+
+
+def run_video_session(client: AutomationClient, folder: Path) -> None:
+    """File > Export Video: one frame per age, encoded when an ffmpeg is found."""
+    from PIL import Image
+
+    sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+    client.call("load", path=str(sample))
+    # Nothing in the sample moves, so the green craton is given an age to
+    # appear at instead: what the frames have to show is the time moving.
+    client.call("select", title="Green Moved")
+    client.call("set_property", field="time_from", value=GREEN_APPEARS_AT)
+    client.call("select", title=None)
+    client.call("set_view", show_map=True, projection=0, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+    client.call("set_time", time=1234.0)
+    before = client.call("get_view")
+
+    # A preference naming a file that is not there is this machine saying it
+    # has no encoder, which is what leaves the frames where they were written.
+    client.call("set_preferences", preferences={"ffmpeg": str(folder / "no-ffmpeg.exe")})
+    loose = folder / "loose.mp4"
+    answer = client.call("export_video", path=str(loose), width=VIDEO_WIDTH, **VIDEO_RANGE)
+    check(answer["frames"] == 11,
+          f"2000 to 1900 Ma at 100 My a second and 10 fps is 11 frames: {answer['frames']}")
+    check(not answer["encoded"] and not loose.exists(),
+          "with no ffmpeg there is no video file")
+    check(Path(answer["folder"]) == folder / "loose",
+          f"and the frames are in a folder named after it: {answer['folder']}")
+
+    frames = frame_files(folder / "loose")
+    check(len(frames) == 11, f"eleven frames are on disk: {len(frames)}")
+    sizes = {Image.open(path).size for path in frames}
+    check(sizes == {(VIDEO_WIDTH, VIDEO_WIDTH // 2)},
+          f"each of them 240 by 120, the rectangular sheet: {sizes}")
+
+    first = Image.open(frames[0]).convert("RGB")
+    last = Image.open(frames[-1]).convert("RGB")
+    check(first.tobytes() != last.tobytes(), "the first frame is not the last one")
+    where = rectangular_pixel(first.size, *EXPORT_PLACES["green"])
+    check(dominant([channel / 255.0 for channel in first.getpixel(where)]) != "green",
+          f"the green craton is not there at 2000 Ma: {first.getpixel(where)}")
+    check(dominant([channel / 255.0 for channel in last.getpixel(where)]) == "green",
+          f"and is at 1900 Ma, which is the time moving between frames: {last.getpixel(where)}")
+
+    check(client.call("get_time")["time"] == 1234.0,
+          "the time is back where the export found it")
+    after = client.call("get_view")
+    for field in ["zoom", "fov", "lat", "lon", "angle", "projection", "window_size"]:
+        check(after[field] == before[field],
+              f"the view is where it was before the video: {field} is {after[field]}")
+
+    run_globe_video_checks(client, folder)
+    run_video_cancel_checks(client, folder)
+    run_video_encoding_checks(client, folder)
+    client.call("set_preferences", preferences={"ffmpeg": ""})
+    client.call("set_view", show_map=False, projection=0, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+
+
+def run_globe_video_checks(client: AutomationClient, folder: Path) -> None:
+    """The globe has no aspect of its own, so a video of it is square."""
+    from PIL import Image
+
+    client.call("set_view", show_map=False, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+    answer = client.call("export_video", path=str(folder / "globe.mp4"),
+                         width=VIDEO_WIDTH, **dict(VIDEO_RANGE, fps=1.0))
+    check(answer["frames"] == 2, f"a frame a second over that range is two: {answer['frames']}")
+    sizes = {Image.open(path).size for path in frame_files(folder / "globe")}
+    check(sizes == {(VIDEO_WIDTH, VIDEO_WIDTH)}, f"and both frames are square: {sizes}")
+    client.call("set_view", show_map=True, projection=0, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+
+
+def run_video_cancel_checks(client: AutomationClient, folder: Path) -> None:
+    """An export the run does not wait for can be watched and stopped."""
+    stopped = folder / "stopped.mp4"
+    client.call("export_video", path=str(stopped), width=VIDEO_WIDTH, wait=False,
+                **dict(VIDEO_RANGE, speed=5.0))
+    state = await_export(client, lambda export: export["frames"] >= 1)
+    check(state["total"] == 201 and state["frames"] >= 1,
+          f"the export is running and says how far it has got: {state}")
+
+    client.call("cancel_export")
+    state = await_export(client, lambda export: not export["running"])
+    check(not state["running"], f"Cancel stops it at the next frame: {state}")
+    check(state["result"]["cancelled"] and state["result"]["frames"] < 201,
+          f"and it says it was cancelled: {state['result']}")
+    check(not (folder / "stopped").exists(), "a cancelled export leaves no frames behind")
+    check(not stopped.exists(), "and no video")
+
+
+def run_video_encoding_checks(client: AutomationClient, folder: Path) -> None:
+    """With the preference cleared the frames go to whatever ffmpeg is found."""
+    # Whether this machine has one is not something the suite may depend on, so
+    # both answers are checked rather than one of them demanded.
+    client.call("set_preferences", preferences={"ffmpeg": ""})
+    encoded = folder / "encoded.mp4"
+    answer = client.call("export_video", path=str(encoded), width=VIDEO_WIDTH, **VIDEO_RANGE)
+    check(answer["frames"] == 11, f"the same eleven frames are rendered: {answer['frames']}")
+    if answer["encoded"]:
+        check(encoded.is_file() and encoded.stat().st_size > 0,
+              f"ffmpeg encoded them into {encoded.name}, {encoded.stat().st_size} bytes")
+        check(not (folder / "encoded").exists(), "and the frames it read are gone")
+    else:
+        check(len(frame_files(folder / "encoded")) == 11,
+              "no ffmpeg was found on this machine, so the frames are what is left")
+
+
 def run_scene_session(client: AutomationClient, folder: Path) -> None:
     """The scene settings: saved with the document, dragged on the globe, defaulted."""
     sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
@@ -3498,6 +3632,16 @@ def run_export_from_console(client: AutomationClient) -> None:
         client.call("set_view", show_map=False)
         printed = console(client, f"app.export_image({str(folder / 'globe.png')!r})")
         check("AppError" in printed, f"and the globe is refused: {printed!r}")
+
+        # A video from the prompt: two frames of the globe, which a video may
+        # be made of even though a picture may not.
+        video = folder / "console.mp4"
+        printed = console(client, "app.export_video(%r, from_=2000, to=1900, speed=100,"
+                          " fps=1, width=240)" % str(video))
+        check("'frames': 2" in printed,
+              f"app.export_video answers with the frame count: {printed!r}")
+        check(video.is_file() or (folder / "console").is_dir(),
+              f"and left a video or the frames of one: {sorted(folder.iterdir())}")
     finally:
         shutil.rmtree(folder, ignore_errors=True)
 
@@ -3785,6 +3929,11 @@ def main(argv: list[str]) -> int:
         folder = Path(tempfile.mkdtemp(prefix="middle-earth-export-"))
         try:
             run_export_session(client, folder)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+        folder = Path(tempfile.mkdtemp(prefix="middle-earth-video-"))
+        try:
+            run_video_session(client, folder)
         finally:
             shutil.rmtree(folder, ignore_errors=True)
         folder = Path(tempfile.mkdtemp(prefix="middle-earth-scene-"))

@@ -115,3 +115,17 @@ func test_the_export_width_defaults_and_stays_inside_its_bounds() -> void:
 	assert_eq(Config.get_export_width(), Config.MIN_EXPORT_WIDTH,
 		"a width read from the file is clamped too")
 	_restore_the_real_config()
+
+
+func test_the_ffmpeg_path_is_remembered_as_it_was_typed() -> void:
+	_use_a_scratch_config()
+	assert_eq(Config.get_ffmpeg(), "", "no ffmpeg named is the search")
+
+	Config.set_ffmpeg("  C:/ffmpeg/bin/ffmpeg.exe  ")
+	Config.forget()
+	assert_eq(Config.get_ffmpeg(), "C:/ffmpeg/bin/ffmpeg.exe",
+		"a path survives a reload without the spaces around it")
+
+	Config.set_ffmpeg("")
+	assert_eq(Config.get_ffmpeg(), "", "and clearing it asks for the search again")
+	_restore_the_real_config()

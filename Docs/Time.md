@@ -324,6 +324,23 @@ frame rate, and the `<` and `>` buttons stepped by the same increment. A config
 file from then still opens: the keys playback no longer reads are left alone
 and the speed starts at its default.
 
+### A frame of a video
+
+File > Export Video is where the animation does have frames. A frame is one
+age: the time is set to it, the geometry is resolved there and the planet is
+drawn on its own, so a frame is the picture of that age and nothing about the
+frame before it comes into it. The ages are `from`, then one every
+`speed / fps` million years towards `to`, and the last one is `to` exactly,
+which makes `ceil(|from - to| / speed * fps) + 1` frames. Both ends of the
+range are therefore in the video, and a range of no length is one frame.
+
+A video and playback cover the same ground at the same speed, since the export
+takes the animation's own range and speed unless it is told otherwise. What
+differs is where the sampling comes from: playback moves the time by the
+seconds the last frame took on the machine it is running on, while an export
+moves it by the frame rate it was given, so the video is the same however long
+each frame took to render. See [Shell](Shell.md#exporting-a-video-of-the-animation).
+
 ## What a frame costs
 
 Rotating every vertex on the processor for every frame would not hold up, so it

@@ -44,6 +44,7 @@ adding an item means adding an enum value and one `add_item` line.
 | Save            | Ctrl+S         | Write to the document path, asking for one only when it has none |
 | Save As...      | Ctrl+Shift+S   | Always ask for a path                            |
 | Export Image... |                | Write the map at the current age to a PNG; greyed out on the globe |
+| Export Video... |                | Render the animation between two ages and encode it; the globe as well as a map |
 | Run Script...   |                | Pick a Python file and run it; see [Scripting](Scripting.md) |
 | Scripts         |                | One entry per documented script in the configured folders |
 | Preferences...  |                | The preferences dialog                           |
@@ -148,6 +149,11 @@ In the dialog under File > Preferences:
 - **Export width (pixels)** — how wide File > Export Image writes its picture.
   The height comes from the projection, so this one number settles the size of
   every export; see [Exporting a picture of the map](#exporting-a-picture-of-the-map).
+- **ffmpeg for video export** — which ffmpeg encodes the frames of a video.
+  Empty is the one on the path, or the copy Shotcut ships where there is none
+  on the path. A path naming a file that is not there means this machine has no
+  encoder, and the frames are then left as they are; see
+  [Exporting a video of the animation](#exporting-a-video-of-the-animation).
 - **Interpreter** and **Script directories**, under a Python heading — which
   Python runs the scripting bridge and where the scripts that become menu
   entries are looked for. Leaving the interpreter empty means the project's own
@@ -183,6 +189,56 @@ so it reaches all four corners of its own picture.
 The status bar names the file and its size when the picture is written, and a
 failure to write reaches the error dialog. A script exports through
 `app.export_image()`; see [Scripting](Scripting.md#the-application).
+
+## Exporting a video of the animation
+
+File > Export Video renders the animation frame by frame and hands the frames
+to ffmpeg. The dialog asks for six things:
+
+| Field                 | Default                       |
+| --------------------- | ----------------------------- |
+| From (Ma)             | the animation's start         |
+| To (Ma)               | its end                       |
+| Speed (My per second) | its speed                     |
+| Frames per second     | 30                            |
+| Width (pixels)        | the Export width preference   |
+| File                  | the document's name with `.mp4` |
+
+The three ages and the speed are the animation's own settings, so the video
+runs the way playback does; the frame rate is how finely that run is sampled.
+The line under the fields says how many frames they come to and how large each
+one is, and follows the fields as they are typed. Eighteen thousand frames is
+the most one export may hold, which is ten minutes of video at thirty frames a
+second and what stands between a mistyped speed and an export nobody wanted.
+
+Each frame is the planet at one age, rendered the way
+[a picture](#exporting-a-picture-of-the-map) is, so a frame and a picture of
+the same age are the same image. Unlike the picture, a video can be made of the
+globe: the globe keeps the camera it is being watched with, which way it faces
+and how far it is zoomed in, and comes out square. A map fills the frame the
+way it fills a picture. Both sides are rounded down to an even number of pixels,
+which is what H.264 can take.
+
+The frames are written as `frame_00000.png` and up into a folder beside the
+file and named after it, so `C:\maps\rodinia.mp4` is rendered into
+`C:\maps\rodinia`. Playback is paused for the export and the current time is
+put back afterwards, along with the view and the selection. A progress dialog
+counts the frames as they are rendered and its Cancel button stops the export
+at the next one, leaving neither frames nor video behind.
+
+When the frames are all there, ffmpeg is called on them:
+
+```
+ffmpeg -y -framerate <fps> -i frame_%05d.png -c:v libx264 -pix_fmt yuv420p <file>
+```
+
+The folder is removed once that has run. Where no ffmpeg can be found, or where
+it refuses the frames, they stay in the folder and the status bar and a dialog
+say where they are and that Preferences is where an ffmpeg is named. The frames
+are the work either way; encoding them again by hand is one command line.
+
+A script exports through `app.export_video()`; see
+[Scripting](Scripting.md#the-application).
 
 ## Command line
 

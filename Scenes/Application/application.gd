@@ -22,6 +22,25 @@ static var PALETTE_FILTERS := PackedStringArray(["*.cpt ; Colour Palette Tables"
 # What File > Export Image writes. One format, since the picture is what the
 # planet was drawn into and PNG keeps it exactly.
 static var IMAGE_EXPORT_FILTERS := PackedStringArray(["*.png ; PNG Images"])
+# What File > Export Video writes, and the extension a path without one gets.
+# One container, since the frames are encoded by one ffmpeg command line.
+static var VIDEO_EXPORT_FILTERS := PackedStringArray(["*.mp4 ; MP4 Videos"])
+const VIDEO_EXTENSION := ".mp4"
+# What one frame of a video is called. GDScript formats it with the frame
+# number and ffmpeg reads the same pattern as a numbered sequence.
+const FRAME_NAME := "frame_%05d.png"
+# How fast the frames of a video come, and the bounds the dialog offers. Thirty
+# is what a video is usually watched at; the speed in My per second is what
+# decides how much of the animation each frame covers.
+const DEFAULT_FPS := 30.0
+const MIN_FPS := 1.0
+const MAX_FPS := 120.0
+# How many frames one video may hold. At thirty a second that is ten minutes,
+# and it is what stands between a mistyped speed and an export nobody wanted.
+const MAX_VIDEO_FRAMES := 18000
+# Where ffmpeg is looked for when the preference names none and there is none
+# on the path: the copy Shotcut ships, which is the one on this machine.
+const FFMPEG_CANDIDATES := ["C:/Program Files/Shotcut/ffmpeg.exe"]
 static var SCRIPT_FILTERS := PackedStringArray(["*.py ; Python Scripts"])
 # What File > Import takes: a GPlates project, or the feature collection and
 # rotation files a project would name. See Docs/Import.md.
@@ -69,7 +88,8 @@ const SNAP_PIXELS := 12.0
 # a drag turns the feature about it.
 const DRAG_PIXELS := 4.0
 
-enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, RUN_SCRIPT, PREFERENCES, QUIT }
+enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, EXPORT_VIDEO, RUN_SCRIPT,
+	PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, CONSOLE, STATUS_BAR, SETTINGS, FULL_SCREEN }
 enum TimeItem { OLDER, YOUNGER, OLDER_KEYFRAME, YOUNGER_KEYFRAME }
@@ -207,6 +227,7 @@ var radius_spin: SpinBox
 var marker_spin: SpinBox
 var line_spin: SpinBox
 var export_width_spin: SpinBox
+var ffmpeg_edit: LineEdit
 var interpreter_edit: LineEdit
 var script_directories_edit: TextEdit
 var view_dialog: AcceptDialog
@@ -221,6 +242,23 @@ var view_fields: Dictionary = {}
 var animation_dialog: AcceptDialog
 # The fields of the animation dialog, by the name of the setting each one edits.
 var animation_fields: Dictionary = {}
+var video_dialog: AcceptDialog
+# The fields of the video dialog, by the name of the setting each one edits,
+# beside the file the video goes to and the frame count under them.
+var video_fields: Dictionary = {}
+var video_path_edit: LineEdit
+var video_count_label: Label
+var video_progress_dialog: AcceptDialog
+var video_progress_label: Label
+
+# The video export in flight: how many frames are rendered, how many there are
+# altogether and whether Cancel has been pressed. A total of zero is nothing
+# running. `video_result` is what the last export answered, so a run that
+# started one without waiting for it can read how it went.
+var video_frames: int = 0
+var video_total: int = 0
+var video_cancelled: bool = false
+var video_result: Dictionary = {}
 
 # The image on the planet, and the path it was read from, so that changing the
 # opacity or the visibility does not read the file again. `backdrop.error` says
@@ -399,6 +437,7 @@ func _build_menus() -> void:
 	file_menu.add_item("Save As...", FileItem.SAVE_AS, KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_S)
 	file_menu.add_separator()
 	file_menu.add_item("Export Image...", FileItem.EXPORT_IMAGE)
+	file_menu.add_item("Export Video...", FileItem.EXPORT_VIDEO)
 	file_menu.add_separator()
 	file_menu.add_item("Run Script...", FileItem.RUN_SCRIPT)
 	scripts_menu = PopupMenu.new()
@@ -504,6 +543,7 @@ func _on_file_menu_id_pressed(id: int) -> void:
 		FileItem.SAVE: save_document()
 		FileItem.SAVE_AS: save_document_as()
 		FileItem.EXPORT_IMAGE: export_image_as()
+		FileItem.EXPORT_VIDEO: show_video_dialog()
 		FileItem.RUN_SCRIPT: run_script()
 		FileItem.PREFERENCES: show_preferences()
 		FileItem.QUIT: quit_application()
@@ -741,19 +781,23 @@ func export_problem() -> String:
 
 
 # The size an export comes out at. A width of zero is the one the preferences
-# hold; the height is what the projection's aspect asks for.
+# hold; the height is what the projection's aspect asks for. The globe has no
+# aspect of its own, being one side of a sphere, so a picture of it is square.
 func export_size(width: int = 0) -> Vector2i:
-	return PlanetView.export_size(planet_view.planet.projection,
-		width if width > 0 else Config.get_export_width())
+	var pixels := width if width > 0 else Config.get_export_width()
+	if not planet_view.planet.show_map:
+		return Vector2i(pixels, pixels)
+	return PlanetView.export_size(planet_view.planet.projection, pixels)
 
 
-# One frame of the map, rendered on its own. The selection highlight and the
+# One frame of the planet, rendered on its own. The selection highlight and the
 # tool overlay come off for it and the planet is drawn again as it was
-# afterwards. GP-0061's video export renders its frames through here.
-func export_frame(width: int = 0) -> Image:
+# afterwards. It is the one place a frame is rendered, so the video export
+# below walks the time and calls this for each of its frames.
+func export_frame(size: Vector2i) -> Image:
 	planet_view.planet.set_feature_state(geometry, null, null)
 	planet_view.planet.set_outline([])
-	var image: Image = await planet_view.render_export(export_size(width))
+	var image: Image = await planet_view.render_export(size)
 	_refresh_feature_state()
 	return image
 
@@ -764,7 +808,7 @@ func export_image(path: String, width: int = 0) -> String:
 	var problem := export_problem()
 	if not problem.is_empty():
 		return problem
-	var image: Image = await export_frame(width)
+	var image: Image = await export_frame(export_size(width))
 	if image.save_png(path) != OK:
 		return "Cannot write %s" % path
 	return ""
@@ -785,6 +829,207 @@ func export_image_as() -> void:
 			else:
 				_show_error(problem),
 		IMAGE_EXPORT_FILTERS)
+
+
+### Exporting a video of the animation
+#
+# The animation between two ages as a sequence of PNG frames, which ffmpeg
+# encodes into one file when there is an ffmpeg to be found and which are left
+# where they were written when there is not. Each frame is one age: the time is
+# set and the planet drawn through export_frame(), so a frame of a video and a
+# picture of the same age are the same image.
+
+
+# A size an encoder can take: both sides even, rounded down rather than up so
+# the picture is never stretched into a pixel that was not drawn. H.264 in
+# yuv420p samples the colour at half the width and half the height, so an odd
+# side has half a sample nowhere to put.
+static func even_size(size: Vector2i) -> Vector2i:
+	return Vector2i(maxi(size.x - size.x % 2, 2), maxi(size.y - size.y % 2, 2))
+
+
+# The size a video comes out at, which is the size of a picture made even.
+func video_size(width: int = 0) -> Vector2i:
+	return even_size(export_size(width))
+
+
+# How many frames a video holds: one at the age it starts from, then one every
+# speed / fps million years until the age it ends at, which always gets one.
+static func video_frame_count(from: float, to: float, speed: float, fps: float) -> int:
+	return int(ceil(absf(from - to) / speed * fps)) + 1
+
+
+# The age of one frame, walking from `from` towards `to` and never past it.
+static func video_frame_time(from: float, to: float, speed: float, fps: float,
+		index: int) -> float:
+	var walked := from + signf(to - from) * speed / fps * index
+	return clampf(walked, minf(from, to), maxf(from, to))
+
+
+# What a video export takes when the caller says nothing: the range and the
+# speed the animation is configured with, thirty frames a second, and the
+# width every export shares.
+func video_defaults() -> Dictionary:
+	return {
+		"from": timeline.animation.start,
+		"to": timeline.animation.end,
+		"speed": timeline.animation.speed,
+		"fps": DEFAULT_FPS,
+		"width": float(Config.get_export_width()),
+	}
+
+
+# Why these settings cannot be made into a video, empty when they can.
+static func video_problem(options: Dictionary) -> String:
+	var speed := float(options["speed"])
+	var fps := float(options["fps"])
+	if speed <= 0.0:
+		return "The speed must be more than zero."
+	if fps < MIN_FPS or fps > MAX_FPS:
+		return "The frame rate must be between %d and %d." % [MIN_FPS, MAX_FPS]
+	for key in ["from", "to"]:
+		var age := float(options[key])
+		if age < 0.0 or age > Document.MAX_TIME:
+			return "An age of %s is outside 0 to %d." % [age, Document.MAX_TIME]
+	var count := video_frame_count(
+		float(options["from"]), float(options["to"]), speed, fps)
+	if count > MAX_VIDEO_FRAMES:
+		return ("That is %d frames, more than the %d one video may hold. " +
+			"Raise the speed or lower the frame rate.") % [count, MAX_VIDEO_FRAMES]
+	return ""
+
+
+# Where ffmpeg is: the preference when it names one, whatever the path holds
+# when it does not, and last the copy Shotcut ships. Empty when there is none,
+# which is what leaves the frames of a video where they were written. A
+# preference naming a file that is not there is an answer too, so a run can say
+# that this machine has no encoder.
+static func find_ffmpeg() -> String:
+	var configured := Config.get_ffmpeg()
+	if not configured.is_empty():
+		return configured if FileAccess.file_exists(configured) else ""
+	# The directories of the path, read rather than tried: running a program to
+	# find out whether it is there prints an engine error when it is not.
+	var windows := OS.get_name() == "Windows"
+	var executable := "ffmpeg.exe" if windows else "ffmpeg"
+	for directory in OS.get_environment("PATH").split(";" if windows else ":", false):
+		var on_path := directory.strip_edges().replace("\\", "/").path_join(executable)
+		if FileAccess.file_exists(on_path):
+			return on_path
+	for candidate in FFMPEG_CANDIDATES:
+		if FileAccess.file_exists(candidate):
+			return candidate
+	return ""
+
+
+# Render the animation and encode it. The frames go into a folder beside the
+# file and named after it, so they are already where they belong when there is
+# no ffmpeg to fold them into one. The answer says what happened: `error` is
+# empty when it went through, `frames` is how many were rendered, `encoded`
+# whether ffmpeg made a file of them and `folder` where they were left when it
+# did not.
+func export_video(path: String, options: Dictionary = {}) -> Dictionary:
+	video_result = {}
+	video_result = await _export_video(path, options)
+	return video_result
+
+
+func _export_video(path: String, options: Dictionary) -> Dictionary:
+	if video_total > 0:
+		return {"error": "A video is already being exported."}
+	if path.strip_edges().is_empty():
+		return {"error": "A video needs a file to be written to."}
+	var settings := video_defaults()
+	for key in options:
+		if not settings.has(key):
+			return {"error": "A video export has no %s setting." % key}
+		settings[key] = float(options[key])
+	var problem := video_problem(settings)
+	if not problem.is_empty():
+		return {"error": problem}
+
+	var file := path.strip_edges()
+	if file.get_extension().is_empty():
+		file += VIDEO_EXTENSION
+	var folder := file.get_basename()
+	var from := float(settings["from"])
+	var to := float(settings["to"])
+	var speed := float(settings["speed"])
+	var fps := float(settings["fps"])
+	var size := video_size(int(settings["width"]))
+	var count := video_frame_count(from, to, speed, fps)
+
+	# Frames of an earlier export of the same name would be read as part of
+	# this one, since ffmpeg takes the numbered files in order.
+	_remove_frames(folder)
+	if DirAccess.make_dir_recursive_absolute(folder) != OK:
+		return {"error": "Cannot make the folder %s" % folder}
+
+	timeline.pause()
+	var was_time := document.current_time
+	video_cancelled = false
+	video_frames = 0
+	video_total = count
+	var written := 0
+	var trouble := ""
+	for index in count:
+		if video_cancelled:
+			break
+		document.set_time(video_frame_time(from, to, speed, fps, index))
+		var image: Image = await export_frame(size)
+		var frame_path := folder.path_join(FRAME_NAME % index)
+		if image.save_png(frame_path) != OK:
+			trouble = "Cannot write %s" % frame_path
+			break
+		written += 1
+		video_frames = written
+		_show_video_progress()
+	document.set_time(was_time)
+	video_total = 0
+
+	if video_cancelled or not trouble.is_empty():
+		_remove_frames(folder)
+		return {"error": trouble, "cancelled": video_cancelled, "frames": written,
+			"encoded": false, "path": file, "folder": ""}
+
+	var ffmpeg := find_ffmpeg()
+	if ffmpeg.is_empty():
+		return {"error": "", "cancelled": false, "frames": written,
+			"encoded": false, "path": file, "folder": folder}
+
+	var output: Array = []
+	var code := OS.execute(ffmpeg, ["-y", "-framerate", str(fps),
+		"-i", folder.path_join(FRAME_NAME), "-c:v", "libx264",
+		"-pix_fmt", "yuv420p", file], output, true)
+	if code != 0:
+		# The frames stay where they are: they are the work, and the encoding
+		# can be done again by hand from them.
+		return {"error": "%s could not encode the frames (%d): %s" % [
+			ffmpeg, code, "\n".join(PackedStringArray(output)).strip_edges()],
+			"cancelled": false, "frames": written, "encoded": false,
+			"path": file, "folder": folder}
+	_remove_frames(folder)
+	return {"error": "", "cancelled": false, "frames": written, "encoded": true,
+		"path": file, "folder": ""}
+
+
+# Stop the video export that is running at its next frame. Nothing to stop is
+# not a refusal: the export may have finished while the question was asked.
+func cancel_export() -> void:
+	if video_total > 0:
+		video_cancelled = true
+
+
+# Take a frame folder away: the frames this export writes, and then the folder
+# itself, which stays if anything else was put in it.
+static func _remove_frames(folder: String) -> void:
+	var dir := DirAccess.open(folder)
+	if dir == null:
+		return
+	for name in dir.get_files():
+		if name.begins_with("frame_") and name.ends_with(".png"):
+			dir.remove(name)
+	DirAccess.remove_absolute(folder)
 
 
 func quit_application() -> void:
@@ -1012,6 +1257,28 @@ func _build_dialogs() -> void:
 	animation_dialog.confirmed.connect(_on_animation_confirmed)
 	add_child(animation_dialog)
 
+	video_dialog = AcceptDialog.new()
+	video_dialog.name = "VideoDialog"
+	video_dialog.title = "Export video"
+	video_dialog.ok_button_text = "Export"
+	video_dialog.add_child(_build_video_content())
+	video_dialog.confirmed.connect(_on_video_confirmed)
+	add_child(video_dialog)
+
+	# The export runs frame by frame with the window alive, so the progress is
+	# a dialog whose one button stops it rather than a bar nobody can leave.
+	video_progress_dialog = AcceptDialog.new()
+	video_progress_dialog.name = "VideoProgressDialog"
+	video_progress_dialog.title = "Exporting video"
+	video_progress_dialog.ok_button_text = "Cancel"
+	video_progress_label = Label.new()
+	video_progress_label.name = "VideoProgress"
+	video_progress_label.custom_minimum_size = Vector2(260, 0)
+	video_progress_dialog.add_child(video_progress_label)
+	video_progress_dialog.confirmed.connect(cancel_export)
+	video_progress_dialog.canceled.connect(cancel_export)
+	add_child(video_progress_dialog)
+
 
 func _build_about_content() -> Control:
 	var text := RichTextLabel.new()
@@ -1057,14 +1324,25 @@ func _build_preferences_content() -> Control:
 	form.columns = 2
 	box.add_child(form)
 
-	radius_spin = _preference_spin(form, "PlanetRadius", "Planet radius (km)",
+	radius_spin = _form_spin(form, "PlanetRadius", "Planet radius (km)",
 		Measure.MIN_RADIUS_KM, Measure.MAX_RADIUS_KM, 1.0)
-	marker_spin = _preference_spin(form, "VertexMarkerScale", "Vertex marker size",
+	marker_spin = _form_spin(form, "VertexMarkerScale", "Vertex marker size",
 		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
-	line_spin = _preference_spin(form, "LineWidthScale", "Outline line width",
+	line_spin = _form_spin(form, "LineWidthScale", "Outline line width",
 		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
-	export_width_spin = _preference_spin(form, "ExportWidth", "Export width (pixels)",
+	export_width_spin = _form_spin(form, "ExportWidth", "Export width (pixels)",
 		Config.MIN_EXPORT_WIDTH, Config.MAX_EXPORT_WIDTH, Config.EXPORT_WIDTH_STEP)
+
+	# The encoder a video export hands its frames to. Empty is the one on the
+	# path, or the one Shotcut ships where there is none.
+	var ffmpeg_label := Label.new()
+	ffmpeg_label.text = "ffmpeg for video export"
+	box.add_child(ffmpeg_label)
+
+	ffmpeg_edit = LineEdit.new()
+	ffmpeg_edit.name = "Ffmpeg"
+	ffmpeg_edit.placeholder_text = "Whatever is found on the path"
+	box.add_child(ffmpeg_edit)
 
 	# Python: which interpreter runs the scripting bridge and where the scripts
 	# that become menu entries are looked for, one directory per line.
@@ -1091,7 +1369,7 @@ func _build_preferences_content() -> Control:
 	return box
 
 
-func _preference_spin(form: GridContainer, name: String, text: String,
+func _form_spin(form: GridContainer, name: String, text: String,
 		low: float, high: float, step: float) -> SpinBox:
 	var label := Label.new()
 	label.text = text
@@ -1249,7 +1527,7 @@ func _build_view_content() -> Control:
 
 func _view_spin(form: GridContainer, key: String, text: String,
 		low: float, high: float, step: float) -> void:
-	var spin := _preference_spin(form, key.to_pascal_case(), text, low, high, step)
+	var spin := _form_spin(form, key.to_pascal_case(), text, low, high, step)
 	spin.value_changed.connect(func(_value: float) -> void: _on_view_field_changed())
 	view_fields[key] = spin
 
@@ -1492,6 +1770,145 @@ func _on_animation_confirmed() -> void:
 	timeline.set_animation(settings)
 
 
+### The video dialog
+#
+# What File > Export Video asks for: the ages to run between, how fast to run
+# and how finely to sample it, how wide the picture is and where the file goes.
+# The frame count under the fields follows them as they are typed.
+
+
+func _build_video_content() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "Video"
+	box.custom_minimum_size = Vector2(420, 0)
+
+	var form := GridContainer.new()
+	form.columns = 2
+	box.add_child(form)
+	_video_spin(form, "from", "From (Ma)", 0.0, Document.MAX_TIME, 1.0)
+	_video_spin(form, "to", "To (Ma)", 0.0, Document.MAX_TIME, 1.0)
+	_video_spin(form, "speed", "Speed (My per second)", 0.001, Document.MAX_TIME, 0.001)
+	_video_spin(form, "fps", "Frames per second", MIN_FPS, MAX_FPS, 1.0)
+	_video_spin(form, "width", "Width (pixels)", Config.MIN_EXPORT_WIDTH,
+		Config.MAX_EXPORT_WIDTH, Config.EXPORT_WIDTH_STEP)
+
+	var file_label := Label.new()
+	file_label.text = "File"
+	box.add_child(file_label)
+
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	video_path_edit = LineEdit.new()
+	video_path_edit.name = "VideoPath"
+	video_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(video_path_edit)
+	var browse := Button.new()
+	browse.name = "BrowseVideo"
+	browse.text = "..."
+	browse.tooltip_text = "Pick where the video goes"
+	browse.pressed.connect(choose_video_path)
+	row.add_child(browse)
+
+	video_count_label = Label.new()
+	video_count_label.name = "VideoFrames"
+	video_count_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(video_count_label)
+
+	return box
+
+
+func _video_spin(form: GridContainer, field: String, text: String,
+		low: float, high: float, step: float) -> void:
+	var spin := _form_spin(form, field.to_pascal_case(), text, low, high, step)
+	spin.value_changed.connect(func(_value: float) -> void: _show_video_frame_count())
+	video_fields[field] = spin
+
+
+# What the fields hold, in the shape export_video() takes.
+func _video_options() -> Dictionary:
+	var options := {}
+	for field in video_fields:
+		options[field] = (video_fields[field] as SpinBox).value
+	return options
+
+
+# How many frames the fields ask for and how large they come out, or why they
+# ask for something that cannot be made.
+func _show_video_frame_count() -> void:
+	var options := _video_options()
+	var problem := video_problem(options)
+	if not problem.is_empty():
+		video_count_label.text = problem
+		return
+	var size := video_size(int(options["width"]))
+	video_count_label.text = "%d frames, %d by %d" % [video_frame_count(
+		float(options["from"]), float(options["to"]),
+		float(options["speed"]), float(options["fps"])), size.x, size.y]
+
+
+func show_video_dialog() -> void:
+	var defaults := video_defaults()
+	for field in video_fields:
+		(video_fields[field] as SpinBox).set_value_no_signal(float(defaults[field]))
+	if video_path_edit.text.strip_edges().is_empty():
+		var base := document.path.get_basename() if not document.path.is_empty() \
+			else Config.get_last_directory().path_join(document.display_name())
+		video_path_edit.text = base + VIDEO_EXTENSION
+	_show_video_frame_count()
+	video_dialog.popup_centered()
+
+
+func choose_video_path() -> void:
+	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_SAVE_FILE, "Export Video",
+		func(path: String) -> void:
+			if path.get_extension().is_empty():
+				path += VIDEO_EXTENSION
+			video_path_edit.text = path,
+		VIDEO_EXPORT_FILTERS)
+
+
+func _on_video_confirmed() -> void:
+	var path := video_path_edit.text.strip_edges()
+	var problem := video_problem(_video_options())
+	if problem.is_empty() and path.is_empty():
+		problem = "Pick a file for the video."
+	if not problem.is_empty():
+		_show_error(problem)
+		return
+	_show_video_progress()
+	video_progress_dialog.popup_centered()
+	var answer: Dictionary = await export_video(path, _video_options())
+	video_progress_dialog.hide()
+	_report_video(answer)
+
+
+# Say where the export got to, in the dialog it is watched in.
+func _show_video_progress() -> void:
+	if video_progress_label != null:
+		video_progress_label.text = "Frame %d of %d" % [video_frames, video_total]
+
+
+# What the status bar and, where something has to be done about it, the error
+# dialog say about a finished export.
+func _report_video(answer: Dictionary) -> void:
+	var frames := int(answer.get("frames", 0))
+	if not str(answer.get("error", "")).is_empty():
+		_show_error(str(answer["error"]))
+	elif bool(answer.get("cancelled", false)):
+		_show_measurement("Video export cancelled after %d frames" % frames)
+	elif bool(answer.get("encoded", false)):
+		_show_measurement("Exported %s, %d frames" % [
+			str(answer.get("path", "")).get_file(), frames])
+		Config.set_last_directory_from_file(str(answer.get("path", "")))
+	else:
+		var folder := str(answer.get("folder", ""))
+		_show_measurement("%d frames written to %s" % [frames, folder.get_file()])
+		_show_error(("No ffmpeg was found, so the %d frames are in %s rather than " +
+			"in one file. Name an ffmpeg in Preferences to have them encoded.") % [
+			frames, folder])
+		Config.set_last_directory_from_file(str(answer.get("path", "")))
+
+
 func show_preferences() -> void:
 	default_folder_edit.text = Config.get_last_directory()
 	restore_session_check.button_pressed = bool(Config.get_value("restore_session", true))
@@ -1499,6 +1916,7 @@ func show_preferences() -> void:
 	marker_spin.value = Config.get_vertex_marker_scale()
 	line_spin.value = Config.get_line_width_scale()
 	export_width_spin.value = Config.get_export_width()
+	ffmpeg_edit.text = Config.get_ffmpeg()
 	interpreter_edit.text = Config.get_python_interpreter()
 	script_directories_edit.text = "
 ".join(PackedStringArray(Config.get_script_directories()))
@@ -1512,6 +1930,7 @@ func _on_preferences_confirmed() -> void:
 	Config.set_vertex_marker_scale(marker_spin.value)
 	Config.set_line_width_scale(line_spin.value)
 	Config.set_export_width(int(export_width_spin.value))
+	Config.set_ffmpeg(ffmpeg_edit.text.strip_edges())
 	_apply_outline_scale()
 	_show_measurement()
 	_apply_python_preferences()

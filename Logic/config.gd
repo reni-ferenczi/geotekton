@@ -204,6 +204,18 @@ static func set_export_width(width: int) -> void:
 	set_value("export_width", clampi(width, MIN_EXPORT_WIDTH, MAX_EXPORT_WIDTH))
 
 
+# Which ffmpeg encodes the frames of a video export. Empty means look for one:
+# on the path first, then where Shotcut keeps the copy it ships. A path that
+# names nothing leaves the frames unencoded rather than sending the search off
+# to find some other encoder, so a machine can be told it has none.
+static func get_ffmpeg() -> String:
+	return str(get_value("ffmpeg", "")).strip_edges()
+
+
+static func set_ffmpeg(path: String) -> void:
+	set_value("ffmpeg", path.strip_edges())
+
+
 ### The view
 #
 # What a new document starts from: the scene settings it is given, and which

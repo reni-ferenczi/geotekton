@@ -109,10 +109,29 @@ planet, a geometry kind a feature type does not allow — is raised as an
 | Call                                  | What it does                                   |
 | ------------------------------------- | ---------------------------------------------- |
 | `app.export_image(path, width=None)`  | Write the map at the current age to a PNG and answer its size as `(width, height)` |
+| `app.export_video(path, **options)`   | Render the animation to a video and answer what came of it |
 
 The height comes from the projection, so `width` settles both; left out, it is
 the Export width preference. A globe raises `AppError`, since a picture is of a
 map sheet. See [Shell](Shell.md#exporting-a-picture-of-the-map).
+
+A video takes `from_`, `to`, `speed`, `fps` and `width`, and whatever is left
+out is the animation's own setting, thirty frames a second and the Export width
+preference. `from` is a keyword in Python, which is why the first age is spelled
+`from_` here. The answer is a dictionary holding `frames`, how many were
+rendered, `encoded`, whether ffmpeg made a file of them, `path`, the file it was
+asked for, and `folder`, where the frames were left when there was no ffmpeg to
+fold them into one:
+
+```python
+app.time = 1000
+app.export_video('C:/maps/rodinia.mp4', from_=1000, to=800, fps=24)
+```
+
+The call returns when the whole video has been rendered, which is frames of the
+application's own time and so cannot be hurried. The globe is not refused: it is
+watched from where the camera stands and comes out square. See
+[Shell](Shell.md#exporting-a-video-of-the-animation).
 
 ### Files without an application
 
@@ -235,8 +254,8 @@ line that is not a JSON object is refused without the interpreter going down.
 
 `document`, `time`, `set_time`, `play`, `pause`, `selection`, `select`, `new`,
 `open`, `save`, `undo`, `redo`, `add_feature`, `add_group`, `edit_feature`,
-`delete_feature`, `set_keyframe`, `delete_keyframe` and `export_image` — one per
-call of the API above. Each finishes the edit the way the panels do, so a script's change
+`delete_feature`, `set_keyframe`, `delete_keyframe`, `export_image` and
+`export_video` — one per call of the API above. Each finishes the edit the way the panels do, so a script's change
 reaches the tree, the globe, the timeline and the graphs exactly as a person's
 does.
 
