@@ -259,11 +259,22 @@ func test_the_colour_follows_the_type_until_someone_picks_one() -> void:
 ### Time range
 
 
-func test_a_time_range_that_ends_before_it_starts_is_refused() -> void:
+func test_a_feature_can_be_created_with_a_time_range() -> void:
+	assert_eq(Feature.create_feature("Fresh").time_range, Feature.DEFAULT_TIME_RANGE,
+		"a feature created without one covers the whole default span")
+	assert_eq(Feature.create_feature("Late", Color.RED, Vector2i(0, 1500)).time_range,
+		Vector2i(0, 1500), "one added at 1500 Ma starts there and runs to the present")
+	assert_eq(Feature.create_feature("Now", Color.RED, Vector2i(0, 0)).time_range,
+		Vector2i(0, 0), "one added at the present is there at the present only")
+
+
+func test_a_time_range_that_ends_older_than_it_starts_is_refused() -> void:
 	var document := _document()
 	var before := _feature(document).time_range
 	var versions := document.applied
-	assert_true(not document.set_time_range(_feature(document), Vector2i(900, 100)).is_empty())
+	assert_eq(document.set_time_range(_feature(document), Vector2i(900, 100)),
+		"The time range ends at 900, after it starts at 100.",
+		"the message names the ends the way the panel reads them: From older, To younger")
 	assert_eq(_feature(document).time_range, before, "the refused range was not applied")
 	assert_eq(document.applied, versions, "and nothing was recorded")
 
