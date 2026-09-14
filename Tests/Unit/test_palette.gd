@@ -184,16 +184,22 @@ func test_every_built_in_palette_reads_without_error() -> void:
 		assert_eq(palette.name, str(Palette.BUILT_IN[key]["name"]), "%s is named" % key)
 
 
-func test_the_discrete_built_in_palette_really_steps() -> void:
-	var palette := Palette.built_in("steps")
-	assert_close(palette.color_at(100.0), BLUE, 1e-3, "the first step")
-	assert_close(palette.color_at(199.0), BLUE, 1e-3, "all the way to its top")
-	assert_close(palette.color_at(201.0), GREEN, 1e-3, "and the next one over")
+# Rainbow is the one table the chooser offers without a file, and Custom is the
+# ramp the style carries itself.
+func test_the_chooser_offers_the_custom_ramp_and_rainbow() -> void:
+	assert_eq(Palette.choices(), {Palette.RAMP: "Custom", "rainbow": "Rainbow"},
+		"the two palettes offered without a file")
+	assert_close(Palette.built_in("rainbow").color_at(0.0), RED, 1e-3, "rainbow starts red")
+	assert_close(Palette.built_in("rainbow").color_at(400.0), GREEN, 1e-3, "and is green at 400")
+	assert_eq(Palette.built_in("no such palette").source, "rainbow",
+		"a key no version knows falls back to a table that is there")
 
 
 func test_a_palette_is_resolved_from_a_built_in_name_or_a_path() -> void:
 	assert_eq(Palette.resolve("rainbow").source, "rainbow", "a built in name")
 	assert_eq(Palette.resolve("").source, Palette.DEFAULT, "nothing named")
+	assert_eq(Palette.resolve("").color_at(150.0), Color(0.5, 0.5, 0.5, 1.0),
+		"which is the default ramp, black to white over 300 My")
 	var path := ProjectSettings.globalize_path("%s/continuous.cpt" % PALETTES)
 	var loaded := Palette.resolve(path)
 	assert_eq(loaded.source, path, "a path")
@@ -203,7 +209,7 @@ func test_a_palette_is_resolved_from_a_built_in_name_or_a_path() -> void:
 # The strip the chooser previews a palette with runs from one end of it to the
 # other, whether the palette ramps or steps.
 func test_a_palette_is_sampled_across_its_whole_range() -> void:
-	var strip := Palette.built_in("grayscale").sample(5)
+	var strip := Palette.ramp([WHITE, BLACK], 1000.0).sample(5)
 	assert_eq(strip.size(), 5, "five samples")
 	if strip.size() < 5:
 		return

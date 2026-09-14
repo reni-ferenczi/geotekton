@@ -12,12 +12,6 @@ extends RefCounted
 # older blocks through it.
 const VIEW_KEYS := {"draw_style": "mode", "single_color": "color", "palette": "palette"}
 
-# The ramp a new style starts with: brown to grey over 300 My, the orogeny it
-# was asked for.
-const DEFAULT_RAMP_FROM := Color(0.55, 0.35, 0.2, 1.0)
-const DEFAULT_RAMP_TO := Color(0.6, 0.6, 0.6, 1.0)
-const DEFAULT_RAMP_SPAN := 300.0
-
 # An id in Styling.MODES. Inherit leaves the choice to the group above.
 var mode: String = Styling.INHERIT
 
@@ -32,11 +26,11 @@ var opacity: float = 1.0
 # Palette.BUILT_IN or the path of a `.cpt` file.
 var palette: String = Palette.DEFAULT
 
-# The two colour ramp, read when `palette` is Palette.RAMP: ramp_from at age
-# zero, ramp_to once the feature is ramp_span My old, and held there after.
-var ramp_from: Color = DEFAULT_RAMP_FROM
-var ramp_to: Color = DEFAULT_RAMP_TO
-var ramp_span: float = DEFAULT_RAMP_SPAN
+# The custom ramp, read when `palette` is Palette.RAMP: the first colour at age
+# zero, each next one ramp_span My later, and the last held after that. Two
+# colours at the least.
+var ramp_colors: Array[Color] = Palette.DEFAULT_RAMP_COLORS.duplicate()
+var ramp_span: float = Palette.DEFAULT_RAMP_SPAN
 
 
 # The document default: the root has nothing above it to inherit from, so it
@@ -57,16 +51,16 @@ func to_json() -> Dictionary:
 		"color": [color.r, color.g, color.b, color.a],
 		"opacity": opacity,
 		"palette": palette,
-		"ramp_from": [ramp_from.r, ramp_from.g, ramp_from.b, ramp_from.a],
-		"ramp_to": [ramp_to.r, ramp_to.g, ramp_to.b, ramp_to.a],
+		"ramp_colors": ramp_colors.map(
+			func(c: Color) -> Array: return [c.r, c.g, c.b, c.a]),
 		"ramp_span": ramp_span,
 	}
 
 
-# The ramp as a palette of one slice, so it is looked up and previewed the way
-# every other palette is.
+# The ramp as a palette, so it is looked up and previewed the way every other
+# palette is.
 func ramp() -> Palette:
-	return Palette.ramp(ramp_from, ramp_to, ramp_span)
+	return Palette.ramp(ramp_colors, ramp_span)
 
 
 # Read a style back, taking the default for anything it does not say. A mode no
@@ -81,10 +75,21 @@ static func from_json(data: Variant) -> GroupStyle:
 	style.color = _color(data.get("color"), Styling.DEFAULT_SINGLE)
 	style.opacity = clampf(float(data.get("opacity", 1.0)), 0.0, 1.0)
 	style.palette = str(data.get("palette", Palette.DEFAULT))
-	style.ramp_from = _color(data.get("ramp_from"), DEFAULT_RAMP_FROM)
-	style.ramp_to = _color(data.get("ramp_to"), DEFAULT_RAMP_TO)
-	style.ramp_span = clampf(float(data.get("ramp_span", DEFAULT_RAMP_SPAN)), 1.0, Document.MAX_TIME)
+	style.ramp_colors = colors_from(data.get("ramp_colors"))
+	style.ramp_span = clampf(float(data.get("ramp_span", Palette.DEFAULT_RAMP_SPAN)),
+		1.0, Document.MAX_TIME)
 	return style
+
+
+# A list of `[r, g, b]` or `[r, g, b, a]` as the colours of a ramp, or the
+# default ramp when fewer than two of them can be read.
+static func colors_from(list: Variant) -> Array[Color]:
+	var colors: Array[Color] = []
+	if list is Array:
+		for entry in list as Array:
+			colors.append(_color(entry, Color.BLACK))
+	return colors if colors.size() >= Palette.MIN_RAMP_COLORS \
+		else Palette.DEFAULT_RAMP_COLORS.duplicate()
 
 
 # `[r, g, b]` or `[r, g, b, a]`, or the fallback for anything else.

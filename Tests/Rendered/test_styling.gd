@@ -51,12 +51,14 @@ func test_the_feature_type_style_paints_the_colour_of_the_type() -> void:
 	await _check(POLYGON, FeatureType.color(FeatureType.CIRCLE), "the circle")
 
 
-# The steps palette is five flat slices two hundred million years wide, so the
-# age of each feature picks one of them outright rather than a blend.
+# The discrete fixture is three flat slices, so the age of each feature picks
+# one of them outright rather than a blend.
 func test_the_feature_age_style_paints_the_palette_at_each_age() -> void:
-	await _load_styled({"draw_style": Styling.BY_AGE, "palette": "steps"})
-	var palette := Palette.built_in("steps")
-	var ages := {POLYGON: 100, POLYLINE: 300, POINT: 900}
+	var path := ProjectSettings.globalize_path("res://Tests/Data/Palettes/discrete.cpt")
+	await _load_styled({"draw_style": Styling.BY_AGE, "palette": path})
+	var palette := Palette.load_from(path)
+	# Each age sits inside a different slice of the fixture: red, green and blue.
+	var ages := {POLYGON: 5, POLYLINE: 15, POINT: 35}
 	for at in ages:
 		_feature_at(at).time_range = Vector2i(0, int(ages[at]))
 	# A document opens at the oldest age the animation covers, which is older
@@ -77,8 +79,7 @@ func test_the_age_ramp_colors_one_feature_differently_at_two_times() -> void:
 		return
 	feature.time_range = Vector2i(0, 500)
 	var style: GroupStyle = app.document.root.style
-	style.ramp_from = Color.RED
-	style.ramp_to = Color.BLUE
+	style.ramp_colors = [Color.RED, Color.BLUE]
 	style.ramp_span = 200.0
 	app.refresh_geometry()
 	var material: ShaderMaterial = view().planet.globe.get_surface_override_material(0)
@@ -236,20 +237,20 @@ func test_the_chooser_lists_and_previews_the_built_in_palettes() -> void:
 	var listed: Array = []
 	for index in choice.item_count:
 		listed.append(str(choice.get_item_metadata(index)))
-	assert_eq(listed, Palette.choices().keys(), "the ramp and every built in palette are offered")
+	assert_eq(listed, [Palette.RAMP, "rainbow"], "Custom and Rainbow are offered")
 
 	for key in Palette.BUILT_IN:
 		Application.select_option(choice, str(key))
 		app._on_view_field_changed()
 		_check_preview(Palette.built_in(str(key)), "the built in %s" % key)
 
-	# The ramp previews the root style's own two colours over its span.
-	app.view_fields["ramp_from"].color = Color.RED
-	app.view_fields["ramp_to"].color = Color.BLUE
+	# The ramp previews the root style's own colours over its spans.
+	var stops: Array[Color] = [Color.RED, Color.BLUE, Color.GREEN]
+	app.view_fields["ramp_colors"].colors = stops
 	Application.select_option(choice, Palette.RAMP)
 	app._on_view_field_changed()
-	assert_eq(app.document.root.style.ramp_from, Color.RED, "the dialog's ramp is the root's")
-	_check_preview(Palette.ramp(Color.RED, Color.BLUE, app.document.root.style.ramp_span), "the ramp")
+	assert_eq(app.document.root.style.ramp_colors, stops, "the dialog's ramp is the root's")
+	_check_preview(Palette.ramp(stops, app.document.root.style.ramp_span), "the ramp")
 	app.view_dialog.hide()
 
 

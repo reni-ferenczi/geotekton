@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "features": { ... },
   "view": { ... }
 }
@@ -157,8 +157,8 @@ groups and leaf features.
   "enabled": true,
   "is_group": true,
   "type": "Group",
-  "style": {"mode": "inherit", "color": [0.9, 0.9, 0.9, 1.0], "opacity": 1.0, "palette": "age",
-            "ramp_from": [0.55, 0.35, 0.2, 1.0], "ramp_to": [0.6, 0.6, 0.6, 1.0], "ramp_span": 300.0},
+  "style": {"mode": "inherit", "color": [0.9, 0.9, 0.9, 1.0], "opacity": 1.0, "palette": "ramp",
+            "ramp_colors": [[0.0, 0.0, 0.0, 1.0], [1.0, 1.0, 1.0, 1.0]], "ramp_span": 300.0},
   "children": [ ... ]
 }
 ```
@@ -167,9 +167,10 @@ groups and leaf features.
 [Styling](Styling.md#group-styles). `mode` is `inherit`, `feature`, `single`,
 `age` or `type`, `color` what the single colour mode paints with, `opacity` 0 to
 1 and multiplied into everything under the group, and `palette` `ramp`, a
-built in palette's key or the path of a `.cpt` file. `ramp_from` and `ramp_to`
-are the [two colour ramp](Styling.md#the-two-colour-ramp)'s colors and
-`ramp_span` its span in My, at least 1. A group without the key inherits at
+built in palette's key or the path of a `.cpt` file. `ramp_colors` is the
+[custom ramp](Styling.md#the-custom-ramp)'s two colors or more, each
+`[r, g, b, a]`, and `ramp_span` the My between one and the next, at least 1. A
+group without the key inherits at
 full opacity, and so does one naming a mode this version does not know. The
 root group's style is the document default: a root without one, or on inherit,
 draws each feature in its own colour.
@@ -399,6 +400,16 @@ opens at the present looking the way it did.
 0.12.0 added `couplings` to a leaf feature. There is no migration step: a leaf
 without the key rides on nothing, and its keyframes are world rotations, which
 is what every feature's keyframes were before.
+
+#### 0.12.0 to 0.13.0
+
+0.13.0 made the group style's ramp a list of colors rather than two ends.
+`ramp_from` and `ramp_to` become the two stops of `ramp_colors` and are removed;
+a style that named only one of them, or neither, takes the new default, black to
+white. The palette list is Custom and Rainbow now, so a style naming one of the
+three built in tables that went — `age`, `grayscale` and `steps` — takes the
+custom ramp, which is what replaced them. A style naming a `.cpt` file keeps it.
+The step is `Document._to_0_13_0()`.
 
 ## The config file
 

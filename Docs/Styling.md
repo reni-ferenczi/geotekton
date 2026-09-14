@@ -96,7 +96,7 @@ place. Every group carries a **style**:
 | `color` | What the single colour mode paints with |
 | `opacity` | 0 to 1, multiplied into every feature under the group |
 | `palette` | What the feature age mode reads: `ramp`, a built in palette's key or the path of a `.cpt` file |
-| `ramp_from`, `ramp_to`, `ramp_span` | The two colour ramp: the color at age zero, the color at `ramp_span` My, and that span |
+| `ramp_colors`, `ramp_span` | The custom ramp: two colors or more, and the My between one and the next |
 
 `Styling.color_of()` goes up from a feature to the nearest group whose mode is
 not inherit, and that group's style decides the color. The opacity works
@@ -119,21 +119,28 @@ The style is part of the tree. It is written on the group node in the file, it
 is on the undo stack with the rest of the tree, and a duplicated or pasted group
 takes a copy of it.
 
-### The two colour ramp
+### The custom ramp
 
-The palette list starts with **Two colour ramp** (`ramp`). Its colors and its
-span are fields of the style itself, so every group has its own: a feature is
-`ramp_from` when it comes into existence, moves towards `ramp_to` at the same
-rate whatever the timeline does, reaches it `ramp_span` My later and stays
-there. A feature younger than the span never reaches `ramp_to`, which is the
-point: a group of orogenies can go from brown to grey over 300 My while another
-group ages over a different span. The color in between is a straight blend of
-the two, the way a palette slice blends its ends.
+The palette list starts with **Custom** (`ramp`), which is what a new style
+uses. Its colors and its span are fields of the style itself, so every group has
+its own: a feature is the first color when it comes into existence, moves
+towards the next at the same rate whatever the timeline does, reaches it
+`ramp_span` My later, then carries on to the one after over another span, and
+holds at the last one. A feature younger than the whole ramp never reaches its
+end, which is the point: a group of orogenies can go from brown to grey over
+300 My while another group ages over a different span. The color in between is a
+straight blend of the two stops it sits between, the way a palette slice blends
+its ends.
 
-`GroupStyle.ramp()` turns the three fields into a palette of one slice, so the
-ramp is looked up and previewed the same way as any other palette. A new style
-starts at brown to grey over 300 My, and the span is at least 1 My. The `.cpt`
-palettes stay for anyone who wants more than two steps, and read the same age.
+`ramp_colors` holds two colors or more. The **+** button beside the pickers adds
+another, a copy of the last one, and the **−** on every color past the second
+takes that one off, so the fewest a ramp can have is the two it starts with.
+
+`GroupStyle.ramp()` turns the list and the span into a palette of one slice per
+neighbouring pair, so the ramp is looked up and previewed the same way as any
+other palette. A new style starts at black to white over 300 My, and the span is
+at least 1 My. The `.cpt` palettes stay for anyone who wants steps rather than
+blends, and read the same age.
 
 ## Colour palettes
 
@@ -187,24 +194,21 @@ is a strip of the chosen palette from one end of its range to the other, drawn
 from the palette itself, so what is about to be drawn with is visible before
 anything is drawn with it.
 
-The built in palettes are written in the same format a file is and read by the
+One built in table is left, written in the same format a file is and read by the
 same reader, so there is one way in:
 
 | Palette | What it is |
 | ------- | ---------- |
-| Feature age | The example age palette GPlates ships, 0 to 700 Ma through two ramps |
 | Rainbow | 0 to 1000 through red, yellow, green, cyan, blue and magenta |
-| Grayscale | 0 to 1000, white down to black |
-| Discrete steps | Five flat slices two hundred wide: blue, green, yellow, orange, red |
 
 A style stores the palette as one string: the key of a built in palette, or
 the path of a file. `Palette.resolve()` takes it back either way. The
 application reads each palette once and keeps it by that string, so a rebuild
 of the geometry never reads a file it has read before.
 
-The two colour ramp is listed first. Below the palette row the dialog has a
-Ramp row with the root style's two colors and its span; the strip previews the
-ramp from age zero to the end of the span.
+Custom is listed first. Below the palette row the dialog has a Ramp row with the
+root style's colors and its span; the strip previews the ramp from age zero to
+the end of the last span.
 
 That chooser is the root group's. A group's palette row in the Properties panel
 lists the built in palettes and the file its style already names, and has no
@@ -223,7 +227,9 @@ starts from: the view block, with the root style under `style`.
 Up to 0.9.0 the view block carried `draw_style`, `single_color` and `palette`;
 0.10.0 moved them onto the root group. See
 [0.9.0 to 0.10.0](Persistence.md#090-to-0100). 0.11.0 added the ramp fields;
-see [0.10.0 to 0.11.0](Persistence.md#0100-to-0110).
+see [0.10.0 to 0.11.0](Persistence.md#0100-to-0110). 0.13.0 made the ramp a list
+of colors and cut the built in palettes down to Rainbow; see
+[0.12.0 to 0.13.0](Persistence.md#0120-to-0130).
 
 ## Where the tests are
 

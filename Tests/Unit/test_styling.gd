@@ -169,8 +169,8 @@ func test_the_single_colour_style_gives_every_feature_the_same_one() -> void:
 # time since it came into being.
 func test_the_feature_age_style_reads_the_palette_at_the_age_so_far() -> void:
 	var root := _styled(Styling.BY_AGE)
-	root.style.palette = "steps"
-	var palette := Palette.built_in("steps")
+	root.style.palette = "rainbow"
+	var palette := Palette.built_in("rainbow")
 	var colors := _colors_by_class(root)
 	assert_eq(colors[Styling.POLYGONS], palette.color_at(100.0), "the shield, 100 My old")
 	assert_eq(colors[Styling.POLYLINES], palette.color_at(500.0), "the ridge, 500")
@@ -182,11 +182,12 @@ func test_the_feature_age_style_reads_the_palette_at_the_age_so_far() -> void:
 	assert_eq(Styling.age_of(stations, 950.0), 0.0, "never below zero before it exists")
 
 
-### The two colour ramp
+### The custom ramp
 
 
 const RAMP_FROM := Color(0.8, 0.4, 0.1, 1.0)
 const RAMP_TO := Color(0.2, 0.6, 0.9, 1.0)
+const RAMP_LAST := Color(0.0, 0.5, 0.0, 1.0)
 
 
 # GP-0036: a feature born at 500 Ma under a 200 My ramp is color A at 500,
@@ -197,8 +198,7 @@ func test_the_ramp_moves_from_a_to_b_over_its_span_and_holds() -> void:
 	var root := _nested()
 	root.style.mode = Styling.BY_AGE
 	root.style.palette = Palette.RAMP
-	root.style.ramp_from = RAMP_FROM
-	root.style.ramp_to = RAMP_TO
+	root.style.ramp_colors = [RAMP_FROM, RAMP_TO]
 	root.style.ramp_span = 200.0
 	var leaf: Feature = root.children[0].children[0].children[0]
 	leaf.time_range = Vector2i(0, 500)
@@ -214,15 +214,44 @@ func test_the_ramp_moves_from_a_to_b_over_its_span_and_holds() -> void:
 		assert_close(geometry.colors[0], step[1], 1e-5, "%s (%s Ma)" % [step[2], step[0]])
 
 
-# The ramp is a palette of one slice, so the chooser's strip previews it the
-# same way as any other.
-func test_the_ramp_is_a_palette_of_one_slice() -> void:
-	var ramp := Palette.ramp(RAMP_FROM, RAMP_TO, 200.0)
+# The ramp is a palette of one slice per pair of colours, so the chooser's strip
+# previews it the same way as any other.
+func test_the_ramp_is_a_palette_of_one_slice_per_pair() -> void:
+	var ramp := Palette.ramp([RAMP_FROM, RAMP_TO], 200.0)
 	assert_eq(ramp.source, Palette.RAMP, "named by its key")
 	assert_eq(ramp.color_at(-10.0), RAMP_FROM, "A below zero")
 	assert_close(ramp.color_at(50.0), RAMP_FROM.lerp(RAMP_TO, 0.25), 1e-5, "a quarter along")
 	assert_eq(ramp.color_at(1000.0), RAMP_TO, "B past the span")
 	assert_true(Palette.choices().has(Palette.RAMP), "and it is listed with the built in palettes")
+
+
+# A ramp of three colours reaches the middle one at the end of the first span
+# and holds at the last past the end of the second.
+func test_a_three_colour_ramp_spans_each_pair_in_turn() -> void:
+	var ramp := Palette.ramp([RAMP_FROM, RAMP_TO, RAMP_LAST], 200.0)
+	assert_eq(ramp.slices.size(), 2, "one slice per pair")
+	assert_eq(ramp.color_at(0.0), RAMP_FROM, "the first colour at age zero")
+	assert_close(ramp.color_at(200.0), RAMP_TO, 1e-5, "the middle colour at one span")
+	assert_close(ramp.color_at(300.0), RAMP_TO.lerp(RAMP_LAST, 0.5), 1e-5, "halfway to the last")
+	assert_eq(ramp.color_at(400.0), RAMP_LAST, "the last colour at two spans")
+	assert_eq(ramp.color_at(1000.0), RAMP_LAST, "and held there past the end")
+
+
+# A new style ramps black to white, which is what the palette chooser starts on.
+func test_a_new_style_ramps_black_to_white() -> void:
+	var style := GroupStyle.new()
+	assert_eq(style.palette, Palette.RAMP, "the custom ramp is the default palette")
+	assert_eq(style.ramp_colors, [Color.BLACK, Color.WHITE], "black to white")
+	assert_eq(style.ramp_span, 300.0, "over 300 My")
+	assert_eq(style.ramp().color_at(150.0), Color(0.5, 0.5, 0.5, 1.0), "grey halfway along")
+
+
+# A ramp needs two ends, so a style that names fewer takes the default one.
+func test_a_ramp_of_fewer_than_two_colours_is_the_default_ramp() -> void:
+	assert_eq(GroupStyle.from_json({"ramp_colors": [[1.0, 0.0, 0.0, 1.0]]}).ramp_colors,
+		[Color.BLACK, Color.WHITE], "one colour is no ramp")
+	assert_eq(GroupStyle.from_json({"ramp_colors": "red"}).ramp_colors,
+		[Color.BLACK, Color.WHITE], "and neither is something that is not a list")
 
 
 # A style that names no ramp never recolors on a step of an animation.
@@ -353,8 +382,7 @@ func test_a_style_round_trips_through_the_file() -> void:
 	outer.style.color = OTHER_SINGLE
 	outer.style.opacity = 0.25
 	outer.style.palette = "C:/palettes/ages.cpt"
-	outer.style.ramp_from = SINGLE
-	outer.style.ramp_to = OTHER_SINGLE
+	outer.style.ramp_colors = [SINGLE, OTHER_SINGLE, SINGLE]
 	outer.style.ramp_span = 450.0
 	var back := Feature.from_json(root.to_json())
 	assert_eq(back.children[0].style.to_json(), outer.style.to_json(), "the group's whole style")

@@ -838,6 +838,12 @@ func _fill_view_dialog(block: Dictionary) -> String:
 		if not fields.has(name):
 			return "no view setting called %s" % name
 		var field: Control = fields[name]
+		if field is RampRow:
+			var wanted: Variant = block[key]
+			if wanted is not Array or (wanted as Array).size() < Palette.MIN_RAMP_COLORS:
+				return "a ramp takes a list of at least %d colours" % Palette.MIN_RAMP_COLORS
+			(field as RampRow).colors = GroupStyle.colors_from(wanted)
+			continue
 		if field is OptionButton:
 			var button := field as OptionButton
 			Application.select_option(button, str(block[key]))
