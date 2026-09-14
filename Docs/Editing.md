@@ -2,31 +2,37 @@
 
 ## Tools
 
-The toolbar contains eight mutually exclusive tool buttons, a switch, a selector
-and a number:
+The toolbar contains eight mutually exclusive tool buttons, two switches and a
+number:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
 - **Draw** — Enables drawing on the globe surface. See `Docs/Draw.md` for full details.
+  Offered on a Polygon, a Line and Points.
 - **Vertex** — Edits the vertices of the selected feature. Needs a leaf feature
   holding vertices of its own; see [The Vertex tool](#the-vertex-tool).
 - **Measure** — Reports great circle distances in the status bar; see
   [The Measure tool](#the-measure-tool).
 - **Circle** — Draws a circle from a centre or through three points; see
-  [The Circle tool](#the-circle-tool).
+  [The Circle tool](#the-circle-tool). Offered on a Circle.
 - **Topology** — Builds a line topology out of the features it runs along; see
-  [Line topologies](#line-topologies).
+  [Line topologies](#line-topologies). Offered on a Topology.
 - **Light** — Drags the light around the globe; see
   [The Light tool](#the-light-tool). Offered on the globe alone.
 - **Snap** — Whether a dragged vertex jumps onto a nearby one. Only the Vertex
   tool uses it; see [Snapping](#snapping).
 - **Split** — Cuts the selected polygon in two along a line drawn across it;
   see [The Split tool](#the-split-tool). Offered while a polygon is selected.
-- **Geometry kind** — What the Draw and Circle tools produce: Polygon, Polyline
-  or Multipoint. Any kind can be picked until the selected feature holds a
-  shape, and then only the kind it holds; see
-  [Properties](Properties.md#what-the-type-restricts).
 - **Circle segments** — Shown only while the Circle tool is active; see
   [Segments of a circle](#segments-of-a-circle).
+- **Outline** — Whether the Circle tool commits a polyline rather than a
+  polygon. Shown beside the segment box, and remembered between sessions; see
+  [What it commits](#what-it-commits).
+
+Which of Draw, Circle and Topology is offered follows the selected feature's
+[type](Properties.md#what-the-type-restricts), which is picked in the Properties
+panel and is the one place it is picked. Picking a type on a feature holding
+nothing arms the tool that draws it, so a new feature can be drawn straight
+away.
 
 Only one of Move, Draw, Vertex, Measure, Circle, Topology, Light and Split is
 active at a time. Everything but
@@ -277,27 +283,30 @@ A committed circle is not a true curve but a ring of straight edges. The
 starting at 36. Only this tool reads it, so the box is shown only while the
 Circle tool is active. The preview and the status bar follow it as it changes.
 
-The box fits in the toolbar's spare width, so showing it does not push the
-Properties panel aside or move the planet. That is why the label is not
-longer. The scripted session checks that the planet stays put when the tool
-changes.
+The box and the Outline switch beside it fit in the toolbar's spare width, so
+showing them does not push the Properties panel aside or move the planet. That
+is why neither label is longer. The scripted session checks that the planet
+stays put when the tool changes.
 
 ### What it commits
 
-The circle becomes a ring of the kind the geometry selector is on, cut into the
-number of segments the box holds:
+The circle becomes a ring cut into the number of segments the box holds. The
+**Outline** switch beside the box says which kind of ring:
 
-- A **polygon** holds one vertex per segment and closes from the last back to
-  the first.
-- A **polyline** holds one vertex more, the first one repeated at the end, so
-  it draws the whole circle rather than stopping a segment short.
-- A **multipoint** is refused: a circle is a path, not a bag of markers.
+- With the switch off, a **polygon**, one vertex per segment, closing from the
+  last back to the first.
+- With it on, a **polyline**, one vertex more, the first one repeated at the
+  end, so it draws the whole circle rather than stopping a segment short.
+
+The switch is a preference rather than part of a document, so it is remembered
+between sessions the way the snap switch is.
 
 The vertices are worked out in world coordinates and then mapped into the
 feature's own frame, the same way the Draw tool does it, so a circle drawn while
 the current time has moved the feature lands where it was clicked. Committing
-makes the feature a [Circle](Properties.md#the-type-follows-the-geometry),
-records one undo version and goes back to the Move tool.
+records one undo version and goes back to the Move tool. The tool is offered on
+a [Circle](Properties.md#the-type-is-picked-before-the-shape) alone, which is
+what a feature drawn with it already is.
 
 The construction itself is in `Logic/circle.gd` and is tested without a
 window. How well three points settle a centre depends on how large the circle

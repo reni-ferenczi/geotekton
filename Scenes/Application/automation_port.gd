@@ -509,15 +509,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true, "path": path, "size": [image.get_width(), image.get_height()]}
 
 		"get_tool":
-			var allowed: Array = []
-			for index in app.kind_selector.item_count:
-				if not app.kind_selector.is_item_disabled(index):
-					allowed.append(Feature.KIND_NAMES[app.kind_selector.get_item_id(index)])
 			return {"ok": true,
 				"tool": TOOL_NAMES[app.active_tool],
-				"kind": Feature.KIND_NAMES[app.drawing_kind()],
-				"kind_locked": app.kind_selector.disabled,
-				"allowed_kinds": allowed,
 				"drawing_vertices": app.outline_vertices.size(),
 				"vertex_enabled": not app.vertex_button.disabled,
 				"snapping": app.snapping(),
@@ -533,11 +526,16 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"circle": _circle_to_json(),
 				"segments": app.circle_segments(),
 				"segments_visible": app.segments_spin.is_visible_in_tree(),
+				"outline": app.outline_check.button_pressed,
+				"draw_enabled": not app.draw_button.disabled,
+				"circle_enabled": not app.circle_button.disabled,
+				"topology_enabled": not app.topology_button.disabled,
 				"status_measure": app.status_measure.text}
 
 		"set_tool":
-			# Only what the toolbar itself allows: no drawing without a leaf
-			# feature, and no change of kind once the feature holds geometry.
+			# Only what the toolbar itself allows: a tool is refused wherever its
+			# button is greyed out. Which kind the Draw and Circle tools produce
+			# comes from the selected feature's type, which set_property sets.
 			var tool_name := str(request.get("tool", ""))
 			if tool_name == "draw":
 				if app.draw_button.disabled:
@@ -576,19 +574,9 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			if request.has("snap"):
 				app.snap_button.button_pressed = bool(request["snap"])
 				app.snap_button.toggled.emit(app.snap_button.button_pressed)
-			if request.has("kind"):
-				var kind_name := str(request["kind"])
-				if not Feature.KIND_VALUES.has(kind_name):
-					return {"ok": false, "error": "unknown geometry kind: %s" % kind_name}
-				if app.kind_selector.disabled:
-					return {"ok": false, "error": "the geometry kind cannot be changed now"}
-				var kind_index := app.kind_selector.get_item_index(Feature.KIND_VALUES[kind_name])
-				if app.kind_selector.is_item_disabled(kind_index):
-					return {"ok": false, "error": "a %s cannot be a %s" % [
-						FeatureType.label(app.features.feature_tree.get_selected_node().feature_type),
-						kind_name]}
-				app.kind_selector.select(kind_index)
-				app.kind_selector.item_selected.emit(app.kind_selector.selected)
+			if request.has("outline"):
+				app.outline_check.button_pressed = bool(request["outline"])
+				app.outline_check.toggled.emit(app.outline_check.button_pressed)
 			await _frames(2)
 			return {"ok": true}
 

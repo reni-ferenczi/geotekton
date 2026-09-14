@@ -5,33 +5,33 @@ put vertices down, then press Enter to commit them.
 
 ## Tool Selection
 
-The toolbar above the planet view holds seven mutually exclusive tool buttons and
-a selector for what the Draw tool produces. Only the two this page is about are
-listed here; the rest are in [Editing](Editing.md#tools):
+The toolbar above the planet view holds the mutually exclusive tool buttons.
+Only the two this page is about are listed here; the rest are in
+[Editing](Editing.md#tools):
 
 - **Move** (ToolMove icon) — Default. Enables rotation and dragging of the globe.
 - **Draw** (Edit/pencil icon) — Enables drawing on the globe surface.
-- **Geometry kind** — Polygon, Polyline or Multipoint. Topology is listed as
-  well, so a feature holding one says what it is, but it is never offered: a
-  topology is built with the [Topology tool](Editing.md#line-topologies) out of
-  other features rather than out of clicks.
 
 Only one tool can be active at a time. They behave as a radio button group:
 selecting one deselects the others.
 
 ### Enabling the Draw Tool
 
-The Draw button is **disabled** when no leaf feature is selected (i.e. when a group or nothing is selected). It becomes enabled when a leaf feature node is selected in the feature tree — unless that feature has no kind the Draw tool may produce, which is the case for a line topology and for a feature whose type allows nothing else.
+The Draw button is **disabled** when no leaf feature is selected, that is when a
+group or nothing is selected, and when the selected feature's type is drawn with
+another tool: a Circle with the [Circle tool](Editing.md#the-circle-tool) and a
+Topology with the [Topology tool](Editing.md#line-topologies).
 
-If a newly selected feature has **no geometry** yet, the Draw tool is automatically activated to streamline the workflow.
+If a newly selected feature has **no geometry** yet, the tool its type is drawn
+with is activated to streamline the workflow.
 
 ### The geometry kind
 
-A feature holds one kind of geometry, so the selector is only free while the
-feature is empty. Once it holds anything, the selector shows that kind and is
-disabled, and anything else drawn on the feature joins it as another part of the
-same kind. While it is free, it offers only the kinds the feature's type allows;
-see [Properties](Properties.md#what-the-type-restricts).
+What the Draw tool produces follows the selected feature's
+[type](Properties.md#what-the-type-restricts): a Polygon gives a polygon, a Line
+a polyline and Points a multipoint. A feature holds one kind of geometry, so once
+it holds anything, everything else drawn on it joins that as another part of the
+same kind, whatever the type says.
 
 | Kind | Minimum vertices | What a part is |
 |---|---|---|
@@ -85,9 +85,9 @@ dots on the vertices. See [Editing](Editing.md#the-feature-tree).
 
 ### Step by Step
 
-1. Select a leaf feature in the feature tree (or create one).
-2. Activate the Draw tool (or let it auto-activate for empty features).
-3. Choose the geometry kind, while the feature is still empty.
+1. Select a leaf feature in the feature tree (or create one, which is a Polygon).
+2. Pick its type in the Properties panel, while the feature is still empty.
+3. Activate the Draw tool (or let it auto-activate for empty features).
 4. **Left-click** on the globe to place vertices in order.
 5. Use **right-click** or **Ctrl+Z** to take the last vertex back, and
    **Ctrl+Y** to put it down again.

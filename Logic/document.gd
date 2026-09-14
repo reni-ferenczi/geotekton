@@ -196,18 +196,16 @@ func set_style(group: Feature, style: GroupStyle) -> String:
 	return ""
 
 
-# Give the feature another type, which comes down to making a polygon or a
-# polyline a Circle or taking that back. Refused on a feature holding nothing,
-# whose type comes from the first shape committed to it, and for a type that
-# does not hold the kind the feature holds. The colour follows the type as long
-# as it is still the one the old type gave it, so a colour someone picked is
-# never overwritten.
+# Give the feature another type. On a feature holding nothing any type goes,
+# since the type is what the tools then draw into it; once it holds a shape only
+# a type that holds that kind, which comes down to making a polygon or a
+# polyline a Circle or taking that back. The colour follows the type as long as
+# it is still the one the old type gave it, so a colour someone picked is never
+# overwritten.
 func set_feature_type(feature: Feature, type_id: String) -> String:
 	if not FeatureType.CATALOG.has(type_id):
 		return "There is no feature type called %s." % type_id
-	if not feature.has_geometry():
-		return "%s holds nothing yet; the first shape drawn into it gives it a type." % feature.title
-	if not FeatureType.allows(type_id, feature.kind_name()):
+	if feature.has_geometry() and not FeatureType.allows(type_id, feature.kind_name()):
 		return "A %s cannot be a %s, which is %s." % [
 			feature.kind_name(), FeatureType.label(type_id),
 			" or ".join(FeatureType.kinds(type_id))]

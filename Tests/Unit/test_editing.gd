@@ -228,14 +228,15 @@ func test_a_type_that_forbids_the_kind_is_refused() -> void:
 	assert_eq(document.applied, versions, "and nothing was recorded")
 
 
-func test_a_feature_holding_nothing_takes_no_type() -> void:
+func test_a_feature_holding_nothing_takes_any_type() -> void:
 	var document := Document.new()
 	var feature := Feature.create_feature("Empty")
 	document.root.children.append(feature)
+	assert_eq(feature.feature_type, "polygon", "a new feature is a Polygon")
 	for type_id in FeatureType.CATALOG:
-		assert_true(not document.set_feature_type(feature, type_id).is_empty(),
-			"nothing is drawn yet, so %s waits for the first shape" % type_id)
-	assert_eq(feature.feature_type, FeatureType.NONE)
+		assert_eq(document.set_feature_type(feature, type_id), "",
+			"nothing is drawn yet, so %s is free to pick" % type_id)
+		assert_eq(feature.feature_type, type_id, "and the feature keeps it")
 
 
 func test_an_unknown_type_is_refused() -> void:

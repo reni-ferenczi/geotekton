@@ -67,9 +67,10 @@ var is_root: bool
 var style: GroupStyle = null
 
 # Feature-only fields
-# What the feature is, an id in FeatureType.CATALOG. It follows the geometry:
-# a feature holding nothing reads as no type, and a carried type that does not
-# hold the kind reads as the kind's own. Only Circle is carried by choice.
+# What the feature is, an id in FeatureType.CATALOG. It is picked in the
+# Properties panel and says what the tools draw into the feature. A feature
+# holding a shape has to have a type that holds that kind: one that does not
+# reads as the kind's own.
 var feature_type: String = FeatureType.NONE:
 	get:
 		return FeatureType.resolve(feature_type, kind_name() if has_geometry() else "")
@@ -140,6 +141,10 @@ static func create_feature(title_: String = "Feature",
 	feature.color = color_
 	feature.is_group = false
 	feature.time_range = time_range_
+	# A new feature is a Polygon, which is what most of them turn out to be and
+	# what the Draw tool then produces. The panel changes it before the first
+	# shape is drawn.
+	feature.feature_type = FeatureType.POLYGON
 	return feature
 
 

@@ -92,9 +92,9 @@ const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false, ViewItem.CONSOLE: f
 @onready var light_button: Button = %Light
 @onready var snap_button: Button = %Snap
 @onready var split_button: Button = %Split
-@onready var kind_selector: OptionButton = %GeometryKind
 @onready var segments_spin: SpinBox = %Segments
 @onready var segments_label: Label = %SegmentsLabel
+@onready var outline_check: CheckButton = %Outline
 @onready var projection_selector: OptionButton = %Projection
 @onready var zoom_spin: SpinBox = %Zoom
 @onready var zoom_in_button: Button = %ZoomIn
@@ -256,7 +256,8 @@ func _ready() -> void:
 	snap_button.toggled.connect(_on_snap_toggled)
 	split_button.pressed.connect(func() -> void: set_active_tool(Tool.SPLIT))
 	snap_button.button_pressed = Config.get_snap_to_vertices()
-	_build_kind_selector()
+	outline_check.button_pressed = Config.get_circle_outline()
+	outline_check.toggled.connect(_on_outline_toggled)
 	# The range and the starting value come from Circle, so the scene does
 	# not carry a second copy of what a circle may be cut into.
 	segments_spin.min_value = Circle.MIN_SEGMENTS
@@ -1556,9 +1557,11 @@ func set_active_tool(tool: Tool) -> void:
 	topology_button.button_pressed = (tool == Tool.TOPOLOGY)
 	light_button.button_pressed = (tool == Tool.LIGHT)
 	split_button.button_pressed = (tool == Tool.SPLIT)
-	# Only the Circle tool reads the segment count, so only it shows the box.
+	# Only the Circle tool reads the segment count and the Outline switch, so
+	# only it shows them.
 	segments_label.visible = tool == Tool.CIRCLE
 	segments_spin.visible = tool == Tool.CIRCLE
+	outline_check.visible = tool == Tool.CIRCLE
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
@@ -1579,14 +1582,32 @@ func snapping() -> bool:
 # The Vertex tool needs a leaf feature holding vertices of its own; there is
 # nothing to take hold of otherwise, and a topology's vertices belong to the
 # features it runs along. Measure needs nothing at all, and Split a polygon.
+# Which of Draw, Circle and Topology is offered follows the feature's type.
 func _update_tool_buttons() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var editable := selected != null and not selected.is_group and selected.has_own_vertices()
 	vertex_button.disabled = not editable
 	snap_button.disabled = active_tool != Tool.VERTEX
+	draw_button.disabled = not _can_draw(selected)
+	circle_button.disabled = not _can_draw_circle(selected)
+	topology_button.disabled = not _can_build_topology(selected)
 	split_button.disabled = not _can_split_along(selected)
 	split_button.tooltip_text = "Split the selected polygon along a line drawn across it" \
 		if not split_button.disabled else "Select a polygon to split it"
+
+
+# Whether the armed tool can still work on the selected feature. Only the three
+# drawing tools are asked: the type says which of them a feature is drawn with,
+# and nothing a type can change reaches the others.
+func _tool_fits(node: Feature) -> bool:
+	match active_tool:
+		Tool.DRAW:
+			return _can_draw(node)
+		Tool.CIRCLE:
+			return _can_draw_circle(node)
+		Tool.TOPOLOGY:
+			return _can_build_topology(node)
+	return true
 
 
 ### Feature selection
@@ -1629,24 +1650,18 @@ func _on_feature_selected(node: Feature) -> void:
 		set_active_tool(Tool.MOVE)
 
 	var is_leaf := node != null and not node.is_group
-	draw_button.disabled = not _can_draw(node)
-	circle_button.disabled = not _can_draw(node)
-	topology_button.disabled = not _can_build_topology(node)
-	_update_kind_selector(node)
+	_update_tool_buttons()
 	_show_selection(node)
 
 	if is_leaf:
-		# A tool that cannot work on what is now selected gives way to Move,
-		# rather than staying armed and swallowing the clicks meant for the
-		# globe. Nothing selected is left alone: rebuilding the tree clears the
-		# selection for a moment before it puts it back.
-		if (active_tool == Tool.DRAW or active_tool == Tool.CIRCLE) and not _can_draw(node):
-			set_active_tool(Tool.MOVE)
-		elif active_tool == Tool.TOPOLOGY and not _can_build_topology(node):
-			set_active_tool(Tool.MOVE)
-		# Auto-select Draw when the feature has no geometry yet
-		elif not node.has_geometry() and _can_draw(node):
-			set_active_tool(Tool.DRAW)
+		# A tool that cannot work on what is now selected gives way to the one
+		# the feature's type is drawn with, rather than staying armed and
+		# swallowing the clicks meant for the globe; and a feature holding
+		# nothing yet arms that tool whatever was armed before, so drawing can
+		# start straight away. Nothing selected is left alone: rebuilding the
+		# tree clears the selection for a moment before it puts it back.
+		if not _tool_fits(node) or _tool_for(node) != Tool.MOVE:
+			set_active_tool(_tool_for(node))
 	else:
 		# Can't draw or build a topology on groups or nothing — force Move
 		if active_tool == Tool.DRAW or active_tool == Tool.CIRCLE \
@@ -1659,10 +1674,6 @@ func _on_feature_selected(node: Feature) -> void:
 	_show_measurement()
 
 
-### Geometry kind
-
-
-# One entry per kind, with the kind itself as the item id.
 ### The view toolbar: what the planet is drawn as, and where the camera stands
 
 
@@ -1742,68 +1753,71 @@ func _update_view_toolbar() -> void:
 	camera_longitude_spin.set_value_no_signal(planet.lon)
 
 
-func _build_kind_selector() -> void:
-	kind_selector.clear()
-	for kind in Feature.KIND_NAMES:
-		kind_selector.add_item(str(Feature.KIND_NAMES[kind]).capitalize(), kind)
-	kind_selector.select(kind_selector.get_item_index(Feature.GeometryKind.POLYGON))
-	kind_selector.item_selected.connect(func(_index: int) -> void: _refresh_outline())
-	_update_kind_selector(null)
+### What the tools draw
+#
+# The selected feature's type is the one place it is picked, in the Properties
+# panel. It says which kind the Draw and Circle tools commit and which of the
+# three drawing tools is offered at all.
 
 
-# The kind the Draw tool will produce. A feature that already holds geometry
-# keeps its kind, so the selector then shows it and cannot be changed.
+# The kind the Draw and Circle tools commit. A feature that already holds
+# geometry keeps its kind, whatever the type says, since the parts of a feature
+# are all of one kind. Before that the type decides: the first kind it allows,
+# except that the Circle tool's Outline switch takes the polyline of the two a
+# Circle allows.
 func drawing_kind() -> Feature.GeometryKind:
-	return kind_selector.get_item_id(kind_selector.selected) as Feature.GeometryKind
+	var node := features.feature_tree.get_selected_node()
+	if node == null or node.is_group:
+		return Feature.GeometryKind.POLYGON
+	if node.has_geometry():
+		return node.geometry_kind
+	var kinds := FeatureType.kinds(node.feature_type)
+	if outline_check.button_pressed and "polyline" in kinds:
+		return Feature.GeometryKind.POLYLINE
+	return Feature.KIND_VALUES[str(kinds[0])] as Feature.GeometryKind
 
 
-# The kinds the selected feature may be drawn in: what its type allows, and only
-# the kind it already holds once there is geometry to keep consistent. A
-# topology is listed, so a feature holding one shows what it is, but never
-# offered: its geometry comes from the features it names rather than from
-# clicks, which is the Topology tool's business.
-func _update_kind_selector(node: Feature) -> void:
-	var is_leaf := node != null and not node.is_group
-	var has_geometry := is_leaf and node.has_geometry()
-	for index in kind_selector.item_count:
-		var kind: int = kind_selector.get_item_id(index)
-		var kind_name: String = Feature.KIND_NAMES[kind]
-		kind_selector.set_item_disabled(index, not kind in Feature.DRAWN_KINDS
-			or (is_leaf and not FeatureType.allows(node.feature_type, kind_name)))
-	if has_geometry:
-		kind_selector.select(kind_selector.get_item_index(node.geometry_kind))
-	elif is_leaf and kind_selector.is_item_disabled(kind_selector.selected):
-		var first := _first_allowed_kind()
-		if first >= 0:
-			kind_selector.select(first)
-	kind_selector.disabled = has_geometry or not is_leaf
+func _on_outline_toggled(enabled: bool) -> void:
+	Config.set_circle_outline(enabled)
+	_refresh_selection_outline()
 
 
-# The first kind the selector still offers, or -1 when it offers none, which is
-# what a type allowing only topologies leaves behind.
-func _first_allowed_kind() -> int:
-	for index in kind_selector.item_count:
-		if not kind_selector.is_item_disabled(index):
-			return index
-	return -1
+# Which tool draws which type. A Circle is drawn with the Circle tool and a
+# Topology built with the Topology tool out of other features, so the Draw tool
+# is left the three types clicked out vertex by vertex. A feature carrying no
+# type at all, which only a file written before 0.3.0 holds, is drawn like a
+# Polygon.
+const DRAW_TYPES := [FeatureType.NONE, "polygon", "line", "points"]
 
 
-# Whether the Topology tool has something to build on: a feature that is a
-# topology already, or one holding nothing yet. A feature that holds vertices of
-# its own cannot also borrow them.
+func _has_type(node: Feature, types: Array) -> bool:
+	return node != null and not node.is_group and node.feature_type in types
+
+
 func _can_build_topology(node: Feature) -> bool:
-	if node == null or node.is_group:
-		return false
-	return not node.has_geometry() or node.geometry_kind == Feature.GeometryKind.TOPOLOGY
+	return _has_type(node, ["topology"])
 
 
-# Whether the Draw and Circle tools have a kind they may produce on this
-# feature: the one it already holds, once it holds any, and any kind before
-# that. A topology is neither, since it is built from other features.
 func _can_draw(node: Feature) -> bool:
-	if node == null or node.is_group:
-		return false
-	return not node.has_geometry() or node.geometry_kind in Feature.DRAWN_KINDS
+	return _has_type(node, DRAW_TYPES)
+
+
+func _can_draw_circle(node: Feature) -> bool:
+	return _has_type(node, [FeatureType.CIRCLE])
+
+
+# The tool the feature's type calls for, or Move when nothing draws it: a
+# feature that holds a shape already, a group, or nothing selected.
+func _tool_for(node: Feature) -> Tool:
+	if node == null or node.is_group or node.has_geometry():
+		return Tool.MOVE
+	if _can_draw(node):
+		return Tool.DRAW
+	if _can_draw_circle(node):
+		return Tool.CIRCLE
+	if _can_build_topology(node):
+		return Tool.TOPOLOGY
+	return Tool.MOVE
 
 
 ### Move tool
@@ -2079,9 +2093,6 @@ func _outline_commit() -> void:
 	# which at the current time is where its keyframes put it.
 	var into_local := Feature.world_basis(
 		features.root, selected, document.current_time).transposed()
-	# The first shape decides the type, whatever an emptied feature still carried.
-	if not selected.has_geometry():
-		selected.feature_type = FeatureType.NONE
 	selected.add_ring(Feature.apply_basis(outline_vertices, into_local), kind)
 
 	outline_vertices = PackedVector2Array()
@@ -3017,11 +3028,16 @@ func _on_time_changed() -> void:
 
 
 # An edit made in the Properties panel: the tree row and the globe follow it,
-# and so does the Draw tool, whose kinds depend on the type that may have moved.
+# and so do the drawing tools, since the type that may have moved says which of
+# them the feature is drawn with and what they produce.
 func _on_properties_edited() -> void:
 	features.reload()
 	var selected := features.feature_tree.get_selected_node()
-	_update_kind_selector(selected)
+	_update_tool_buttons()
+	if not _tool_fits(selected):
+		set_active_tool(_tool_for(selected))
+	elif not outline_vertices.is_empty():
+		_refresh_outline()
 	timeline.show_keyframes(selected)
 	kinematics.show_node(selected)
 	refresh_geometry()
