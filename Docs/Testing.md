@@ -471,7 +471,8 @@ a round trip is also a wait for the screen to catch up.
 | `mouse_move {x, y}`                  | moves the mouse                                                  |
 | `click {x, y, button, ctrl}`         | presses and releases a mouse button: `left`, `right`, `middle`, `wheel_up` or `wheel_down` |
 | `press {x, y, button}` / `release {x, y, button}` | half a click each, so a drag can be scripted: press, `mouse_move`, release |
-| `key {key, ctrl, shift}`             | presses and releases a key                                       |
+| `key {key, ctrl, shift}`             | presses and releases a key. A printable key carries its character too, so a focused text field types it |
+| `focus {widget\|release}`             | `focus`, the node name of whatever holds the keyboard focus, after giving it to the named widget or letting it go. Single key shortcuts read the focus, so a run has to be able to set it |
 | `latlon_to_screen {lat, lon}`        | `screen: [x, y]`, or `null` where the view does not draw that place: the far side of the globe, or a latitude the projection leaves off the map |
 | `screen_to_latlon {x, y}`            | `latlon: [lat, lon]`, or `null` where there is no planet under the pixel |
 | `get_pixel {x, y}`                   | `color: [r, g, b, a]` in the range 0 to 1                        |
