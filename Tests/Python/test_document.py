@@ -95,6 +95,23 @@ def test_editing_writes_through_to_what_is_saved(tmp_path):
     assert changed.rings[0][0] == [-11.0, -12.0]
 
 
+def test_the_icon_round_trips_and_no_icon_writes_no_key(tmp_path):
+    """The glyph a feature's tree row carries, which is left out when there is none."""
+    document = Document.load(SAMPLES / "motion.middle-earth")
+    craton = document.named("Drifting Craton")
+    assert craton.icon == ""
+    assert "icon" not in craton.data
+
+    craton.icon = "craton"
+    reloaded = Document.load(document.save(tmp_path / "iconed.middle-earth"))
+    assert reloaded.named("Drifting Craton").icon == "craton"
+
+    craton.icon = ""
+    bare = Document.load(document.save(tmp_path / "bare.middle-earth"))
+    assert bare.named("Drifting Craton").icon == ""
+    assert "icon" not in bare.named("Drifting Craton").data
+
+
 def test_saving_without_a_path_is_refused():
     with pytest.raises(ValueError):
         Document.empty("0.7.0").save()

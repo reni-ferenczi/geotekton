@@ -1060,9 +1060,19 @@ func _on_file_dialog(mode: int, title: String, on_paths: Callable) -> void:
 
 
 func _collect_features(node: Feature, depth: int, list: Array) -> void:
-	list.append({"pnid": node.pnid, "title": node.title, "is_group": node.is_group, "depth": depth})
+	list.append({"pnid": node.pnid, "title": node.title, "is_group": node.is_group,
+		"depth": depth, "row_icon": _row_icon(node)})
 	for child in node.children:
 		_collect_features(child, depth + 1, list)
+
+
+# The file stem of the picture the tree row is actually showing, so a run reads
+# the row rather than the field behind it. A row the tree does not hold, which
+# is a node no reload has reached yet, answers with an empty string.
+func _row_icon(node: Feature) -> String:
+	var item: TreeItem = app.features.feature_tree.items.get(node.pnid)
+	var icon := item.get_icon(0) if item != null else null
+	return icon.resource_path.get_file().get_basename() if icon != null else ""
 
 
 # Press the colour swatch of a feature's row. The groups above the row are
@@ -1144,6 +1154,7 @@ func _feature_to_json(feature: Feature) -> Variant:
 		"is_group": feature.is_group,
 		"enabled": feature.enabled,
 		"feature_type": feature.feature_type,
+		"icon": feature.icon,
 		"time": time,
 		"time_range": [feature.time_range.x, feature.time_range.y],
 		"exists_now": feature.exists_at(time),

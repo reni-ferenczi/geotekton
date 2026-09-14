@@ -31,7 +31,7 @@ func test_the_samples_keep_the_edges_their_triangles_left_on_the_boundary() -> v
 		var before: Array = []
 		_collect_leaves(raw["features"], before)
 		var migrated := Document.migrate(raw.duplicate(true))
-		assert_eq(str(migrated["version"]), "0.13.0", "%s is migrated to 0.13.0" % file_name)
+		assert_eq(str(migrated["version"]), "0.14.0", "%s is migrated to 0.14.0" % file_name)
 
 		var after: Array = []
 		_collect_leaves(migrated["features"], after)
@@ -129,7 +129,7 @@ func test_a_leaf_at_0_4_0_under_no_moving_group_is_left_alone() -> void:
 	var expected: Dictionary = data["features"].duplicate(true)
 	expected["feature_type"] = FeatureType.NONE
 	assert_eq(migrated["features"], expected, "the leaf is as it was, its type left to its geometry")
-	assert_eq(migrated["version"], "0.13.0", "at the current version")
+	assert_eq(migrated["version"], "0.14.0", "at the current version")
 
 
 ### 0.7.0 to 0.8.0: groups stop carrying motion
@@ -222,7 +222,7 @@ func test_a_0_7_0_file_opens_each_old_type_as_one_of_the_five() -> void:
 	var migrated := Document.migrate({"version": "0.7.0",
 		"features": {"type": "Group", "title": "Planet", "children": children},
 		"view": {"hidden_classes": ["small_circles", "points"]}})
-	assert_eq(migrated["version"], "0.13.0", "at the current version")
+	assert_eq(migrated["version"], "0.14.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	for i in OLD_TYPES.size():
 		assert_eq(root.children[i].feature_type, OLD_TYPES[i][2], root.children[i].title)
@@ -300,7 +300,7 @@ func test_a_0_9_0_file_keeps_its_types() -> void:
 		"type": "Group", "title": "Planet", "children": [
 			{"type": "Feature", "title": "Ring", "feature_type": "circle", "rings": []}]}})
 	assert_eq(migrated["features"]["children"][0]["feature_type"], "circle", "the circle stays one")
-	assert_eq(migrated["version"], "0.13.0", "at the current version")
+	assert_eq(migrated["version"], "0.14.0", "at the current version")
 
 
 ### 0.12.0 to 0.13.0: the ramp's two ends become a list of colours
@@ -316,7 +316,7 @@ func test_a_0_12_0_ramp_becomes_a_list_of_its_two_ends() -> void:
 	var migrated := Document.migrate({"version": "0.12.0",
 		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style,
 			"children": []}})
-	assert_eq(migrated["version"], "0.13.0", "at the current version")
+	assert_eq(migrated["version"], "0.14.0", "at the current version")
 	var written: Dictionary = migrated["features"]["style"]
 	assert_eq(written.get("ramp_colors"), [brown, grey], "the two ends are the two stops")
 	assert_true(not written.has("ramp_from") and not written.has("ramp_to"), "and the keys are gone")
@@ -333,7 +333,7 @@ func test_a_0_12_0_style_without_a_ramp_takes_the_new_default() -> void:
 		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style.duplicate(),
 			"children": []}})
 	assert_eq(migrated["features"]["style"], style, "the style is left as it was")
-	assert_eq(migrated["version"], "0.13.0", "at the current version")
+	assert_eq(migrated["version"], "0.14.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	assert_eq(root.style.palette, "rainbow", "the palette it named")
 	assert_eq(root.style.ramp_colors, Palette.DEFAULT_RAMP_COLORS, "and the default ramp")
@@ -349,6 +349,20 @@ func test_a_style_naming_a_dropped_built_in_takes_the_custom_ramp() -> void:
 			"style": {"mode": "age", "palette": gone}, "children": []}})
 		assert_eq(Feature.from_json(migrated["features"]).style.palette, Palette.RAMP,
 			"a style on %s reads the custom ramp" % gone)
+
+
+### 0.13.0 to 0.14.0: a leaf may carry the icon of its tree row
+
+
+# There is no step: a leaf without the key has no icon, which is what every
+# feature had before there were any.
+func test_a_0_13_0_leaf_reads_with_no_icon() -> void:
+	var migrated := Document.migrate({"version": "0.13.0", "features": {
+		"type": "Group", "is_group": true, "title": "Planet", "children": [
+			{"type": "Feature", "title": "Shield", "rings": []}]}})
+	assert_eq(migrated["version"], "0.14.0", "at the current version")
+	var leaf: Feature = Feature.from_json(migrated["features"]).children[0]
+	assert_eq(leaf.icon, FeatureIcon.NONE, "and the leaf carries no icon")
 
 
 func test_version_ordering() -> void:
