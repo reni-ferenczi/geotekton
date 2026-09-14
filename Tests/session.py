@@ -2602,8 +2602,8 @@ POLE_AT = (0.0, -40.0)
 POLE_TURN = 35.0
 
 # How far the Rotate tool turns the craton about its own middle, and the point
-# out towards the rim that a turn that far carries off the craton, which
-# Tests/Data/README.md lists among the probe points.
+# out towards the rim that a turn that far carries the craton off. Both are in
+# the craton's own table in Tests/Data/README.md.
 SPIN_TURN = 90.0
 CRATON_RIM = (-15.64, -19.48)
 

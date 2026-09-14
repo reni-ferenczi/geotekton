@@ -155,6 +155,58 @@ Using a delta rotation composed with the base matrix (rather than solving for an
 
 ---
 
+## Rotating
+
+A move carries the grabbed point along a great circle and leaves the feature
+facing the way it was. Turning one in place is the other rotation a drag can
+write, and the [Rotate and Pole tools](Editing.md#turning-a-feature) write it.
+Both turn the feature about an axis rather than along a path, and the axis is
+the only thing that differs between them:
+
+- the **Rotate** tool takes the axis through the middle of the feature, which
+  `Feature.centroid_axis()` works out as the direction of the sum of its world
+  vertices at the current time. The sum is parallel to the axis by construction,
+  so turning about it leaves the middle exactly where it was and the feature
+  spins in place;
+- the **Pole** tool takes the pole a click placed, in world coordinates. A
+  feature far from the pole swings around it: every vertex turns by the same
+  angle about the pole and keeps its distance from it.
+
+The angle is the one the drag has swept about the axis. Both ends of the drag,
+the point that was grabbed and the point under the pointer, are projected onto
+the plane normal to the axis, and the angle between the two projections is
+measured about the axis, in `Feature.angle_about_axis()`:
+
+```gdscript
+var from_flat := from_world - axis * axis.dot(from_world)
+var to_flat := to_world - axis * axis.dot(to_world)
+return atan2(axis.dot(from_flat.cross(to_flat)), from_flat.dot(to_flat))
+```
+
+`atan2` of the cross product along the axis over the dot product gives the
+signed angle, counterclockwise seen from the far end of the axis, and the
+lengths of the two projections cancel between the two arguments, so they need no
+normalizing. A projection shorter than `Feature.MIN_AXIS_OFFSET`, which is a
+little under three degrees from the axis or from the point opposite it, has no
+direction worth measuring, and the drag keeps the angle it had. That is the same
+refusal `compute_move_rotation()` gives an antipodal drag.
+
+What is written is the same kind of composition a move writes,
+`Feature.compute_spin_rotation()`:
+
+```gdscript
+decompose_rotation_degrees(Basis(axis, angle) * build_rotation_basis(base_rot))
+```
+
+The base rotation is the one the feature had when the drag started — its own, or
+its world rotation when it rides on another — so the turn is applied on top of
+wherever the feature already stood. The keyframe goes in at the current time
+while the drag runs and the release records one undo version, exactly as a move
+does; a rider's keyframe goes through `Coupling.rotation_for()` first, so what is
+stored is relative to the parent.
+
+---
+
 ## Physics Lat/Lon Extraction
 
 `planet.gd` extracts lat/lon from the 3D hit position in globe-local space:
