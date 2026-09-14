@@ -19,15 +19,6 @@ extends RefCounted
 # The palettes the chooser offers without a file. Each is written in the same
 # format a file is and read by the same parser, so there is one way in.
 const BUILT_IN := {
-	"age": {
-		"name": "Feature age",
-		# The example age palette GPlates ships as sample-data/cpt/feature_age.cpt.
-		"cpt": """0\t170 204 255\t300\t211 141 95
-300\t211 141 95\t700\t145 111 111
-B\t170 204 255
-F\t145 111 111
-N\t128 128 128""",
-	},
 	"rainbow": {
 		"name": "Rainbow",
 		"cpt": """0\t255 0 0\t\t200\t255 255 0
@@ -38,33 +29,24 @@ N\t128 128 128""",
 B\t255 0 0
 F\t255 0 255""",
 	},
-	"grayscale": {
-		"name": "Grayscale",
-		"cpt": """0\t255 255 255\t1000\t0 0 0
-B\t255 255 255
-F\t0 0 0""",
-	},
-	"steps": {
-		"name": "Discrete steps",
-		# Five flat slices: every value inside one comes out the same colour.
-		"cpt": """0\tblue\t\t200\tblue
-200\tgreen\t400\tgreen
-400\tyellow\t600\tyellow
-600\torange\t800\torange
-800\tred\t\t1000\tred
-B\tblue
-F\tred""",
-	},
 }
 
-# The built in palette a document uses until someone picks another.
-const DEFAULT := "age"
-
-# The two colour ramp a group style carries itself; see GroupStyle.ramp(). It is
+# The custom ramp a group style carries itself; see GroupStyle.ramp(). It is
 # listed with the built in palettes but has no table, since its colours and its
 # span are the style's.
 const RAMP := "ramp"
-const RAMP_NAME := "Two colour ramp"
+const RAMP_NAME := "Custom"
+
+# The palette a document uses until someone picks another: the custom ramp.
+const DEFAULT := RAMP
+
+# A ramp needs an end at each side of it, so two colours is the fewest it can
+# have and the one it starts with is black to white over 300 My. The defaults
+# are here rather than on GroupStyle so that resolve() can answer for the ramp
+# without a style to read them off.
+const MIN_RAMP_COLORS := 2
+const DEFAULT_RAMP_COLORS: Array[Color] = [Color(0.0, 0.0, 0.0, 1.0), Color(1.0, 1.0, 1.0, 1.0)]
+const DEFAULT_RAMP_SPAN := 300.0
 
 # What GMT gives a palette that names none of them: black below, white above and
 # grey for a value the palette does not cover.
@@ -102,18 +84,19 @@ var errors: PackedStringArray = PackedStringArray()
 ### Reading a palette
 
 
-# The palette a document names: a built in one by its key, or the file at that
-# path. An empty name gives the default built in palette.
+# The palette a document names: the custom ramp, a built in one by its key, or
+# the file at that path. An empty name, and the ramp named without a style to
+# read the colours off, give the default ramp.
 static func resolve(name_or_path: String) -> Palette:
-	if name_or_path.is_empty():
-		return built_in(DEFAULT)
+	if name_or_path.is_empty() or name_or_path == RAMP:
+		return ramp(DEFAULT_RAMP_COLORS, DEFAULT_RAMP_SPAN)
 	if BUILT_IN.has(name_or_path):
 		return built_in(name_or_path)
 	return load_from(name_or_path)
 
 
 # What a palette chooser lists without a file, by key against the name shown:
-# the two colour ramp, then the built in tables.
+# the custom ramp, then the built in tables.
 static func choices() -> Dictionary:
 	var listed := {RAMP: RAMP_NAME}
 	for key in BUILT_IN:
@@ -121,21 +104,25 @@ static func choices() -> Dictionary:
 	return listed
 
 
-# One slice from `from` at zero to `to` at `span`, with `from` below it and `to`
-# past it, so an age past the span holds at `to`.
-static func ramp(from: Color, to: Color, span: float) -> Palette:
+# The custom ramp as a palette: one slice per neighbouring pair of colours, each
+# `span` wide, with the first colour below the ramp and the last past it, so an
+# age past the end holds at the last colour.
+static func ramp(colors: Array, span: float) -> Palette:
+	var stops := colors if colors.size() >= MIN_RAMP_COLORS else DEFAULT_RAMP_COLORS
 	var palette := Palette.new()
 	palette.name = RAMP_NAME
 	palette.source = RAMP
-	palette.slices = [{"low": 0.0, "high": span, "from": from, "to": to}]
-	palette.background = from
-	palette.foreground = to
+	for i in stops.size() - 1:
+		palette.slices.append({"low": i * span, "high": (i + 1) * span,
+			"from": stops[i] as Color, "to": stops[i + 1] as Color})
+	palette.background = stops[0] as Color
+	palette.foreground = stops[-1] as Color
 	return palette
 
 
 static func built_in(key: String) -> Palette:
 	if not BUILT_IN.has(key):
-		return built_in(DEFAULT)
+		key = str(BUILT_IN.keys()[0])
 	var palette := parse(str(BUILT_IN[key]["cpt"]), str(BUILT_IN[key]["name"]))
 	palette.source = key
 	return palette

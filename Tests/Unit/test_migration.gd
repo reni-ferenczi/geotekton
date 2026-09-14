@@ -5,7 +5,8 @@ extends TestCase
 # triangles cover and dropped the five rule editor switches; 0.4.0 turned the
 # one rotation a leaf carried into the keyframe at time zero; 0.8.0 folded the
 # keyframes of groups into the leaves under them; 0.9.0 cut eight feature types
-# down to five; 0.10.0 moved the draw style onto the root group. The samples in
+# down to five; 0.10.0 moved the draw style onto the root group; 0.13.0 made the
+# group style's ramp a list of colours. The samples in
 # Tests/Data are still written in 0.1.0, so they run through every step.
 
 const DATA_DIR := "res://Tests/Data"
@@ -30,7 +31,7 @@ func test_the_samples_keep_the_edges_their_triangles_left_on_the_boundary() -> v
 		var before: Array = []
 		_collect_leaves(raw["features"], before)
 		var migrated := Document.migrate(raw.duplicate(true))
-		assert_eq(str(migrated["version"]), "0.12.0", "%s is migrated to 0.12.0" % file_name)
+		assert_eq(str(migrated["version"]), "0.13.0", "%s is migrated to 0.13.0" % file_name)
 
 		var after: Array = []
 		_collect_leaves(migrated["features"], after)
@@ -128,7 +129,7 @@ func test_a_leaf_at_0_4_0_under_no_moving_group_is_left_alone() -> void:
 	var expected: Dictionary = data["features"].duplicate(true)
 	expected["feature_type"] = FeatureType.NONE
 	assert_eq(migrated["features"], expected, "the leaf is as it was, its type left to its geometry")
-	assert_eq(migrated["version"], "0.12.0", "at the current version")
+	assert_eq(migrated["version"], "0.13.0", "at the current version")
 
 
 ### 0.7.0 to 0.8.0: groups stop carrying motion
@@ -221,7 +222,7 @@ func test_a_0_7_0_file_opens_each_old_type_as_one_of_the_five() -> void:
 	var migrated := Document.migrate({"version": "0.7.0",
 		"features": {"type": "Group", "title": "Planet", "children": children},
 		"view": {"hidden_classes": ["small_circles", "points"]}})
-	assert_eq(migrated["version"], "0.12.0", "at the current version")
+	assert_eq(migrated["version"], "0.13.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	for i in OLD_TYPES.size():
 		assert_eq(root.children[i].feature_type, OLD_TYPES[i][2], root.children[i].title)
@@ -299,25 +300,44 @@ func test_a_0_9_0_file_keeps_its_types() -> void:
 		"type": "Group", "title": "Planet", "children": [
 			{"type": "Feature", "title": "Ring", "feature_type": "circle", "rings": []}]}})
 	assert_eq(migrated["features"]["children"][0]["feature_type"], "circle", "the circle stays one")
-	assert_eq(migrated["version"], "0.12.0", "at the current version")
+	assert_eq(migrated["version"], "0.13.0", "at the current version")
 
 
-### 0.10.0 to 0.11.0: the age ramp joins the group style
+### 0.12.0 to 0.13.0: the ramp's two ends become a list of colours
 
 
-# A 0.10.0 style has no ramp and reads with the default one, without a step.
-func test_a_0_10_0_style_reads_with_the_default_ramp() -> void:
-	var style := {"mode": "age", "color": [0.9, 0.9, 0.9, 1.0], "opacity": 0.5, "palette": "steps"}
+# A style with both ends of the old two colour ramp keeps them as the two stops
+# of the new list, and the two keys go.
+func test_a_0_12_0_ramp_becomes_a_list_of_its_two_ends() -> void:
+	var brown := [0.55, 0.35, 0.2, 1.0]
+	var grey := [0.6, 0.6, 0.6, 1.0]
+	var style := {"mode": "age", "palette": "ramp", "ramp_span": 450.0,
+		"ramp_from": brown, "ramp_to": grey}
+	var migrated := Document.migrate({"version": "0.12.0",
+		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style,
+			"children": []}})
+	assert_eq(migrated["version"], "0.13.0", "at the current version")
+	var written: Dictionary = migrated["features"]["style"]
+	assert_eq(written.get("ramp_colors"), [brown, grey], "the two ends are the two stops")
+	assert_true(not written.has("ramp_from") and not written.has("ramp_to"), "and the keys are gone")
+	var root := Feature.from_json(migrated["features"])
+	assert_eq(root.style.ramp_colors,
+		[Color(0.55, 0.35, 0.2, 1.0), Color(0.6, 0.6, 0.6, 1.0)], "read back as colours")
+	assert_eq(root.style.ramp_span, 450.0, "over the span it named")
+
+
+# A style that named no ramp at all takes the new default, black to white.
+func test_a_0_12_0_style_without_a_ramp_takes_the_new_default() -> void:
+	var style := {"mode": "age", "color": [0.9, 0.9, 0.9, 1.0], "opacity": 0.5, "palette": "rainbow"}
 	var migrated := Document.migrate({"version": "0.10.0",
 		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style.duplicate(),
 			"children": []}})
 	assert_eq(migrated["features"]["style"], style, "the style is left as it was")
-	assert_eq(migrated["version"], "0.12.0", "at the current version")
+	assert_eq(migrated["version"], "0.13.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
-	assert_eq(root.style.palette, "steps", "the palette it named")
-	assert_eq(root.style.ramp_from, GroupStyle.DEFAULT_RAMP_FROM, "and the default ramp")
-	assert_eq(root.style.ramp_to, GroupStyle.DEFAULT_RAMP_TO, "to its default end")
-	assert_eq(root.style.ramp_span, GroupStyle.DEFAULT_RAMP_SPAN, "over its default span")
+	assert_eq(root.style.palette, "rainbow", "the palette it named")
+	assert_eq(root.style.ramp_colors, Palette.DEFAULT_RAMP_COLORS, "and the default ramp")
+	assert_eq(root.style.ramp_span, Palette.DEFAULT_RAMP_SPAN, "over its default span")
 
 
 func test_version_ordering() -> void:

@@ -1034,34 +1034,21 @@ func _build_view_content() -> Control:
 	load_palette.pressed.connect(choose_palette)
 	palette_row.add_child(load_palette)
 
-	# The two colour ramp: the colour at age zero, the colour at the end of the
-	# span, and the span. Only the Two colour ramp palette reads them.
-	var ramp_row := HBoxContainer.new()
-	ramp_row.name = "RampRow"
-	box.add_child(ramp_row)
+	# The colours of the custom ramp and the span between two of them. Only the
+	# Custom palette reads them.
+	var ramp_box := HBoxContainer.new()
+	ramp_box.name = "RampBox"
+	box.add_child(ramp_box)
 	var ramp_label := Label.new()
 	ramp_label.text = "Ramp"
-	ramp_row.add_child(ramp_label)
-	for key in ["ramp_from", "ramp_to"]:
-		var ramp_color := ColorPickerButton.new()
-		ramp_color.name = key.to_pascal_case()
-		ramp_color.custom_minimum_size = Vector2(100, 28)
-		ramp_color.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		ramp_color.edit_alpha = false
-		ramp_color.color_changed.connect(func(_color: Color) -> void: _on_view_field_changed(false))
-		ramp_color.popup_closed.connect(_on_view_field_changed)
-		ramp_row.add_child(ramp_color)
-		view_fields[key] = ramp_color
-	var ramp_span := SpinBox.new()
-	ramp_span.name = "RampSpan"
-	ramp_span.min_value = 1.0
-	ramp_span.max_value = Document.MAX_TIME
-	ramp_span.step = 1.0
-	ramp_span.suffix = "My"
-	ramp_span.tooltip_text = "How old a feature is when it reaches the second colour"
-	ramp_span.value_changed.connect(func(_value: float) -> void: _on_view_field_changed())
-	ramp_row.add_child(ramp_span)
-	view_fields["ramp_span"] = ramp_span
+	ramp_box.add_child(ramp_label)
+	var ramp_row := RampRow.new(Document.MAX_TIME, "My")
+	ramp_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ramp_row.previewed.connect(func() -> void: _on_view_field_changed(false))
+	ramp_row.committed.connect(func() -> void: _on_view_field_changed())
+	ramp_box.add_child(ramp_row)
+	view_fields["ramp_colors"] = ramp_row
+	view_fields["ramp_span"] = ramp_row.span_spin
 
 	# The palette from one end of its range to the other, so what is about to be
 	# drawn with is visible before anything is drawn with it.
@@ -1287,8 +1274,7 @@ func _fill_view_fields() -> void:
 	select_option(view_fields["draw_style"], Styling.normalize_style(style.mode))
 	view_fields["single_color"].color = style.color
 	view_fields["opacity"].set_value_no_signal(style.opacity)
-	view_fields["ramp_from"].color = style.ramp_from
-	view_fields["ramp_to"].color = style.ramp_to
+	view_fields["ramp_colors"].colors = style.ramp_colors
 	view_fields["ramp_span"].set_value_no_signal(style.ramp_span)
 	_fill_palette_choices()
 	_show_palette_preview()
@@ -1315,8 +1301,7 @@ func _on_view_field_changed(commit: bool = true) -> void:
 	style.mode = option_value(view_fields["draw_style"])
 	style.opacity = view_fields["opacity"].value
 	style.palette = option_value(view_fields["palette"])
-	style.ramp_from = view_fields["ramp_from"].color
-	style.ramp_to = view_fields["ramp_to"].color
+	style.ramp_colors = view_fields["ramp_colors"].colors
 	style.ramp_span = view_fields["ramp_span"].value
 	if commit:
 		document.view_edited()

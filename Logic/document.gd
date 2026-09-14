@@ -751,7 +751,7 @@ func resolve_backdrop() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.12.0"):
+	if not _is_older_than(version, "0.13.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -772,8 +772,28 @@ static func migrate(data: Dictionary) -> Dictionary:
 	# default ramp, which nothing drew with before, so there is no step.
 	# 0.12.0 added couplings to a leaf. A leaf without them rides on nothing,
 	# which is what every feature did before, so there is no step either.
-	data["version"] = "0.12.0"
+	_to_0_13_0(data.get("features", {}))
+	data["version"] = "0.13.0"
 	return data
+
+
+# 0.13.0 made the group style's ramp a list of two or more colours. A style that
+# named both ends keeps them as the two stops of the new list; one that named
+# only one of them, or neither, takes the new default, black to white.
+static func _to_0_13_0(node: Variant) -> void:
+	if node is not Dictionary:
+		return
+	var style: Variant = node.get("style")
+	if style is Dictionary:
+		var ends: Array = []
+		for key in ["ramp_from", "ramp_to"]:
+			if style.has(key):
+				ends.append(style[key])
+			style.erase(key)
+		if ends.size() == 2:
+			style["ramp_colors"] = ends
+	for child in node.get("children", []):
+		_to_0_13_0(child)
 
 
 # 0.10.0 gave groups a style, in place of GPlates layer coloring. The document's
