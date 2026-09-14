@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "features": { ... },
   "view": { ... }
 }
@@ -262,6 +262,11 @@ the parent; see [Time](Time.md#coupling). Only a leaf has them, and spans on one
 feature do not overlap. A span whose parent is not in the file is kept as it
 stands, like a section whose feature is missing.
 
+A span may carry `parent_b`, a second uuid, which is what a ridge left by the
+Split tool rides on. Its frame is then midway between the two parents; see
+[Time](Time.md#riding-on-two-parents). The key is written only when there is
+one, so an ordinary span reads the way it always did.
+
 The triangles a polygon is filled with are not in the file. They are derived
 from the rings on load, so the file keeps the shape and not the way it happened
 to be cut up. See [Draw](Draw.md#data-model).
@@ -421,6 +426,12 @@ The step is `Document._to_0_13_0()`.
 
 0.14.0 added `icon` to a leaf feature. There is no migration step: a leaf
 without the key carries no icon, which is what every feature carried before.
+
+#### 0.14.0 to 0.15.0
+
+0.15.0 added `parent_b` to a coupling span. There is no migration step either:
+a span without the key rides on the one parent it names, which is what every
+span did before a ridge rode on two.
 
 ## The config file
 

@@ -555,6 +555,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"can_split": app.vertex_split_problem().is_empty(),
 				"split_enabled": not app.split_button.disabled,
 				"split_points": _points_to_json(app.split_points),
+				"ridge": app.ridge_check.button_pressed,
+				"ridge_visible": app.ridge_check.is_visible_in_tree(),
 				"measure_points": _points_to_json(app.measure_points),
 				"measure_label": _measure_label_to_json(),
 				"circle_points": _points_to_json(app.circle_points),
@@ -618,6 +620,9 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			if request.has("outline"):
 				app.outline_check.button_pressed = bool(request["outline"])
 				app.outline_check.toggled.emit(app.outline_check.button_pressed)
+			if request.has("ridge"):
+				app.ridge_check.button_pressed = bool(request["ridge"])
+				app.ridge_check.toggled.emit(app.ridge_check.button_pressed)
 			await _frames(2)
 			return {"ok": true}
 

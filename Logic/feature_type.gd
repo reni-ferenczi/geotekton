@@ -18,6 +18,8 @@ const POLYGON := "polygon"
 # No type at all, which is what a file written before 0.3.0 carries. It allows
 # every kind, since nothing in the file said which one was meant.
 const NONE := ""
+# The type a ridge left by the Split tool is given.
+const LINE := "line"
 const CIRCLE := "circle"
 
 const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]
@@ -29,7 +31,7 @@ const NONE_COLOR := Color.CHOCOLATE
 # selector lists them.
 const CATALOG := {
 	"polygon": {"name": "Polygon", "kinds": ["polygon"], "color": Color.CHOCOLATE},
-	"line": {"name": "Line", "kinds": ["polyline"], "color": Color.CRIMSON},
+	LINE: {"name": "Line", "kinds": ["polyline"], "color": Color.CRIMSON},
 	"points": {"name": "Points", "kinds": ["multipoint"], "color": Color.GOLD},
 	CIRCLE: {"name": "Circle", "kinds": ["polygon", "polyline"], "color": Color.DARK_TURQUOISE},
 	"topology": {"name": "Topology", "kinds": ["topology"], "color": Color.MEDIUM_PURPLE},

@@ -194,6 +194,16 @@ static func split_along(ring: PackedVector2Array, path: PackedVector2Array) -> A
 	return split_polygon(cut[0], cut[1], cut[2], path.slice(1, path.size() - 1))
 
 
+# The edge the two halves of such a cut share: the cut itself with its ends
+# snapped onto the ring, which is what the ridge left behind is drawn along.
+static func shared_edge(ring: PackedVector2Array, path: PackedVector2Array) -> PackedVector2Array:
+	var cut := with_cut_ends(ring, path[0], path[path.size() - 1])
+	var edge := PackedVector2Array([cut[0][cut[1]]])
+	edge.append_array(path.slice(1, path.size() - 1))
+	edge.append(cut[0][cut[2]])
+	return edge
+
+
 # A cut drawn across the polygon, its first and last points put on the ring.
 # Each end goes to the nearest point of the boundary and becomes a vertex there,
 # unless that point is a vertex already. Returns the ring with the ends in it and

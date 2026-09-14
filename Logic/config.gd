@@ -176,6 +176,16 @@ static func set_circle_outline(enabled: bool) -> void:
 	set_value("circle_outline", enabled)
 
 
+# Whether the Split tool leaves a ridge along the cut. A switch beside the Split
+# button while that tool is active, on unless someone turns it off.
+static func get_split_ridge() -> bool:
+	return bool(get_value("split_ridge", true))
+
+
+static func set_split_ridge(enabled: bool) -> void:
+	set_value("split_ridge", enabled)
+
+
 ### The view
 #
 # What a new document starts from: the scene settings it is given, and which

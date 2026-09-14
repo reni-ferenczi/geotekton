@@ -117,6 +117,7 @@ const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false, ViewItem.CONSOLE: f
 @onready var segments_spin: SpinBox = %Segments
 @onready var segments_label: Label = %SegmentsLabel
 @onready var outline_check: CheckButton = %Outline
+@onready var ridge_check: CheckButton = %Ridge
 @onready var projection_selector: OptionButton = %Projection
 @onready var zoom_spin: SpinBox = %Zoom
 @onready var zoom_in_button: Button = %ZoomIn
@@ -291,6 +292,8 @@ func _ready() -> void:
 	snap_button.button_pressed = Config.get_snap_to_vertices()
 	outline_check.button_pressed = Config.get_circle_outline()
 	outline_check.toggled.connect(_on_outline_toggled)
+	ridge_check.button_pressed = Config.get_split_ridge()
+	ridge_check.toggled.connect(Config.set_split_ridge)
 	# The range and the starting value come from Circle, so the scene does
 	# not carry a second copy of what a circle may be cut into.
 	segments_spin.min_value = Circle.MIN_SEGMENTS
@@ -1584,11 +1587,12 @@ func set_active_tool(tool: Tool) -> void:
 	active_tool = tool
 	for entry: Tool in tool_buttons:
 		tool_buttons[entry].button_pressed = entry == tool
-	# Only the Circle tool reads the segment count and the Outline switch, so
-	# only it shows them.
+	# Only the Circle tool reads the segment count and the Outline switch, and
+	# only the Split tool the Ridge switch, so each shows its own.
 	segments_label.visible = tool == Tool.CIRCLE
 	segments_spin.visible = tool == Tool.CIRCLE
 	outline_check.visible = tool == Tool.CIRCLE
+	ridge_check.visible = tool == Tool.SPLIT
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
@@ -2803,6 +2807,9 @@ func _on_split_input(lat: float, lon: float, event: InputEvent) -> void:
 # Cut the selected polygon along the points clicked. The part cut is the one
 # whose boundary is nearest the first point. A refused cut keeps its points, so
 # the one at fault can be taken back rather than the whole cut clicked again.
+#
+# Returns what the status bar says about the cut: why it was refused, or which
+# features it left behind.
 func split_along_points() -> String:
 	var feature := features.feature_tree.get_selected_node()
 	if not _can_split_along(feature):
@@ -2820,14 +2827,22 @@ func split_along_points() -> String:
 		if distance < nearest:
 			nearest = distance
 			part = index
-	var error := document.split_feature_along(feature, part, path)
+	var ridge := ridge_check.button_pressed
+	var error := document.split_feature_along(feature, part, path, ridge)
 	if not error.is_empty():
 		return error
+	# The halves, and the ridge behind them, sit side by side where the polygon
+	# was, so the status bar reads them straight off the tree.
+	var group := features.root.find_parent(feature)
+	var at := group.find_child(feature)
+	var made := PackedStringArray()
+	for child in group.children.slice(at, at + (3 if ridge else 2)):
+		made.append(child.title)
 	split_points = PackedVector2Array()
 	features.reload()
 	refresh_geometry()
 	set_active_tool(Tool.MOVE)
-	return ""
+	return "Split into %s" % ", ".join(made)
 
 
 ### The Circle tool
