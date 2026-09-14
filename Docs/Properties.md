@@ -99,6 +99,20 @@ content set the width would let the split container hand the difference to the
 planet view, so the globe would move under the pointer every time the selection
 changed.
 
+The button on the Colour row shows the colour and opens Godot's colour picker on
+it, with the screen sampler, the hex field, the colour modes, the sliders and a
+row of presets. A left click on the feature's [tree row
+swatch](Editing.md#the-feature-tree) opens the same picker, so a colour can be
+picked where it is shown while the panel stays the one place it is edited.
+`Helpers.color_button()` builds every button that opens a picker, which is why
+the ramp stops and the View settings dialog offer the same things.
+
+The presets start as the default colour of each feature type, and every colour
+committed to a feature or a group since the application started is added to
+them, so a palette built for one feature is a click away on the next. Every
+picker reads the same list, which lives for the session and is not written to
+the settings file.
+
 The box beside the color picker is the feature's opacity, from 0 to 100
 percent. It is the alpha of the same color, so it is saved with the color and
 undone with it, and the picker itself leaves the alpha alone. At 0 the Earth

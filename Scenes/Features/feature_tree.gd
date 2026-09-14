@@ -4,6 +4,14 @@ class_name FeatureTree
 signal program_changed()
 signal feature_selected(node: Feature)
 
+# The colour swatch of a row was clicked: the feature is selected by now and the
+# Properties panel is asked to open its picker.
+signal color_requested()
+
+# The two buttons a row carries, by the id they answer clicks with.
+const COLOR_BUTTON := 1
+const ENABLE_BUTTON := 2
+
 @onready var empty_icon := preload("res://Assets/Icons/Generated/Empty.png")
 @onready var group_icon := [preload("res://Assets/Icons/Generated/GroupDisabled.png"), preload("res://Assets/Icons/Generated/GroupEnabled.png")]
 @onready var rule_icon := [preload("res://Assets/Icons/Generated/RuleDisabled.png"), preload("res://Assets/Icons/Generated/RuleEnabled.png")]
@@ -53,7 +61,7 @@ func load_group(parent: TreeItem, group: Feature, enabled: bool):
 		# The spacer lines the enable button up with the one on a feature row,
 		# which has the colour swatch in front of it.
 		item.add_button(0, empty_icon, -1, true)
-		item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_ENABLE + int(group.enabled), not group.enabled, group.enabled), 2, false, "Enable this group")
+		item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_ENABLE + int(group.enabled), not group.enabled, group.enabled), ENABLE_BUTTON, false, "Enable this group")
 
 	for child in group.children:
 		if child.is_group:
@@ -74,8 +82,9 @@ func load_feature(parent: TreeItem, feature: Feature):
 	if Application.DEBUG:
 		item.set_tooltip_text(0, "[%d]" % feature.pnid)
 
-	item.add_button(0, Helpers.render_cell(feature.color).texture, 1, not feature.enabled, "Color")
-	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_ENABLE + int(feature.enabled), not feature.enabled, feature.enabled), 2, false, "Enable this feature")
+	item.add_button(0, Helpers.render_cell(feature.color).texture, COLOR_BUTTON,
+		not feature.enabled, Helpers.SWATCH_TOOLTIP)
+	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_ENABLE + int(feature.enabled), not feature.enabled, feature.enabled), ENABLE_BUTTON, false, "Enable this feature")
 	_apply_time(item)
 
 
@@ -278,18 +287,20 @@ func start_editing():
 func _on_button_clicked(item: TreeItem, _column: int, id: int, mouse_button_index: int) -> void:
 	var node := item.get_metadata(0) as Feature
 	match id:
-		1:
+		COLOR_BUTTON:
 			on_output_clicked(node, mouse_button_index)
-		2:
+		ENABLE_BUTTON:
 			on_enabled_clicked(node)
 
 
 func on_output_clicked(node: Feature, mouse_button_index):
 	if not node.is_group:
-		if mouse_button_index == 1:
+		if mouse_button_index == MOUSE_BUTTON_LEFT:
 			# The colour is picked in the Properties panel, which follows the
-			# selection, so the swatch only has to get the feature selected.
+			# selection, so the swatch gets the feature selected and then asks
+			# the panel to open the picker where the colour is already shown.
 			select_node(node)
+			color_requested.emit()
 		else:
 			node.color = FeatureType.color(node.feature_type)
 			program_changed.emit()

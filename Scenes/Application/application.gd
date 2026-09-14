@@ -274,6 +274,11 @@ func _ready() -> void:
 
 	# Connect feature selection from the features panel
 	features.feature_tree.feature_selected.connect(_on_feature_selected)
+	# A click on a row's colour swatch selects the feature and opens the picker
+	# of the Properties panel, which is the one place a colour is edited. It is
+	# answered a frame later so the panel is showing the feature just selected.
+	features.feature_tree.color_requested.connect(
+		properties.open_color_picker, CONNECT_DEFERRED)
 
 	# Connect planet click events for the tools that take clicks for themselves
 	planet_view.input_event_globe.connect(_on_planet_input)
@@ -1183,8 +1188,7 @@ func _view_color(form: GridContainer, key: String, text: String) -> void:
 	var label := Label.new()
 	label.text = text
 	form.add_child(label)
-	var button := ColorPickerButton.new()
-	button.name = key.to_pascal_case()
+	var button := Helpers.color_button(key.to_pascal_case(), Helpers.COLOR_TOOLTIP)
 	button.custom_minimum_size = Vector2(140, 28)
 	# The picker sends a colour for every drag of its cursor. The scene takes
 	# them all, so what is being picked is visible, but only the colour left

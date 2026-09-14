@@ -63,8 +63,7 @@ func _rebuild() -> void:
 		child.queue_free()
 
 	for i in _colors.size():
-		var picker := ColorPickerButton.new()
-		picker.name = "RampColor%d" % i
+		var picker := Helpers.color_button("RampColor%d" % i, Helpers.COLOR_TOOLTIP)
 		picker.custom_minimum_size = Vector2(40, 28)
 		picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		picker.edit_alpha = false

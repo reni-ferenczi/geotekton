@@ -994,6 +994,68 @@ def run_colour_session(client: AutomationClient) -> None:
     check(client.call("get_properties")["properties"]["opacity"] == 100,
           "and undo puts the opacity back")
 
+    run_color_picker_checks(client)
+
+
+# The default colour of each feature type, in the order Logic/feature_type.gd
+# lists them: chocolate, crimson, gold, dark turquoise and medium purple. Every
+# picker starts with these as its presets.
+TYPE_COLORS = [
+    (0.824, 0.412, 0.118),
+    (0.863, 0.078, 0.235),
+    (1.0, 0.843, 0.0),
+    (0.0, 0.808, 0.820),
+    (0.576, 0.439, 0.859),
+]
+
+
+def presets(client: AutomationClient) -> list[tuple[float, float, float]]:
+    """The presets the Colour row's picker offers, rounded to compare."""
+    panel = client.call("get_properties")["properties"]
+    return [tuple(round(channel, 3) for channel in color[:3])
+            for color in panel["color_presets"]]
+
+
+def run_color_picker_checks(client: AutomationClient) -> None:
+    """The tree row's swatch opens the picker the Colour row carries."""
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.middle-earth"))
+    # Something else selected to begin with, so the swatch has to select the
+    # feature before the panel can open its picker.
+    client.call("select", title="Cratons")
+    check(not client.call("get_properties")["properties"]["color_picker_open"],
+          "the colour picker starts closed")
+
+    client.call("swatch", title="Old Shield")
+    selected = client.call("get_selected")["feature"]["title"]
+    check(selected == "Old Shield", f"the swatch selects the feature: {selected}")
+    panel = client.call("get_properties")["properties"]
+    check(panel["color_picker_open"], "and opens the picker of the Colour row")
+    offered = presets(client)
+    check(offered[:5] == TYPE_COLORS, f"which offers the five type colours: {offered}")
+
+    client.call("key", key="Escape")
+    check(not client.call("get_properties")["properties"]["color_picker_open"],
+          "Escape closes the picker")
+
+    # A colour committed on a feature is offered by every picker from then on,
+    # so a palette built for one feature is a click away on the next.
+    green = (0.0, 1.0, 0.0)
+    check(green not in offered, "the picker does not offer green yet")
+    client.call("set_property", field="color", value=[0.0, 1.0, 0.0, 1.0])
+    client.call("swatch", title="Old Shield")
+    grown = presets(client)
+    check(grown == offered + [green],
+          f"a committed colour is added as one more preset: {grown}")
+    client.call("key", key="Escape")
+
+    # The right click on the swatch still puts the type's default back, and
+    # picks nothing.
+    client.call("swatch", title="Old Shield", button="right")
+    color = client.call("get_selected")["feature"]["color"]
+    check(color[:3] != [0.0, 1.0, 0.0], f"a right click resets the colour: {color}")
+    check(not client.call("get_properties")["properties"]["color_picker_open"],
+          "and leaves the picker closed")
+
 
 def run_globe_menu_session(client: AutomationClient) -> None:
     """Clone and delete from the right click menu on the globe."""
