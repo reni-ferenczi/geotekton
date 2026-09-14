@@ -109,9 +109,9 @@ func _build() -> void:
 	older_keyframe_button.pressed.connect(jump_keyframe.bind(true))
 	older_button = _control_button(controls, "Older", "<", "One skip towards the older end (Page Up)")
 	older_button.pressed.connect(step.bind(true))
-	play_button = _control_button(controls, "Play", "Play", "Run the animation")
+	play_button = _control_button(controls, "Play", "Play", "Run the animation (Space)")
 	play_button.pressed.connect(play)
-	pause_button = _control_button(controls, "Pause", "Pause", "Stop where it is")
+	pause_button = _control_button(controls, "Pause", "Pause", "Stop where it is (Space)")
 	pause_button.pressed.connect(pause)
 	younger_button = _control_button(controls, "Younger", ">", "One skip towards the younger end (Page Down)")
 	younger_button.pressed.connect(step.bind(false))
@@ -259,6 +259,14 @@ func pause() -> void:
 	playing = false
 	set_process(false)
 	_update_buttons()
+
+
+# What the Space key does: stop if it is running, start if it is not.
+func toggle() -> void:
+	if playing:
+		pause()
+	else:
+		play()
 
 
 # Back to the start of the animation, stopped.

@@ -2020,6 +2020,43 @@ func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 		undo()
 
 
+# Single key shortcuts, taken before the GUI pass rather than after it. A
+# focused Button answers Space itself, so a shortcut left to
+# _unhandled_key_input would press whichever button was last clicked instead of
+# reaching the application.
+func _input(event: InputEvent) -> void:
+	if event is not InputEventKey or not event.is_pressed() or event.is_echo():
+		return
+	var key := event as InputEventKey
+	# A single key means a single key: Ctrl+S and the rest belong to the menus.
+	if key.ctrl_pressed or key.shift_pressed or key.alt_pressed or key.meta_pressed:
+		return
+	if _typing():
+		return
+	if _hotkey(key):
+		get_viewport().set_input_as_handled()
+
+
+# Act on a single key shortcut and say whether it was one. Later tickets hang
+# the tool keys off the same match.
+func _hotkey(event: InputEventKey) -> bool:
+	match event.keycode:
+		KEY_SPACE:
+			timeline.toggle()
+		_:
+			return false
+	return true
+
+
+# True while the keyboard belongs to a text field, which every single key
+# shortcut yields to so that typing a name stays typing a name. A SpinBox
+# focuses the LineEdit inside it and CodeEdit is a TextEdit, so both are
+# covered, and so is the console's input line.
+func _typing() -> bool:
+	var focused := get_viewport().gui_get_focus_owner()
+	return focused is LineEdit or focused is TextEdit
+
+
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is not InputEventKey or not event.is_pressed():
 		return
