@@ -449,22 +449,27 @@ func remove_keyframe(node: Feature, index: int) -> String:
 ### Coupling
 
 # A coupling is a span of the timeline over which a feature rides on another.
-# Each of these changes the spans and re-expresses every keyframe in the frame in
-# effect at its time, so nothing on the globe moves at any keyframe, and records
-# one version. See Logic/coupling.gd.
+# Couple and Decouple are a cut in time: nothing older than the time they act at
+# changes at all, and the keyframes the span covered younger than that time are
+# dropped, so the feature is rigid from the cut until the user moves it again.
+# Remove is the exception and converts pointwise. Each records one version.
+# See Logic/coupling.gd and Docs/Time.md#coupling-and-decoupling.
 
 
 # Start a span at the time: the feature rides on the parent from then until the
 # next span it already has towards the present, or the present itself. A
-# keyframe at the time holds it where it stands.
+# keyframe at the time holds it where it stands, and the keyframes the span
+# covers younger than the time are dropped.
 func couple(child: Feature, parent: Feature, time: float) -> String:
 	var problem := coupling_problem(child, parent, time)
 	if not problem.is_empty():
 		return problem
 	var nodes := Coupling.index(root)
 	var here := Coupling.world_basis(child, time, nodes)
+	var span := Coupling.create(time, _span_end(child, time), parent.uuid)
+	_drop_younger_keyframes(child, span, time)
 	var worlds := _keyframe_worlds(child, nodes)
-	child.couplings.append(Coupling.create(time, _span_end(child, time), parent.uuid))
+	child.couplings.append(span)
 	Coupling.sort(child.couplings)
 	_rebase(child, worlds, nodes)
 	Keyframe.upsert(child.keyframes, time, Coupling.rotation_for(child, time, here, nodes))
@@ -506,7 +511,8 @@ func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 
 
 # End the span in effect at the time there. A keyframe at the time holds the
-# world pose. Decoupling where the span starts takes the whole span away.
+# world pose and the keyframes the span covered younger than the time are
+# dropped. Decoupling where the span starts takes the whole span away.
 func decouple(child: Feature, time: float) -> String:
 	if child == null or child.is_group:
 		return "Only a feature rides on another."
@@ -517,6 +523,7 @@ func decouple(child: Feature, time: float) -> String:
 		return "%s rides on to the present; decouple it at an older time." % child.title
 	var nodes := Coupling.index(root)
 	var here := Coupling.world_basis(child, time, nodes)
+	_drop_younger_keyframes(child, span, time)
 	var worlds := _keyframe_worlds(child, nodes)
 	if is_equal_approx(time, span.from):
 		child.couplings.erase(span)
@@ -529,7 +536,9 @@ func decouple(child: Feature, time: float) -> String:
 
 
 # Take a span away. Every keyframe it held becomes the world pose it gave, so the
-# feature stands where it stood at each of them.
+# feature stands where it stood at each of them. Unlike Couple and Decouple this
+# keeps the keyframes and so changes the path between them: taking a relation
+# away is expected to, and undo brings it back.
 func remove_coupling(child: Feature, index: int) -> String:
 	if child == null or child.is_group:
 		return "Only a feature rides on another."
@@ -553,6 +562,20 @@ func _span_end(child: Feature, time: float) -> float:
 	return end
 
 
+# Drop the keyframes the span covers younger than the time. That is the younger
+# half of the cut a coupling edit makes: the keyframe the edit writes at the time
+# is then the youngest one the span holds, and the feature rides rigidly, or
+# stands still, from there on. Keyframes older than the time and keyframes the
+# span does not cover are left alone, frames and all.
+func _drop_younger_keyframes(child: Feature, span: Coupling, time: float) -> void:
+	for i in range(child.keyframes.size() - 1, -1, -1):
+		var at := child.keyframes[i].time
+		if at < time and not is_equal_approx(at, time) and span.holds(at):
+			child.keyframes.remove_at(i)
+
+
+# Where each keyframe of the child stands in the world, in keyframe order, so
+# _rebase() can put it back after the couplings change.
 func _keyframe_worlds(child: Feature, nodes: Dictionary) -> Array[Basis]:
 	var worlds: Array[Basis] = []
 	for keyframe in child.keyframes:
@@ -560,6 +583,9 @@ func _keyframe_worlds(child: Feature, nodes: Dictionary) -> Array[Basis]:
 	return worlds
 
 
+# Put each keyframe back where it stood, in the frame the couplings now put it
+# in. After a cut only the keyframe at the edit time can have changed frame, and
+# that one is written again straight after; Remove is what this really works for.
 func _rebase(child: Feature, worlds: Array[Basis], nodes: Dictionary) -> void:
 	for i in child.keyframes.size():
 		var keyframe := child.keyframes[i]

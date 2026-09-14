@@ -62,6 +62,44 @@ func _differs(a: Basis, b: Basis) -> bool:
 	return not a.is_equal_approx(b)
 
 
+func _times(node: Feature) -> Array:
+	return node.keyframes.map(func(k: Keyframe) -> float: return k.time)
+
+
+# What each keyframe stores, by time, which changes only where its frame does.
+func _stored(node: Feature) -> Dictionary:
+	var rotations := {}
+	for keyframe in node.keyframes:
+		rotations[keyframe.time] = keyframe.rotation
+	return rotations
+
+
+# Every keyframe still stores what it stored before, bar the one the edit writes
+# at `written`. Compared as rotations rather than as angles, since _rebase()
+# takes each one through a basis and back.
+func _assert_stored(node: Feature, before: Dictionary, written: float, what: String) -> void:
+	for time in _stored(node):
+		if is_equal_approx(time, written):
+			continue
+		assert_true(before.has(time), "%s at %s Ma is one it had" % [what, time])
+		_assert_basis(Feature.build_rotation_basis(_stored(node)[time]),
+			Feature.build_rotation_basis(before[time]), "%s at %s Ma alone" % [what, time])
+
+
+# Where the node stands at each of the times, keyframe times and times between
+# them alike.
+func _path(document: Document, node: Feature, times: Array) -> Dictionary:
+	var path := {}
+	for time in times:
+		path[time] = _world(document, node, time)
+	return path
+
+
+func _assert_path(document: Document, node: Feature, path: Dictionary, what: String) -> void:
+	for time in path:
+		_assert_basis(_world(document, node, time), path[time], "%s at %s Ma" % [what, time])
+
+
 ### The span
 
 
@@ -210,22 +248,104 @@ func test_what_cannot_be_coupled_is_refused_with_a_reason() -> void:
 ### Nothing on the globe moves
 
 
-func test_coupling_moves_nothing_at_any_keyframe() -> void:
+# Times older than the coupling edits below, keyframe times and times strictly
+# between two keyframes alike. Nothing at any of them may move.
+const OLDER_THAN_THE_CUT := [400.0, 480.0, 650.0, 800.0, 900.0, 2000.0]
+
+
+func test_coupling_moves_nothing_at_or_older_than_the_time_it_acts_at() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
 	var child := _named(document, "Rider")
 	Keyframe.upsert(child.keyframes, 100.0, Vector3(-20, 0, 5))
 	Keyframe.upsert(child.keyframes, 300.0, Vector3(30, -15, 0))
-	var before := {}
-	for time in [100.0, 300.0, 400.0, 800.0]:
-		before[time] = _world(document, child, time)
-	var stored := child.keyframes[1].rotation
+	document.record()
+	var before := _path(document, child, OLDER_THAN_THE_CUT)
 
 	assert_eq(document.couple(child, parent, 400.0), "")
-	for time in before:
-		_assert_basis(_world(document, child, time), before[time], "where it stood at %s Ma" % time)
-	assert_true(not child.keyframes[1].rotation.is_equal_approx(stored),
-		"the keyframe at 300 Ma is relative to the parent now")
+	_assert_path(document, child, before, "where it stood")
+
+
+func test_decoupling_moves_nothing_at_or_older_than_the_time_it_acts_at() -> void:
+	var document := _document()
+	var parent := _named(document, "Mountain")
+	var child := _named(document, "Rider")
+	assert_eq(document.couple(child, parent, 900.0), "")
+	# A drag inside the span, younger than the decoupling below.
+	assert_eq(document.set_keyframe(child, 100.0, Vector3(5, -5, 15)), "")
+	var before := _path(document, child, OLDER_THAN_THE_CUT)
+
+	assert_eq(document.decouple(child, 400.0), "")
+	_assert_path(document, child, before, "where it stood")
+
+
+func test_coupling_drops_the_keyframes_the_new_span_covers() -> void:
+	var document := _document()
+	var parent := _named(document, "Mountain")
+	var child := _named(document, "Rider")
+	Keyframe.upsert(child.keyframes, 100.0, Vector3(-20, 0, 5))
+	Keyframe.upsert(child.keyframes, 300.0, Vector3(30, -15, 0))
+	document.record()
+
+	assert_eq(document.couple(child, parent, 400.0), "")
+	assert_eq(_times(child), [400.0, 800.0],
+		"the two world keyframes inside the span are gone, the older one stays")
+	var riding := _relative(document, parent, child, 400.0)
+	for time in [399.0, 350.0, 200.0, 100.0, 0.0]:
+		_assert_basis(_world(document, child, time), _world(document, parent, time) * riding,
+			"the rider is the parent times one relative pose at %s Ma" % time)
+
+
+func test_decoupling_drops_the_keyframes_the_span_covered() -> void:
+	var document := _document()
+	var parent := _named(document, "Mountain")
+	var child := _named(document, "Rider")
+	assert_eq(document.couple(child, parent, 900.0), "")
+	assert_eq(document.set_keyframe(child, 100.0, Vector3(5, -5, 15)), "")
+
+	assert_eq(document.decouple(child, 400.0), "")
+	assert_eq(_times(child), [400.0, 900.0], "the keyframe at 100 Ma is gone")
+	var left := _world(document, child, 400.0)
+	for time in [399.0, 200.0, 100.0, 0.0]:
+		_assert_basis(_world(document, child, time), left,
+			"and the feature holds its world pose at %s Ma" % time)
+
+
+func test_a_coupling_edit_keeps_every_remaining_keyframe_in_its_own_frame() -> void:
+	var document := _document()
+	var parent := _named(document, "Mountain")
+	var child := _named(document, "Rider")
+	Keyframe.upsert(child.keyframes, 100.0, Vector3(-20, 0, 5))
+	Keyframe.upsert(child.keyframes, 1200.0, Vector3(0, 40, 0))
+	document.record()
+
+	# _rebase() has nothing to convert but the keyframe the edit writes itself.
+	var before := _stored(child)
+	assert_eq(document.couple(child, parent, 800.0), "")
+	_assert_stored(child, before, 800.0, "coupling leaves the keyframe")
+
+	before = _stored(child)
+	assert_eq(document.decouple(child, 400.0), "")
+	_assert_stored(child, before, 400.0, "and so does decoupling, the keyframe")
+
+
+func test_a_rider_of_the_edited_feature_moves_only_where_that_feature_does() -> void:
+	var document := _document()
+	var parent := _named(document, "Mountain")
+	var child := _named(document, "Rider")
+	var pebble := _polygon("Pebble")
+	document.root.children.append(pebble)
+	Keyframe.upsert(child.keyframes, 100.0, Vector3(-20, 0, 5))
+	Keyframe.upsert(child.keyframes, 300.0, Vector3(30, -15, 0))
+	document.record()
+	assert_eq(document.couple(pebble, child, 1000.0), "")
+	var before := _path(document, pebble, OLDER_THAN_THE_CUT)
+	var younger := _world(document, pebble, 200.0)
+
+	assert_eq(document.couple(child, parent, 400.0), "")
+	_assert_path(document, pebble, before, "the pebble stays where it was")
+	assert_true(_differs(_world(document, pebble, 200.0), younger),
+		"and follows the rider where the rider's own path changed")
 
 
 func test_key_holds_a_coupled_feature_where_it_stands() -> void:
@@ -238,6 +358,8 @@ func test_key_holds_a_coupled_feature_where_it_stands() -> void:
 	_assert_basis(_world(document, child, 350.0), here, "a keyframe in the parent's frame")
 
 
+# Remove is the exception to the cut in time: it keeps every keyframe and
+# converts it pointwise, so the path between two of them does change.
 func test_removing_a_span_leaves_every_keyframe_where_it_was() -> void:
 	var document := _document()
 	var child := _named(document, "Rider")
@@ -364,6 +486,31 @@ func test_both_halves_of_a_split_keep_the_couplings() -> void:
 		assert_eq(Coupling.list_to_json(half.couplings)[0]["parent"], parent.uuid,
 			"%s rides on the mountain" % half.title)
 	assert_eq(rider.couplings[0].parent, halves[0].uuid, "the pebble rides on the first half")
+
+
+func test_a_split_half_decoupled_between_keyframes_does_not_drift() -> void:
+	var document := _document()
+	var parent := _named(document, "Mountain")
+	var child := _named(document, "Rider")
+	assert_eq(document.couple(child, parent, 1000.0), "")
+	assert_eq(document.set_keyframe(child, 800.0, Vector3(10, 5, 0)), "")
+	assert_eq(document.set_keyframe(child, 100.0, Vector3(-20, 0, 5)), "")
+	assert_eq(document.split_feature(child, 0, 0, 2), "")
+	var first := _named(document, "Rider")
+	var second := _named(document, "Rider 2")
+
+	assert_eq(document.decouple(second, 400.0), "")
+	# Times strictly between the halves' keyframes, which is where the rebased
+	# half used to come apart from the one it was cut from.
+	for time in [900.0, 700.0, 500.0, 450.0]:
+		_assert_basis(_world(document, second, time), _world(document, first, time),
+			"the halves are still one at %s Ma" % time)
+	var left := _world(document, second, 400.0)
+	for time in [399.0, 250.0, 100.0, 0.0]:
+		_assert_basis(_world(document, second, time), left,
+			"the decoupled half stands still at %s Ma" % time)
+		assert_true(_differs(_world(document, first, time), left),
+			"while the other one rides on at %s Ma" % time)
 
 
 ### The graphs
