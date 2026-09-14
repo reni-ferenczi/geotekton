@@ -43,6 +43,7 @@ adding an item means adding an enum value and one `add_item` line.
 | Import...       |                | Convert a GPlates project, or feature collection and rotation files, into a new document; see [Import](Import.md) |
 | Save            | Ctrl+S         | Write to the document path, asking for one only when it has none |
 | Save As...      | Ctrl+Shift+S   | Always ask for a path                            |
+| Export Image... |                | Write the map at the current age to a PNG; greyed out on the globe |
 | Run Script...   |                | Pick a Python file and run it; see [Scripting](Scripting.md) |
 | Scripts         |                | One entry per documented script in the configured folders |
 | Preferences...  |                | The preferences dialog                           |
@@ -144,6 +145,9 @@ In the dialog under File > Preferences:
 - **Vertex marker size** and **Outline line width** — how large the outline
   overlay draws the vertices of the selected feature and the lines between them,
   as multiples of what the shader draws at.
+- **Export width (pixels)** — how wide File > Export Image writes its picture.
+  The height comes from the projection, so this one number settles the size of
+  every export; see [Exporting a picture of the map](#exporting-a-picture-of-the-map).
 - **Interpreter** and **Script directories**, under a Python heading — which
   Python runs the scripting bridge and where the scripts that become menu
   entries are looked for. Leaving the interpreter empty means the project's own
@@ -153,6 +157,32 @@ All of them are written to the config file described in
 [Persistence](Persistence.md#the-config-file). So is the state of the Snap
 switch in the toolbar, which is not in the dialog because it is toggled while
 editing rather than set once.
+
+## Exporting a picture of the map
+
+File > Export Image asks where to put a PNG and writes the map at the age the
+timeline shows. The item is greyed out while the globe is shown: the globe is a
+view of one side of the planet, and a picture of it would have no size the
+projection could settle.
+
+The sheet fills the picture exactly. Its width is the Export width preference,
+or whatever the caller asks for, and its height is that width times the
+projection's extent, so every export of one projection comes out the same size
+whatever the window is doing: 3600 by 1800 for a rectangular or Mollweide map,
+3600 by 3600 for Mercator and orthographic, 3600 by 1826 for Robinson. See
+[Shader](Shader.md#the-export-camera) for how the camera is fitted to the sheet.
+
+Only the planet is in it. The graticule, the background colour, the star field
+and the backdrop image are whatever the view settings have them as; the panels,
+the measurement label, the selection highlight and the tool marks are not, and
+neither are the zoom, the camera offset or the view angle, which are put back
+untouched afterwards. Corners outside a Mollweide, Robinson or orthographic
+sheet are the background colour; a rectangular or Mercator sheet is a rectangle,
+so it reaches all four corners of its own picture.
+
+The status bar names the file and its size when the picture is written, and a
+failure to write reaches the error dialog. A script exports through
+`app.export_image()`; see [Scripting](Scripting.md#the-application).
 
 ## Command line
 

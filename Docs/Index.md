@@ -9,7 +9,7 @@
 - [Properties](Properties.md) — Feature types, the Properties panel and the Edit commands
 - [Scripting](Scripting.md) — The Python console, script files as menu entries, the API and the bridge protocol
 - [Shader](Shader.md) — Planet shader, lighting, the backdrop image, map projections, feature geometry and the outline overlay
-- [Shell](Shell.md) — The application window: menus, panels, full screen, status bar, preferences and command line
+- [Shell](Shell.md) — The application window: menus, panels, full screen, status bar, preferences, exporting a picture of the map and the command line
 - [Styling](Styling.md) — The visibility switches, the draw styles, the colour palettes and the CPT reader
 - [Testing](Testing.md) — Test modes, the automation port and golden image comparison
 - [Time](Time.md) — Which way time runs, keyframes, the time control and animation

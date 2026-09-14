@@ -20,6 +20,7 @@ class FakeApplication:
         self.playing = False
         self.selection = ""
         self.saved_to = ""
+        self.exported_to = ""
         self.requests: list[dict] = []
         self._counter = 0
 
@@ -105,6 +106,13 @@ class FakeApplication:
 
     def do_save(self, request):
         self.saved_to = request["path"]
+
+    def do_export_image(self, request):
+        # The application settles the height from the projection; the fake is a
+        # rectangular one, and a width of zero means the preference.
+        width = request["width"] or 3600
+        self.exported_to = request["path"]
+        return {"size": [width, width // 2]}
 
 
 @pytest.fixture
@@ -200,3 +208,13 @@ def test_saving_passes_the_path_through(app, fake):
 def test_a_refusal_from_the_application_is_raised(app):
     with pytest.raises(AppError, match="unknown command: undo"):
         app.undo()
+
+
+def test_export_image_sends_the_path_and_the_width(app, fake):
+    assert app.export_image("C:/tmp/map.png", width=720) == (720, 360)
+    assert fake.exported_to == "C:/tmp/map.png"
+    assert fake.requests[-1] == {"cmd": "export_image", "path": "C:/tmp/map.png", "width": 720}
+
+    # No width is the preference, which the application resolves.
+    assert app.export_image("C:/tmp/big.png") == (3600, 1800)
+    assert fake.requests[-1]["width"] == 0

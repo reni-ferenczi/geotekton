@@ -104,6 +104,16 @@ planet, a geometry kind a feature type does not allow — is raised as an
 | `app.selected`                   | The uuid of the selected node, empty when none |
 | `app.select(uuid)`               | Select one                                     |
 
+### Exporting
+
+| Call                                  | What it does                                   |
+| ------------------------------------- | ---------------------------------------------- |
+| `app.export_image(path, width=None)`  | Write the map at the current age to a PNG and answer its size as `(width, height)` |
+
+The height comes from the projection, so `width` settles both; left out, it is
+the Export width preference. A globe raises `AppError`, since a picture is of a
+map sheet. See [Shell](Shell.md#exporting-a-picture-of-the-map).
+
 ### Files without an application
 
 `Document` reads and writes `.middle-earth` files on their own. It keeps the
@@ -225,8 +235,8 @@ line that is not a JSON object is refused without the interpreter going down.
 
 `document`, `time`, `set_time`, `play`, `pause`, `selection`, `select`, `new`,
 `open`, `save`, `undo`, `redo`, `add_feature`, `add_group`, `edit_feature`,
-`delete_feature`, `set_keyframe` and `delete_keyframe` — one per call of the API
-above. Each finishes the edit the way the panels do, so a script's change
+`delete_feature`, `set_keyframe`, `delete_keyframe` and `export_image` — one per
+call of the API above. Each finishes the edit the way the panels do, so a script's change
 reaches the tree, the globe, the timeline and the graphs exactly as a person's
 does.
 

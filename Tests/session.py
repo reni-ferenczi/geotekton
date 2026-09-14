@@ -1988,6 +1988,150 @@ def run_wheel_checks(client: AutomationClient) -> None:
               f"and a notch back returns {name} to the whole planet")
 
 
+### The export scenario
+
+
+# Where the three features of the two cratons sample stand, and the width the
+# pictures below are exported at. A width of 720 makes a rectangular sheet 720
+# by 360, so a degree is two pixels and a probe lands well inside a feature.
+EXPORT_WIDTH = 720
+EXPORT_PLACES = {"blue": (30.0, 45.0), "red": (-3.0, 0.0), "green": (-3.0, -60.0)}
+
+# The projections and the size each one exports at, which is the width and what
+# the projection's own aspect makes of it: 2:1, square, 2:1, 1.97:1 and square.
+EXPORT_SIZES = {0: (720, 360), 1: (720, 720), 2: (720, 360), 3: (720, 365), 4: (720, 720)}
+
+
+def rectangular_pixel(size: tuple[int, int], lat: float, lon: float) -> tuple[int, int]:
+    """Which pixel of a rectangular export shows a place, the sheet filling it."""
+    width, height = size
+    return (int((lon / 360.0 + 0.5) * width), int((0.5 - lat / 180.0) * height))
+
+
+def export_to(client: AutomationClient, path: Path, **params) -> tuple[int, int]:
+    """Export a picture and answer the size the port reported."""
+    answer = client.call("export_image", path=str(path), **params)
+    return (int(answer["size"][0]), int(answer["size"][1]))
+
+
+def edge_pixels(image) -> list[tuple[int, int, int]]:
+    """Every pixel of the four edge rows and columns of an image."""
+    width, height = image.size
+    pixels = [image.getpixel((x, y)) for y in (0, height - 1) for x in range(width)]
+    return pixels + [image.getpixel((x, y)) for x in (0, width - 1) for y in range(height)]
+
+
+def run_export_session(client: AutomationClient, folder: Path) -> None:
+    """File > Export Image: the whole sheet, nothing else, the same size every time."""
+    from PIL import Image
+
+    sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+    client.call("load", path=str(sample))
+    client.call("select", title=None)
+
+    # The globe is a view of one side of the planet rather than a map of the
+    # whole of it, so there is nothing there to make a picture of.
+    client.call("set_view", show_map=False, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+    check("disabled" in refusal(client, "menu", item="export_image"),
+          "the menu item is disabled while the globe is shown")
+    check("map projection" in refusal(
+        client, "export_image", path=str(folder / "globe.png"), width=EXPORT_WIDTH),
+        "and the command says to pick a map projection")
+    check(not (folder / "globe.png").exists(), "and nothing was written")
+
+    # What the window itself is drawn in, which is what must not be in a
+    # picture of the map: the menu bar, well away from the planet view.
+    panel = client.call("get_pixel", x=4, y=4)["color"]
+    panel_rgb = tuple(round(channel * 255) for channel in panel[:3])
+
+    client.call("set_view", show_map=True, projection=0, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+    before = client.call("get_view")
+    rectangular = folder / "rectangular.png"
+    size = export_to(client, rectangular, width=EXPORT_WIDTH)
+    check(size == EXPORT_SIZES[0], f"a rectangular export at 720 is 720 by 360: {size}")
+
+    image = Image.open(rectangular).convert("RGB")
+    check(image.size == EXPORT_SIZES[0], f"and the file is that size: {image.size}")
+    for name, (lat, lon) in EXPORT_PLACES.items():
+        pixel = image.getpixel(rectangular_pixel(image.size, lat, lon))
+        check(dominant([channel / 255.0 for channel in pixel]) == name,
+              f"the {name} feature is drawn where the projection puts it: {pixel}")
+
+    # The sheet fills the picture, so its corners are the poles of the map
+    # rather than anything behind it, and no edge of it is the window's own
+    # colour: there is no panel, no label and no letterboxing in it.
+    corners = [image.getpixel(point) for point in
+               [(0, 0), (image.width - 1, 0), (0, image.height - 1),
+                (image.width - 1, image.height - 1)]]
+    check(all(abs(corner[0] - corner[2]) < 24 and min(corner) > 128 for corner in corners),
+          f"the corners of a rectangular export are the polar ice it draws there: {corners}")
+    check(panel_rgb not in edge_pixels(image),
+          f"and no pixel of its four edges is the window's panel colour {panel_rgb}")
+
+    run_export_shape_checks(client, folder, panel_rgb)
+    run_export_width_checks(client, folder)
+
+    after = client.call("get_view")
+    for field in ["zoom", "fov", "lat", "lon", "angle", "projection", "window_size"]:
+        check(after[field] == before[field],
+              f"the view is where it was before the export: {field} is {after[field]}")
+    client.call("set_view", show_map=False, projection=0, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+
+
+def run_export_shape_checks(client: AutomationClient, folder: Path,
+                            panel_rgb: tuple[int, int, int]) -> None:
+    """Each projection's own size, and a sheet that reaches every edge."""
+    from PIL import Image
+
+    background = client.call("get_view_settings")["view_settings"]["background_color"]
+    background_rgb = tuple(round(channel * 255) for channel in background[:3])
+
+    for kind, wanted in EXPORT_SIZES.items():
+        path = folder / f"projection_{kind}.png"
+        client.call("set_view", show_map=True, projection=kind,
+                    lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+        size = export_to(client, path, width=EXPORT_WIDTH)
+        image = Image.open(path).convert("RGB")
+        check(size == wanted and image.size == wanted,
+              f"projection {kind} exports at {wanted}: reported {size}, written {image.size}")
+        check(panel_rgb not in edge_pixels(image),
+              f"and no edge of it is the window's panel colour: projection {kind}")
+
+    # A Mollweide sheet is an ellipse, so its corners are what is behind it
+    # while the ends of its axes touch the four edges: the picture is the sheet
+    # and no larger.
+    mollweide = Image.open(folder / "projection_2.png").convert("RGB")
+    width, height = mollweide.size
+    corners = [mollweide.getpixel(point) for point in
+               [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]]
+    check(all(max(abs(a - b) for a, b in zip(corner, background_rgb)) <= 64
+              for corner in corners),
+          f"the corners of a Mollweide export are the background {background_rgb}: {corners}")
+    for name, point in [("top", (width // 2, 0)), ("bottom", (width // 2, height - 1)),
+                        ("left", (0, height // 2)), ("right", (width - 1, height // 2))]:
+        pixel = mollweide.getpixel(point)
+        check(max(abs(a - b) for a, b in zip(pixel, background_rgb)) > 64,
+              f"and its {name} edge is the sheet itself, not a margin: {pixel}")
+
+
+def run_export_width_checks(client: AutomationClient, folder: Path) -> None:
+    """The width is a preference, and an export without one is that wide."""
+    from PIL import Image
+
+    client.call("set_view", show_map=True, projection=0, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+    check(client.call("get_preferences")["preferences"]["export_width"] == 3600,
+          "the export width starts at 3600")
+    client.call("set_preferences", preferences={"export_width": 400})
+    check(client.call("get_preferences")["preferences"]["export_width"] == 400,
+          "and the Preferences dialog changes it")
+
+    path = folder / "preferred.png"
+    size = export_to(client, path)
+    check(size == (400, 200), f"an export that says no width is that wide: {size}")
+    check(Image.open(path).size == (400, 200), "and the file is too")
+    client.call("set_preferences", preferences={"export_width": 3600})
+
+
 def run_scene_session(client: AutomationClient, folder: Path) -> None:
     """The scene settings: saved with the document, dragged on the globe, defaulted."""
     sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
@@ -3335,6 +3479,27 @@ def run_python_session(client: AutomationClient) -> None:
 
     run_history_checks(client)
     run_completion_checks(client)
+    run_export_from_console(client)
+
+
+def run_export_from_console(client: AutomationClient) -> None:
+    """app.export_image writes a picture of the map and answers its size."""
+    folder = Path(tempfile.mkdtemp(prefix="middle-earth-console-export-"))
+    try:
+        path = folder / "console.png"
+        client.call("set_view", show_map=True, projection=0,
+                    lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
+        printed = console(client, f"app.export_image({str(path)!r}, width=240)")
+        check("(240, 120)" in printed, f"app.export_image answers with the size: {printed!r}")
+        check(path.is_file() and path.stat().st_size > 0,
+              f"and the picture is on disk: {path}")
+
+        # The globe is refused there too, as an exception a script can catch.
+        client.call("set_view", show_map=False)
+        printed = console(client, f"app.export_image({str(folder / 'globe.png')!r})")
+        check("AppError" in printed, f"and the globe is refused: {printed!r}")
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 def run_history_checks(client: AutomationClient) -> None:
@@ -3617,6 +3782,11 @@ def main(argv: list[str]) -> int:
         run_edit_menu_session(client)
         run_time_session(client)
         run_projection_session(client)
+        folder = Path(tempfile.mkdtemp(prefix="middle-earth-export-"))
+        try:
+            run_export_session(client, folder)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
         folder = Path(tempfile.mkdtemp(prefix="middle-earth-scene-"))
         try:
             run_scene_session(client, folder)

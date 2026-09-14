@@ -541,6 +541,17 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				return {"ok": false, "error": "failed to save %s (error %d)" % [path, error]}
 			return {"ok": true, "path": path, "size": [image.get_width(), image.get_height()]}
 
+		"export_image":
+			# File > Export Image without the dialog: the map at the current
+			# age, at the width asked for or the one the preferences hold.
+			var width := int(request.get("width", 0))
+			var size := app.export_size(width)
+			var problem: String = await app.export_image(str(request.get("path", "")), width)
+			if not problem.is_empty():
+				return {"ok": false, "error": problem}
+			await _frames(2)
+			return {"ok": true, "path": request.get("path", ""), "size": [size.x, size.y]}
+
 		"get_tool":
 			return {"ok": true,
 				"tool": TOOL_NAMES[app.active_tool],
@@ -694,6 +705,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"planet_radius_km": Config.get_planet_radius(),
 				"vertex_marker_scale": Config.get_vertex_marker_scale(),
 				"line_width_scale": Config.get_line_width_scale(),
+				"export_width": Config.get_export_width(),
 				"snap_to_vertices": Config.get_snap_to_vertices(),
 				"python_interpreter": Config.get_python_interpreter(),
 				"script_directories": Config.get_script_directories(),
@@ -710,6 +722,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				app.marker_spin.value = float(wanted["vertex_marker_scale"])
 			if wanted.has("line_width_scale"):
 				app.line_spin.value = float(wanted["line_width_scale"])
+			if wanted.has("export_width"):
+				app.export_width_spin.value = float(wanted["export_width"])
 			if wanted.has("python_interpreter"):
 				app.interpreter_edit.text = str(wanted["python_interpreter"])
 			if wanted.has("script_directories"):
@@ -1009,6 +1023,7 @@ func _menu_item(name: String) -> Array:
 		"open": return [app.file_menu, Application.FileItem.OPEN]
 		"save": return [app.file_menu, Application.FileItem.SAVE]
 		"save_as": return [app.file_menu, Application.FileItem.SAVE_AS]
+		"export_image": return [app.file_menu, Application.FileItem.EXPORT_IMAGE]
 		"import": return [app.file_menu, Application.FileItem.IMPORT]
 		"preferences": return [app.file_menu, Application.FileItem.PREFERENCES]
 		"quit": return [app.file_menu, Application.FileItem.QUIT]

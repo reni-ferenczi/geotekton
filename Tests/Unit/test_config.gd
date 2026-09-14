@@ -94,3 +94,24 @@ func test_the_python_settings_default_to_the_project_and_survive_a_reload() -> v
 	Config.forget()
 	assert_eq(Config.get_script_directories(), [], "an empty list is a choice, not an absence")
 	_restore_the_real_config()
+
+
+func test_the_export_width_defaults_and_stays_inside_its_bounds() -> void:
+	_use_a_scratch_config()
+	assert_eq(Config.get_export_width(), Config.DEFAULT_EXPORT_WIDTH,
+		"an unset export width is the default")
+
+	Config.set_export_width(720)
+	Config.forget()
+	assert_eq(Config.get_export_width(), 720, "a width that was set survives a reload")
+
+	Config.set_export_width(99999)
+	assert_eq(Config.get_export_width(), Config.MAX_EXPORT_WIDTH, "too wide is clamped")
+	Config.set_export_width(1)
+	assert_eq(Config.get_export_width(), Config.MIN_EXPORT_WIDTH, "and so is too narrow")
+
+	# A file written by hand is read through the same bounds.
+	Config.set_value("export_width", 0)
+	assert_eq(Config.get_export_width(), Config.MIN_EXPORT_WIDTH,
+		"a width read from the file is clamped too")
+	_restore_the_real_config()
