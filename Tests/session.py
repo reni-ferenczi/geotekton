@@ -152,6 +152,7 @@ def run_document_session(client: AutomationClient, folder: Path) -> None:
     check(not document["dirty"], "a freshly opened document is clean")
     check(document["title"] == "first.middle-earth — Middle Earth",
           f"the window title names the file: {document['title']}")
+    check_opens_at_the_oldest_age(client, "an opened document")
 
     # An edit through the feature tree toolbar marks the document dirty.
     client.call("toolbar", button="AddFeature")
@@ -237,6 +238,7 @@ def run_document_session(client: AutomationClient, folder: Path) -> None:
     document = client.call("get_document")["document"]
     check(document["path"] == "" and not document["dirty"], "New starts an empty document")
     check(document["title"] == "Untitled — Middle Earth", f"the title says Untitled: {document['title']}")
+    check_opens_at_the_oldest_age(client, "a new document")
 
     # Save on a document that has never been written asks where to put it.
     client.call("menu", item="save")
@@ -264,6 +266,14 @@ DRAWINGS = {
 # sphere, so what is left is the single precision arithmetic of the projection
 # and the ray cast.
 CLICK_TOLERANCE = 0.001
+
+
+def check_opens_at_the_oldest_age(client: AutomationClient, what: str) -> None:
+    """The timeline starts at the oldest age the animation range covers."""
+    timeline = client.call("get_timeline")["timeline"]
+    oldest = max(timeline["animation"]["start"], timeline["animation"]["end"])
+    check(timeline["time"] == oldest and timeline["typed"] == oldest,
+          f"{what} opens at {oldest} Ma, the oldest age of the animation: {timeline['time']}")
 
 
 def start_new_document(client: AutomationClient) -> None:
@@ -518,11 +528,15 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["color"][:3] == [1.0, 0.0, 0.0], f"its colour: {panel['color']}")
     check(panel["enabled"] is True, "its enabled flag")
     check(panel["time_range"] == [0, 2000], f"its time range: {panel['time_range']}")
+    check((panel["time_from"], panel["time_to"]) == (2000, 0),
+          f"with From the older end and To the younger: {panel['time_from']}, {panel['time_to']}")
     check("3 vertices in 1 part" in panel["geometry"], f"its geometry summarized: {panel['geometry']}")
     check("coordinates" not in panel, f"and no coordinate rows: {sorted(panel)}")
-    # The sample holds one keyframe at the present, where the time is after a load.
+    # The sample holds one keyframe at the present and the document opened at the
+    # oldest age, so Delete is greyed out until the time is on that keyframe.
+    now = client.call("get_time")["time"]
     times = [k["time"] for k in client.call("get_selected")["feature"]["keyframes"]]
-    check(panel["keyframes"] == {"count": len(times), "key": True, "delete": 0.0 in times},
+    check(panel["keyframes"] == {"count": len(times), "key": True, "delete": now in times},
           f"one keyframe row with its count, Key and Delete: {panel['keyframes']}, {times}")
 
     # A group has a name, a switch and a style: how the features under it are
@@ -568,18 +582,20 @@ def run_properties_session(client: AutomationClient) -> None:
     check(client.call("get_properties")["properties"]["color"] == [0.0, 0.0, 1.0, 1.0],
           "and the blue the file picked survives the type change")
 
-    # A time range that ends before it starts is refused the same way.
+    # From is the older end, so it moves the second number of the pair.
     client.call("set_property", field="time_from", value=500)
-    check(client.call("get_selected")["feature"]["time_range"] == [500, 2000],
-          "the start of the time range is taken")
-    client.call("set_property", field="time_to", value=100)
+    check(client.call("get_selected")["feature"]["time_range"] == [0, 500],
+          "From moves the older end of the time range")
+    # A range that ends older than it starts is refused the same way as a type.
+    client.call("set_property", field="time_to", value=900)
     dialog = client.call("get_dialog")["dialog"]
-    if check(dialog is not None, "a range that ends before it starts is refused"):
+    if check(dialog is not None, "a range that ends older than it starts is refused"):
         client.call("dialog", button="OK")
-    check(client.call("get_selected")["feature"]["time_range"] == [500, 2000],
+    check(client.call("get_selected")["feature"]["time_range"] == [0, 500],
           "and the feature keeps the range it had")
-    check(client.call("get_properties")["properties"]["time_range"] == [500, 2000],
-          "which is what the panel shows again")
+    panel = client.call("get_properties")["properties"]
+    check((panel["time_from"], panel["time_to"]) == (500, 0),
+          f"which is what the panel shows again: {panel['time_from']}, {panel['time_to']}")
 
     # The switch in the panel is the switch on the tree row.
     client.call("set_property", field="enabled", value=False)
@@ -587,10 +603,18 @@ def run_properties_session(client: AutomationClient) -> None:
           "the panel disables the feature")
     client.call("set_property", field="enabled", value=True)
 
-    # A new feature holds nothing, so it shows no type, may be drawn in any kind
-    # and refuses a type until the first shape gives it one.
+    # A new feature takes the age the timeline is showing as its oldest end and
+    # runs to the present, since that is the direction the work goes in.
+    client.call("set_time", time=1500.0)
     client.call("toolbar", button="AddFeature")
+    check(client.call("get_selected")["feature"]["time_range"] == [0, 1500],
+          "a feature added at 1500 Ma exists from 1500 Ma to the present")
     panel = client.call("get_properties")["properties"]
+    check((panel["time_from"], panel["time_to"]) == (1500, 0),
+          f"which the panel reads as From 1500 To 0: {panel['time_from']}, {panel['time_to']}")
+
+    # It holds nothing, so it shows no type, may be drawn in any kind and
+    # refuses a type until the first shape gives it one.
     check(panel["feature_type"] == "" and panel["type_label"] == "",
           f"a feature holding nothing shows no type: {panel['type_label']!r}")
     check(sorted(client.call("get_tool")["allowed_kinds"])
@@ -1117,8 +1141,8 @@ def run_time_session(client: AutomationClient) -> None:
 
 def run_visibility_checks(client: AutomationClient) -> None:
     """A feature outside its time range is neither drawn nor hit tested."""
-    client.call("set_property", field="time_from", value=0)
-    client.call("set_property", field="time_to", value=1000)
+    client.call("set_property", field="time_to", value=0)
+    client.call("set_property", field="time_from", value=1000)
 
     outside = 1500.0
     client.call("set_time", time=outside)
@@ -1135,7 +1159,7 @@ def run_visibility_checks(client: AutomationClient) -> None:
     check(client.call("get_features")["features"] is not None, "the tree still lists it")
 
     # The same probe point, with the time range widened to take that time in.
-    client.call("set_property", field="time_to", value=2000)
+    client.call("set_property", field="time_from", value=2000)
     check(client.call("get_selected")["feature"]["exists_now"],
           "widening the range brings it back")
     color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
@@ -1467,6 +1491,8 @@ def run_moved_section_checks(client: AutomationClient) -> None:
 
     # Pin where the line is at the present first. Without a keyframe there, the
     # one the drag writes would be the only one and would hold at every time.
+    # The document opened at the oldest age, so go to the present to pin it.
+    client.call("set_time", time=0.0)
     client.call("keyframes", button="Key")
     client.call("set_time", time=TOPOLOGY_TIME)
     if not drag(client, 0.0, MOVED_LONGITUDE):
@@ -2050,7 +2076,7 @@ def run_split_session(client: AutomationClient) -> None:
     client.call("key", key="Enter")
     client.call("set_property", field="name", value="Whole")
     client.call("set_property", field="color", value=[0.0, 0.0, 1.0, 1.0])
-    client.call("set_property", field="time_to", value=1500)
+    client.call("set_property", field="time_from", value=1500)
     client.call("set_time", time=0.0)
     if not drag(client, 0.0, 0.0):
         return
@@ -2260,11 +2286,15 @@ def run_styling_session(client: AutomationClient, folder: Path) -> None:
 
 def run_palette_checks(client: AutomationClient) -> None:
     """The feature age style over a built in palette and one read from a file."""
-    # Give each feature its own age, which is the older end of its time range.
+    # How old a feature is is measured from the current time, and a document
+    # opens at the oldest age of the animation, so read the ages at the present.
+    client.call("set_time", time=0.0)
+    # Give each feature its own age, which is the older end of its time range,
+    # the one the panel calls From.
     ages = {"Red Triangle": 100, "Blue Ridge": 300, "Green Stations": 900}
     for title, age in ages.items():
         client.call("select", title=title)
-        client.call("set_property", field="time_to", value=age)
+        client.call("set_property", field="time_from", value=age)
     client.call("select", title=None)
 
     # The steps palette is five flat slices two hundred million years wide:
@@ -2392,6 +2422,9 @@ def run_kinematics_session(client: AutomationClient) -> None:
     client.call("load", path=str(MOTION))
     client.call("set_animation",
                 animation={"start": KINEMATICS_OLDEST, "end": KINEMATICS_YOUNGEST})
+    # A document opens at the oldest age of the animation; the graphs below are
+    # read at the present, which is where the cursor belongs at the right.
+    client.call("set_time", time=KINEMATICS_YOUNGEST)
 
     check(not client.call("get_panels")["panels"]["kinematics"],
           "the graphs are not shown until they are asked for")
