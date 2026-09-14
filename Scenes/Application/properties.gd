@@ -1029,6 +1029,7 @@ func to_json() -> Dictionary:
 	data["time_range"] = [int(to_spin.value), int(from_spin.value)]
 	data["time_from"] = int(from_spin.value)
 	data["time_to"] = int(to_spin.value)
+	data["tooltips"] = {"time_from": from_spin.tooltip_text, "time_to": to_spin.tooltip_text}
 	data["geometry"] = geometry_label.text
 	if keyframe_count.get_parent().visible:
 		data["keyframes"] = {

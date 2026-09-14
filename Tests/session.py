@@ -530,6 +530,9 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["time_range"] == [0, 2000], f"its time range: {panel['time_range']}")
     check((panel["time_from"], panel["time_to"]) == (2000, 0),
           f"with From the older end and To the younger: {panel['time_from']}, {panel['time_to']}")
+    check(panel["tooltips"]["time_from"].startswith("The age the feature appears at")
+          and panel["tooltips"]["time_to"].startswith("The age it disappears at"),
+          f"and a hover description on each: {panel['tooltips']}")
     check("3 vertices in 1 part" in panel["geometry"], f"its geometry summarized: {panel['geometry']}")
     check("coordinates" not in panel, f"and no coordinate rows: {sorted(panel)}")
     # The sample holds one keyframe at the present and the document opened at the
