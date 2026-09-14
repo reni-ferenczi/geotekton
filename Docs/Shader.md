@@ -105,6 +105,27 @@ appear in both files and have to stay the same in both; the shader interpolates
 them exactly as `MapProjection._robinson_at()` does, so a round trip through the
 table is exact.
 
+### The export camera
+
+On screen the camera leaves about a fifth of a margin around the sheet and
+letterboxes for whatever shape the window is
+(`PlanetView._fov_for_view()`). A picture of the map wants neither, so
+`PlanetView.render_export()` sizes the viewport at the sheet's own aspect,
+`width` by `round(width * extent)`, and gives the camera the field of view that
+puts the top and bottom edges of the sheet on the edges of the image:
+
+```gdscript
+camera.fov = rad_to_deg(2.0 * atan(extent / camera.position.z))
+```
+
+The sheet is at the middle of the scene and the camera stands at `z` in front of
+it, so half the height in view at that distance is `z * tan(fov / 2)`, which the
+line above makes exactly `extent`. Half the width follows from the aspect,
+`extent * width / (width * extent)`, which is 1: the half width the sheet has.
+The view angle and the camera offset are zero for the frame and the zoom does not
+come into it, since the field of view is worked out from the sheet rather than
+from the window. See [Shell](Shell.md#exporting-a-picture-of-the-map).
+
 ### Off the map
 
 Not every point of the sheet is a place on the planet. `MapProjection.inverse()`

@@ -190,8 +190,9 @@ static func set_split_ridge(enabled: bool) -> void:
 # projection, so this one number settles the size of every export. The default
 # is large enough to print and the bounds are what a viewport can be asked for.
 const DEFAULT_EXPORT_WIDTH := 3600
-const MIN_EXPORT_WIDTH := 64
-const MAX_EXPORT_WIDTH := 8192
+const MIN_EXPORT_WIDTH := 100
+const MAX_EXPORT_WIDTH := 8000
+const EXPORT_WIDTH_STEP := 10
 
 
 static func get_export_width() -> int:

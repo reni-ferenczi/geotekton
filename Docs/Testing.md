@@ -7,7 +7,7 @@ on every change. `Tests/run.py` starts all of them.
 | ---------- | ----------------------------- | --------------------------------------------------------- |
 | `headless` | `python Tests/run.py headless` | Pure logic: rotation math, triangulation, hit testing, the file format. No window. |
 | `rendered` | `python Tests/run.py rendered` | The real application window: what is drawn, where clicks land, screen to world coordinates. |
-| `session`  | `python Tests/run.py session`  | A scripted end-to-end session driving the running application over the automation port. |
+| `session`  | `uv run Tests/run.py session`  | A scripted end-to-end session driving the running application over the automation port. |
 | `cli`      | `python Tests/run.py cli`      | What `--version` and `--help` print, from a headless start with no window. |
 | `self-check` | `python Tests/run.py self-check` | The runner itself: that it reports a test which hits a runtime error as a failure, and that it fails a run whose application script did not compile. |
 | `python`   | `uv run Tests/run.py python`   | The scripting package under pytest: the file model, the API against a fake application, the bridge server and the GPlates import. No engine. |
@@ -15,11 +15,12 @@ on every change. `Tests/run.py` starts all of them.
 | `all`      | `uv run Tests/run.py all`      | All seven in the order above, stopping at the first failure. |
 | `performance` | `uv run Tests/run.py performance` | The frame time during playback, and what one hit test costs with and without the bounding cap, on a document of a chosen triangle count. Not part of `all`. |
 
-`headless`, `rendered`, `session`, `cli` and `self-check` run under any Python 3.13
-or newer. `self-check` opens a window for the second of its two cases, the way
-`rendered` does. `golden` needs Pillow and `python` needs pytest, so run those
-through `uv run`; under a plain interpreter without them each prints a hint and
-exits with code 2. `uv run Tests/run.py <mode>` works for every mode, so `uv run`
+`headless`, `rendered`, `cli` and `self-check` run under any Python 3.13 or
+newer. `self-check` opens a window for the second of its two cases, the way
+`rendered` does. `session` and `golden` need Pillow and `python` needs pytest, so
+run those through `uv run`; under a plain interpreter without them each prints a
+hint and exits with code 2. `session` reads the pictures it exported back with
+Pillow, which is what puts it on that list. `uv run Tests/run.py <mode>` works for every mode, so `uv run`
 is the safe default.
 
 `session` starts a Python interpreter of its own, because the application it
@@ -214,6 +215,21 @@ disagree fails on the pixel and one the shader draws differently fails on the
 click. It then steps the zoom in and out, types one in, resets it, turns the
 view each way and resets the camera, checking the toolbar fields follow.
 
+The export scenario writes pictures of the two cratons sample and reads them
+back with Pillow. On the globe the menu item is greyed out and the command says
+to pick a map projection, and nothing is written. In the rectangular projection
+a 720 wide export is 720 by 360, all three features are drawn where the
+projection puts them, no pixel of the four edges is the colour the window's own
+panels are drawn in, and the corners are the polar ice the map has there, since
+a rectangular sheet reaches all four of them. Each of the five projections is
+exported in turn and comes out at the size its own extent asks for. The
+Mollweide picture says the sheet is not letterboxed: its corners are the
+background the ellipse leaves showing, while the ends of both axes touch the
+four edges. The Export width preference is read at its default of 3600, set to
+400, and an export that names no width comes out 400 by 200. Afterwards the
+zoom, the field of view, the camera, the projection and the window are all where
+they were before.
+
 The scene scenario edits every setting of the scene block, saves the document,
 reads it back and checks each one survived, with the backdrop image beside the
 project so the path in the file is the relative one. It then drags the light
@@ -298,7 +314,10 @@ console, types a block over two lines, walks the history with the arrow keys and
 completes a name the session made a moment before. `run_script_menu_session`
 drops a script in a scratch directory, adds it to the preferences, rescans and
 runs it from the menu and from a path, and checks that a file without a
-docstring is not listed. `run_bad_interpreter_checks` points the preferences at
+docstring is not listed. `run_export_from_console` exports a picture from the prompt, checks that
+`app.export_image` answers with the size and that the file is on disk, and that
+the globe is refused as an `AppError` a script can catch.
+`run_bad_interpreter_checks` points the preferences at
 a path that is not an interpreter and checks that the reason reaches the console
 and that the application carries on. `run_no_python_session` launches a second
 application with `--no-python` and checks it comes up with no interpreter, no
@@ -506,7 +525,7 @@ a round trip is also a wait for the screen to catch up.
 | `set_tool {tool, snap, segments, outline, ridge}` | picks the tool (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `circle`, `topology`, `light` or `split`), the snap switch, the segment count, the Circle tool's Outline switch and the Split tool's Ridge switch, refusing what the toolbar itself would not allow. Which kind the Draw and Circle tools produce comes from the feature's type, which `set_property` sets |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
-| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields; only the keys given are changed. `get_preferences` also reports the `default_view`, the `view_defaults` and the `style_defaults` a new document starts from |
+| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields, `export_width` among them; only the keys given are changed. `get_preferences` also reports the `default_view`, the `view_defaults` and the `style_defaults` a new document starts from |
 | `get_view_settings` | `view_settings`, the scene block the open document carries, `style`, the root group's style the same dialog edits, `backdrop_error`, why the image it names is not on the planet, and `palette_errors`, what could not be read of the palette the root names |
 | `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. The root group's style is set through the dialog's `draw_style`, `single_color`, `opacity`, `palette`, `ramp_colors` and `ramp_span` fields. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
@@ -527,6 +546,7 @@ a round trip is also a wait for the screen to catch up.
 | `screen_to_latlon {x, y}`            | `latlon: [lat, lon]`, or `null` where there is no planet under the pixel |
 | `get_pixel {x, y}`                   | `color: [r, g, b, a]` in the range 0 to 1                        |
 | `screenshot {path}`                  | writes a PNG and answers `size: [width, height]`                 |
+| `export_image {path, width}`         | File > Export Image without the dialog: writes the map at the current age and answers `size: [width, height]`. A width of zero or none is the Export width preference; refused while the globe is shown |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
 | `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, `skip_older`, `skip_younger`, `keyframe_older`, `keyframe_younger`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |

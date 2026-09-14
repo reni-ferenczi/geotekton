@@ -3,7 +3,7 @@
 Usage:
     python Tests/run.py headless [--filter=SUBSTRING]
     python Tests/run.py rendered [--filter=SUBSTRING]
-    python Tests/run.py session
+    uv run Tests/run.py session
     python Tests/run.py cli
     python Tests/run.py self-check
     uv run Tests/run.py python
@@ -70,12 +70,20 @@ def run_golden() -> int:
     return run_script("golden.py", ["check"])
 
 
+def run_session() -> int:
+    """Run the scripted session, which reads exported pictures back with Pillow."""
+    if importlib.util.find_spec("PIL") is None:
+        print("session needs Pillow, run: uv run Tests/run.py session", file=sys.stderr)
+        return 2
+    return run_script("session.py", [])
+
+
 def run_all() -> int:
     """Run every mode in order and stop at the first failure."""
     for name, run in (
         ("headless", lambda: run_godot([])),
         ("rendered", lambda: run_godot(["--rendered"])),
-        ("session", lambda: run_script("session.py", [])),
+        ("session", run_session),
         ("cli", lambda: run_script("cli.py", [])),
         ("self-check", lambda: run_script("self_check.py", [])),
         ("python", run_pytest),
@@ -127,7 +135,7 @@ def main(argv: list[str]) -> int:
         print(f"{command} takes no options\n{USAGE}", file=sys.stderr)
         return 2
     if command == "session":
-        return run_script("session.py", [])
+        return run_session()
     if command == "cli":
         return run_script("cli.py", [])
     if command == "self-check":

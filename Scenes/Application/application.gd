@@ -1064,7 +1064,7 @@ func _build_preferences_content() -> Control:
 	line_spin = _preference_spin(form, "LineWidthScale", "Outline line width",
 		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
 	export_width_spin = _preference_spin(form, "ExportWidth", "Export width (pixels)",
-		Config.MIN_EXPORT_WIDTH, Config.MAX_EXPORT_WIDTH, 10.0)
+		Config.MIN_EXPORT_WIDTH, Config.MAX_EXPORT_WIDTH, Config.EXPORT_WIDTH_STEP)
 
 	# Python: which interpreter runs the scripting bridge and where the scripts
 	# that become menu entries are looked for, one directory per line.

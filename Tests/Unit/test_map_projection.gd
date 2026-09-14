@@ -147,6 +147,25 @@ func _check_round_trip(kind: MapProjection.Kind, point: Vector2, centre: Vector2
 			"the longitude of %s, which came back as %s" % [where, back.y])
 
 
+
+# What a picture of a sheet comes out at: the width asked for and the height the
+# projection's extent makes of it, so every export of one projection is the same
+# size. See Docs/Shell.md#exporting-a-picture-of-the-map.
+func test_an_export_is_as_tall_as_the_projection_draws() -> void:
+	for kind in MapProjection.Kind.values():
+		var size := PlanetView.export_size(kind, 3600)
+		assert_eq(size.x, 3600, "the width is the one asked for")
+		assert_close(float(size.y) / float(size.x), MapProjection.extent(kind), 0.0005,
+			"%s is %d by %d" % [MapProjection.name_of(kind), size.x, size.y])
+
+	assert_eq(PlanetView.export_size(MapProjection.Kind.RECTANGULAR, 720), Vector2i(720, 360))
+	assert_eq(PlanetView.export_size(MapProjection.Kind.MERCATOR, 720), Vector2i(720, 720))
+	assert_eq(PlanetView.export_size(MapProjection.Kind.ROBINSON, 3600), Vector2i(3600, 1826),
+		"Robinson rounds to the nearest whole pixel")
+	assert_eq(PlanetView.export_size(MapProjection.Kind.RECTANGULAR, 1).y, 1,
+		"and a sheet is never nought pixels tall")
+
+
 # How far a round trip may land from where it started at one point.
 #
 # Orthographic squeezes a whole hemisphere into its disc, and the radius of a
