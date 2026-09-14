@@ -2901,15 +2901,11 @@ func _ring_on_screen(feature: Feature, part: int) -> PackedVector2Array:
 
 var picking_parent: bool = false
 
-# What `tool_handles_clicks` was before the mode took it, to give back after.
-var _clicks_before_pick: bool = false
-
 
 func start_parent_pick() -> void:
 	if picking_parent:
 		return
 	picking_parent = true
-	_clicks_before_pick = planet_view.tool_handles_clicks
 	planet_view.tool_handles_clicks = true
 	properties.show_picking(true)
 	_show_measurement()
@@ -2919,7 +2915,9 @@ func end_parent_pick() -> void:
 	if not picking_parent:
 		return
 	picking_parent = false
-	planet_view.tool_handles_clicks = _clicks_before_pick
+	# What _set_tool() would have left it as, rather than what it was when the
+	# mode started, so a tool picked while the pointer was armed still decides.
+	planet_view.tool_handles_clicks = active_tool != Tool.MOVE
 	properties.show_picking(false)
 	_show_measurement()
 
