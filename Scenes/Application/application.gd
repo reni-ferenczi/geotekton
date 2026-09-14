@@ -894,7 +894,8 @@ static func video_problem(options: Dictionary) -> String:
 	var count := video_frame_count(
 		float(options["from"]), float(options["to"]), speed, fps)
 	if count > MAX_VIDEO_FRAMES:
-		return "That is %d frames, more than the %d one video may hold. Raise the speed or lower the frame rate." % [count, MAX_VIDEO_FRAMES]
+		return ("That is %d frames, more than the %d one video may hold. " +
+			"Raise the speed or lower the frame rate.") % [count, MAX_VIDEO_FRAMES]
 	return ""
 
 

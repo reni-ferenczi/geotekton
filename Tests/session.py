@@ -3636,9 +3636,10 @@ def run_export_from_console(client: AutomationClient) -> None:
         # A video from the prompt: two frames of the globe, which a video may
         # be made of even though a picture may not.
         video = folder / "console.mp4"
-        printed = console(client, "app.export_video(%r, from_=2000, to=1900, speed=100, fps=1, width=240)"
-                          % str(video))
-        check("'frames': 2" in printed, f"app.export_video answers with the frame count: {printed!r}")
+        printed = console(client, "app.export_video(%r, from_=2000, to=1900, speed=100,"
+                          " fps=1, width=240)" % str(video))
+        check("'frames': 2" in printed,
+              f"app.export_video answers with the frame count: {printed!r}")
         check(video.is_file() or (folder / "console").is_dir(),
               f"and left a video or the frames of one: {sorted(folder.iterdir())}")
     finally:
