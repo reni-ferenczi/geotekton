@@ -37,7 +37,22 @@ const PALETTE_PREVIEW_STEPS := 128
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT, SPLIT }
+enum Tool { MOVE, ROTATE, POLE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT, SPLIT }
+
+# The key that picks each tool, single letters without a modifier. GPlates'
+# own letters where it has one for the same tool.
+const TOOL_KEYS := {
+	KEY_M: Tool.MOVE,
+	KEY_R: Tool.ROTATE,
+	KEY_P: Tool.POLE,
+	KEY_D: Tool.DRAW,
+	KEY_V: Tool.VERTEX,
+	KEY_E: Tool.MEASURE,
+	KEY_C: Tool.CIRCLE,
+	KEY_T: Tool.TOPOLOGY,
+	KEY_L: Tool.LIGHT,
+	KEY_X: Tool.SPLIT,
+}
 
 # How near, in window pixels, a click has to be to take hold of a vertex or an
 # edge, and how near a dragged vertex has to come to another before snapping
@@ -45,6 +60,11 @@ enum Tool { MOVE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT, SPLIT }
 # a tool behaves the same however far the view is zoomed in.
 const VERTEX_PICK_PIXELS := 12.0
 const SNAP_PIXELS := 12.0
+
+# How far the pointer has to travel before a press counts as a drag rather than
+# a click. Only the Pole tool tells the two apart: a click places the pole and
+# a drag turns the feature about it.
+const DRAG_PIXELS := 4.0
 
 enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, RUN_SCRIPT, PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE }
@@ -84,6 +104,8 @@ const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false, ViewItem.CONSOLE: f
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
 @onready var move_button: Button = %Move
+@onready var rotate_button: Button = %Rotate
+@onready var pole_button: Button = %Pole
 @onready var draw_button: Button = %Draw
 @onready var vertex_button: Button = %Vertex
 @onready var measure_button: Button = %Measure
@@ -117,6 +139,21 @@ const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false, ViewItem.CONSOLE: f
 @onready var status_measure: Label = %StatusMeasure
 @onready var status_file: Label = %StatusFile
 @onready var leave_full_screen: Button = %LeaveFullScreen
+
+# The toggle button of each tool, which is what says whether a tool is offered,
+# which one is armed and which key picks it.
+@onready var tool_buttons: Dictionary = {
+	Tool.MOVE: move_button,
+	Tool.ROTATE: rotate_button,
+	Tool.POLE: pole_button,
+	Tool.DRAW: draw_button,
+	Tool.VERTEX: vertex_button,
+	Tool.MEASURE: measure_button,
+	Tool.CIRCLE: circle_button,
+	Tool.TOPOLOGY: topology_button,
+	Tool.LIGHT: light_button,
+	Tool.SPLIT: split_button,
+}
 
 # The open document. Created here so the panels can attach to it when ready.
 var document := Document.new()
@@ -247,16 +284,10 @@ func _ready() -> void:
 	_build_dialogs()
 
 	# Connect tool buttons
-	move_button.pressed.connect(func() -> void: set_active_tool(Tool.MOVE))
-	draw_button.pressed.connect(func() -> void: set_active_tool(Tool.DRAW))
-	vertex_button.pressed.connect(func() -> void: set_active_tool(Tool.VERTEX))
-	measure_button.pressed.connect(func() -> void: set_active_tool(Tool.MEASURE))
-	circle_button.pressed.connect(func() -> void: set_active_tool(Tool.CIRCLE))
-	topology_button.pressed.connect(func() -> void: set_active_tool(Tool.TOPOLOGY))
-	light_button.pressed.connect(func() -> void: set_active_tool(Tool.LIGHT))
+	for tool: Tool in tool_buttons:
+		tool_buttons[tool].pressed.connect(func() -> void: set_active_tool(tool))
 	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
 	snap_button.toggled.connect(_on_snap_toggled)
-	split_button.pressed.connect(func() -> void: set_active_tool(Tool.SPLIT))
 	snap_button.button_pressed = Config.get_snap_to_vertices()
 	outline_check.button_pressed = Config.get_circle_outline()
 	outline_check.toggled.connect(_on_outline_toggled)
@@ -1547,15 +1578,12 @@ func set_active_tool(tool: Tool) -> void:
 		_light_dragging = false
 	if active_tool == Tool.SPLIT and tool != Tool.SPLIT:
 		split_points = PackedVector2Array()
+	if _spins(active_tool) and tool != active_tool:
+		_spin_cancel()
+		pole_at = NO_POLE
 	active_tool = tool
-	move_button.button_pressed = (tool == Tool.MOVE)
-	draw_button.button_pressed = (tool == Tool.DRAW)
-	vertex_button.button_pressed = (tool == Tool.VERTEX)
-	measure_button.button_pressed = (tool == Tool.MEASURE)
-	circle_button.button_pressed = (tool == Tool.CIRCLE)
-	topology_button.button_pressed = (tool == Tool.TOPOLOGY)
-	light_button.button_pressed = (tool == Tool.LIGHT)
-	split_button.button_pressed = (tool == Tool.SPLIT)
+	for entry: Tool in tool_buttons:
+		tool_buttons[entry].button_pressed = entry == tool
 	# Only the Circle tool reads the segment count and the Outline switch, so
 	# only it shows them.
 	segments_label.visible = tool == Tool.CIRCLE
@@ -1580,19 +1608,23 @@ func snapping() -> bool:
 
 # The Vertex tool needs a leaf feature holding vertices of its own; there is
 # nothing to take hold of otherwise, and a topology's vertices belong to the
-# features it runs along. Measure needs nothing at all, and Split a polygon.
-# Which of Draw, Circle and Topology is offered follows the feature's type.
+# features it runs along. Rotate and Pole want the same thing, since they turn
+# those vertices about an axis. Measure needs nothing at all, and Split a
+# polygon. Which of Draw, Circle and Topology is offered follows the feature's
+# type.
 func _update_tool_buttons() -> void:
 	var selected := features.feature_tree.get_selected_node()
-	var editable := selected != null and not selected.is_group and selected.has_own_vertices()
+	var editable := _can_spin(selected)
 	vertex_button.disabled = not editable
-	snap_button.disabled = active_tool != Tool.VERTEX
+	rotate_button.disabled = not editable
+	pole_button.disabled = not editable
+	snap_button.disabled = active_tool != Tool.VERTEX and active_tool != Tool.POLE
 	draw_button.disabled = not _can_draw(selected)
 	circle_button.disabled = not _can_draw_circle(selected)
 	topology_button.disabled = not _can_build_topology(selected)
 	split_button.disabled = not _can_split_along(selected)
-	split_button.tooltip_text = "Split the selected polygon along a line drawn across it" \
-		if not split_button.disabled else "Select a polygon to split it"
+	split_button.tooltip_text = "Split the selected polygon along a line drawn across it [X]" \
+		if not split_button.disabled else "Select a polygon to split it [X]"
 
 
 # Whether the armed tool can still work on the selected feature. Only the three
@@ -1642,8 +1674,8 @@ func _on_feature_selected(node: Feature) -> void:
 	# Nothing selected does not: rebuilding the tree clears the selection for a
 	# moment before it puts it back, and a tool that gave up over that would
 	# not survive an undo.
-	var editable := node == null or (not node.is_group and node.has_own_vertices())
-	if active_tool == Tool.VERTEX and not editable:
+	var editable := node == null or _can_spin(node)
+	if (active_tool == Tool.VERTEX or _spins(active_tool)) and not editable:
 		set_active_tool(Tool.MOVE)
 	if active_tool == Tool.SPLIT and node != null and not _can_split_along(node):
 		set_active_tool(Tool.MOVE)
@@ -1805,6 +1837,14 @@ func _can_draw_circle(node: Feature) -> bool:
 	return _has_type(node, [FeatureType.CIRCLE])
 
 
+# Whether a feature can be edited vertex by vertex or turned about an axis. A
+# group carries no motion and no vertices, a topology borrows every vertex it
+# draws from the features it runs along, and a feature holding nothing has
+# nothing to turn.
+func _can_spin(node: Feature) -> bool:
+	return node != null and not node.is_group and node.has_own_vertices()
+
+
 # The tool the feature's type calls for, or Move when nothing draws it: a
 # feature that holds a shape already, a group, or nothing selected.
 func _tool_for(node: Feature) -> Tool:
@@ -1883,6 +1923,184 @@ func _on_move_cancelled() -> void:
 	refresh_motion()
 
 
+### The Rotate and Pole tools
+#
+# Where the Move tool carries a grabbed point along a great circle, these two
+# spin the feature about an axis: the one through its own middle with Rotate,
+# and one placed with a click with Pole. What they write is the keyframe at the
+# current time, the way a move writes one, and only the release records a
+# version. The arithmetic is in Logic/feature.gd; see Docs/Moving.md#rotating.
+
+# Where the Pole tool's pole is, in world latitude and longitude, or NO_POLE
+# while there is none. It stays while the tool is armed and the selection
+# changes, so several features can be turned about one pole in turn.
+const NO_POLE := Vector2.INF
+
+var pole_at := NO_POLE
+
+# The drag: the axis being turned about, the point that was grabbed, the
+# rotation and the keyframes the feature started with, and the feature itself,
+# held rather than looked up for the reason a dragged vertex is. The axis is
+# Vector3.ZERO while no drag is running.
+var spin_axis := Vector3.ZERO
+var spin_anchor := Vector3.ZERO
+var spin_base_rot := Vector3.ZERO
+var spin_base_keyframes: Array[Keyframe] = []
+var spin_feature: Feature = null
+
+# Where the pointer went down, in world latitude and longitude, until it is let
+# go again, and how far the feature has been turned since, in radians. The angle
+# is NAN while nothing has been turned, which is what the status bar reads.
+var spin_press_at := NO_POLE
+var spin_angle: float = NAN
+
+
+func _spins(tool: Tool) -> bool:
+	return tool == Tool.ROTATE or tool == Tool.POLE
+
+
+func _on_spin_input(lat: float, lon: float, event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		if spin_axis != Vector3.ZERO:
+			_spin_to(lat, lon)
+		elif spin_press_at != NO_POLE and _moved_far_enough(lat, lon):
+			_spin_start(lat, lon)
+		return
+
+	if event is not InputEventMouseButton or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if event.is_pressed():
+		spin_press_at = Vector2(lat, lon)
+		spin_angle = NAN
+		_show_measurement()
+		return
+
+	# A press that became a drag is committed; one that never moved far enough
+	# is a click, which is what places the Pole tool's pole.
+	if spin_axis != Vector3.ZERO:
+		_spin_commit()
+	elif active_tool == Tool.POLE and spin_press_at != NO_POLE:
+		_place_pole(spin_press_at)
+	spin_press_at = NO_POLE
+
+
+# Whether the pointer has travelled far enough from where it went down for the
+# press to be a drag. Measured in window pixels, so it does not depend on how
+# far the view is zoomed in.
+func _moved_far_enough(lat: float, lon: float) -> bool:
+	var from: Variant = planet_view.latlon_to_screen(spin_press_at.x, spin_press_at.y)
+	var to: Variant = planet_view.latlon_to_screen(lat, lon)
+	if from == null or to == null:
+		return false
+	return (from as Vector2).distance_to(to) > DRAG_PIXELS
+
+
+# Take hold of the feature for a turn about the axis the tool gives, with the
+# point the press landed on as the anchor. Nothing starts when there is no axis
+# to turn about, or when the grab is so near the axis that the direction to it
+# says nothing.
+func _spin_start(lat: float, lon: float) -> void:
+	var feature := features.feature_tree.get_selected_node()
+	if not _can_spin(feature):
+		return
+	var axis := Feature.centroid_axis(features.root, feature, document.current_time) \
+		if active_tool == Tool.ROTATE else Feature._latlon_to_xyz_s(pole_at)
+	if axis == Vector3.ZERO:
+		return
+	var anchor := Feature._latlon_to_xyz_s(spin_press_at)
+	# The same point twice: null is the grab lying on the axis or its antipode.
+	if Feature.angle_about_axis(axis, anchor, anchor) == null:
+		return
+
+	spin_feature = feature
+	spin_axis = axis
+	spin_anchor = anchor
+	spin_base_keyframes = Keyframe.clone_list(feature.keyframes)
+	# A feature riding on another is turned in world space like any other, and
+	# the keyframe is put into the parent's frame when it is written.
+	spin_base_rot = feature.rotation_at(document.current_time) if feature.couplings.is_empty() \
+		else Feature.decompose_rotation_degrees(
+			Feature.world_basis(features.root, feature, document.current_time))
+	_spin_to(lat, lon)
+
+
+# Turn the feature so that the anchor follows the pointer about the axis. The
+# keyframe at the current time is written as the drag goes, so what is on the
+# globe is what the release will commit.
+func _spin_to(lat: float, lon: float) -> void:
+	var angle: Variant = Feature.angle_about_axis(
+		spin_axis, spin_anchor, Feature._latlon_to_xyz_s(Vector2(lat, lon)))
+	if angle == null:
+		# The pointer is on the axis, where there is no direction to follow.
+		return
+	spin_angle = angle
+	var rotation: Variant = Feature.compute_spin_rotation(spin_axis, angle, spin_base_rot)
+	if not spin_feature.couplings.is_empty():
+		rotation = Coupling.rotation_for(spin_feature, document.current_time,
+			Feature.build_rotation_basis(rotation), Coupling.index(features.root))
+	Keyframe.upsert(spin_feature.keyframes, document.current_time, rotation)
+	refresh_motion()
+	_show_measurement()
+
+
+func _spin_commit() -> void:
+	spin_axis = Vector3.ZERO
+	spin_feature = null
+	document.record()
+	features.reload()
+	_show_selection(features.feature_tree.get_selected_node())
+	refresh_geometry()
+	_show_measurement()
+
+
+# Give the drag up and put the keyframe list back the way it was, the whole
+# list rather than the one rotation, since the drag may have added a keyframe
+# that was not there before.
+func _spin_cancel() -> void:
+	if spin_feature != null:
+		spin_feature.keyframes = spin_base_keyframes
+		refresh_motion()
+	spin_axis = Vector3.ZERO
+	spin_feature = null
+	spin_press_at = NO_POLE
+	spin_angle = NAN
+
+
+# Put the pole where it was clicked, or on the nearest vertex of any feature
+# while Snap is on, the way a dragged vertex snaps onto one.
+func _place_pole(at: Vector2) -> void:
+	pole_at = at
+	if snapping():
+		var screen: Variant = planet_view.latlon_to_screen(at.x, at.y)
+		if screen != null:
+			var candidates := _vertices_on_screen()
+			var picked := GeometryEdit.nearest_point(candidates[0], screen, SNAP_PIXELS)
+			if picked >= 0:
+				pole_at = candidates[2][picked]
+	_refresh_selection_outline()
+	_show_measurement()
+
+
+# How far each arm of the cross marking the pole reaches, in degrees.
+const POLE_CROSS := 4.0
+
+
+# The pole in the outline overlay: a point with a short cross through it, so it
+# is not taken for a vertex. Empty unless the Pole tool holds one.
+func _pole_outline() -> Array:
+	if active_tool != Tool.POLE or pole_at == NO_POLE:
+		return []
+	return [
+		{"vertices": PackedVector2Array([pole_at]), "style": Planet.OutlineStyle.POINTS},
+		{"vertices": PackedVector2Array([
+			pole_at + Vector2(-POLE_CROSS, 0.0), pole_at + Vector2(POLE_CROSS, 0.0)]),
+			"style": Planet.OutlineStyle.OPEN},
+		{"vertices": PackedVector2Array([
+			pole_at + Vector2(0.0, -POLE_CROSS), pole_at + Vector2(0.0, POLE_CROSS)]),
+			"style": Planet.OutlineStyle.OPEN},
+	]
+
+
 ### Drawing
 
 
@@ -1898,6 +2116,8 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 		_on_pick_parent_input(lat, lon, event)
 		return
 	match active_tool:
+		Tool.ROTATE, Tool.POLE:
+			_on_spin_input(lat, lon, event)
 		Tool.DRAW:
 			_on_draw_input(lat, lon, event)
 		Tool.VERTEX:
@@ -1926,6 +2146,10 @@ func _on_planet_input_outside(event: InputEvent) -> void:
 		_vertex_commit_drag()
 	elif active_tool == Tool.LIGHT:
 		_light_dragging = false
+	elif _spins(active_tool):
+		# Off the planet there is no angle to turn to, so the drag is given up
+		# and the keyframes go back the way they were, as a move does.
+		_spin_cancel()
 
 
 ### Undo and redo
@@ -2040,9 +2264,17 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-# Act on a single key shortcut and say whether it was one. Later tickets hang
-# the tool keys off the same match.
+# Act on a single key shortcut and say whether it was one: Space for the
+# animation, and a letter for each tool.
 func _hotkey(event: InputEventKey) -> bool:
+	if TOOL_KEYS.has(event.keycode):
+		# A tool the toolbar greys out for what is selected is not armed by its
+		# key either, and the key is still the application's rather than
+		# something else's to act on.
+		var tool: Tool = TOOL_KEYS[event.keycode]
+		if not tool_buttons[tool].disabled:
+			set_active_tool(tool)
+		return true
 	match event.keycode:
 		KEY_SPACE:
 			timeline.toggle()
@@ -2071,6 +2303,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 
 	match active_tool:
+		Tool.POLE:
+			if event.keycode == KEY_ESCAPE:
+				_spin_cancel()
+				pole_at = NO_POLE
+				_refresh_selection_outline()
+				_show_measurement()
+			else:
+				return
 		Tool.DRAW:
 			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
 				_outline_commit()
@@ -2860,6 +3100,15 @@ func _show_measurement(error: String = "") -> void:
 				Circle.format_radius(circle[1]), circle_segments()]
 		return
 
+	if _spins(active_tool):
+		if not is_nan(spin_angle):
+			status_measure.text = "Rotating %.1f°" % rad_to_deg(spin_angle)
+		elif active_tool == Tool.POLE and pole_at == NO_POLE:
+			status_measure.text = "click to place the pole to turn about"
+		else:
+			status_measure.text = "drag the feature to turn it"
+		return
+
 	var radius := Config.get_planet_radius()
 	if active_tool == Tool.MEASURE and measure_points.size() >= 2:
 		var distance := Measure.format_km(
@@ -3127,9 +3376,12 @@ func _refresh_selection_outline() -> void:
 			"style": Planet.OutlineStyle.OPEN,
 		}])
 		return
+	# The pole the Pole tool turns about is drawn along with the selection, so
+	# it is on the globe whatever else is.
+	var parts: Array = _pole_outline()
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group or not selected.has_geometry():
-		planet_view.planet.set_outline([])
+		planet_view.planet.set_outline(parts)
 		return
 
 	var editing := active_tool == Tool.VERTEX
@@ -3141,11 +3393,10 @@ func _refresh_selection_outline() -> void:
 			style = Planet.OutlineStyle.POINTS if editing else Planet.OutlineStyle.MARKERS
 		_:
 			if not editing:
-				planet_view.planet.set_outline([])
+				planet_view.planet.set_outline(parts)
 				return
 
 	var m := Feature.world_basis(features.root, selected, document.current_time)
-	var parts: Array = []
 	for ring in selected.rings:
 		parts.append({
 			"vertices": Feature.apply_basis(ring, m),

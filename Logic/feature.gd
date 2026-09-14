@@ -672,6 +672,52 @@ static func compute_move_rotation(anchor_world: Vector3, target_world: Vector3, 
 	return decompose_rotation_degrees(m_new)
 
 
+### Turning about an axis
+#
+# What the Rotate and Pole tools do: spin a feature about an axis through the
+# sphere rather than carry a grabbed point along a great circle. See
+# Docs/Moving.md#rotating.
+
+
+# How far off the axis a point has to be before the direction to it means
+# anything: the length of what is left of it once the axis component is taken
+# away, 0.05 being a little under three degrees. Nearer than that, to the axis
+# or to its antipode, and a turn about the axis is undefined, the way an
+# antipodal drag is in compute_move_rotation().
+const MIN_AXIS_OFFSET := 0.05
+
+
+# The axis a feature turns about when it is spun in place: the direction of the
+# sum of its world vertices at the given time. Vector3.ZERO when there are no
+# vertices, or when they cancel each other out.
+static func centroid_axis(root: Feature, node: Feature, time: float) -> Vector3:
+	var m := world_basis(root, node, time)
+	var sum := Vector3.ZERO
+	for ring in node.rings:
+		for vertex in ring:
+			sum += m * _latlon_to_xyz_s(vertex)
+	return Vector3.ZERO if sum.is_zero_approx() else sum.normalized()
+
+
+# The angle from one world point to another measured about an axis, in radians,
+# counterclockwise seen from the far end of the axis. Both points are projected
+# onto the plane normal to the axis first; null when either projection is too
+# short for its direction to mean anything.
+static func angle_about_axis(axis: Vector3, from_world: Vector3, to_world: Vector3) -> Variant:
+	var from_flat := from_world - axis * axis.dot(from_world)
+	var to_flat := to_world - axis * axis.dot(to_world)
+	if from_flat.length() < MIN_AXIS_OFFSET or to_flat.length() < MIN_AXIS_OFFSET:
+		return null
+	return atan2(axis.dot(from_flat.cross(to_flat)), from_flat.dot(to_flat))
+
+
+# The angles that turn a feature by an angle in radians about a world axis,
+# composed onto the rotation it already has, the way compute_move_rotation()
+# composes a great circle move onto it.
+static func compute_spin_rotation(axis: Vector3, angle: float, base_rot: Vector3) -> Vector3:
+	return decompose_rotation_degrees(Basis(axis, angle) * build_rotation_basis(base_rot))
+
+
 static func _latlon_to_xyz_s(v: Vector2) -> Vector3:
 	var lat_rad := deg_to_rad(v.x)
 	var lon_rad := deg_to_rad(v.y)
