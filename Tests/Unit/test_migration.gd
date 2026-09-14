@@ -226,7 +226,8 @@ func test_a_0_7_0_file_opens_each_old_type_as_one_of_the_five() -> void:
 	for i in OLD_TYPES.size():
 		assert_eq(root.children[i].feature_type, OLD_TYPES[i][2], root.children[i].title)
 	assert_eq(root.children[-2].feature_type, "topology", "a topology stays one")
-	assert_eq(root.children[-1].feature_type, FeatureType.NONE, "a feature holding nothing has no type")
+	assert_eq(root.children[-1].feature_type, "polygon",
+		"a feature holding nothing keeps the type the migration gave it")
 	assert_eq(Array(ViewSettings.from_json(migrated["view"]).hidden_classes), ["circles", "points"],
 		"and the circles are still switched off")
 

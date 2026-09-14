@@ -1,8 +1,7 @@
 extends TestCase
 
-# The feature type catalog: what it holds, how a feature's type follows the
-# geometry it holds, and that the one chosen type, Circle, survives the file and
-# the clipboard.
+# The feature type catalog: what it holds, what a feature's type is before and
+# after it holds a shape, and that a type survives the file and the clipboard.
 
 const TRIANGLE := [Vector2(0, 0), Vector2(0, 10), Vector2(10, 0)]
 
@@ -31,13 +30,22 @@ func test_every_geometry_kind_gives_a_type_that_holds_it() -> void:
 		assert_true(FeatureType.allows(type_id, kind_name), "which holds a %s" % kind_name)
 
 
-func test_a_new_feature_has_no_type_until_it_holds_a_shape() -> void:
+func test_a_new_feature_is_a_polygon() -> void:
 	var feature := Feature.create_feature("Somewhere")
-	assert_eq(feature.feature_type, FeatureType.NONE, "nothing held, no type")
+	assert_eq(feature.feature_type, FeatureType.POLYGON, "which is what the Draw tool then draws")
 	assert_eq(feature.color, FeatureType.NONE_COLOR)
-	assert_eq(FeatureType.label(feature.feature_type), "", "and no name to show")
+	assert_eq(FeatureType.label(feature.feature_type), "Polygon", "and what the selector shows")
 	feature.add_ring(PackedVector2Array([Vector2(0, 0), Vector2(10, 0)]), Feature.GeometryKind.POLYLINE)
-	assert_eq(feature.feature_type, "line", "a polyline makes it a Line")
+	assert_eq(feature.feature_type, "line", "a polyline it was given anyway makes it a Line")
+
+
+func test_a_feature_holding_nothing_keeps_the_type_it_was_given() -> void:
+	var feature := Feature.create_feature("Ridge")
+	feature.feature_type = "line"
+	assert_eq(feature.feature_type, "line", "which is what says it is drawn as a polyline")
+	assert_eq(FeatureType.resolve("line", ""), "line", "holding nothing keeps the stored type")
+	assert_eq(FeatureType.resolve("volcano", ""), FeatureType.NONE,
+		"but a type nobody has is still no type")
 
 
 func test_a_carried_type_that_does_not_hold_the_geometry_gives_way() -> void:
@@ -50,7 +58,8 @@ func test_a_carried_type_that_does_not_hold_the_geometry_gives_way() -> void:
 	feature.feature_type = FeatureType.CIRCLE
 	assert_eq(feature.feature_type, FeatureType.CIRCLE, "a circle can")
 	feature.rings.clear()
-	assert_eq(feature.feature_type, FeatureType.NONE, "and an emptied feature has no type again")
+	assert_eq(feature.feature_type, FeatureType.CIRCLE,
+		"and an emptied feature keeps the type it was carrying")
 
 
 func test_the_circle_survives_the_round_trip_and_the_clone() -> void:

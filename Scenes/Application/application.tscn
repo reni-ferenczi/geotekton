@@ -162,13 +162,6 @@ toggle_mode = true
 icon = ExtResource("11_toolsplit")
 expand_icon = true
 
-[node name="GeometryKind" type="OptionButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(140, 40)
-layout_mode = 2
-tooltip_text = "What the Draw and Circle tools produce"
-disabled = true
-
 [node name="SegmentsLabel" type="Label" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
 visible = false
@@ -184,6 +177,14 @@ visible = false
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 tooltip_text = "Segments of a circle: how many the Circle tool cuts it into when it commits"
+
+[node name="Outline" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+tooltip_text = "Commit the circle as an outline, a polyline, rather than a filled polygon"
+text = "Outline"
 
 [node name="ViewPanel" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
 custom_minimum_size = Vector2(0, 40)

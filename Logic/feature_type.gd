@@ -1,17 +1,22 @@
 class_name FeatureType
 
-# What a feature is. The type follows the geometry the feature holds: a polygon
-# is a Polygon, a polyline a Line, a multipoint Points and a line topology a
-# Topology. Circle is the one type someone chooses, since a circle is drawn as a
-# polygon or a polyline; the Circle tool gives it on commit. Middle Earth is a
-# world building tool and does not carry the GPGIM over. See Docs/Properties.md.
+# What a feature is. The type is picked in the Properties panel and says what
+# the tools draw into the feature: a Polygon a polygon, a Line a polyline,
+# Points a multipoint, a Topology a line topology, and a Circle either a polygon
+# or a polyline, whichever the Circle tool's Outline switch asks for. Once the
+# feature holds a shape, a type that does not hold that kind gives way to the
+# kind's own. Middle Earth is a world building tool and does not carry the GPGIM
+# over. See Docs/Properties.md.
 #
 # A type is stored by its id, which is also what the file holds. The kinds are
 # the names Feature.KIND_NAMES uses, so the catalog is written in the same
 # vocabulary as the file and needs nothing from Feature to be read.
 
-# The type of a feature holding nothing yet. It allows every kind, since the
-# first shape committed is what decides the type.
+# The type a new feature is given, and what the Draw tool produces on a feature
+# carrying no type at all.
+const POLYGON := "polygon"
+# No type at all, which is what a file written before 0.3.0 carries. It allows
+# every kind, since nothing in the file said which one was meant.
 const NONE := ""
 const CIRCLE := "circle"
 
@@ -23,7 +28,7 @@ const NONE_COLOR := Color.CHOCOLATE
 # Id to name, allowed geometry kinds and default colour, in the order the type
 # selector lists them.
 const CATALOG := {
-	"polygon": {"name": "Polygon", "kinds": ["polygon"], "color": Color.CHOCOLATE},
+	POLYGON: {"name": "Polygon", "kinds": ["polygon"], "color": Color.CHOCOLATE},
 	"line": {"name": "Line", "kinds": ["polyline"], "color": Color.CRIMSON},
 	"points": {"name": "Points", "kinds": ["multipoint"], "color": Color.GOLD},
 	CIRCLE: {"name": "Circle", "kinds": ["polygon", "polyline"], "color": Color.DARK_TURQUOISE},
@@ -40,12 +45,13 @@ const OF_KIND := {
 
 
 # The type a feature holding geometry of this kind has, given the type it
-# carries. An empty kind is a feature holding nothing, which has no type; a
-# carried type that does not hold the kind, or that the catalog does not know,
-# gives way to the kind's own.
+# carries. An empty kind is a feature holding nothing, which keeps the type it
+# was given, since that is what decides how the tools draw into it; a carried
+# type that does not hold the kind, or that the catalog does not know, gives way
+# to the kind's own.
 static func resolve(type_id: String, kind_name: String) -> String:
 	if kind_name.is_empty():
-		return NONE
+		return type_id if CATALOG.has(type_id) else NONE
 	if CATALOG.has(type_id) and allows(type_id, kind_name):
 		return type_id
 	return str(OF_KIND.get(kind_name, NONE))
