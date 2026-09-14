@@ -21,7 +21,7 @@ const SPAN_TOOLTIP := "How old a feature is%s when it reaches the next colour"
 var span_spin: SpinBox
 
 var _colors: Array[Color] = []
-var _pickers: HBoxContainer
+var _pickers: HFlowContainer
 var _rebuild_pending := false
 
 # The colours of the ramp, oldest last. Fewer than two is no ramp at all, so
@@ -38,7 +38,9 @@ var colors: Array[Color]:
 func _init(max_span: float, span_suffix: String = "") -> void:
 	name = "RampRow"
 
-	_pickers = HBoxContainer.new()
+	# A flow rather than a box, so stops the row is too narrow for go on to
+	# further lines instead of pushing the + and the span off the panel.
+	_pickers = HFlowContainer.new()
 	_pickers.name = "RampColors"
 	_pickers.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	add_child(_pickers)
@@ -78,20 +80,23 @@ func _rebuild_now() -> void:
 		child.queue_free()
 
 	for i in _colors.size():
+		# A colour and its − wrap as one, so the − never opens a line on its own.
+		var stop := HBoxContainer.new()
+		stop.name = "RampStop%d" % i
 		var picker := Helpers.color_button("RampColor%d" % i, Helpers.COLOR_TOOLTIP)
 		picker.custom_minimum_size = Vector2(40, 28)
-		picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		picker.edit_alpha = false
 		picker.color = _colors[i]
 		picker.color_changed.connect(func(color: Color) -> void:
 			_colors[i] = color
 			previewed.emit())
 		picker.popup_closed.connect(func() -> void: committed.emit())
-		_pickers.add_child(picker)
+		stop.add_child(picker)
 		if i >= Palette.MIN_RAMP_COLORS:
-			_pickers.add_child(_button("DropRampColor%d" % i, "−",
+			stop.add_child(_button("DropRampColor%d" % i, "−",
 				"Take this colour out of the ramp",
 				func() -> void: _colors.remove_at(i)))
+		_pickers.add_child(stop)
 
 	_pickers.add_child(_button("AddRampColor", "+", "Add another colour to the ramp",
 		func() -> void: _colors.append(_colors[-1])))
