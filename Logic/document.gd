@@ -777,9 +777,16 @@ static func migrate(data: Dictionary) -> Dictionary:
 	return data
 
 
+# The built in tables 0.13.0 dropped when the palette list became Custom and
+# Rainbow. A style that named one of them has nothing left to read.
+const PALETTES_BEFORE_0_13_0 := ["age", "grayscale", "steps"]
+
+
 # 0.13.0 made the group style's ramp a list of two or more colours. A style that
 # named both ends keeps them as the two stops of the new list; one that named
-# only one of them, or neither, takes the new default, black to white.
+# only one of them, or neither, takes the new default, black to white. A style
+# naming a built in table that is gone takes the custom ramp, which is what
+# replaced them.
 static func _to_0_13_0(node: Variant) -> void:
 	if node is not Dictionary:
 		return
@@ -792,6 +799,8 @@ static func _to_0_13_0(node: Variant) -> void:
 			style.erase(key)
 		if ends.size() == 2:
 			style["ramp_colors"] = ends
+		if str(style.get("palette", "")) in PALETTES_BEFORE_0_13_0:
+			style["palette"] = Palette.RAMP
 	for child in node.get("children", []):
 		_to_0_13_0(child)
 

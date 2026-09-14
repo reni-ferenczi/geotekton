@@ -266,14 +266,14 @@ func test_a_0_7_0_draw_style_becomes_the_style_of_the_root_group() -> void:
 	var migrated := Document.migrate({"version": "0.7.0",
 		"features": {"type": "Group", "title": "Planet", "children": []},
 		"view": {"draw_style": "single", "single_color": [0.1, 0.6, 0.9, 0.75],
-			"palette": "steps", "ambient": 0.25}})
+			"palette": "rainbow", "ambient": 0.25}})
 	for key in GroupStyle.VIEW_KEYS:
 		assert_true(not migrated["view"].has(key), "%s has left the view block" % key)
 	assert_eq(migrated["view"]["ambient"], 0.25, "and the rest of the block stays")
 	var root := Feature.from_json(migrated["features"])
 	assert_eq(root.style.mode, Styling.BY_SINGLE, "the root carries the style")
 	assert_eq(root.style.color, Color(0.1, 0.6, 0.9, 0.75), "the single colour, alpha and all")
-	assert_eq(root.style.palette, "steps", "the palette")
+	assert_eq(root.style.palette, "rainbow", "the palette")
 	assert_eq(root.style.opacity, 1.0, "at full opacity, so it draws the same")
 
 
@@ -338,6 +338,17 @@ func test_a_0_12_0_style_without_a_ramp_takes_the_new_default() -> void:
 	assert_eq(root.style.palette, "rainbow", "the palette it named")
 	assert_eq(root.style.ramp_colors, Palette.DEFAULT_RAMP_COLORS, "and the default ramp")
 	assert_eq(root.style.ramp_span, Palette.DEFAULT_RAMP_SPAN, "over its default span")
+
+
+# The three built in tables 0.13.0 dropped: a style that named one of them has
+# nothing left to read, so it takes the custom ramp that replaced them.
+func test_a_style_naming_a_dropped_built_in_takes_the_custom_ramp() -> void:
+	for gone in Document.PALETTES_BEFORE_0_13_0:
+		var migrated := Document.migrate({"version": "0.12.0", "features": {
+			"type": "Group", "is_group": true, "title": "Planet",
+			"style": {"mode": "age", "palette": gone}, "children": []}})
+		assert_eq(Feature.from_json(migrated["features"]).style.palette, Palette.RAMP,
+			"a style on %s reads the custom ramp" % gone)
 
 
 func test_version_ordering() -> void:
