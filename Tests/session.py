@@ -3606,6 +3606,15 @@ def run_kinematics_session(client: AutomationClient) -> None:
           f"a group empties the panel: {len(empty['samples'])} samples")
     check("group" in empty["readout"], f"which says why: {empty['readout']}")
 
+    check(not client.call("get_panels")["panels"]["kinematics_place"],
+          "latitude and longitude are not graphed until they are asked for")
+    client.call("menu", item="kinematics_place")
+    check(client.call("get_panels")["panels"]["kinematics_place"],
+          "the View menu switches them on")
+    client.call("menu", item="kinematics_place")
+    check(not client.call("get_panels")["panels"]["kinematics_place"],
+          "and off again")
+
     client.call("menu", item="kinematics")
     check(not client.call("get_panels")["panels"]["kinematics"],
           "and the same menu item hides the panel again")
