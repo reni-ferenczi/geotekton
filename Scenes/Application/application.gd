@@ -144,7 +144,6 @@ const HIGHLIGHT_RIDERS_KEY := "highlight_riders"
 @onready var split_button: Button = %Split
 @onready var segments_spin: SpinBox = %Segments
 @onready var segments_label: Label = %SegmentsLabel
-@onready var outline_check: CheckButton = %Outline
 @onready var ridge_check: CheckButton = %Ridge
 @onready var projection_selector: OptionButton = %Projection
 @onready var zoom_spin: SpinBox = %Zoom
@@ -333,8 +332,6 @@ func _ready() -> void:
 	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
 	snap_button.toggled.connect(_on_snap_toggled)
 	snap_button.button_pressed = Config.get_snap_to_vertices()
-	outline_check.button_pressed = Config.get_circle_outline()
-	outline_check.toggled.connect(_on_outline_toggled)
 	ridge_check.button_pressed = Config.get_split_ridge()
 	ridge_check.toggled.connect(Config.set_split_ridge)
 	# The range and the starting value come from Circle, so the scene does
@@ -1954,11 +1951,10 @@ func set_active_tool(tool: Tool) -> void:
 	active_tool = tool
 	for entry: Tool in tool_buttons:
 		tool_buttons[entry].button_pressed = entry == tool
-	# Only the Circle tool reads the segment count and the Outline switch, and
-	# only the Split tool the Ridge switch, so each shows its own.
+	# Only the Circle tool reads the segment count, and only the Split tool the
+	# Ridge switch, so each shows its own.
 	segments_label.visible = tool == Tool.CIRCLE
 	segments_spin.visible = tool == Tool.CIRCLE
-	outline_check.visible = tool == Tool.CIRCLE
 	ridge_check.visible = tool == Tool.SPLIT
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
@@ -2166,9 +2162,7 @@ func _update_view_toolbar() -> void:
 
 # The kind the Draw and Circle tools commit. A feature that already holds
 # geometry keeps its kind, whatever the type says, since the parts of a feature
-# are all of one kind. Before that the type decides: the first kind it allows,
-# except that the Circle tool's Outline switch takes the polyline of the two a
-# Circle allows.
+# are all of one kind. Before that the type decides: the first kind it allows.
 func drawing_kind() -> Feature.GeometryKind:
 	var node := features.feature_tree.get_selected_node()
 	if node == null or node.is_group:
@@ -2176,14 +2170,7 @@ func drawing_kind() -> Feature.GeometryKind:
 	if node.has_geometry():
 		return node.geometry_kind
 	var kinds := FeatureType.kinds(node.feature_type)
-	if outline_check.button_pressed and "polyline" in kinds:
-		return Feature.GeometryKind.POLYLINE
 	return Feature.KIND_VALUES[str(kinds[0])] as Feature.GeometryKind
-
-
-func _on_outline_toggled(enabled: bool) -> void:
-	Config.set_circle_outline(enabled)
-	_refresh_selection_outline()
 
 
 # Which tool draws which type. A Circle is drawn with the Circle tool and a
@@ -3265,18 +3252,13 @@ func circle_segments() -> int:
 	return int(segments_spin.value)
 
 
-# Whether the circle closes on itself. A polygon does; a polyline is left open
-# and repeats its first vertex, so it draws the whole circle either way.
-func _circle_is_closed() -> bool:
-	return drawing_kind() == Feature.GeometryKind.POLYGON
-
-
-# The circle being previewed, in world coordinates, or an empty ring.
+# The circle being previewed, in world coordinates, or an empty ring. It is the
+# polyline the tool commits, so it repeats its first vertex at the end.
 func circle_ring() -> PackedVector2Array:
 	var circle := circle_from_points()
 	if circle.is_empty():
 		return PackedVector2Array()
-	return Circle.vertices(circle[0], circle[1], circle_segments(), _circle_is_closed())
+	return Circle.vertices(circle[0], circle[1], circle_segments(), false)
 
 
 # The clicked points as markers, with the circle they describe over them.
@@ -3286,11 +3268,9 @@ func _circle_outline() -> Array:
 		parts.append({"vertices": circle_points, "style": Planet.OutlineStyle.POINTS})
 	var ring := circle_ring()
 	if not ring.is_empty():
-		parts.append({
-			"vertices": ring,
-			"style": Planet.OutlineStyle.CLOSED if _circle_is_closed()
-				else Planet.OutlineStyle.OPEN,
-		})
+		# CLOSED draws the segment back to the first vertex itself, so the repeat
+		# is left off.
+		parts.append({"vertices": ring.slice(0, -1), "style": Planet.OutlineStyle.CLOSED})
 	return parts
 
 
@@ -3303,15 +3283,17 @@ func _circle_commit() -> String:
 	var circle := circle_from_points()
 	if circle.is_empty():
 		return "Click a centre and a point on the rim, or three points on the rim."
-	var kind: Feature.GeometryKind = drawing_kind()
-	if not kind in Feature.DRAWN_KINDS or kind == Feature.GeometryKind.MULTIPOINT:
-		return "A circle becomes a polygon or a polyline, not a %s." % Feature.KIND_NAMES[kind]
+	# A circle is always an outline. A filled one from a file written before
+	# that is left as it is rather than given a part of another kind.
+	if selected.has_geometry() and selected.geometry_kind != Feature.GeometryKind.POLYLINE:
+		return "A circle is drawn as an outline, not into a %s." 			% Feature.KIND_NAMES[selected.geometry_kind]
 
 	# The circle was worked out in world space; a feature keeps its own frame,
 	# which at the current time is where its keyframes put it.
 	var into_local := Feature.world_basis(
 		features.root, selected, document.current_time).transposed()
-	selected.add_ring(Feature.apply_basis(circle_ring(), into_local), kind)
+	selected.add_ring(Feature.apply_basis(circle_ring(), into_local),
+		Feature.GeometryKind.POLYLINE)
 	selected.feature_type = FeatureType.CIRCLE
 
 	circle_points = PackedVector2Array()

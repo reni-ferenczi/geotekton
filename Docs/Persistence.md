@@ -221,6 +221,9 @@ one, so no two nodes of a document share an id.
 holding nothing carries the type it was given, which says what the tools will
 draw into it; empty is read as no type at all, which only a file written before
 0.3.0 holds. See [Properties](Properties.md#the-type-catalog).
+A `circle` is written as a `polyline` whose last vertex repeats its first. A
+`circle` holding a `polygon` still reads as a Circle, filled, so both kinds are
+valid for the type and neither needs a version change.
 `icon` is the glyph the feature's tree row carries, an id from
 `Logic/feature_icon.gd` and the stem of the file under
 `Assets/Icons/Features`. It is written only when there is one, and a feature

@@ -200,14 +200,6 @@ custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 tooltip_text = "Segments of a circle: how many the Circle tool cuts it into when it commits"
 
-[node name="Outline" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
-unique_name_in_owner = true
-visible = false
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-tooltip_text = "Commit the circle as an outline, a polyline, rather than a filled polygon"
-text = "Outline"
-
 [node name="Ridge" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
 visible = false

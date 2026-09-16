@@ -78,3 +78,15 @@ func test_a_file_without_a_type_takes_it_from_the_geometry() -> void:
 	data.erase("feature_type")
 	assert_eq(Feature.from_json(data).feature_type, "points",
 		"a 0.2.0 feature, which carries no type at all")
+
+
+func test_a_filled_circle_from_an_older_file_is_still_a_circle() -> void:
+	assert_eq(FeatureType.kinds(FeatureType.CIRCLE)[0], "polyline",
+		"an empty Circle is drawn as an outline")
+	var filled := Feature.create_feature("Caldera")
+	filled.add_ring(PackedVector2Array(TRIANGLE), Feature.GeometryKind.POLYGON)
+	var data: Variant = filled.to_json()
+	data["feature_type"] = FeatureType.CIRCLE
+	var restored := Feature.from_json(data)
+	assert_eq(restored.geometry_kind, Feature.GeometryKind.POLYGON, "it stays filled")
+	assert_eq(restored.feature_type, FeatureType.CIRCLE, "and reads back as a Circle")
