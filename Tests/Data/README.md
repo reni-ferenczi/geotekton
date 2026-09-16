@@ -15,7 +15,12 @@ either, so all four are fixtures for 0.4.0 as well: the one `rotation` a leaf
 holds becomes its keyframe at time zero, and one keyframe holds at every time, so
 the samples sit where they always did whatever the current time is.
 
-The other four are written in a current format and have nothing to migrate.
+Every sample is older than 0.17.0 and names no raster, so each one opens
+wearing the built in Earth, which is what the probe points below were read
+against.
+
+The other four are written in a format recent enough to need no geometry
+migration.
 `group_styles.middle-earth` is the one written in **0.10.0**, the fixture for
 group styles.
 `craton.middle-earth` is the fixture for a file the application saved rather
@@ -41,8 +46,8 @@ Every polygon is wound counter-clockwise as seen from outside the sphere, which 
 
 ## Rasters
 
-`Rasters/` holds the fixtures for the image a document wears in place of the
-built in Earth: the same picture as `quarters.png`, `quarters.jpg`,
+`Rasters/` holds the fixtures for the image a document wears over the planet
+color: the same picture as `quarters.png`, `quarters.jpg`,
 `quarters.webp` and `quarters.svg`. Each is 64 by 32, split into four solid
 quarters — red north-west, green north-east, blue south-west, yellow south-east
 — so a probe says which part of the image landed where on the planet and a

@@ -179,7 +179,7 @@ turning it about the poles keeps it there and the path between two of its
 positions is a stretch of the equator itself. It is moved at one time and again
 at another, and halfway between them its middle is halfway along that stretch,
 with a pixel probe there showing the feature colour. Outside its time range the
-same probe shows the Earth, and widening the range brings it back, so the probe
+same probe shows the planet, and widening the range brings it back, so the probe
 point is shown to be the right one either way.
 
 The icon scenario picks a glyph for a feature through the panel and reads the
@@ -251,11 +251,14 @@ suite may not depend on this machine having an encoder.
 
 The scene scenario edits every setting of the scene block, saves the document,
 reads it back and checks each one survived, with the raster beside the
-project so the path in the file is the relative one. It then drags the light
+project so the path in the file is the relative one. Built in Earth then puts
+the shipped image on the planet, which is saved as its `res://` path rather than
+made relative, and a planet color given with an alpha comes back opaque. It then
+drags the light
 with the Light tool and probes that the planet is brightest under where the drag
 ended, and finally stores the block as the default, checks that a new document
 starts from it and that an opened file wins over it, and puts the preferences
-back so the scenarios after it open the documents they expect.
+back, with no raster, so the scenarios after it open the documents they expect.
 
 The topology scenario builds a line topology by clicking two drawn polylines
 with the Topology tool, reverses one section from the panel, moves one of the
@@ -350,7 +353,7 @@ outline and a rotation file that moves it, imports both from File > Import and
 checks the tree it built, that the document opens Untitled and unsaved, and that the outline is
 drawn where `pygplates` reconstructs it at fifty million years and where it
 stands at the present day. The probes go by hue rather than by the colour
-itself, because the planet lights what it draws and lets the Earth texture
+itself, because the planet lights what it draws and lets the raster beneath
 through, which lifts every channel towards white. See [Import](Import.md).
 
 `cli.py` reads the switch list out of `Logic/cli.gd`, so a new switch that
@@ -461,7 +464,8 @@ The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
 | `scene_light_east`   | `empty.middle-earth`       | the light 45° to the east  |
 | `scene_light_high`   | `empty.middle-earth`       | the light high to the west, with ambient |
 | `scene_raster`       | `empty.middle-earth`       | the raster at full opacity |
-| `scene_raster_half`  | `empty.middle-earth`       | the same image at half     |
+| `scene_raster_half`  | `empty.middle-earth`       | the same image at half, over the planet color |
+| `planet_colour`      | `empty.middle-earth`       | no raster, the planet in a brown of its own |
 | `kinematics`         | `motion.middle-earth`      | default, with the kinematics panel up, the feature selected and the time at 500 Ma |
 
 `two_cratons.middle-earth` holds three features and no globe view shows all of
@@ -478,14 +482,21 @@ A scene states more than its view: whether the kinematics panel is up, what is
 selected and what the time is. Loading a document clears the selection and puts
 the time at the [oldest age](Time.md#the-time-control) the animation covers, so
 a scene only has to name what it wants beyond that, and no scene depends on the
-one before it. Only `kinematics` names a time of its own; the other sixteen
+one before it. Only `kinematics` names a time of its own; the other seventeen
 references show the timeline at 2000 Ma.
 
 A scene that wants its own view settings is rendered from a copy of the sample
 with the block already in the file, written into the run's temporary folder.
 Setting them through the dialog would leave the document dirty, and a dirty
 document writes a marker into the title and the status bar, which would be the
-only difference between half the references.
+only difference between half the references. A copy whose block names the
+raster is written in the current format: the samples are older than 0.17.0,
+and a file that old naming no raster opens wearing the built in Earth, which
+`planet_colour` must not.
+
+Every sample is older than 0.17.0, so every scene that says nothing about the
+raster shows the built in Earth, as it did before the planet had a color of its
+own.
 
 A run launches the application once, loads and renders every scene and compares the
 screenshots with the references. Two images are compared per pixel on the largest
@@ -548,7 +559,7 @@ a round trip is also a wait for the screen to catch up.
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
 | `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields, `export_width` and `ffmpeg` among them; only the keys given are changed. `get_preferences` also reports the `default_view` and the `view_defaults` a new document starts from |
 | `get_view_settings` | `view_settings`, the scene block the open document carries, and `raster_error`, why the image it names is not on the planet |
-| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. A key the dialog has no field for is refused with `no view setting called`, including the six style fields it once had (`draw_style`, `single_color`, `opacity`, `palette`, `ramp_colors`, `ramp_span`); a group's style is set with `set_property`. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
+| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. A key the dialog has no field for is refused with `no view setting called`, including the six style fields it once had (`draw_style`, `single_color`, `opacity`, `palette`, `ramp_colors`, `ramp_span`); a group's style is set with `set_property`. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault`, `RestoreDefaults`, `BuiltInEarth` or `ClearRaster`. The `planet_color` field keeps a color opaque whatever alpha it is given |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
 | `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the skip, the keyframe markers with where each is on screen, the `couplings` bars of the selected feature with both ends and where the bar is drawn, and the animation settings |
 | `get_kinematics`                     | `kinematics`, what the motion graphs hold: the `span` they cover, the `samples` of the path, one entry per `segments` between two keyframes, what both come to at the current time, and where the `cursor` is drawn across the plotting area |

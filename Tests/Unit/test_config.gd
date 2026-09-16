@@ -53,6 +53,9 @@ func test_view_defaults_saved_before_0_16_0_keep_their_values() -> void:
 	var settings := Config.get_view_defaults()
 	assert_close(settings.raster_opacity, 0.3, 1e-6, "the raster opacity")
 	assert_eq(settings.grid_spacing, 45.0, "the grid spacing")
+	assert_eq(settings.planet_color, ViewSettings.DEFAULT_PLANET_COLOR,
+		"preferences without a planet color take the default")
+	assert_eq(settings.raster_path, "", "and, unlike a file, no raster")
 	Config.forget()
 	assert_eq(Config.get_value("view_defaults"), {"raster_opacity": 0.3, "grid_spacing": 45.0},
 		"and the file holds the new keys")

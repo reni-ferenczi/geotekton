@@ -15,6 +15,7 @@ func test_a_fresh_block_is_the_scene_as_it_was_always_drawn() -> void:
 	assert_eq(settings.grid_spacing, 15.0, "fifteen degrees between the lines")
 	assert_eq(settings.light_direction, Vector2.ZERO, "the light shines from the camera")
 	assert_eq(settings.ambient, 0.0, "and the night side is dark")
+	assert_eq(settings.planet_color, ViewSettings.DEFAULT_PLANET_COLOR, "the planet is ocean blue")
 	assert_eq(settings.raster_path, "", "there is no raster")
 	assert_true(settings.raster_visible, "which would be shown if there were")
 	assert_eq(settings.raster_opacity, 1.0, "at full opacity")
@@ -46,6 +47,7 @@ func test_every_setting_round_trips_through_json() -> void:
 	assert_eq(back.grid_spacing, settings.grid_spacing, "the grid spacing")
 	assert_eq(back.light_direction, settings.light_direction, "the light direction")
 	assert_eq(back.ambient, settings.ambient, "the ambient level")
+	assert_eq(back.planet_color, settings.planet_color, "the planet color")
 	assert_eq(back.raster_path, settings.raster_path, "the raster path")
 	assert_eq(back.raster_opacity, settings.raster_opacity, "the raster opacity")
 	assert_eq(back.raster_visible, settings.raster_visible, "the raster switch")
@@ -109,12 +111,15 @@ func test_a_view_setting_is_one_step_of_the_undo_stack() -> void:
 
 
 # Every file written before 0.6.0 carries no view block, and opens looking the
-# way it always did.
+# way it always did: the defaults, with the built in Earth that was under every
+# file before 0.17.0 as its raster.
 func test_a_file_written_before_the_block_existed_gets_the_defaults() -> void:
 	var document := Document.new()
 	assert_eq(document.load_from_file(ProjectSettings.globalize_path(OLD_SAMPLE)), "",
 		"the older sample opens")
-	assert_eq(document.view.to_json(), ViewSettings.new().to_json(),
+	var expected := ViewSettings.new()
+	expected.raster_path = ViewSettings.BUILT_IN_EARTH
+	assert_eq(document.view.to_json(), expected.to_json(),
 		"with the scene as it was drawn then")
 
 
@@ -175,6 +180,31 @@ func test_an_absolute_image_is_left_where_it_points() -> void:
 	assert_eq(document.resolve_raster(), "", "and no image at all")
 
 
+# An image the application ships is neither beside the project nor anywhere on
+# the disk, so it is stored and found by its res:// path, however the document
+# is saved.
+func test_the_built_in_earth_is_stored_and_found_as_it_is() -> void:
+	var earth := ViewSettings.BUILT_IN_EARTH
+	assert_eq(Document.relative_raster(earth, "C:/maps/world/atlas.middle-earth"), earth,
+		"stored as it is")
+	var document := Document.new()
+	document.path = "C:/maps/world/atlas.middle-earth"
+	document.view.raster_path = earth
+	assert_eq(document.resolve_raster(), earth, "and found as it is")
+
+
+# The planet is never see-through: an alpha given with its color is dropped,
+# whether it is set or read from a file.
+func test_the_planet_color_is_always_opaque() -> void:
+	var settings := ViewSettings.new()
+	settings.planet_color = Color(0.2, 0.4, 0.6, 0.2)
+	assert_eq(settings.planet_color, Color(0.2, 0.4, 0.6, 1.0), "set with an alpha")
+	var read := ViewSettings.from_json({"planet_color": [0.2, 0.4, 0.6, 0.2]})
+	assert_eq(read.planet_color, Color(0.2, 0.4, 0.6, 1.0), "and read with one")
+	assert_eq(ViewSettings.from_json({}).planet_color, ViewSettings.DEFAULT_PLANET_COLOR,
+		"and a block without one takes the default")
+
+
 func _edited() -> ViewSettings:
 	var settings := ViewSettings.new()
 	settings.background_color = Color(0.1, 0.2, 0.3, 1.0)
@@ -183,6 +213,7 @@ func _edited() -> ViewSettings:
 	settings.grid_spacing = 30.0
 	settings.light_direction = Vector2(25.0, -40.0)
 	settings.ambient = 0.35
+	settings.planet_color = Color(0.3, 0.5, 0.2)
 	settings.raster_path = "art/earth.png"
 	settings.raster_opacity = 0.5
 	settings.raster_visible = false

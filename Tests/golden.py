@@ -13,6 +13,7 @@ Needs Pillow, which the uv environment provides.
 """
 
 import json
+import re
 import shutil
 import sys
 import tempfile
@@ -83,6 +84,9 @@ SCENES = [
     ("scene_raster", "empty.middle-earth", {}, {"raster_path": RASTER}, {}),
     ("scene_raster_half", "empty.middle-earth", {},
         {"raster_path": RASTER, "raster_opacity": 0.5}, {}),
+    # The planet with no raster, in a color of its own.
+    ("planet_colour", "empty.middle-earth", {},
+        {"raster_path": "", "planet_color": [0.55, 0.35, 0.2, 1.0]}, {}),
     # The kinematics panel, drawn for a feature that moves. The only scene that
     # shows that panel and the only one that selects anything: the graphs are
     # drawn for whatever the feature tree has selected, with the cursor on the
@@ -152,9 +156,21 @@ def sample_with_settings(sample: str, settings: dict, temp_dir: Path, name: str)
         return DATA / sample
     data = json.loads((DATA / sample).read_text(encoding="utf-8"))
     data["view"] = settings
+    # A file from before 0.17.0 that names no raster opens wearing the built in
+    # Earth, so a scene stating its raster is written in the current format.
+    if "raster_path" in settings:
+        data["version"] = project_version()
     path = temp_dir / f"{name}.middle-earth"
     path.write_text(json.dumps(data, indent="	"), encoding="utf-8")
     return path
+
+
+def project_version() -> str:
+    """The application version declared in project.godot."""
+    text = (ROOT / "project.godot").read_text(encoding="utf-8")
+    match = re.search(r'^config/version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    assert match is not None, "config/version not found in project.godot"
+    return match.group(1)
 
 
 def check(shots: dict[str, Path]) -> bool:

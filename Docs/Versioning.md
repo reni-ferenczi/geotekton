@@ -37,7 +37,9 @@ it reads a 0.13.0 file as it stands; and 0.15.0 let a coupling span name a
 second parent, and a span without one rides on the parent it names, so it reads
 a 0.14.0 file as it stands too; and 0.16.0 renamed five keys of the view block,
 calling the backdrop image a raster and the graticule a grid, which has a step
-that renames them.
+that renames them; and 0.17.0 gave the planet a color of its own and made the
+built in Earth a raster, which has a step that gives a file naming no raster the
+Earth, so it looks as it did.
 
 The first public release will have major version 1.
 

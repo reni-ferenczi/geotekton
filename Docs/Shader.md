@@ -1,19 +1,19 @@
 # Planet Shader
 
-The planet shader (`Scenes/Planet/planet.gdshader`) renders the Earth texture
-with a longitude/latitude grid overlay, the geometry of the features on the
+The planet shader (`Scenes/Planet/planet.gdshader`) renders the planet's color,
+with the document's raster over it, a longitude/latitude grid overlay, the geometry of the features on the
 surface of a sphere, and a yellow outline layer over that.
 
 ## Base Rendering
 
-- **Earth texture**: sampled from an equirectangular projection via UV
+- **Planet color and raster**: a flat `planet_color`, with the document's image, sampled from an equirectangular projection via UV, blended over it; see [The raster](#the-raster)
 - **Grid overlay**: longitude/latitude lines with configurable `split` (divisions), `width`, and `color`; pole-aware width correction in globe mode. The document holds one spacing in degrees and `ViewSettings.grid_split()` turns it into the divisions the shader counts
 
 The globe carries the equirectangular grid on its own surface, so its UV *is*
 the latitude and longitude of a fragment. A map does not: the shader turns UV
 into a point of the projection's sheet and asks the projection which place of
-the planet is drawn there. Everything after that — the Earth texture, the
-grid, the features, the outline — is the same code in both views, because
+the planet is drawn there. Everything after that — the planet color, the
+raster, the grid, the features, the outline — is the same code in both views, because
 all of it works in latitude and longitude.
 
 ## Lighting and ambient
@@ -40,34 +40,41 @@ way it is turned. That is what GPlates does by default too.
 
 ## The raster
 
-A document may wear an image in place of the built in Earth.
-`Logic/raster.gd` reads it from the file the document names — PNG, JPEG and
-WebP through the engine's own decoders, SVG rasterized to a fixed width — and
-hands the texture to `Planet.set_raster()`. The shader blends it over the
-Earth before anything else is drawn, so the grid, the features and the
-outline all sit on top of it:
+The base of the planet is one flat color, `planet_color`, which
+`Planet.apply_view_settings()` sets from the document. It is ocean blue unless
+the document says otherwise, and always opaque: the planet is never
+see-through, so the alpha is dropped when the color is set and never read.
+
+A document may wear an image over that color. `Logic/raster.gd` reads it from
+the file the document names (PNG, JPEG and WebP through the engine's own
+decoders, SVG rasterized to a fixed width) and hands the texture to
+`Planet.set_raster()`. A `res://` path names an image the application ships and
+is loaded as the imported resource it is. The only one so far,
+`res://Assets/Textures/Earth.jpg`, is what the developers call the built in
+Earth. The shader blends the image over the planet color before anything else is
+drawn, so the grid, the features and the outline all sit on top of it:
 
 ```glsl
-vec4 earth = texture(earth_tex, surface_uv);
+vec3 surface = planet_color.rgb;
 if (raster_opacity > 0.0) {
-	earth = mix(earth, texture(raster_tex, surface_uv), raster_opacity);
+	surface = mix(surface, texture(raster_tex, surface_uv).rgb, raster_opacity);
 }
 ```
 
-The image is sampled by the same `surface_uv` as the Earth, so it is an
-equirectangular map of the whole planet, and it follows every projection for
-free.
+The image is sampled by `surface_uv`, so it is an equirectangular map of the
+whole planet, and it follows every projection for free.
 
-`raster_opacity` is zero — and the texture never sampled — when the document
+`raster_opacity` is zero, and the texture is never sampled, when the document
 names no image, hides the one it names, or names one that cannot be read. A
-document naming an image that has since been moved still opens: the planet keeps
-the built in Earth and `Application.raster.error` says why, which the View
+document naming an image that has since been moved still opens: the planet
+shows its own color and `Application.raster.error` says why, which the View
 settings dialog shows beside the path and a test reads over the automation port.
 
 | Uniform | Type | Default | Description |
 |---|---|---|---|
+| `planet_color` | `vec4`, `source_color` | ocean blue, `(0.16, 0.36, 0.60, 1)` | The planet under any raster; the alpha is not read |
 | `raster_tex` | `sampler2D` | — | The image the planet wears |
-| `raster_opacity` | `float` | `0.0` | How much of it covers the Earth; 0 is none |
+| `raster_opacity` | `float` | `0.0` | How much of the planet color it covers; 0 is none |
 
 ## Map Projections
 
@@ -209,7 +216,7 @@ A feature is drawn in one flat color: whichever the active draw style gave it,
 worked out once per feature and held in row 3 of
 [`feature_data`](#per-feature-rotation). The alpha of that color is the
 feature's opacity, which the shader lays the color over what is beneath by. At
-0 the Earth shows through, and the feature is still hit tested. See
+0 the planet shows through, and the feature is still hit tested. See
 [Styling](Styling.md).
 
 ### Colour space
@@ -223,6 +230,12 @@ texture, declared `source_color`, was decoded properly.
 of `feature_data`, leaving the alpha as it is, and
 `Planet.apply_view_settings()` does the same for the grid color. The
 outline yellow is unaffected, since 0 and 1 map onto themselves.
+
+The planet color is handled like the raster instead: `planet_color` is declared
+`source_color`, so it is handed over as the document holds it and the engine
+decodes it. `Tests/Rendered/test_scene.gd` checks a pixel of the bare planet
+against the same place under an opaque image of the same color, which shows
+that the two are decoded alike.
 
 The shader also sets `SPECULAR` to zero. The default specular term brightens
 every lit fragment towards white on top of the albedo, which is not what a
