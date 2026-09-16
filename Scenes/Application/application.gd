@@ -2660,9 +2660,96 @@ func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 		return
 
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		_place_point(Vector2(lat, lon))
+		var snap := _draw_snap(lat, lon)
+		if snap.is_empty():
+			_draw_points(PackedVector2Array([Vector2(lat, lon)]), [{}])
+		elif event.shift_pressed:
+			_draw_trace(snap)
+		else:
+			_draw_points(PackedVector2Array([snap["point"]]), [snap])
 	elif event.button_index == MOUSE_BUTTON_RIGHT and not outline_vertices.is_empty():
 		undo()
+
+
+# What each held point of the drawing snapped to, side by side with
+# outline_vertices: {"feature": pnid, "vertex": Vector2i(part, index)}, or an
+# empty dictionary for a free point. A take back leaves the entry past the end
+# alone, so a put back finds it again; a new point cuts the list to the points
+# held before it goes on.
+var draw_snapped: Array = []
+
+
+# Append points to the drawing with what each one snapped to.
+func _draw_points(points: PackedVector2Array, snaps: Array) -> void:
+	draw_snapped.resize(outline_vertices.size())
+	draw_snapped.append_array(snaps)
+	var held := outline_vertices.duplicate()
+	held.append_array(points)
+	taken_back = PackedVector2Array()
+	_set_tool_points(held)
+
+
+# The vertex of a shown feature a click at lat, lon lands on, as a
+# draw_snapped entry plus its world "point", or empty when Snap is off or no
+# vertex is within SNAP_PIXELS.
+func _draw_snap(lat: float, lon: float) -> Dictionary:
+	if not snapping():
+		return {}
+	var screen: Variant = planet_view.latlon_to_screen(lat, lon)
+	if screen == null:
+		return {}
+	var candidates := _vertices_on_screen()
+	var picked := GeometryEdit.nearest_point(candidates[0], screen, SNAP_PIXELS)
+	if picked < 0:
+		return {}
+	return {"feature": (candidates[3][picked] as Feature).pnid,
+		"vertex": candidates[1][picked], "point": candidates[2][picked]}
+
+
+# Shift+click: when the last held point sits on another vertex of the ring the
+# click snapped to, append the vertices between the two along that ring, the
+# clicked one included. A closed ring goes the way with fewer vertices. With no
+# such point the click is a snapped one.
+func _draw_trace(snap: Dictionary) -> void:
+	var last := outline_vertices.size() - 1
+	var previous: Dictionary = draw_snapped[last] \
+		if last >= 0 and last < draw_snapped.size() and draw_snapped[last] != null else {}
+	var part: int = snap["vertex"].x
+	var feature: Feature = null
+	for shown in geometry.features:
+		if shown.pnid == snap["feature"]:
+			feature = shown
+	if previous.get("feature", -1) != snap["feature"] or previous["vertex"].x != part \
+			or feature == null:
+		_draw_points(PackedVector2Array([snap["point"]]), [snap])
+		return
+
+	var ring := Feature.apply_basis(feature.rings[part],
+		Feature.world_basis(features.root, feature, document.current_time))
+	var from: int = previous["vertex"].y
+	var to: int = snap["vertex"].y
+	# A closed polyline repeats its first vertex at the end; the repeat is the
+	# first one as far as the way around is concerned.
+	var closed := feature.geometry_kind == Feature.GeometryKind.POLYGON
+	if ring.size() > 2 and ring[0] == ring[ring.size() - 1] and not closed:
+		closed = true
+		ring.resize(ring.size() - 1)
+		from %= ring.size()
+		to %= ring.size()
+
+	var step := signi(to - from)
+	var count := absi(to - from)
+	if closed:
+		var forward := posmod(to - from, ring.size())
+		step = 1 if forward <= ring.size() - forward else -1
+		count = forward if step == 1 else ring.size() - forward
+	var points := PackedVector2Array()
+	var snaps := []
+	for k in range(1, count + 1):
+		var index := posmod(from + step * k, ring.size())
+		points.append(ring[index])
+		snaps.append({"feature": snap["feature"], "vertex": Vector2i(part, index)})
+	_draw_points(points, snaps)
 
 
 # Single key shortcuts and the time keys, taken before the GUI pass rather than
@@ -2878,6 +2965,18 @@ func copy_shape() -> void:
 
 func paste_shape() -> void:
 	var selected := features.feature_tree.get_selected_node()
+	# While drawing, the shape's vertices become held points of the drawing,
+	# every part in order, and nothing reaches the document until Enter.
+	if active_tool == Tool.DRAW and selected != null and not selected.is_group \
+			and not shape_clipboard.is_empty():
+		var points := PackedVector2Array()
+		for ring in shape_clipboard["rings"]:
+			points.append_array(ring)
+		var snaps := []
+		snaps.resize(points.size())
+		_draw_points(points, snaps)
+		_report("")
+		return
 	var error := document.paste_shape(selected, shape_clipboard)
 	if not error.is_empty():
 		_report(error)
@@ -3597,8 +3696,9 @@ func _show_measurement(error: String = "") -> void:
 
 # Where vertices are in window pixels, for picking one and for snapping to one.
 #
-# Returns three lists side by side: the window pixels, the (part, index) each
-# came from, and the world latitude and longitude each is at. A vertex on the
+# Returns four lists side by side: the window pixels, the (part, index) each
+# came from, the world latitude and longitude each is at, and the feature it
+# belongs to. A vertex on the
 # far side of the globe has no window pixel and is left out of all three, so a
 # screen distance is never taken to something that cannot be seen.
 #
@@ -3610,6 +3710,7 @@ func _vertices_on_screen(only: Feature = null, without: Feature = null,
 	var points := PackedVector2Array()
 	var places: Array[Vector2i] = []
 	var world := PackedVector2Array()
+	var owners: Array[Feature] = []
 
 	var wanted: Array[Feature] = []
 	if only != null:
@@ -3632,7 +3733,8 @@ func _vertices_on_screen(only: Feature = null, without: Feature = null,
 				points.append(screen)
 				places.append(Vector2i(part, index))
 				world.append(turned[index])
-	return [points, places, world]
+				owners.append(feature)
+	return [points, places, world, owners]
 
 
 # One ring of one feature in window pixels, with whatever is round the back left
