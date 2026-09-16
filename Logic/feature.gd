@@ -243,11 +243,11 @@ func rebuild_triangles() -> void:
 		return
 
 	for ring in rings:
-		var indices := ear_clip_indices(ring)
-		for i in range(0, indices.size() - 2, 3):
-			var a := ring[indices[i]]
-			var b := ring[indices[i + 1]]
-			var c := ring[indices[i + 2]]
+		var corners := ear_clip(ring)
+		for i in range(0, corners.size() - 2, 3):
+			var a := corners[i]
+			var b := corners[i + 1]
+			var c := corners[i + 2]
 			if not faces_outwards(a, b, c):
 				var swapped := b
 				b = c
@@ -520,19 +520,51 @@ static func rings_from_json(data: Array) -> Array[PackedVector2Array]:
 # Ear clipping in the (latitude, longitude) plane. Returns a flat list of
 # triangles, 3 vertices each, wound the same way as the polygon that went in.
 # Self-intersecting polygons are not supported.
+#
+# A ring whose longitude winds a full turn goes round a pole, and has no shape
+# in that plane to clip: it becomes a fan of triangles from the pole on the
+# side most of the ring lies on, which the pole is added to as a vertex.
 static func ear_clip(polygon: PackedVector2Array) -> PackedVector2Array:
 	var result := PackedVector2Array()
+	var n := polygon.size()
+	if n >= 3 and absf(_longitude_winding(polygon)) > 180.0:
+		var latitude_sum := 0.0
+		for v in polygon:
+			latitude_sum += v.x
+		var pole := Vector2(-90.0 if latitude_sum < 0.0 else 90.0, 0.0)
+		for i in range(n):
+			result.append(pole)
+			result.append(polygon[i])
+			result.append(polygon[(i + 1) % n])
+		return result
+
 	for index in ear_clip_indices(polygon):
 		result.append(polygon[index])
 	return result
 
 
+# The sum of the longitude steps round a ring, each taken the short way: plus
+# or minus 360 for a ring round a pole, zero for any other.
+static func _longitude_winding(ring: PackedVector2Array) -> float:
+	var total := 0.0
+	for i in range(ring.size()):
+		total += wrapf(ring[(i + 1) % ring.size()].y - ring[i].y, -180.0, 180.0)
+	return total
+
+
 # The same triangulation as vertex indices into the ring, three per triangle.
-static func ear_clip_indices(polygon: PackedVector2Array) -> PackedInt32Array:
-	var n := polygon.size()
+# The longitudes are unwrapped first, so that each step from one vertex to the
+# next is under 180 degrees and a ring across the date line keeps its shape.
+static func ear_clip_indices(ring: PackedVector2Array) -> PackedInt32Array:
+	var n := ring.size()
 	var result := PackedInt32Array()
 	if n < 3:
 		return result
+
+	var polygon := ring.duplicate()
+	for i in range(1, n):
+		var step := wrapf(ring[i].y - ring[i - 1].y, -180.0, 180.0)
+		polygon[i] = Vector2(ring[i].x, polygon[i - 1].y + step)
 
 	# Build mutable index list
 	var idx: Array[int] = []
