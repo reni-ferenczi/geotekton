@@ -89,7 +89,7 @@ enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, EXPORT_VIDEO, RU
 	PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, KINEMATICS_PLACE, CONSOLE, STATUS_BAR,
-	SETTINGS, FULL_SCREEN }
+	SETTINGS, FULL_SCREEN, HIGHLIGHT_RIDERS }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -124,6 +124,10 @@ const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false, ViewItem.CONSOLE: f
 # The config key remembering whether the kinematics panel graphs latitude and
 # longitude as well as the rate. Off when the file says nothing.
 const KINEMATICS_PLACE_KEY := "kinematics_place"
+
+# The config key remembering whether the features riding on the selected one are
+# highlighted, on the planet and in the tree. Off when the file says nothing.
+const HIGHLIGHT_RIDERS_KEY := "highlight_riders"
 
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
@@ -189,6 +193,11 @@ var active_tool: Tool = Tool.MOVE
 # separately, which is all a step of an animation touches.
 var geometry := Planet.Geometry.new()
 var hovered_feature: Feature = null
+
+# Whether the features riding on the selected one are highlighted, and which
+# they are at the current time; see _find_riders().
+var highlight_riders := false
+var riders: Array[Feature] = []
 
 # Where the pointer last was on the globe, NAN when it is off it. Kept so the
 # hover can be worked out again when the features move under a pointer that is
@@ -464,6 +473,8 @@ func _build_menus() -> void:
 	view_menu.add_check_item("Console", ViewItem.CONSOLE)
 	view_menu.add_check_item("Status Bar", ViewItem.STATUS_BAR)
 	view_menu.add_separator()
+	view_menu.add_check_item("Highlight riders", ViewItem.HIGHLIGHT_RIDERS)
+	view_menu.add_separator()
 	for class_id in Styling.CLASSES:
 		view_menu.add_check_item(Styling.class_label(class_id), class_menu_id(class_id))
 	view_menu.add_separator()
@@ -653,6 +664,9 @@ func _on_view_menu_id_pressed(id: int) -> void:
 		return
 	if id == ViewItem.KINEMATICS_PLACE:
 		kinematics.show_place = not kinematics.show_place
+	elif id == ViewItem.HIGHLIGHT_RIDERS:
+		highlight_riders = not highlight_riders
+		_refresh_feature_state()
 	else:
 		var panel := _panel_node(id)
 		panel.visible = not panel.visible
@@ -683,6 +697,8 @@ func _update_view_menu_checks() -> void:
 		view_menu.set_item_checked(view_menu.get_item_index(item), _panel_node(item).visible)
 	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.KINEMATICS_PLACE),
 		kinematics.show_place)
+	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.HIGHLIGHT_RIDERS),
+		highlight_riders)
 	for class_id in Styling.CLASSES:
 		view_menu.set_item_checked(view_menu.get_item_index(class_menu_id(class_id)),
 			document.view.shows_class(class_id))
@@ -1840,6 +1856,7 @@ func _restore_session() -> void:
 		_panel_node(item).visible = bool(Config.get_value(
 			PANEL_KEYS[item], PANEL_SHOWN_BY_DEFAULT.get(item, true)))
 	kinematics.show_place = bool(Config.get_value(KINEMATICS_PLACE_KEY, false))
+	highlight_riders = bool(Config.get_value(HIGHLIGHT_RIDERS_KEY, false))
 	_update_view_menu_checks()
 
 	if not bool(Config.get_value("restore_session", true)):
@@ -1867,6 +1884,7 @@ func _save_panel_visibility() -> void:
 	for item in PANEL_KEYS:
 		Config.set_value(PANEL_KEYS[item], _panel_node(item).visible)
 	Config.set_value(KINEMATICS_PLACE_KEY, kinematics.show_place)
+	Config.set_value(HIGHLIGHT_RIDERS_KEY, highlight_riders)
 
 
 ### File dialogs
@@ -3649,7 +3667,8 @@ func _on_craton_hovered(lat: float, lon: float) -> void:
 	hovered_lat = lat
 	hovered_lon = lon
 	if _resolve_hover():
-		planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature())
+		planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature(),
+			_drawn_riders())
 
 
 # Work out what the pointer is over from where it last was, and report whether
@@ -3704,8 +3723,29 @@ func _refresh_feature_state() -> void:
 	# all, so the feature it is over is worked out again rather than carried
 	# over. It costs a hit test only while the pointer is on the globe.
 	_resolve_hover()
-	planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature())
+	_find_riders()
+	planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature(),
+		_drawn_riders())
 	_refresh_selection_outline()
+
+
+# What rides on the selected feature at the current time, when the View menu
+# asks for it, for the planet to draw orange and the tree to tint. Only a leaf
+# is ridden on; a group or nothing selected has no riders.
+func _find_riders() -> void:
+	var selected := features.feature_tree.get_selected_node()
+	var found: Array[Feature] = []
+	if highlight_riders and selected != null and not selected.is_group:
+		found = Coupling.riders(features.root, selected.uuid, document.current_time)
+	riders = found
+	features.feature_tree.mark_riders(found)
+
+
+# The riders the planet highlights: none in the tools that do not highlight the
+# selection either.
+func _drawn_riders() -> Array[Feature]:
+	var none: Array[Feature] = []
+	return riders if _highlighted_feature() != null else none
 
 
 # The feature whose lines the shader draws thicker and yellow: the selected one,
@@ -3755,6 +3795,16 @@ func _refresh_selection_outline() -> void:
 	# The pole the Pole tool turns about is drawn along with the selection, so
 	# it is on the globe whatever else is.
 	var parts: Array = _pole_outline()
+	# A polygon riding on the selection is traced in orange, where the planet
+	# draws it at all; the shader colors the lines and markers of the other
+	# riders itself.
+	for rider in _drawn_riders():
+		var index: int = geometry.index_of.get(rider, -1)
+		if index < 0 or not geometry.shown[index] 				or rider.drawn_as() != Feature.GeometryKind.POLYGON:
+			continue
+		for ring in rider.rings:
+			parts.append({"vertices": Feature.apply_basis(ring, geometry.bases[index]),
+				"style": Planet.OutlineStyle.RIDER})
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group or not selected.has_geometry():
 		planet_view.planet.set_outline(parts)
