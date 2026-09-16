@@ -13,11 +13,12 @@
 [ext_resource type="Texture2D" uid="uid://dwqdy8nljusya" path="res://Assets/Icons/Generated/Load.png" id="11_phrkv"]
 [ext_resource type="Texture2D" uid="uid://bp015aomhvqsq" path="res://Assets/Icons/Generated/Save.png" id="12_qnfi0"]
 
-[node name="Buttons" type="HBoxContainer"]
-offset_right = 576.0
+[node name="Buttons" type="HFlowContainer"]
+offset_right = 526.0
 offset_bottom = 40.0
 size_flags_vertical = 0
-theme_override_constants/separation = 2
+theme_override_constants/h_separation = 2
+theme_override_constants/v_separation = 2
 
 [node name="AddGroup" type="Button" parent="."]
 layout_mode = 2

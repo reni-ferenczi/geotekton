@@ -145,7 +145,11 @@ is not edited anywhere; see [Styling](Styling.md#group-styles).
 The panel keeps one width, `CONTENT_WIDTH`, whatever it is showing. Letting its
 content set the width would let the split container hand the difference to the
 planet view, so the globe would move under the pointer every time the selection
-changed.
+changed. `CONTENT_WIDTH` is 220 px, which is also as narrow as the panel can be
+dragged. Every row fits in that: the selectors and the text fields shrink and
+clip their text, the Enabled switch wraps its label, and the Keyframes, Ride on
+and Ramp rows move the buttons or the span box that no longer fit onto a line
+of their own.
 
 The button on the Colour row shows the colour and opens Godot's colour picker on
 it, with the screen sampler, the hex field, the colour modes, the sliders and a

@@ -64,7 +64,7 @@ const BROKEN_SECTION_COLOR = Color(0.9, 0.45, 0.4, 1.0)
 const SPAN_COLUMNS = ["Parent", "From", "To"]
 
 # How wide the panel is, whatever it happens to be showing.
-const CONTENT_WIDTH := 280
+const CONTENT_WIDTH := 220
 
 # The open document, set by Application through attach().
 var document: Document
@@ -158,8 +158,7 @@ func _build() -> void:
 	name_edit.focus_exited.connect(_commit_name)
 	_row(form, "Name", name_edit, true)
 
-	type_selector = OptionButton.new()
-	type_selector.name = "Type"
+	type_selector = _selector("Type")
 	for type_id in FeatureType.CATALOG:
 		type_selector.add_item(FeatureType.label(type_id))
 		type_selector.set_item_metadata(type_selector.item_count - 1, type_id)
@@ -168,8 +167,7 @@ func _build() -> void:
 
 	# The glyph the feature's tree row carries. It is for whoever is looking;
 	# nothing else in the program reads it.
-	icon_selector = OptionButton.new()
-	icon_selector.name = "Icon"
+	icon_selector = _selector("Icon")
 	icon_selector.tooltip_text = "The picture on the feature's tree row"
 	icon_selector.add_item("None")
 	icon_selector.set_item_metadata(0, FeatureIcon.NONE)
@@ -179,6 +177,11 @@ func _build() -> void:
 		icon_selector.set_item_metadata(icon_selector.item_count - 1, icon_id)
 	icon_selector.item_selected.connect(_on_icon_selected)
 	_row(form, "Icon", icon_selector)
+	# A selector that does not fit its longest item is as tall as the item it
+	# shows, and None has no picture. The row keeps the height of one that has.
+	icon_selector.select(1)
+	icon_selector.custom_minimum_size.y = icon_selector.get_combined_minimum_size().y
+	icon_selector.select(0)
 
 	style_selector = _selector("Style")
 	style_selector.tooltip_text = STYLE_TOOLTIP
@@ -240,6 +243,7 @@ func _build() -> void:
 	enabled_check = CheckBox.new()
 	enabled_check.name = "Enabled"
 	enabled_check.text = "Drawn and hit tested"
+	enabled_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	enabled_check.toggled.connect(_on_enabled_toggled)
 	_row(form, "Enabled", enabled_check, true)
 
@@ -310,7 +314,7 @@ func _build_sections(box: VBoxContainer) -> void:
 # The keyframe row: how many keyframes the feature has, and the two buttons that
 # work at the current time. Landing on a keyframe is the timeline's job.
 func _build_keyframes(form: GridContainer) -> void:
-	var row := HBoxContainer.new()
+	var row := HFlowContainer.new()
 	row.name = "Keyframes"
 	_row(form, "Keyframes", row)
 	_motion_boxes.append(_rows.back()["label"])
@@ -363,7 +367,7 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	decouple_button.pressed.connect(_on_decouple_pressed)
 	coupled_row.add_child(decouple_button)
 
-	var couple_row := HBoxContainer.new()
+	var couple_row := HFlowContainer.new()
 	couple_row.name = "CoupleRow"
 	_row(form, "Ride on", couple_row)
 	_motion_boxes.append(_rows.back()["label"])
@@ -450,6 +454,11 @@ func _row(form: GridContainer, text: String, control: Control, on_a_group: bool 
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	form.add_child(label)
 	form.add_child(control)
+	# A row that wraps when the panel is narrow keeps the spacing of a row that
+	# does not, which the theme gives HBoxContainer only.
+	if control is HFlowContainer:
+		control.add_theme_constant_override("h_separation",
+			control.get_theme_constant("separation", "HBoxContainer"))
 	_rows.append({"label": label, "control": control, "on_a_group": on_a_group,
 		"on_a_feature": on_a_feature})
 

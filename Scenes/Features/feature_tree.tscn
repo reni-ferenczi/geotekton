@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://c8mtnn7ewnk0x" path="res://Scenes/Features/feature_tree.gd" id="4_14rp1"]
 
 [node name="FeatureTree" type="Tree"]
-custom_minimum_size = Vector2(320, 0)
+custom_minimum_size = Vector2(200, 0)
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
