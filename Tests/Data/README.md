@@ -77,9 +77,12 @@ them when that checkout is beside this one and says so when it is not.
 ## Probe points
 
 Coordinates are (latitude, longitude) in degrees. `Tests/Unit/test_sample_files.gd`
-checks each of them with `Planet.hit_test`; the rendered tests read the screen
-pixel at the same points. The clear probes stay off the grid, which is drawn on
-multiples of 15 degrees.
+checks each of them with `Planet.hit_test`. The grid is drawn on multiples of
+15 degrees, over the features, so a pixel read on a grid line shows the grid.
+The clear probes stay off it, and the rendered and session tests that check a
+feature's color read beside the listed points, off the lines: (-3, 3) in
+`Red Triangle`, (5, 40) on `Blue Ridge`, (-29.5, -29.5) in the western marker of
+`Green Stations` and (32.5, 47.5) in `Blue Quad`.
 
 ### triangle.middle-earth (0.1.0)
 

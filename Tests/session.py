@@ -446,8 +446,9 @@ def run_escape_session(client: AutomationClient) -> None:
 
 MIXED = ROOT / "Tests" / "Data" / "mixed_geometry.middle-earth"
 
-# The centroid of Red Triangle in mixed_geometry, as Tests/Data/README.md lists it.
-RED_TRIANGLE_PROBE = (-3.0, 0.0)
+# Inside Red Triangle in mixed_geometry, beside the centroid Tests/Data/README.md
+# lists, and off the grid, which is drawn over the features.
+RED_TRIANGLE_PROBE = (-3.0, 3.0)
 
 
 def open_mixed_geometry(client: AutomationClient) -> None:
@@ -467,7 +468,7 @@ GROUP_STYLES = ["inherit", "feature", "single", "age", "type"]
 
 def run_group_style_checks(client: AutomationClient) -> None:
     """A group's style set through the panel, seen on the globe and undone."""
-    lat, lon = (-3.0, 0.0)  # Red Triangle, under Shapes
+    lat, lon = RED_TRIANGLE_PROBE  # under Shapes
     client.call("mouse_move", x=10, y=10)
     depth = client.call("get_document")["document"]["undo_depth"]
     single = [0.1, 0.6, 0.9, 1.0]
@@ -1683,7 +1684,8 @@ def run_circle_session(client: AutomationClient) -> None:
         check(is_colour(centre, planet),
               f"the centre shows the planet, not a fill: {centre}, planet {planet}")
         client.call("select", title=None)
-        rim_colour = probe_at(client, *ring[0])
+        # The first vertex is on a grid crossing, which is drawn over the rim.
+        rim_colour = probe_at(client, *ring[1])
         check(is_colour(rim_colour, list(TYPE_COLORS[3])),
               f"the rim is drawn in the Circle colour: {rim_colour}")
         client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
@@ -3146,10 +3148,10 @@ def run_split_tool_session(client: AutomationClient) -> None:
           "with the outline it had")
 
 
-# Where the shape scenario works: the middle of `Blue Quad`, the quad spanning
-# latitude 20 to 40 and longitude 30 to 60, and the colour the copy of it is
-# given, which is nothing else in the sample.
-QUAD_MIDDLE = (30.0, 45.0)
+# Where the shape scenario works: near the middle of `Blue Quad`, the quad
+# spanning latitude 20 to 40 and longitude 30 to 60, off the grid lines, and the
+# colour the copy of it is given, which is nothing else in the sample.
+QUAD_MIDDLE = (32.5, 47.5)
 TRACE_COLOUR = [1.0, 0.0, 1.0, 1.0]
 
 # A short polyline west of the quad, drawn into a Line feature so that a polygon
@@ -3632,8 +3634,8 @@ def probe_at(client: AutomationClient, lat: float, lon: float) -> list[float]:
 
 
 # The three features of mixed_geometry.middle-earth, one of each class the
-# visibility switches cover, at the probe points Tests/Data/README.md lists.
-STYLE_PROBES = {"polygons": (-3.0, 0.0), "polylines": (0.0, 40.0), "points": (-30.0, -30.0)}
+# visibility switches cover, at the off-grid probe points Tests/Data/README.md lists.
+STYLE_PROBES = {"polygons": (-3.0, 3.0), "polylines": (5.0, 40.0), "points": (-29.5, -29.5)}
 
 # The colour each feature of the sample takes under the feature type style: the
 # type its geometry gives, as FeatureType.CATALOG colours it in
