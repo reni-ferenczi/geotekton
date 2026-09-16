@@ -7,7 +7,7 @@ surface of a sphere, and a yellow outline layer over that.
 ## Base Rendering
 
 - **Planet color and raster**: a flat `planet_color`, with the document's image, sampled from an equirectangular projection via UV, blended over it; see [The raster](#the-raster)
-- **Grid overlay**: longitude/latitude lines with configurable `split` (divisions), `width`, and `color`; pole-aware width correction in globe mode. The document holds one spacing in degrees and `ViewSettings.grid_split()` turns it into the divisions the shader counts
+- **Grid overlay**: longitude/latitude lines with configurable `split` (divisions) and `color`, drawn the same way on the globe and the map; see [The grid](#the-grid). The document holds one spacing in degrees and `ViewSettings.grid_split()` turns it into the divisions the shader counts
 
 The globe carries the equirectangular grid on its own surface, so its UV *is*
 the latitude and longitude of a fragment. A map does not: the shader turns UV
@@ -15,6 +15,21 @@ into a point of the projection's sheet and asks the projection which place of
 the planet is drawn there. Everything after that — the planet color, the
 raster, the grid, the features, the outline — is the same code in both views, because
 all of it works in latitude and longitude.
+
+## The grid
+
+A grid line is `GRID_PIXELS` (1.5) screen pixels wide in both views, so the
+globe and the map draw the same lines at any zoom. The shader scales the
+place of a fragment by `split`, takes the screen derivative of that with
+`fwidth`, and fades each line out over `GRID_PIXELS` derivatives with
+`smoothstep`, which also antialiases it. The derivative is taken before
+`fract`, so a column where a line wraps round does not get a huge one.
+
+Meridians converge towards the poles of the globe. Where they would be denser
+than one per two pixels they fade out, so the planet shows around the pole
+rather than a cap of grid color. Parallels never converge and are drawn right
+up to the pole. The grid color's alpha is how much of the color a full line
+lays over the planet.
 
 ## Lighting and ambient
 

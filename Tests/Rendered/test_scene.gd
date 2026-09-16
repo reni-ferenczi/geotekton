@@ -21,6 +21,10 @@ const BACKGROUNDS: Array[Color] = [Color(0.1, 0.2, 0.8), Color(0.5, 0.5, 0.5)]
 # degrees, and near enough the middle of the default view to face the light.
 const PLANET_PROBE := Vector2(7.5, 7.5)
 
+# The default grid spacing, and a latitude or longitude half way between lines.
+const GRID_STEP := ViewSettings.DEFAULT_GRID_SPACING
+const HALF_CELL := 7.5
+
 # Two planet colors far from each other and from the default.
 const PLANET_COLORS: Array[Color] = [Color(0.8, 0.3, 0.1), Color(0.2, 0.7, 0.3)]
 
@@ -138,6 +142,79 @@ func test_the_grid_spacing_moves_the_lines() -> void:
 	assert_true(moved > 1000,
 		"ten degrees apart draws the globe differently from fifteen: %d pixels" % moved)
 	await use_settings({"grid_spacing": ViewSettings.DEFAULT_GRID_SPACING})
+
+
+# Every line of the default grid is on screen, on the map at zoom 1 where a
+# line of a fraction of a degree is under a pixel, and on the globe. A row half
+# way between two parallels crosses every meridian, a column half way between
+# two meridians every parallel, and within a pixel of each crossing there is a
+# pixel brighter than the planet half a cell away.
+func test_every_grid_line_shows_on_the_rectangular_map() -> void:
+	await load_sample("empty.middle-earth")
+	await clear_raster()
+	await look_at_latlon(0.0, 0.0)
+	view().planet.show_map = true
+	view().planet.projection = MapProjection.Kind.RECTANGULAR
+	await frames(2)
+	var image := await capture()
+	for k in range(1, 24):
+		assert_grid_line(image, HALF_CELL, -180.0 + k * GRID_STEP, Vector2(0.0, GRID_STEP / 2.0))
+	for k in range(1, 12):
+		assert_grid_line(image, 90.0 - k * GRID_STEP, HALF_CELL, Vector2(GRID_STEP / 2.0, 0.0))
+	view().planet.show_map = false
+	await frames(2)
+
+
+func test_every_meridian_in_front_shows_on_the_globe() -> void:
+	await load_sample("empty.middle-earth")
+	await clear_raster()
+	await look_at_latlon(0.0, 0.0)
+	var image := await capture()
+	var seen := 0
+	for k in range(-5, 6):
+		var lon := k * GRID_STEP
+		# The camera is near enough that the limb is short of 90 degrees.
+		if view().latlon_to_screen(HALF_CELL, lon) == null:
+			continue
+		seen += 1
+		# The planet is compared on the side nearer the middle, which the light
+		# reaches no less than the line.
+		var inward := -signf(lon) * GRID_STEP / 2.0 if k != 0 else GRID_STEP / 2.0
+		assert_grid_line(image, HALF_CELL, lon, Vector2(0.0, inward))
+	assert_true(seen >= 9, "the front of the globe shows at least nine meridians: %d" % seen)
+
+
+# Meridians converge on the poles. They fade out there instead of flooding the
+# cap with the grid color, so near the pole the planet shows.
+func test_the_globe_pole_is_not_flooded_by_the_grid() -> void:
+	await load_sample("empty.middle-earth")
+	await clear_raster()
+	await look_at_latlon(60.0, 0.0)
+	await use_settings({"grid_color": Color(1.0, 0.0, 0.0, 1.0)})
+	var image := await capture()
+	for lon in [0.0, 45.0, -45.0, 90.0, -90.0, 180.0]:
+		var near_pole: Vector2 = view().latlon_to_screen(89.5, lon)
+		var pixel := image.get_pixel(int(near_pole.x), int(near_pole.y))
+		assert_eq(dominant_channel(pixel), "blue",
+			"(89.5, %s) is the planet color, not the grid color: %s" % [lon, pixel])
+	await use_settings({"grid_color": ViewSettings.DEFAULT_GRID_COLOR})
+
+
+# Whether a pixel within one of where (lat, lon) lands on screen, along the
+# row or column through it, is brighter than the planet at `offset` degrees
+# away.
+func assert_grid_line(image: Image, lat: float, lon: float, offset: Vector2) -> void:
+	var at: Vector2 = view().latlon_to_screen(lat, lon)
+	var bare: Vector2 = view().latlon_to_screen(lat + offset.x, lon + offset.y)
+	var planet := image.get_pixel(int(bare.x), int(bare.y)).get_luminance()
+	var step := Vector2(1.0, 0.0) if offset.y != 0.0 else Vector2(0.0, 1.0)
+	var brightest := 0.0
+	for i in range(-1, 2):
+		var p := at + step * i
+		brightest = maxf(brightest, image.get_pixel(int(p.x), int(p.y)).get_luminance())
+	assert_true(brightest > planet,
+		"the line through (%s, %s) shows: %.3f against the planet's %.3f"
+			% [lat, lon, brightest, planet])
 
 
 # With the light off to one side, the other side of what is in view is in
