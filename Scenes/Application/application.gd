@@ -237,6 +237,8 @@ var marker_spin: SpinBox
 var line_spin: SpinBox
 var export_width_spin: SpinBox
 var ffmpeg_edit: LineEdit
+# The colour picker of each feature type in the Preferences dialog, by type id.
+var feature_color_pickers: Dictionary = {}
 var interpreter_edit: LineEdit
 var script_directories_edit: TextEdit
 var view_dialog: AcceptDialog
@@ -1332,6 +1334,30 @@ func _build_preferences_content() -> Control:
 	ffmpeg_edit.placeholder_text = "Whatever is found on the path"
 	box.add_child(ffmpeg_edit)
 
+	# The colour each feature type starts a feature in, in catalog order.
+	box.add_child(_view_section("Feature colors"))
+	var colors := GridContainer.new()
+	colors.columns = 2
+	box.add_child(colors)
+	for type_id in FeatureType.CATALOG:
+		var label := Label.new()
+		label.text = FeatureType.label(type_id)
+		colors.add_child(label)
+		var picker := Helpers.color_button(type_id.to_pascal_case() + "Color", Helpers.COLOR_TOOLTIP)
+		picker.edit_alpha = false
+		picker.custom_minimum_size = Vector2(140, 28)
+		colors.add_child(picker)
+		feature_color_pickers[type_id] = picker
+	var catalog := Button.new()
+	catalog.name = "CatalogColors"
+	catalog.text = "Catalog colors"
+	catalog.tooltip_text = "Put every feature type back to the color it comes with"
+	catalog.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	catalog.pressed.connect(func() -> void:
+		for type_id in feature_color_pickers:
+			feature_color_pickers[type_id].color = FeatureType.CATALOG[type_id]["color"])
+	box.add_child(catalog)
+
 	# Python: which interpreter runs the scripting bridge and where the scripts
 	# that become menu entries are looked for, one directory per line.
 	box.add_child(_view_section("Python"))
@@ -1792,6 +1818,8 @@ func show_preferences() -> void:
 	line_spin.value = Config.get_line_width_scale()
 	export_width_spin.value = Config.get_export_width()
 	ffmpeg_edit.text = Config.get_ffmpeg()
+	for type_id in feature_color_pickers:
+		feature_color_pickers[type_id].color = FeatureType.color(type_id)
 	interpreter_edit.text = Config.get_python_interpreter()
 	script_directories_edit.text = "
 ".join(PackedStringArray(Config.get_script_directories()))
@@ -1806,10 +1834,23 @@ func _on_preferences_confirmed() -> void:
 	Config.set_line_width_scale(line_spin.value)
 	Config.set_export_width(int(export_width_spin.value))
 	Config.set_ffmpeg(ffmpeg_edit.text.strip_edges())
+	_save_feature_colors()
 	_apply_outline_scale()
 	_show_measurement()
 	properties.show_radius()
 	_apply_python_preferences()
+
+
+# Keep the colours that differ from the catalog. Features keep the colour they
+# hold, so only the "Feature type" draw style shows the change at once.
+func _save_feature_colors() -> void:
+	var colors := {}
+	for type_id in feature_color_pickers:
+		var picked: Color = feature_color_pickers[type_id].color
+		if not picked.is_equal_approx(FeatureType.CATALOG[type_id]["color"]):
+			colors[type_id] = picked
+	Config.set_feature_colors(colors)
+	refresh_colors()
 
 
 # Take up a changed interpreter or script list. The interpreter is only started

@@ -754,13 +754,30 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"snap_to_vertices": Config.get_snap_to_vertices(),
 				"python_interpreter": Config.get_python_interpreter(),
 				"script_directories": Config.get_script_directories(),
+				"feature_colors": _feature_colors(),
 			}}
 
 		"set_preferences":
 			# The Preferences dialog without the dialog: whatever the request
 			# names is changed through the same fields, the rest stays as it was.
+			# A `button` names one of the dialog's own buttons to press first.
 			app.show_preferences()
 			var wanted: Dictionary = request.get("preferences", {})
+			var pressed := str(request.get("button", ""))
+			if not pressed.is_empty():
+				var preferences_button: Button = app.preferences_dialog.find_child(pressed, true, false)
+				if preferences_button == null:
+					app.preferences_dialog.hide()
+					return {"ok": false, "error": "no preferences button called %s" % pressed}
+				preferences_button.pressed.emit()
+			var colors: Dictionary = wanted.get("feature_colors", {})
+			for type_id in colors:
+				if not app.feature_color_pickers.has(type_id):
+					app.preferences_dialog.hide()
+					return {"ok": false, "error": "no feature type called %s" % type_id}
+				var rgba: Array = colors[type_id]
+				app.feature_color_pickers[type_id].color = Color(
+					float(rgba[0]), float(rgba[1]), float(rgba[2]), float(rgba[3]))
 			if wanted.has("planet_radius_km"):
 				app.radius_spin.value = float(wanted["planet_radius_km"])
 			if wanted.has("vertex_marker_scale"):
@@ -1126,8 +1143,11 @@ func _on_file_dialog(mode: int, title: String, on_paths: Callable) -> void:
 
 
 func _collect_features(node: Feature, depth: int, list: Array) -> void:
-	list.append({"pnid": node.pnid, "title": node.title, "is_group": node.is_group,
-		"depth": depth, "row_icon": _row_icon(node)})
+	var entry := {"pnid": node.pnid, "title": node.title, "is_group": node.is_group,
+		"depth": depth, "row_icon": _row_icon(node)}
+	if not node.is_group:
+		entry["swatch"] = _swatch_color(node)
+	list.append(entry)
 	for child in node.children:
 		_collect_features(child, depth + 1, list)
 
@@ -1135,10 +1155,29 @@ func _collect_features(node: Feature, depth: int, list: Array) -> void:
 # The file stem of the picture the tree row is actually showing, so a run reads
 # the row rather than the field behind it. A row the tree does not hold, which
 # is a node no reload has reached yet, answers with an empty string.
+# The colour in effect for every feature type, as [r, g, b, a].
+func _feature_colors() -> Dictionary:
+	var colors := {}
+	for type_id in FeatureType.CATALOG:
+		var color := FeatureType.color(type_id)
+		colors[type_id] = [color.r, color.g, color.b, color.a]
+	return colors
+
+
 func _row_icon(node: Feature) -> String:
 	var item: TreeItem = app.features.feature_tree.items.get(node.pnid)
 	var icon := item.get_icon(0) if item != null else null
 	return icon.resource_path.get_file().get_basename() if icon != null else ""
+
+
+# The colour a feature row's swatch shows, read from the swatch's own picture.
+func _swatch_color(feature: Feature) -> Variant:
+	var item: TreeItem = app.features.feature_tree.items.get(feature.pnid)
+	if item == null:
+		return null
+	var index := item.get_button_by_id(0, FeatureTree.COLOR_BUTTON)
+	var color := item.get_button(0, index).get_image().get_pixel(0, 0)
+	return [color.r, color.g, color.b, color.a]
 
 
 # Press the colour swatch of a feature's row. The groups above the row are

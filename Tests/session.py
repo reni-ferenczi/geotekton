@@ -1091,6 +1091,7 @@ def run_colour_session(client: AutomationClient) -> None:
           "and undo puts the opacity back")
 
     run_color_picker_checks(client)
+    run_feature_colour_preference_checks(client)
 
 
 # The default colour of each feature type, in the order Logic/feature_type.gd
@@ -1153,6 +1154,61 @@ def run_color_picker_checks(client: AutomationClient) -> None:
     check(color[:3] != [0.0, 1.0, 0.0], f"a right click resets the colour: {color}")
     check(not client.call("get_properties")["properties"]["color_picker_open"],
           "and leaves the picker closed")
+
+
+# A polygon around an off-grid probe point near the middle of the default view.
+PREFERENCE_POLYGON = [(-2.0, -2.0), (12.0, 5.0), (5.0, 12.0)]
+PREFERENCE_PROBE = (5.0, 5.0)
+
+
+def feature_row(client: AutomationClient, title: str) -> dict:
+    """The feature tree row of the feature with this title."""
+    return next(row for row in client.call("get_features")["features"] if row["title"] == title)
+
+
+def run_feature_colour_preference_checks(client: AutomationClient) -> None:
+    """A type colour set in Preferences reaches new features and the Feature type style."""
+    blue = [0.0, 0.0, 1.0, 1.0]
+    chocolate = TYPE_COLOURS["polygons"]
+    start_new_document(client)
+    client.call("toolbar", button="AddGroup")
+    client.call("set_property", field="name", value="Plates")
+    add_drawn(client, "Old", PREFERENCE_POLYGON)
+    check(is_colour(client.call("get_selected")["feature"]["color"], chocolate),
+          "a polygon drawn with the default preferences is chocolate")
+
+    client.call("set_preferences", preferences={"feature_colors": {"polygon": blue}})
+    colors = client.call("get_preferences")["preferences"]["feature_colors"]
+    check(colors["polygon"] == blue and is_colour(colors["line"], TYPE_COLOURS["polylines"]),
+          f"the preferences hold a blue polygon and the other catalog colors: {colors}")
+
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="New")
+    check(client.call("get_properties")["properties"]["color"] == blue,
+          "a new feature's Colour row is blue")
+    check(feature_row(client, "New")["swatch"] == blue, "and so is its swatch")
+    check(is_colour(feature_row(client, "Old")["swatch"], chocolate),
+          "the existing polygon's swatch stays chocolate")
+
+    client.call("select", title="Plates")
+    client.call("set_property", field="style", value="type")
+    client.call("mouse_move", x=10, y=10)
+    check(is_colour(probe_at(client, *PREFERENCE_PROBE), blue),
+          "the Feature type style paints the existing polygon blue")
+
+    client.call("swatch", title="Old", button="right")
+    client.call("select", title="Old")
+    check(client.call("get_selected")["feature"]["color"] == blue,
+          "a right click on its swatch gives it the blue type color")
+
+    client.call("set_preferences", button="CatalogColors")
+    colors = client.call("get_preferences")["preferences"]["feature_colors"]
+    check(is_colour(colors["polygon"], chocolate) and colors["polygon"][3] == 1.0,
+          f"Catalog colors puts the polygon back to chocolate: {colors['polygon']}")
+    client.call("mouse_move", x=10, y=10)
+    check(is_colour(probe_at(client, *PREFERENCE_PROBE), chocolate),
+          "and the Feature type style follows")
+    client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
 
 def refusal(client: AutomationClient, cmd: str, **params) -> str:
