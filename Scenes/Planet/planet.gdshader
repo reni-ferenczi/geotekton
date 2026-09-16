@@ -16,8 +16,9 @@ uniform sampler2D raster_tex : source_color, repeat_disable;
 uniform float raster_opacity = 0.0;
 
 uniform vec4 color = vec4(1.0, 1.0, 1.0, 0.3333);
-uniform vec2 width = vec2(0.015, 0.015);
 uniform vec2 split = vec2(24.0, 12.0);
+// How wide a grid line is, in screen pixels.
+const float GRID_PIXELS = 1.5;
 
 // Which map projection the flat view draws in, matching MapProjection.Kind, and
 // how tall the sheet it draws on is, matching MapProjection.extent(). The globe
@@ -252,17 +253,21 @@ void fragment() {
 		surface = mix(surface, texture(raster_tex, surface_uv).rgb, raster_opacity);
 	}
 
-	// Longitude and latitude grids
+	// Longitude and latitude grids, GRID_PIXELS wide on screen and antialiased,
+	// the same on the globe and the map. The derivative is taken before fract so
+	// the wrap of a line does not give its column a huge one. Meridians fade out
+	// where they would be denser than one per two pixels, which is how they
+	// converge on the globe's poles without flooding them; parallels never do.
 	vec2 uv = surface_uv * split;
+	vec2 d = fwidth(uv) * GRID_PIXELS;
 	vec2 f = abs(fract(uv + vec2(0.5)) - vec2(0.5));
-	if (is_globe) {
-		// Widen the grid towards the poles to keep the line width constant
-		f.x *= cos(PI * abs(UV.y - 0.5));
-	}
-	bool g = f.x < width.x || f.y < width.y;
+	float line_x = 1.0 - smoothstep(0.0, d.x, f.x);
+	line_x *= 1.0 - smoothstep(0.25, 0.5, d.x);
+	float line_y = 1.0 - smoothstep(0.0, d.y, f.y);
+	float g = max(line_x, line_y);
 
 	// Mix grid & surface
-	vec3 base = mix(surface, color.rgb, g ? color.a : 0.0);
+	vec3 base = mix(surface, color.rgb, g * color.a);
 
 	// Precompute sphere position for the geometry and the outline
 	vec3 p = latlon_to_unit(vec2(lat, lon));
