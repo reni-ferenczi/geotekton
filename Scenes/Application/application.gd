@@ -88,7 +88,8 @@ const DRAG_PIXELS := 4.0
 enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, EXPORT_VIDEO, RUN_SCRIPT,
 	PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE }
-enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, CONSOLE, STATUS_BAR, SETTINGS, FULL_SCREEN }
+enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, KINEMATICS_PLACE, CONSOLE, STATUS_BAR,
+	SETTINGS, FULL_SCREEN }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -119,6 +120,10 @@ const PANEL_KEYS := {
 # asked for from the View menu when they are wanted; the globe is what the rest
 # of the window is for.
 const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false, ViewItem.CONSOLE: false}
+
+# The config key remembering whether the kinematics panel graphs latitude and
+# longitude as well as the rate. Off when the file says nothing.
+const KINEMATICS_PLACE_KEY := "kinematics_place"
 
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
@@ -455,6 +460,7 @@ func _build_menus() -> void:
 	view_menu.add_check_item("Properties", ViewItem.PROPERTIES)
 	view_menu.add_check_item("Timeline", ViewItem.TIMELINE)
 	view_menu.add_check_item("Kinematics", ViewItem.KINEMATICS)
+	view_menu.add_check_item("Kinematics: latitude and longitude", ViewItem.KINEMATICS_PLACE)
 	view_menu.add_check_item("Console", ViewItem.CONSOLE)
 	view_menu.add_check_item("Status Bar", ViewItem.STATUS_BAR)
 	view_menu.add_separator()
@@ -645,8 +651,11 @@ func _on_view_menu_id_pressed(id: int) -> void:
 		_update_view_menu_checks()
 		refresh_geometry()
 		return
-	var panel := _panel_node(id)
-	panel.visible = not panel.visible
+	if id == ViewItem.KINEMATICS_PLACE:
+		kinematics.show_place = not kinematics.show_place
+	else:
+		var panel := _panel_node(id)
+		panel.visible = not panel.visible
 	_update_view_menu_checks()
 	if not isolated:
 		_save_panel_visibility()
@@ -672,6 +681,8 @@ func _panel_node(item: int) -> Control:
 func _update_view_menu_checks() -> void:
 	for item in PANEL_KEYS:
 		view_menu.set_item_checked(view_menu.get_item_index(item), _panel_node(item).visible)
+	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.KINEMATICS_PLACE),
+		kinematics.show_place)
 	for class_id in Styling.CLASSES:
 		view_menu.set_item_checked(view_menu.get_item_index(class_menu_id(class_id)),
 			document.view.shows_class(class_id))
@@ -1828,6 +1839,7 @@ func _restore_session() -> void:
 	for item in PANEL_KEYS:
 		_panel_node(item).visible = bool(Config.get_value(
 			PANEL_KEYS[item], PANEL_SHOWN_BY_DEFAULT.get(item, true)))
+	kinematics.show_place = bool(Config.get_value(KINEMATICS_PLACE_KEY, false))
 	_update_view_menu_checks()
 
 	if not bool(Config.get_value("restore_session", true)):
@@ -1854,6 +1866,7 @@ func _save_session() -> void:
 func _save_panel_visibility() -> void:
 	for item in PANEL_KEYS:
 		Config.set_value(PANEL_KEYS[item], _panel_node(item).visible)
+	Config.set_value(KINEMATICS_PLACE_KEY, kinematics.show_place)
 
 
 ### File dialogs

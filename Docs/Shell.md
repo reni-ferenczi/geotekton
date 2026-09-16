@@ -67,6 +67,7 @@ adding an item means adding an enum value and one `add_item` line.
 | Properties  |          | Show or hide the properties panel         |
 | Timeline    |          | Show or hide the timeline                 |
 | Kinematics  |          | Show or hide the motion graphs; see [Kinematics](Kinematics.md) |
+| Kinematics: latitude and longitude | | Graph latitude and longitude above the rate, which is the only row drawn while this is off (the default) |
 | Console     |          | Show or hide the Python prompt; see [Scripting](Scripting.md) |
 | Status Bar  |          | Show or hide the status bar               |
 | Polygons    |          | Draw the polygons, or leave them off; see [Styling](Styling.md#the-visibility-switches) |

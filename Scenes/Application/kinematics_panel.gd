@@ -2,8 +2,9 @@ extends PanelContainer
 class_name KinematicsPanel
 
 # The kinematics panel under the globe: where the middle of the selected feature
-# has been over time, and how fast it is turning. Three graphs sharing one time
-# axis — latitude, longitude and the rate — with a cursor on the current time.
+# has been over time, and how fast it is turning. The rate graph over a time
+# axis, with a cursor on the current time; latitude and longitude get a graph
+# each above it when show_place is on (View > Kinematics: latitude and longitude).
 # See Docs/Kinematics.md.
 #
 # The numbers are worked out in Logic/kinematics.gd, which needs no scene, so
@@ -56,6 +57,15 @@ var node: Feature = null
 var readout: Label
 var graphs: Control
 
+# Whether the latitude and longitude graphs are drawn above the rate. The
+# readout gives both numbers either way; the panel is two rows shorter without
+# the graphs, and that height goes to the planet.
+var show_place: bool = false:
+	set(value):
+		show_place = value
+		if graphs != null:
+			_fit_rows()
+
 # Where the middle of the node is at each sample time, oldest first, and how
 # fast it turns between its keyframes. Worked out when the selection, the
 # geometry or the animation range changes, not while drawing.
@@ -80,8 +90,6 @@ func attach(document_: Document, timeline_: Timeline) -> void:
 
 
 func _build() -> void:
-	custom_minimum_size = Vector2(0, 3 * (ROW_HEIGHT + ROW_GAP) + AXIS_HEIGHT + 42)
-
 	var margin := MarginContainer.new()
 	margin.name = "Margin"
 	for side in ["left", "right", "top", "bottom"]:
@@ -100,10 +108,23 @@ func _build() -> void:
 	graphs = Control.new()
 	graphs.name = "Graphs"
 	graphs.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	graphs.custom_minimum_size = Vector2(0, 3 * (ROW_HEIGHT + ROW_GAP) + AXIS_HEIGHT)
 	graphs.draw.connect(_draw_graphs)
 	graphs.resized.connect(graphs.queue_redraw)
 	box.add_child(graphs)
+	_fit_rows()
+
+
+# How many graph rows are drawn: the rate, and the two place rows over it when
+# they are switched on.
+func row_count() -> int:
+	return 3 if show_place else 1
+
+
+func _fit_rows() -> void:
+	var rows_height := row_count() * (ROW_HEIGHT + ROW_GAP) + AXIS_HEIGHT
+	custom_minimum_size = Vector2(0, rows_height + 42)
+	graphs.custom_minimum_size = Vector2(0, rows_height)
+	graphs.queue_redraw()
 
 
 ### What is being graphed
@@ -196,9 +217,10 @@ func _current_values() -> Dictionary:
 func _draw_graphs() -> void:
 	if _samples.is_empty() or graphs.size.x <= LABEL_WIDTH + VALUE_WIDTH:
 		return
-	_draw_place_row(0, "Latitude", "lat", LATITUDE_LIMIT, LATITUDE_COLOR, false)
-	_draw_place_row(1, "Longitude", "lon", LONGITUDE_LIMIT, LONGITUDE_COLOR, true)
-	_draw_rate_row(2)
+	if show_place:
+		_draw_place_row(0, "Latitude", "lat", LATITUDE_LIMIT, LATITUDE_COLOR, false)
+		_draw_place_row(1, "Longitude", "lon", LONGITUDE_LIMIT, LONGITUDE_COLOR, true)
+	_draw_rate_row(row_count() - 1)
 	_draw_time_axis()
 
 
@@ -290,7 +312,7 @@ func _draw_frame(plot: Rect2, label: String, top: String, bottom: String,
 # The two ends of the time axis, under the last row: the oldest on the left, the
 # youngest on the right, which is the way the timeline runs.
 func _draw_time_axis() -> void:
-	var plot := _plot(2)
+	var plot := _plot(row_count() - 1)
 	var font := get_theme_default_font()
 	var baseline := plot.end.y + AXIS_HEIGHT - 2.0
 	graphs.draw_string(font, Vector2(plot.position.x, baseline),
