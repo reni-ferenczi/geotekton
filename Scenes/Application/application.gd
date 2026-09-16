@@ -762,11 +762,13 @@ func export_size(width: int = 0) -> Vector2i:
 # One frame of the planet, rendered on its own. The selection highlight and the
 # tool overlay come off for it and the planet is drawn again as it was
 # afterwards. It is the one place a frame is rendered, so the video export
-# below walks the time and calls this for each of its frames.
-func export_frame(size: Vector2i) -> Image:
+# below walks the time and calls this for each of its frames. A picture is
+# transparent around the sheet; a video frame keeps the background, since the
+# encoder has no alpha to carry and the frames left on disk match the video.
+func export_frame(size: Vector2i, transparent: bool) -> Image:
 	planet_view.planet.set_feature_state(geometry, null, null)
 	planet_view.planet.set_outline([])
-	var image: Image = await planet_view.render_export(size)
+	var image: Image = await planet_view.render_export(size, transparent)
 	_refresh_feature_state()
 	return image
 
@@ -777,7 +779,7 @@ func export_image(path: String, width: int = 0) -> String:
 	var problem := export_problem()
 	if not problem.is_empty():
 		return problem
-	var image: Image = await export_frame(export_size(width))
+	var image: Image = await export_frame(export_size(width), true)
 	if image.save_png(path) != OK:
 		return "Cannot write %s" % path
 	return ""
@@ -806,7 +808,8 @@ func export_image_as() -> void:
 # encodes into one file when there is an ffmpeg to be found and which are left
 # where they were written when there is not. Each frame is one age: the time is
 # set and the planet drawn through export_frame(), so a frame of a video and a
-# picture of the same age are the same image.
+# picture of the same age show the same planet. The frame keeps the background
+# the picture leaves transparent.
 
 
 # A size an encoder can take: both sides even, rounded down rather than up so
@@ -945,7 +948,7 @@ func _export_video(path: String, options: Dictionary) -> Dictionary:
 		if video_cancelled:
 			break
 		document.set_time(video_frame_time(from, to, speed, fps, index))
-		var image: Image = await export_frame(size)
+		var image: Image = await export_frame(size, false)
 		var frame_path := folder.path_join(FRAME_NAME % index)
 		if image.save_png(frame_path) != OK:
 			trouble = "Cannot write %s" % frame_path

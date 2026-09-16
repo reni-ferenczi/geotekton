@@ -219,14 +219,24 @@ static func export_size(kind: MapProjection.Kind, width: int) -> Vector2i:
 
 # Render the planet into an image of the given size. A map sheet fills it
 # exactly; the globe is drawn the way it is being watched, so a square size is
-# what a picture of it is asked for at. The view is put back the way it was
-# found before this returns, so a failure further along leaves nothing behind.
-func render_export(size: Vector2i) -> Image:
+# what a picture of it is asked for at. A transparent image leaves out the star
+# field and the background color, so whatever is not the sheet or the globe
+# comes out with alpha 0; the planet itself is opaque. The view is put back the
+# way it was found before this returns, so a failure further along leaves
+# nothing behind.
+func render_export(size: Vector2i, transparent: bool) -> Image:
 	var was_stretching := stretch
 	var was_size := viewport.size
+	var environment := world_environment.environment
+	var was_background_mode := environment.background_mode
+	var was_star_field := planet.background.visible
 	exporting = true
 	stretch = false
 	viewport.size = size
+	if transparent:
+		viewport.transparent_bg = true
+		planet.background.visible = false
+		environment.background_mode = Environment.BG_CLEAR_COLOR
 	if planet.show_map:
 		# Half the sheet's height at the distance the camera stands from it,
 		# which puts the top and bottom edges of the sheet on the edges of the
@@ -247,6 +257,9 @@ func render_export(size: Vector2i) -> Image:
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	var image := viewport.get_texture().get_image()
+	viewport.transparent_bg = false
+	planet.background.visible = was_star_field
+	environment.background_mode = was_background_mode
 	viewport.size = was_size
 	stretch = was_stretching
 	_place_camera()

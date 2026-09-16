@@ -2075,6 +2075,8 @@ def run_export_session(client: AutomationClient, folder: Path) -> None:
           f"the corners of a rectangular export are the polar ice it draws there: {corners}")
     check(panel_rgb not in edge_pixels(image),
           f"and no pixel of its four edges is the window's panel colour {panel_rgb}")
+    alphas = Image.open(rectangular).convert("RGBA").getchannel("A").getextrema()
+    check(alphas == (255, 255), f"and no pixel of it is transparent: alpha {alphas}")
 
     run_export_shape_checks(client, folder, panel_rgb)
     run_export_width_checks(client, folder)
@@ -2091,9 +2093,6 @@ def run_export_shape_checks(client: AutomationClient, folder: Path,
     """Each projection's own size, and a sheet that reaches every edge."""
     from PIL import Image
 
-    background = client.call("get_view_settings")["view_settings"]["background_color"]
-    background_rgb = tuple(round(channel * 255) for channel in background[:3])
-
     for kind, wanted in EXPORT_SIZES.items():
         path = folder / f"projection_{kind}.png"
         client.call("set_view", show_map=True, projection=kind,
@@ -2105,21 +2104,21 @@ def run_export_shape_checks(client: AutomationClient, folder: Path,
         check(panel_rgb not in edge_pixels(image),
               f"and no edge of it is the window's panel colour: projection {kind}")
 
-    # A Mollweide sheet is an ellipse, so its corners are what is behind it
-    # while the ends of its axes touch the four edges: the picture is the sheet
-    # and no larger.
-    mollweide = Image.open(folder / "projection_2.png").convert("RGB")
+    # A Mollweide sheet is an ellipse, so its corners are outside it and come out
+    # transparent, with neither the stars nor the background in them, while the
+    # ends of its axes touch the four edges: the picture is the sheet and no
+    # larger, and the sheet is opaque.
+    mollweide = Image.open(folder / "projection_2.png").getchannel("A")
     width, height = mollweide.size
     corners = [mollweide.getpixel(point) for point in
                [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]]
-    check(all(max(abs(a - b) for a, b in zip(corner, background_rgb)) <= 64
-              for corner in corners),
-          f"the corners of a Mollweide export are the background {background_rgb}: {corners}")
+    check(corners == [0, 0, 0, 0],
+          f"the corners of a Mollweide export are transparent: alpha {corners}")
     for name, point in [("top", (width // 2, 0)), ("bottom", (width // 2, height - 1)),
-                        ("left", (0, height // 2)), ("right", (width - 1, height // 2))]:
-        pixel = mollweide.getpixel(point)
-        check(max(abs(a - b) for a, b in zip(pixel, background_rgb)) > 64,
-              f"and its {name} edge is the sheet itself, not a margin: {pixel}")
+                        ("left", (0, height // 2)), ("right", (width - 1, height // 2)),
+                        ("middle", (width // 2, height // 2))]:
+        alpha = mollweide.getpixel(point)
+        check(alpha == 255, f"and its {name} is the opaque sheet, not a margin: alpha {alpha}")
 
 
 def run_export_width_checks(client: AutomationClient, folder: Path) -> None:
@@ -2159,6 +2158,13 @@ EXPORT_TIMEOUT = 30.0
 def frame_files(folder: Path) -> list[Path]:
     """The frames of a video export, in the order they were rendered."""
     return sorted(folder.glob("frame_*.png"))
+
+
+def opaque(path: Path) -> bool:
+    """Whether every pixel of a PNG is fully opaque."""
+    from PIL import Image
+
+    return Image.open(path).convert("RGBA").getchannel("A").getextrema() == (255, 255)
 
 
 def await_export(client: AutomationClient, done) -> dict:
@@ -2202,6 +2208,7 @@ def run_video_session(client: AutomationClient, folder: Path) -> None:
     sizes = {Image.open(path).size for path in frames}
     check(sizes == {(VIDEO_WIDTH, VIDEO_WIDTH // 2)},
           f"each of them 240 by 120, the rectangular sheet: {sizes}")
+    check(all(opaque(path) for path in frames), "and every one of them is opaque")
 
     first = Image.open(frames[0]).convert("RGB")
     last = Image.open(frames[-1]).convert("RGB")
@@ -2234,8 +2241,13 @@ def run_globe_video_checks(client: AutomationClient, folder: Path) -> None:
     answer = client.call("export_video", path=str(folder / "globe.mp4"),
                          width=VIDEO_WIDTH, **dict(VIDEO_RANGE, fps=1.0))
     check(answer["frames"] == 2, f"a frame a second over that range is two: {answer['frames']}")
-    sizes = {Image.open(path).size for path in frame_files(folder / "globe")}
+    globe_frames = frame_files(folder / "globe")
+    sizes = {Image.open(path).size for path in globe_frames}
     check(sizes == {(VIDEO_WIDTH, VIDEO_WIDTH)}, f"and both frames are square: {sizes}")
+    # The encoder has no alpha, so the space around the globe keeps the
+    # background the picture export leaves out.
+    check(all(opaque(path) for path in globe_frames),
+          "and opaque, the background around the globe included")
     client.call("set_view", show_map=True, projection=0, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
 
 

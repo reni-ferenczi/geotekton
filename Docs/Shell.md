@@ -178,13 +178,15 @@ whatever the window is doing: 3600 by 1800 for a rectangular or Mollweide map,
 3600 by 3600 for Mercator and orthographic, 3600 by 1826 for Robinson. See
 [Shader](Shader.md#the-export-camera) for how the camera is fitted to the sheet.
 
-Only the planet is in it. The grid, the background color, the star field
-and the raster are whatever the view settings have them as; the panels,
-the measurement label, the selection highlight and the tool marks are not, and
-neither are the zoom, the camera offset or the view angle, which are put back
-untouched afterwards. Corners outside a Mollweide, Robinson or orthographic
-sheet are the background colour; a rectangular or Mercator sheet is a rectangle,
-so it reaches all four corners of its own picture.
+Only the planet is in it. The grid and the raster are whatever the view
+settings have them as. The panels, the measurement label, the selection
+highlight and the tool marks are left out, and so are the background color and
+the star field. The zoom, the camera offset and the view angle do not apply
+either, and are put back untouched afterwards. The picture has an alpha
+channel: the sheet is opaque, and the corners outside a Mollweide, Robinson or
+orthographic sheet are fully transparent, so the map can be placed on any page.
+A rectangular or Mercator sheet is a rectangle, so it reaches all four corners
+of its own picture and no pixel of it is transparent.
 
 The status bar names the file and its size when the picture is written, and a
 failure to write reaches the error dialog. A script exports through
@@ -212,9 +214,10 @@ the most one export may hold, which is ten minutes of video at thirty frames a
 second and what stands between a mistyped speed and an export nobody wanted.
 
 Each frame is the planet at one age, rendered the way
-[a picture](#exporting-a-picture-of-the-map) is, so a frame and a picture of
-the same age are the same image. Unlike the picture, a video can be made of the
-globe: the globe keeps the camera it is being watched with, which way it faces
+[a picture](#exporting-a-picture-of-the-map) is, with one difference: a frame
+is opaque. H.264 has no alpha channel, so the background color and the star
+field stay in the frame, and the PNG frames left on disk look the same as the
+video made from them. Unlike the picture, a video can be made of the globe: the globe keeps the camera it is being watched with, which way it faces
 and how far it is zoomed in, and comes out square. A map fills the frame the
 way it fills a picture. Both sides are rounded down to an even number of pixels,
 which is what H.264 can take.

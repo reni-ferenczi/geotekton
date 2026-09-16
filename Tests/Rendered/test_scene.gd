@@ -287,6 +287,71 @@ func test_an_image_that_is_not_there_falls_back_to_the_planet_color() -> void:
 	await clear_raster()
 
 
+### The exported picture
+
+
+# The projections whose sheet does not fill the rectangle it is exported in, so
+# the corners of the picture are outside the planet.
+const SHAPED_SHEETS: Array[MapProjection.Kind] = [
+	MapProjection.Kind.MOLLWEIDE, MapProjection.Kind.ROBINSON,
+	MapProjection.Kind.ORTHOGRAPHIC]
+
+const EXPORT_WIDTH := 200
+
+
+# A picture leaves out the stars and the background: the corners of a shaped
+# sheet and of the globe come out clear, the planet opaque, and a sheet that
+# fills the picture has no clear pixel at all. The star field is on, so a star
+# drawn into a corner would show as alpha above zero.
+func test_an_exported_picture_is_transparent_around_the_planet() -> void:
+	await load_sample("empty.middle-earth")
+	await use_settings({"star_field": true, "background_color": BACKGROUNDS[1]})
+	for kind: MapProjection.Kind in MapProjection.Kind.values():
+		view().planet.show_map = true
+		view().planet.projection = kind
+		await frames(2)
+		var size := PlanetView.export_size(kind, EXPORT_WIDTH)
+		var image := await view().render_export(size, true)
+		assert_eq(image.get_pixel(size.x / 2, size.y / 2).a8, 255,
+			"the middle of projection %d is opaque" % kind)
+		if kind in SHAPED_SHEETS:
+			assert_eq(image.get_pixel(0, 0).a8, 0,
+				"the corner of projection %d is clear" % kind)
+		else:
+			assert_eq(count_clear(image), 0,
+				"projection %d fills its picture, with no clear pixel" % kind)
+	view().planet.show_map = false
+	view().planet.projection = MapProjection.Kind.RECTANGULAR
+	await frames(2)
+
+	var globe := await view().render_export(Vector2i(EXPORT_WIDTH, EXPORT_WIDTH), true)
+	assert_eq(globe.get_pixel(0, 0).a8, 0, "the corner of the globe is clear")
+	assert_eq(globe.get_pixel(EXPORT_WIDTH / 2, EXPORT_WIDTH / 2).a8, 255,
+		"and the globe is opaque")
+	await check_scene_restored()
+	await use_settings({"background_color": ViewSettings.DEFAULT_BACKGROUND})
+
+
+# A video frame keeps the background and the stars, since the encoder has no
+# alpha to carry.
+func test_an_opaque_export_keeps_the_background() -> void:
+	await load_sample("empty.middle-earth")
+	await use_settings({"star_field": true, "background_color": BACKGROUNDS[1]})
+	view().planet.show_map = true
+	view().planet.projection = MapProjection.Kind.MOLLWEIDE
+	await frames(2)
+	var size := PlanetView.export_size(MapProjection.Kind.MOLLWEIDE, EXPORT_WIDTH)
+	var image := await view().render_export(size, false)
+	assert_eq(count_clear(image), 0, "no pixel of an opaque export is see-through")
+	assert_true(image.get_pixel(0, 0).get_luminance() > 0.1,
+		"and its corner is the grey background: %s" % image.get_pixel(0, 0))
+	view().planet.show_map = false
+	view().planet.projection = MapProjection.Kind.RECTANGULAR
+	await frames(2)
+	await check_scene_restored()
+	await use_settings({"background_color": ViewSettings.DEFAULT_BACKGROUND})
+
+
 ### Helpers
 
 
@@ -411,3 +476,24 @@ func _motion(screen: Vector2) -> void:
 	motion.relative = screen - mouse
 	mouse = screen
 	Input.parse_input_event(motion)
+
+
+# How many pixels of an image are not fully opaque.
+func count_clear(image: Image) -> int:
+	var clear := 0
+	for y in image.get_height():
+		for x in image.get_width():
+			if image.get_pixel(x, y).a8 < 255:
+				clear += 1
+	return clear
+
+
+# An export puts the window's own view back: the viewport draws opaque again,
+# over the background color and with the stars the document asks for.
+func check_scene_restored() -> void:
+	assert_true(not view().viewport.transparent_bg, "the view is opaque again")
+	assert_true(view().planet.background.visible, "the star field is back")
+	assert_eq(view().world_environment.environment.background_mode, Environment.BG_COLOR,
+		"and so is the background color")
+	assert_close(await corner_colour(), BACKGROUNDS[1], 0.02,
+		"which the window shows in the corner")
