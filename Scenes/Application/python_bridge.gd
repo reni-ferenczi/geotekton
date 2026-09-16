@@ -428,9 +428,12 @@ func _add_feature(request_: Dictionary) -> Dictionary:
 			if not problem.is_empty():
 				return {"ok": false, "error": problem}
 	feature.rebuild_triangles()
-	# Polar circles are built from their parameters, whatever rings came along.
+	# Polar circles and hotspots are built from their parameters, whatever rings
+	# came along.
 	if feature.is_polar_circles():
 		feature.rebuild_polar_circles()
+	if feature.is_hotspot():
+		Hotspot.rebuild(app.document.root, feature, app.document.current_time)
 
 	parent.children.append(feature)
 	app.document.record()
@@ -468,6 +471,9 @@ func _edit_feature(request_: Dictionary) -> Dictionary:
 				if feature.is_polar_circles():
 					return {"ok": false, "error":
 						"polar circles are built from their axis and radius"}
+				if feature.is_hotspot():
+					return {"ok": false, "error":
+						"a hotspot is built from its place and its plate"}
 				var rings := _rings(value)
 				for ring in rings:
 					for vertex in ring:

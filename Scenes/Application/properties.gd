@@ -34,6 +34,10 @@ signal pick_parent_requested(on: bool)
 # Pole tool's click, and writes the axis through the document.
 signal pick_axis_requested()
 
+# The Pick button of the hotspot rows was pressed. The Application owns that
+# pick too, and writes the place and the plate through the document.
+signal pick_hotspot_requested()
+
 # The Load button on the Palette row was pressed. The Application owns the file
 # dialog and hands the path it gets back to load_palette().
 signal palette_file_requested()
@@ -111,6 +115,11 @@ var axis_lon_spin: SpinBox
 var radius_spin: SpinBox
 var circle_segments_spin: SpinBox
 var pick_axis_button: Button
+var hotspot_lat_spin: SpinBox
+var hotspot_lon_spin: SpinBox
+var pick_hotspot_button: Button
+var plate_selector: OptionButton
+var track_step_spin: SpinBox
 
 # Every row of the form, each a label and the control beside it, and whether a
 # group and a feature have it.
@@ -122,6 +131,8 @@ var _topology_boxes: Array[Control] = []
 var _motion_boxes: Array[Control] = []
 # The axis, radius and segment rows, which only polar circles have.
 var _polar_boxes: Array[Control] = []
+# The place, plate and step rows, which only a hotspot has.
+var _hotspot_boxes: Array[Control] = []
 
 
 func _ready() -> void:
@@ -269,6 +280,7 @@ func _build() -> void:
 	_row(form, "Geometry", geometry_label)
 
 	_build_polar_circles(form)
+	_build_hotspot(form)
 	_build_keyframes(form)
 	_build_coupling(form, box)
 	_build_sections(box)
@@ -327,10 +339,12 @@ func _build_sections(box: VBoxContainer) -> void:
 # of both circles, how many segments each has, and the button that picks the
 # axis off the planet. Each edit is one undo version.
 func _build_polar_circles(form: GridContainer) -> void:
-	axis_lat_spin = _polar_spin("AxisLatitude", -90.0, 90.0, 0.01, "°")
-	axis_lon_spin = _polar_spin("AxisLongitude", -180.0, 180.0, 0.01, "°")
-	radius_spin = _polar_spin("Radius", 0.01, Document.MAX_POLAR_RADIUS, 0.01, "")
-	circle_segments_spin = _polar_spin("Segments", Circle.MIN_SEGMENTS, Circle.MAX_SEGMENTS, 1, "")
+	var commit := func(_value: float) -> void: _commit_polar_circles()
+	axis_lat_spin = _param_spin("AxisLatitude", -90.0, 90.0, 0.01, "°", commit)
+	axis_lon_spin = _param_spin("AxisLongitude", -180.0, 180.0, 0.01, "°", commit)
+	radius_spin = _param_spin("Radius", 0.01, Document.MAX_POLAR_RADIUS, 0.01, "", commit)
+	circle_segments_spin = _param_spin("Segments", Circle.MIN_SEGMENTS, Circle.MAX_SEGMENTS, 1, "",
+		commit)
 	for entry: Array in [["Axis latitude", axis_lat_spin], ["Axis longitude", axis_lon_spin],
 			["Radius (°)", radius_spin], ["Segments", circle_segments_spin]]:
 		_row(form, entry[0], entry[1])
@@ -347,15 +361,37 @@ func _build_polar_circles(form: GridContainer) -> void:
 	_polar_boxes.append(pick_axis_button)
 
 
-func _polar_spin(spin_name: String, low: float, high: float, step: float,
-		suffix: String) -> SpinBox:
+# The rows a hotspot is built from: where it is, the button that picks that off
+# the planet, the plate it burns through and how finely its track is sampled.
+# Each edit is one undo version.
+func _build_hotspot(form: GridContainer) -> void:
+	var commit := func(_value: float) -> void: _commit_hotspot()
+	hotspot_lat_spin = _param_spin("HotspotLatitude", -90.0, 90.0, 0.01, "°", commit)
+	hotspot_lon_spin = _param_spin("HotspotLongitude", -180.0, 180.0, 0.01, "°", commit)
+	pick_hotspot_button = Button.new()
+	pick_hotspot_button.name = "PickHotspot"
+	pick_hotspot_button.text = "Pick"
+	pick_hotspot_button.tooltip_text = "Click the planet to put the hotspot there, on the plate under the click"
+	pick_hotspot_button.pressed.connect(pick_hotspot_requested.emit)
+	plate_selector = _selector("Plate")
+	plate_selector.item_selected.connect(func(_index: int) -> void: _commit_hotspot())
+	track_step_spin = _param_spin("TrackStep", Hotspot.MIN_STEP, Hotspot.MAX_STEP, 0.1, "", commit)
+	for entry: Array in [["Latitude", hotspot_lat_spin], ["Longitude", hotspot_lon_spin],
+			["", pick_hotspot_button], ["Plate", plate_selector], ["Step (My)", track_step_spin]]:
+		_row(form, entry[0], entry[1])
+		_hotspot_boxes.append(_rows.back()["label"])
+		_hotspot_boxes.append(entry[1])
+
+
+func _param_spin(spin_name: String, low: float, high: float, step: float,
+		suffix: String, commit: Callable) -> SpinBox:
 	var spin := SpinBox.new()
 	spin.name = spin_name
 	spin.min_value = low
 	spin.max_value = high
 	spin.step = step
 	spin.suffix = suffix
-	spin.value_changed.connect(func(_value: float) -> void: _commit_polar_circles())
+	spin.value_changed.connect(commit)
 	return spin
 
 
@@ -548,11 +584,15 @@ func show_node(node_: Feature) -> void:
 	var is_topology := is_feature and node.geometry_kind == Feature.GeometryKind.TOPOLOGY
 	for control in _topology_boxes:
 		control.visible = is_topology
+	# A hotspot is fixed in the world frame, so it has no motion either.
+	var is_hotspot := is_feature and node.is_hotspot()
 	for control in _motion_boxes:
-		control.visible = is_feature and not is_topology
+		control.visible = is_feature and not is_topology and not is_hotspot
 	var is_polar := is_feature and node.is_polar_circles()
 	for control in _polar_boxes:
 		control.visible = is_polar
+	for control in _hotspot_boxes:
+		control.visible = is_hotspot
 
 	if not editable:
 		return
@@ -569,6 +609,8 @@ func show_node(node_: Feature) -> void:
 		geometry_label.text = _geometry_summary(node)
 		if is_polar:
 			_show_polar_circles()
+		if is_hotspot:
+			_show_hotspot()
 		_fill_sections()
 		_fill_coupling()
 	else:
@@ -587,6 +629,9 @@ func show_time() -> void:
 		return
 	if node.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		_refill_sections()
+	# A hotspot's track has as many vertices as the time leaves samples.
+	if node.is_hotspot():
+		geometry_label.text = _geometry_summary(node)
 	_update_keyframes()
 	_update_coupling()
 
@@ -1049,6 +1094,45 @@ func _commit_polar_circles() -> void:
 	edited.emit()
 
 
+# Call while _filling. The plate list is every feature that can be the plate, in
+# tree order, after None.
+func _show_hotspot() -> void:
+	hotspot_lat_spin.value = node.hotspot.x
+	hotspot_lon_spin.value = node.hotspot.y
+	track_step_spin.value = node.track_step
+	plate_selector.clear()
+	plate_selector.add_item("None")
+	plate_selector.set_item_metadata(0, "")
+	plate_selector.select(0)
+	for leaf in _leaves(document.root, []):
+		if not Hotspot.plate_problem(document.root, node, leaf.uuid).is_empty():
+			continue
+		plate_selector.add_item(leaf.title)
+		plate_selector.set_item_metadata(plate_selector.item_count - 1, leaf.uuid)
+		if leaf.uuid == node.plate_uuid:
+			plate_selector.select(plate_selector.item_count - 1)
+
+
+func _commit_hotspot() -> void:
+	if _filling or node == null or not node.is_hotspot():
+		return
+	var place := Vector2(_unrounded(hotspot_lat_spin, node.hotspot.x),
+		_unrounded(hotspot_lon_spin, node.hotspot.y))
+	var plate := str(plate_selector.get_item_metadata(plate_selector.selected))
+	var step := _unrounded(track_step_spin, node.track_step)
+	if place == node.hotspot and plate == node.plate_uuid and step == node.track_step:
+		return
+	var error := document.set_hotspot(node, place, plate, step)
+	if not error.is_empty():
+		_filling = true
+		_show_hotspot()
+		_filling = false
+		rejected.emit(error)
+		return
+	geometry_label.text = _geometry_summary(node)
+	edited.emit()
+
+
 # A box shows a picked axis rounded to its step. The value the feature holds is
 # kept while the box still shows it, so editing the radius does not move the
 # axis by the rounding.
@@ -1100,6 +1184,13 @@ func load_palette(path: String) -> void:
 func _item_index(selector: OptionButton, id: String) -> int:
 	for index in selector.item_count:
 		if str(selector.get_item_metadata(index)) == id:
+			return index
+	return -1
+
+
+func _item_text_index(selector: OptionButton, text: String) -> int:
+	for index in selector.item_count:
+		if selector.get_item_text(index) == text:
 			return index
 	return -1
 
@@ -1263,6 +1354,16 @@ func to_json() -> Dictionary:
 			"circle_segments": int(circle_segments_spin.value),
 			"pick_axis": not pick_axis_button.disabled,
 		}
+	if pick_hotspot_button.visible:
+		data["hotspot"] = {
+			"position": [hotspot_lat_spin.value, hotspot_lon_spin.value],
+			"plate": plate_selector.get_item_text(plate_selector.selected),
+			"plates": range(plate_selector.item_count).map(
+				func(index: int) -> String: return plate_selector.get_item_text(index)),
+			"track_step": track_step_spin.value,
+			"samples": Hotspot.track(document.root, node, document.current_time).size(),
+			"pick": not pick_hotspot_button.disabled,
+		}
 	return data
 
 
@@ -1389,6 +1490,23 @@ func set_field(field: String, value: Variant) -> String:
 				circle_segments_spin.value = float(value)
 			_filling = false
 			_commit_polar_circles()
+		"hotspot", "plate", "track_step":
+			if not pick_hotspot_button.visible:
+				return "only a hotspot has %s" % field
+			if field == "plate":
+				var at := 0 if str(value).is_empty() else _item_text_index(plate_selector, str(value))
+				if at < 0:
+					return "the plate selector offers no %s" % value
+				plate_selector.select(at)
+			else:
+				_filling = true
+				if field == "hotspot":
+					hotspot_lat_spin.value = float(value[0])
+					hotspot_lon_spin.value = float(value[1])
+				else:
+					track_step_spin.value = float(value)
+				_filling = false
+			_commit_hotspot()
 		_:
 			return "no such property: %s" % field
 	return ""

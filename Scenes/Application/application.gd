@@ -317,6 +317,7 @@ func _ready() -> void:
 		func(on: bool) -> void: start_parent_pick() if on else end_parent_pick())
 	properties.palette_file_requested.connect(choose_palette)
 	properties.pick_axis_requested.connect(start_axis_pick)
+	properties.pick_hotspot_requested.connect(start_hotspot_pick)
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
 	document.time_changed.connect(_on_time_changed)
@@ -1983,8 +1984,10 @@ func _on_cursor_moved(lat: float, lon: float) -> void:
 
 func set_active_tool(tool: Tool) -> void:
 	taken_back = PackedVector2Array()
-	# The axis pick lasts one click of the Pole tool; any change of tool ends it.
+	# The axis and hotspot picks last one click of the Pole tool; any change of
+	# tool ends them.
 	picking_axis = false
+	picking_hotspot = false
 	if active_tool == Tool.DRAW and tool != Tool.DRAW:
 		_outline_cancel()
 	if active_tool == Tool.VERTEX and tool != Tool.VERTEX:
@@ -2094,13 +2097,14 @@ func _on_feature_selected(node: Feature) -> void:
 	# Nothing selected does not: rebuilding the tree clears the selection for a
 	# moment before it puts it back, and a tool that gave up over that would
 	# not survive an undo.
-	var editable := node == null or _can_spin(node)
+	# A hotspot cannot be turned, but its pick borrows the Pole tool.
+	var editable := node == null or _can_spin(node) or picking_hotspot
 	if (active_tool == Tool.VERTEX or _spins(active_tool)) and not editable:
 		set_active_tool(Tool.MOVE)
 	if active_tool == Tool.VERTEX and node != null and not _can_edit_vertices(node):
 		set_active_tool(Tool.MOVE)
-	# The axis being picked belongs to the feature that asked for it.
-	if picking_axis and node != null and node.pnid != axis_pick_pnid:
+	# The axis or hotspot being picked belongs to the feature that asked for it.
+	if (picking_axis or picking_hotspot) and node != null and node.pnid != pick_pnid:
 		set_active_tool(Tool.MOVE)
 	if active_tool == Tool.SPLIT and node != null and not _can_split_along(node):
 		set_active_tool(Tool.MOVE)
@@ -2287,11 +2291,12 @@ func _tool_for(node: Feature) -> Tool:
 
 
 # Only a leaf feature is dragged. A group carries no motion since 0.8.0, so
-# there is nothing a drag of one could write.
+# there is nothing a drag of one could write, and a hotspot is fixed in the
+# world frame.
 func _update_move_enabled() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	planet_view.move_enabled = active_tool == Tool.MOVE and selected != null \
-		and not selected.is_group and selected.has_geometry()
+		and not selected.is_group and selected.has_geometry() and not selected.is_hotspot()
 
 
 # The point that was grabbed and the rotation the dragged feature had when the
@@ -2504,6 +2509,9 @@ func _place_pole(at: Vector2) -> void:
 	if picking_axis:
 		_finish_axis_pick(pole_at)
 		return
+	if picking_hotspot:
+		_finish_hotspot_pick(pole_at, at)
+		return
 	_refresh_selection_outline()
 	_show_measurement()
 
@@ -2516,7 +2524,7 @@ func _place_pole(at: Vector2) -> void:
 # Escape or another tool gives the pick up. See Docs/Editing.md#polar-circles.
 
 var picking_axis: bool = false
-var axis_pick_pnid: int = -1
+var pick_pnid: int = -1
 
 
 func start_axis_pick() -> void:
@@ -2525,7 +2533,7 @@ func start_axis_pick() -> void:
 		return
 	set_active_tool(Tool.POLE)
 	picking_axis = true
-	axis_pick_pnid = feature.pnid
+	pick_pnid = feature.pnid
 	var to_world := Feature.world_basis(features.root, feature, document.current_time)
 	pole_at = Feature.apply_basis(PackedVector2Array([feature.axis]), to_world)[0]
 	_refresh_selection_outline()
@@ -2540,6 +2548,48 @@ func _finish_axis_pick(world: Vector2) -> void:
 	var to_local := Feature.world_basis(features.root, feature, document.current_time).transposed()
 	var axis := Feature.apply_basis(PackedVector2Array([world]), to_local)[0]
 	var error := document.set_polar_circles(feature, axis, feature.radius, feature.circle_segments)
+	if not error.is_empty():
+		_report(error)
+		return
+	features.reload()
+	_show_selection(features.feature_tree.get_selected_node())
+	refresh_geometry()
+
+
+### Picking a hotspot
+#
+# The Pick button of the hotspot rows arms the Pole tool for one click the way
+# Pick axis does. The click, snapped like any pole, is where the hotspot goes,
+# and a feature under the click that can be the plate becomes the plate. See
+# Docs/Editing.md#hotspots.
+
+var picking_hotspot: bool = false
+
+
+func start_hotspot_pick() -> void:
+	var feature := features.feature_tree.get_selected_node()
+	if feature == null or not feature.is_hotspot():
+		return
+	set_active_tool(Tool.POLE)
+	picking_hotspot = true
+	pick_pnid = feature.pnid
+	pole_at = feature.hotspot
+	_refresh_selection_outline()
+	_show_measurement()
+
+
+# The hotspot goes where the pole landed; the plate is looked for under the
+# click itself, before any snapping moved it.
+func _finish_hotspot_pick(world: Vector2, clicked: Vector2) -> void:
+	var feature := features.feature_tree.get_selected_node()
+	set_active_tool(Tool.MOVE)
+	if feature == null or not feature.is_hotspot():
+		return
+	var plate := feature.plate_uuid
+	var hit := Planet.hit_test(clicked.x, clicked.y, geometry)
+	if hit != null and Hotspot.plate_problem(features.root, feature, hit.uuid).is_empty():
+		plate = hit.uuid
+	var error := document.set_hotspot(feature, world, plate, feature.track_step)
 	if not error.is_empty():
 		_report(error)
 		return
@@ -2875,7 +2925,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 	match active_tool:
 		Tool.POLE:
-			if event.keycode == KEY_ESCAPE and picking_axis:
+			if event.keycode == KEY_ESCAPE and (picking_axis or picking_hotspot):
 				set_active_tool(Tool.MOVE)
 			elif event.keycode == KEY_ESCAPE:
 				_spin_cancel()
@@ -3707,6 +3757,10 @@ func _show_measurement(error: String = "") -> void:
 		status_measure.text = "click the planet to put the axis of the polar circles there"
 		return
 
+	if picking_hotspot:
+		status_measure.text = "click the planet to put the hotspot there, on the plate it burns through"
+		return
+
 	if _spins(active_tool):
 		if not is_nan(spin_angle):
 			status_measure.text = "Rotating %.1f°" % rad_to_deg(spin_angle)
@@ -3921,10 +3975,10 @@ func refresh_geometry() -> void:
 #
 # A topology is the exception: the vertices it draws are the vertices of the
 # features it runs along, so moving the time moves them and the geometry has to
-# be built again. That costs a document holding one the cheap path, which is why
-# it is asked for rather than taken.
+# be built again. A hotspot's track is the same. That costs a document holding
+# either the cheap path, which is why it is asked for rather than taken.
 func refresh_motion() -> void:
-	if Topology.holds_any(features.root):
+	if Topology.holds_any(features.root) or Hotspot.holds_any(features.root):
 		refresh_geometry()
 		return
 	geometry.resolve(features.root, document.current_time)
