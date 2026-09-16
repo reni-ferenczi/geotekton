@@ -148,7 +148,7 @@ func _new_time_range() -> Vector2i:
 
 
 func add_new_feature(parent: Feature) -> void:
-	var feature := Feature.create_feature("Feature", FeatureType.NONE_COLOR, _new_time_range())
+	var feature := Feature.create_feature("Feature", FeatureType.color(FeatureType.POLYGON), _new_time_range())
 	parent.children.append(feature)
 	document.record()
 	reload()
@@ -157,7 +157,7 @@ func add_new_feature(parent: Feature) -> void:
 
 
 func add_new_feature_at(parent: Feature, index: int) -> void:
-	var feature := Feature.create_feature("Feature", FeatureType.NONE_COLOR, _new_time_range())
+	var feature := Feature.create_feature("Feature", FeatureType.color(FeatureType.POLYGON), _new_time_range())
 	parent.children.insert(index, feature)
 	document.record()
 	reload()

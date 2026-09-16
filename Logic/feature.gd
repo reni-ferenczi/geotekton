@@ -74,7 +74,7 @@ var style: GroupStyle = null
 var feature_type: String = FeatureType.NONE:
 	get:
 		return FeatureType.resolve(feature_type, kind_name() if has_geometry() else "")
-var color: Color = FeatureType.NONE_COLOR
+var color: Color = FeatureType.color(FeatureType.POLYGON)
 
 # The glyph the tree row shows, an id in FeatureIcon.CATALOG, empty for none.
 # It is picked in the Properties panel and nothing but the row reads it.
@@ -148,7 +148,7 @@ static func create_group(title_: String = "Group") -> Feature:
 
 
 static func create_feature(title_: String = "Feature",
-		color_: Color = FeatureType.NONE_COLOR,
+		color_: Color = FeatureType.color(FeatureType.POLYGON),
 		time_range_: Vector2i = DEFAULT_TIME_RANGE) -> Feature:
 	var feature := Feature.new()
 	feature.init_pnid()

@@ -34,7 +34,7 @@ func test_every_geometry_kind_gives_a_type_that_holds_it() -> void:
 func test_a_new_feature_is_a_polygon() -> void:
 	var feature := Feature.create_feature("Somewhere")
 	assert_eq(feature.feature_type, FeatureType.POLYGON, "which is what the Draw tool then draws")
-	assert_eq(feature.color, FeatureType.NONE_COLOR)
+	assert_eq(feature.color, Color.CHOCOLATE, "in the Polygon colour")
 	assert_eq(FeatureType.label(feature.feature_type), "Polygon", "and what the selector shows")
 	feature.add_ring(PackedVector2Array([Vector2(0, 0), Vector2(10, 0)]), Feature.GeometryKind.POLYLINE)
 	assert_eq(feature.feature_type, "line", "a polyline it was given anyway makes it a Line")
