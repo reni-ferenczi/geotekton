@@ -2,8 +2,9 @@ class_name FeatureType
 
 # What a feature is. The type is picked in the Properties panel and says what
 # the tools draw into the feature: a Polygon a polygon, a Line a polyline,
-# Points a multipoint, a Topology a line topology, a Circle a closed polyline and
-# Polar circles two closed polylines built from an axis and a radius. Once the
+# Points a multipoint, a Topology a line topology, a Circle a closed polyline,
+# Polar circles two closed polylines built from an axis and a radius, and a
+# Hotspot the track it burns into a plate and a ring marking it. Once the
 # feature holds a shape, a type that does not hold that kind gives way to the
 # kind's own. Middle Earth is a world building tool and does not carry the GPGIM
 # over. See Docs/Properties.md.
@@ -24,6 +25,9 @@ const CIRCLE := "circle"
 # Two circles of one radius around an axis and its antipode, rebuilt from the
 # parameters the feature keeps; see Feature.rebuild_polar_circles().
 const POLAR_CIRCLES := "polar_circles"
+# A plume fixed in the world frame and the track it leaves on a plate, rebuilt
+# at every time change; see Logic/hotspot.gd.
+const HOTSPOT := "hotspot"
 
 const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]
 
@@ -40,6 +44,7 @@ const CATALOG := {
 	CIRCLE: {"name": "Circle", "kinds": ["polyline", "polygon"], "color": Color.DARK_TURQUOISE},
 	"topology": {"name": "Topology", "kinds": ["topology"], "color": Color.MEDIUM_PURPLE},
 	POLAR_CIRCLES: {"name": "Polar circles", "kinds": ["polyline"], "color": Color.SPRING_GREEN},
+	HOTSPOT: {"name": "Hotspot", "kinds": ["polyline"], "color": Color.ORANGE_RED},
 }
 
 # The type each geometry kind gives a feature that holds it.

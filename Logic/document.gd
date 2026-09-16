@@ -214,14 +214,20 @@ func set_style(group: Feature, style: GroupStyle) -> String:
 # it is still the one the old type gave it, so a colour someone picked is never
 # overwritten.
 #
-# Polar circles build their own rings, so they are picked on a feature holding
-# nothing, and the two circles are there as soon as the type is.
+# Polar circles and hotspots build their own rings, so they are picked on a
+# feature holding nothing, and the rings are there as soon as the type is. A
+# hotspot is fixed in the world frame, so it is not picked on a feature that
+# moves either.
 func set_feature_type(feature: Feature, type_id: String) -> String:
 	if not FeatureType.CATALOG.has(type_id):
 		return "There is no feature type called %s." % type_id
 	var to_polar := type_id == FeatureType.POLAR_CIRCLES and not feature.is_polar_circles()
 	if to_polar and feature.has_geometry():
 		return "Polar circles build their own geometry, so they are picked on an empty feature."
+	var to_hotspot := type_id == FeatureType.HOTSPOT and not feature.is_hotspot()
+	if to_hotspot and (feature.has_geometry() or not feature.keyframes.is_empty()
+			or not feature.couplings.is_empty()):
+		return "A hotspot builds its own geometry and never moves, so it is picked on an empty feature."
 	if feature.has_geometry() and not FeatureType.allows(type_id, feature.kind_name()):
 		return "A %s cannot be a %s, which is %s." % [
 			feature.kind_name(), FeatureType.label(type_id),
@@ -231,6 +237,8 @@ func set_feature_type(feature: Feature, type_id: String) -> String:
 	feature.feature_type = type_id
 	if to_polar:
 		feature.rebuild_polar_circles()
+	if to_hotspot:
+		Hotspot.rebuild(root, feature, current_time)
 	record()
 	return ""
 
@@ -258,6 +266,28 @@ func set_polar_circles(feature: Feature, axis: Vector2, radius: float, segments:
 	feature.radius = radius
 	feature.circle_segments = segments
 	feature.rebuild_polar_circles()
+	record()
+	return ""
+
+
+# Give a hotspot another place, plate or track step and rebuild its rings, in
+# one undo version. The place is in the world frame, where the hotspot is fixed.
+func set_hotspot(feature: Feature, hotspot: Vector2, plate_uuid: String,
+		track_step: float) -> String:
+	if feature == null or not feature.is_hotspot():
+		return "Only a hotspot has a place, a plate and a track step."
+	var problem := check_coordinates(hotspot)
+	if problem.is_empty():
+		problem = Hotspot.plate_problem(root, feature, plate_uuid)
+	if not problem.is_empty():
+		return problem
+	if track_step < Hotspot.MIN_STEP or track_step > Hotspot.MAX_STEP:
+		return "The track step is %s My, outside %s to %s My." % [
+			track_step, Hotspot.MIN_STEP, Hotspot.MAX_STEP]
+	feature.hotspot = hotspot
+	feature.plate_uuid = plate_uuid
+	feature.track_step = track_step
+	Hotspot.rebuild(root, feature, current_time)
 	record()
 	return ""
 
@@ -352,6 +382,8 @@ func paste_shape(feature: Feature, shape: Dictionary) -> String:
 
 	if feature.is_polar_circles():
 		return "Polar circles are built from their axis and radius, so a shape cannot be added to them."
+	if feature.is_hotspot():
+		return "A hotspot is built from its place and its plate, so a shape cannot be added to it."
 	var kind: Feature.GeometryKind = shape["kind"]
 	if feature.has_geometry():
 		if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
@@ -883,7 +915,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.18.0"):
+	if not _is_older_than(version, "0.19.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -918,7 +950,9 @@ static func migrate(data: Dictionary) -> Dictionary:
 	# 0.18.0 gave a leaf the axis, radius and segment count of polar circles.
 	# A leaf without them is not polar circles, so there is nothing to change
 	# but the version.
-	data["version"] = "0.18.0"
+	# 0.19.0 gave a leaf the place, plate and track step of a hotspot. A leaf
+	# without them is not a hotspot, so again only the version moves.
+	data["version"] = "0.19.0"
 	return data
 
 
