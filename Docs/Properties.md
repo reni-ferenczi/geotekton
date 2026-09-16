@@ -176,8 +176,11 @@ the pair.
 A group has no keyframe row, since a group carries no motion. It has its
 [style](Styling.md#group-styles) instead: how the features under it are colored.
 
-- **Style** is the mode: Inherit, which leaves the choice to the group above,
-  or one of the four draw styles.
+- **Style** is the mode: Same as parent, which colors the features the way
+  the group above does, or one of the four draw styles, which decide for
+  themselves. The row's tooltip says so; see
+  [Styling](Styling.md#group-styles) for how the two differ under nested
+  groups.
 - **Colour** is the color the Single colour mode paints with, and the box beside
   it is the group's opacity, multiplied into every feature under the group.
 - **Palette** is what the Feature age mode reads. It lists the built in palettes

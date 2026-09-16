@@ -92,7 +92,7 @@ place. Every group carries a **style**:
 
 | Field | Values |
 | ----- | ------ |
-| `mode` | `inherit`, or one of the four draw styles above |
+| `mode` | `inherit` (shown as Same as parent), or one of the four draw styles above |
 | `color` | What the single colour mode paints with |
 | `opacity` | 0 to 1, multiplied into every feature under the group |
 | `palette` | What the feature age mode reads: `ramp`, a built in palette's key or the path of a `.cpt` file |
@@ -116,6 +116,16 @@ pinned one back, so the file format did not change; see
 inherit at full opacity, so it changes nothing until someone picks a style for
 it in the Properties panel. A group of cratons on Feature colour can sit beside
 a group of continental crust on Single colour.
+
+The Properties panel calls `inherit` **Same as parent**, and its tooltip says
+what that means: the group colors its features the way the group above does,
+while Feature colour and the others decide for themselves. Under a top level
+group the two look the same, because the root is pinned to Feature colour.
+Nested groups are where they differ. Put a group on Single colour with a group
+under it: on Same as parent, the inner group's features take the single color
+and change with it when the outer group changes; on Feature colour, they keep
+their own colors whatever the outer group does. The file still stores
+`inherit`.
 
 `Styling.of()` walks the tree once when it is built and remembers the deciding
 style and the opacity for every leaf, so `color_of()` looks both up rather than
@@ -242,7 +252,7 @@ of colors and cut the built in palettes down to Rainbow; see
 | Test | What it covers |
 | ---- | -------------- |
 | `Tests/Unit/test_palette.gd` | The reader: the fixtures in `Tests/Data/Palettes`, the built in palettes, boundary and gap lookups, and every palette GPlates ships when that checkout is beside this one |
-| `Tests/Unit/test_styling.gd` | Which class a feature lands in, that each switch removes its own class and no other, the colour each style resolves to, the age so far, and the group styles: inherit through two levels, the nearest group deciding, the root as the default, a file's root style (Single color at half opacity) pinned on load, opacity multiplying down, the file, clones, undo, and the root refused. A feature born at 500 Ma under a 200 My ramp is color A at 500, halfway at 400 and color B at 300 and at 0, moved only by `Geometry.resolve()` |
+| `Tests/Unit/test_styling.gd` | Which class a feature lands in, that each switch removes its own class and no other, the colour each style resolves to, the age so far, and the group styles: inherit shown as Same as parent, inherit through two levels, a nested group following its parent where one on Feature colour does not, the nearest group deciding, the root as the default, a file's root style (Single color at half opacity) pinned on load, opacity multiplying down, the file, clones, undo, and the root refused. A feature born at 500 Ma under a 200 My ramp is color A at 500, halfway at 400 and color B at 300 and at 0, moved only by `Geometry.resolve()` |
 | `Tests/Unit/test_migration.gd` | A 0.7.0 view block's style landing on the root group, and a 0.10.0 style reading with the default ramp |
 | `Tests/Rendered/test_styling.gd` | Pixel probes of each style on the globe, a group on a single colour beside a group on own colours, a group's opacity, a 0.7.0 file drawn in a single colour opening in the feature colors, one polygon under the ramp red at 500 Ma and blue at 300 Ma without the geometry texture being uploaded again, the Earth showing where a switched off class was, a palette file loaded on a group's Palette row coloring that group, and no Palette row on the root |
 | `Tests/session.py` | The styling scenario: the View settings dialog refusing the six style fields, a group's styles on a running application, its ramp, a palette file and a malformed one loaded through the group's Load button, the switches through the View menu, and the whole lot through a save and a load, with the root's pinned style in the file. The Properties scenario sets a group's style and ramp through the panel, probes them and undoes them |
