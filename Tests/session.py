@@ -308,9 +308,9 @@ def worst_offset(ring: list[list[float]], points: list[tuple[float, float]]) -> 
     )
 
 
-# The five feature types in the order the selector offers them, and the one
+# The seven feature types in the order the selector offers them, and the one
 # each drawn kind gives, as Logic/feature_type.gd has them.
-FEATURE_TYPES = ["polygon", "line", "points", "circle", "topology", "polar_circles"]
+FEATURE_TYPES = ["polygon", "line", "points", "circle", "topology", "polar_circles", "hotspot"]
 KIND_TYPES = {"polygon": "polygon", "polyline": "line", "multipoint": "points"}
 
 
@@ -566,7 +566,7 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["showing"] == "feature", f"selecting a feature fills the panel: {panel['showing']}")
     check(panel["name"] == "Red Triangle", f"with its name: {panel['name']}")
     check(panel["feature_type"] == "polygon", f"its type: {panel['feature_type']}")
-    check(panel["types"] == FEATURE_TYPES, f"the type selector offers the six: {panel['types']}")
+    check(panel["types"] == FEATURE_TYPES, f"the type selector offers the seven: {panel['types']}")
     check(panel["color"][:3] == [1.0, 0.0, 0.0], f"its colour: {panel['color']}")
     check(panel["enabled"] is True, "its enabled flag")
     check(panel["time_range"] == [0, 2000], f"its time range: {panel['time_range']}")
