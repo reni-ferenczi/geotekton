@@ -526,18 +526,21 @@ the same for every vertex of a part:
 | 4 | Closed like 3, with no vertex markers — the rings of a selected polygon |
 | 5 | The vertex markers only, twice the size — a selected multipoint |
 | 6 | Closed like 4, in `RIDER_COLOR`: the rings of a polygon riding on the selected feature |
+| 7 | Open like 0, at `geometry_line_width` rather than `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross |
 
-`Planet.OutlineStyle` names the same seven values.
+`Planet.OutlineStyle` names the same eight values.
 
 ### Outline Math
 
 **Vertex dots**: the chord distance from the fragment to the nearest vertex,
-antialiased via `smoothstep`. Every vertex gets one except in styles 4 and 6. Style 5
+antialiased via `smoothstep`. Every vertex gets one except in styles 4, 6 and 7. Style 5
 divides the distance by `SELECTED_MARKER_SCALE`, which draws the same dot twice
 as large.
 
 **Line segments**: the same `arc_distance()` the geometry pass uses, which gives
-each segment rounded caps.
+each segment rounded caps. Style 7 segments are as wide as a feature line,
+`geometry_line_width`, so the Outline line width preference, which scales
+`outline_line_width`, leaves them alone.
 
 **Closing segment**: a vertex whose successor starts a new part is the last of
 its own. When the style closes the part, that vertex joins back to the vertex
