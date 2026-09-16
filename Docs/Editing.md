@@ -206,11 +206,13 @@ drag has turned it.
 | **LMB click** (Pole tool) | Place the pole to turn about |
 | **Escape** (Pole tool) | Take the pole away |
 
-The pole is drawn as a dot with a short cross through it, in the same yellow the
-selection is traced in, and it stays while the Pole tool is armed, so several
-features can be turned about one pole in turn. Picking another tool takes it
-away. With [Snap](#snapping) on, a pole lands on the nearest vertex of any
-feature instead of where it was clicked.
+The pole is drawn as a dot with a cross through it, in the same yellow the
+selection is traced in. Each arm reaches six degrees from the pole and is as
+wide as a feature line (`geometry_line_width`), so the cross is easy to spot;
+the Outline line width preference does not change it. The pole stays while the
+Pole tool is armed, so several features can be turned about one pole in turn.
+Picking another tool takes it away. With [Snap](#snapping) on, a pole lands on
+the nearest vertex of any feature instead of where it was clicked.
 
 A drag whose pointer comes within about three degrees of the axis, or of the
 point opposite it, is ignored: there is no direction about an axis from the axis

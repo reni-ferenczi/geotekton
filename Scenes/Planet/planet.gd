@@ -35,6 +35,7 @@ enum OutlineStyle {
 	OUTLINE = 4,        # closed like CLOSED, with no vertex markers
 	MARKERS = 5,        # the vertex markers only, drawn larger
 	RIDER = 6,          # closed like OUTLINE, in RIDER_COLOR
+	BOLD = 7,           # open like OPEN, as wide as a feature line, no markers
 }
 
 # The map mesh with the sheet of a projection half a unit tall, which is what a
