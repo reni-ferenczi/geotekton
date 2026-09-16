@@ -2455,11 +2455,12 @@ func _place_pole(at: Vector2) -> void:
 
 
 # How far each arm of the cross marking the pole reaches, in degrees.
-const POLE_CROSS := 4.0
+const POLE_CROSS := 6.0
 
 
 # The pole in the outline overlay: a point with a short cross through it, so it
-# is not taken for a vertex. Empty unless the Pole tool holds one.
+# is not taken for a vertex. The arms are as wide as a feature line, so the
+# cross is easy to see. Empty unless the Pole tool holds one.
 func _pole_outline() -> Array:
 	if active_tool != Tool.POLE or pole_at == NO_POLE:
 		return []
@@ -2467,10 +2468,10 @@ func _pole_outline() -> Array:
 		{"vertices": PackedVector2Array([pole_at]), "style": Planet.OutlineStyle.POINTS},
 		{"vertices": PackedVector2Array([
 			pole_at + Vector2(-POLE_CROSS, 0.0), pole_at + Vector2(POLE_CROSS, 0.0)]),
-			"style": Planet.OutlineStyle.OPEN},
+			"style": Planet.OutlineStyle.BOLD},
 		{"vertices": PackedVector2Array([
 			pole_at + Vector2(0.0, -POLE_CROSS), pole_at + Vector2(0.0, POLE_CROSS)]),
-			"style": Planet.OutlineStyle.OPEN},
+			"style": Planet.OutlineStyle.BOLD},
 	]
 
 

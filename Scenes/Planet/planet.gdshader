@@ -88,7 +88,9 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 // every segment alike (a polygon in the Vertex tool), 4 closes it the same way
 // with no markers (a selected polygon), 5 draws larger markers only (a
 // selected multipoint) and 6 closes it like 4 in RIDER_COLOR (a polygon riding
-// on the selected feature). Every style but 4 and 6 marks each vertex.
+// on the selected feature). 7 draws an open line as wide as a feature line,
+// geometry_line_width, with no markers (the pole cross). Every style but 4, 6
+// and 7 marks each vertex.
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
 uniform float outline_line_width = 0.002;
@@ -351,6 +353,7 @@ void fragment() {
 		float min_line_dist = 1e10;
 		float closing_line_dist = 1e10;
 		float rider_line_dist = 1e10;
+		float bold_line_dist = 1e10;
 
 		for (int i = 0; i < outline_vertex_count; i++) {
 			vec4 v = texelFetch(outline_data, ivec2(i, 0), 0);
@@ -361,7 +364,7 @@ void fragment() {
 				min_dot_dist = min(min_dot_dist, chord(a, p) / SELECTED_MARKER_SCALE);
 				continue;
 			}
-			if (style != 4 && style != 6) {
+			if (style != 4 && style != 6 && style != 7) {
 				min_dot_dist = min(min_dot_dist, chord(a, p));
 			}
 			if (style == 2) {
@@ -373,7 +376,7 @@ void fragment() {
 			int start = int(v.z + 0.5);
 			bool last = i + 1 >= outline_vertex_count
 				|| int(texelFetch(outline_data, ivec2(i + 1, 0), 0).z + 0.5) != start;
-			if (last && (style == 0 || i == start)) {
+			if (last && (style == 0 || style == 7 || i == start)) {
 				continue;
 			}
 
@@ -384,6 +387,8 @@ void fragment() {
 				closing_line_dist = min(closing_line_dist, d);
 			} else if (style == 6) {
 				rider_line_dist = min(rider_line_dist, d);
+			} else if (style == 7) {
+				bold_line_dist = min(bold_line_dist, d);
 			} else {
 				min_line_dist = min(min_line_dist, d);
 			}
@@ -393,7 +398,8 @@ void fragment() {
 		float dot_alpha = 1.0 - smoothstep(outline_dot_radius * 0.7, outline_dot_radius, min_dot_dist);
 		float line_alpha = 1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, min_line_dist);
 		float closing_alpha = (1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, closing_line_dist)) * outline_closing_opacity;
-		float outline_alpha = max(dot_alpha, max(line_alpha, closing_alpha));
+		float bold_alpha = 1.0 - smoothstep(geometry_line_width * 0.5, geometry_line_width, bold_line_dist);
+		float outline_alpha = max(max(dot_alpha, bold_alpha), max(line_alpha, closing_alpha));
 		float rider_alpha = 1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, rider_line_dist);
 		base = mix(base, RIDER_COLOR, rider_alpha);
 		base = mix(base, vec3(1.0, 1.0, 0.0), outline_alpha);
