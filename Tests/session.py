@@ -26,6 +26,9 @@ from automation_client import AutomationClient, launch_app
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PORT = 45455
 
+# The raster the View settings dialog's Built in Earth button names.
+BUILT_IN_EARTH = "res://Assets/Textures/Earth.jpg"
+
 USAGE = "usage: session.py [--port N]"
 
 failures: list[str] = []
@@ -2288,6 +2291,7 @@ def run_scene_session(client: AutomationClient, folder: Path) -> None:
         "grid_spacing": 30.0,
         "light_direction": [15.0, -25.0],
         "ambient": 0.3,
+        "planet_color": [0.3, 0.5, 0.2, 1.0],
         "raster_path": str(image),
         "raster_opacity": 0.75,
         "raster_visible": True,
@@ -2319,8 +2323,26 @@ def run_scene_session(client: AutomationClient, folder: Path) -> None:
         else:
             check(back[key] == value, f"{key} survived the round trip: {back[key]}")
 
+    run_built_in_earth_checks(client, saved)
     run_light_tool_checks(client)
     run_view_default_checks(client, sample)
+
+
+def run_built_in_earth_checks(client: AutomationClient, saved: Path) -> None:
+    """The Built in Earth button names the shipped image, which saves as it is."""
+    client.call("set_view_settings", button="BuiltInEarth")
+    settings = client.call("get_view_settings")
+    check(settings["view_settings"]["raster_path"] == BUILT_IN_EARTH,
+          f"Built in Earth names the shipped image: {settings['view_settings']['raster_path']}")
+    check(settings["raster_error"] == "", "which loads")
+    client.call("menu", item="save")
+    written = json.loads(saved.read_text(encoding="utf-8"))
+    check(written["view"]["raster_path"] == BUILT_IN_EARTH,
+          "and is written to the file as it is, not relative to it")
+
+    client.call("set_view_settings", view_settings={"planet_color": [0.9, 0.1, 0.1, 0.2]})
+    color = client.call("get_view_settings")["view_settings"]["planet_color"]
+    check(abs(color[3] - 1.0) < 1e-6, f"a planet color given with an alpha is kept opaque: {color}")
 
 
 def run_light_tool_checks(client: AutomationClient) -> None:
@@ -2397,11 +2419,15 @@ def run_view_default_checks(client: AutomationClient, sample: Path) -> None:
     # documents they expect rather than the ones this scenario asked for. The
     # sample was written before there was a view block, so opening it is what
     # puts the defaults back on the document to be stored.
+    # Opening it also gives it the built in Earth, which a fresh installation
+    # does not have, so that is cleared before the block is stored.
     client.call("load", path=str(sample))
     client.call("view", projection="globe")
+    client.call("set_view_settings", view_settings={"raster_path": ""})
     client.call("set_view_settings", button="SaveAsDefault")
     restored = client.call("get_preferences")["preferences"]
-    check(restored["default_view"] == "Globe" and restored["view_defaults"]["ambient"] == 0.0,
+    check(restored["default_view"] == "Globe" and restored["view_defaults"]["ambient"] == 0.0
+          and restored["view_defaults"]["raster_path"] == "",
           "the preferences are back to what a fresh installation holds")
     client.call("set_view", show_map=False)
 
