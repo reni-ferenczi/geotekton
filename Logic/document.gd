@@ -907,8 +907,9 @@ static func _to_0_13_0(node: Variant) -> void:
 
 # 0.10.0 gave groups a style, in place of GPlates layer coloring. The document's
 # draw style, single colour and palette left the view block and became the style
-# of the root group, which is the document default. A block that named none of
-# them leaves the root on its default, each feature's own colour.
+# of the root group. A block that named none of them leaves the root on its
+# default, each feature's own colour. load_from_file() pins the root's style
+# afterwards, so what this step writes there is read and then replaced.
 static func _to_0_10_0(data: Dictionary) -> void:
 	var view: Variant = data.get("view")
 	var features: Variant = data.get("features")

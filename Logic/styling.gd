@@ -87,8 +87,9 @@ static func of(settings_: ViewSettings, root: Feature = null, palettes_: Diction
 
 # One pass down the tree: a group on inherit hands down the style it was handed,
 # and every group multiplies its opacity into what it hands down. The root has
-# nothing above it, so it is handed the document default and a root on inherit
-# draws each feature's own colour.
+# nothing above it, so it is handed GroupStyle.for_root(), and a root on inherit
+# draws each feature's own colour. A loaded document's root carries that style
+# itself.
 func _walk(node: Feature, deciding: GroupStyle, opacity: float) -> void:
 	if not node.is_group:
 		_deciding[node] = deciding

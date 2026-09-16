@@ -104,12 +104,18 @@ differently: every group above the feature multiplies its own into the alpha,
 whichever group decides the color. A feature at 80 percent under two groups at
 50 percent is drawn at 20 percent.
 
-The **root group's style is the document default**. Nothing is above it, so a
-root on inherit draws each feature's own color, the same as Feature colour. A
-new group starts on inherit at full opacity, so it changes nothing until
-someone picks a style for it. The View settings dialog edits the root's style
-and the Properties panel edits any other group's. A group of cratons on
-Feature colour can sit beside a group of continental crust on Single colour.
+The **root group's style is pinned** to Feature colour at full opacity, with
+the default palette and ramp (`GroupStyle.for_root()`). Nothing is above the
+root, so this is what a group on inherit resolves to at the top, and what a
+feature under no group of its own is drawn in. Nothing edits it: the Properties
+panel shows the root with nothing to edit, the View settings dialog has no style
+rows, and `Document.set_style()` refuses the root. On load, the root style a
+file carries is read and replaced with the pinned one, and saving writes the
+pinned one back, so the file format did not change; see
+[Persistence](Persistence.md#feature-tree-serialization). A new group starts on
+inherit at full opacity, so it changes nothing until someone picks a style for
+it in the Properties panel. A group of cratons on Feature colour can sit beside
+a group of continental crust on Single colour.
 
 `Styling.of()` walks the tree once when it is built and remembers the deciding
 style and the opacity for every leaf, so `color_of()` looks both up rather than
@@ -182,17 +188,21 @@ is the one the GPlates palettes use — and those are worked out from the colour
 behind the prefix. A name Godot knows is always Godot's own colour.
 
 A line that is none of the above does not stop the file: the reader records
-which line it was and why, and goes on with the next one. The reasons reach the
-palette chooser under the strip, and a run with the automation port open reads
-them back as `palette_errors`.
+which line it was and why, and goes on with the next one. When the file is
+loaded from the Properties panel, an error dialog names the file and lists
+those lines, and the group still gets the palette, made of the lines that did
+read.
 
 ### The chooser
 
-The View settings dialog lists the built in palettes, and a **Load...** button
-reads one from a file, which joins the list under its file name. Below the list
-is a strip of the chosen palette from one end of its range to the other, drawn
-from the palette itself, so what is about to be drawn with is visible before
-anything is drawn with it.
+A group's **Palette** row in the Properties panel lists the built in palettes,
+with Custom first, and the file the group's style names, if it names one. The
+**Load...** button beside the list asks for a `.cpt` file, reads it and gives
+it to the group as one edit, one undo version. The file joins that group's list
+under its file name. The panel asks for the file through its
+`palette_file_requested` signal; `Application.choose_palette()` shows the file
+dialog, reads the file and hands the path to `Properties.load_palette()`. The
+file is read again on every load, so the changes in an edited file show up.
 
 One built in table is left, written in the same format a file is and read by the
 same reader, so there is one way in:
@@ -206,15 +216,9 @@ the path of a file. `Palette.resolve()` takes it back either way. The
 application reads each palette once and keeps it by that string, so a rebuild
 of the geometry never reads a file it has read before.
 
-Custom is listed first. Below the palette row the dialog has a Ramp row with the
-root style's colors and its span; the strip previews the ramp from age zero to
-the end of the last span. In both places the colors wrap onto further lines
-once there are more than fit beside each other, each with its − button.
-
-That chooser is the root group's. A group's palette row in the Properties panel
-lists the built in palettes and the file its style already names, and has no
-**Load...** button, so a palette file reaches a group only through a file or a
-script that names it.
+Below the palette row the panel has the Ramp row with the group's colors and
+its span. The colors wrap onto further lines once there are more than fit beside
+each other, each with its − button.
 
 ## What the document carries
 
@@ -223,10 +227,11 @@ block as `hidden_classes`. The colors live in the group styles, the root's among
 them, on the [group nodes](Persistence.md#feature-tree-serialization) of the
 feature tree. Both are saved with the document and both are on the undo stack,
 so picking a style is one step of it. The preferences keep what a new document
-starts from: the view block, with the root style under `style`.
+starts from: the view block, with no style in it, since the root's is pinned.
 
 Up to 0.9.0 the view block carried `draw_style`, `single_color` and `palette`;
-0.10.0 moved them onto the root group. See
+0.10.0 moved them onto the root group, where the loader now replaces them with
+the pinned style. See
 [0.9.0 to 0.10.0](Persistence.md#090-to-0100). 0.11.0 added the ramp fields;
 see [0.10.0 to 0.11.0](Persistence.md#0100-to-0110). 0.13.0 made the ramp a list
 of colors and cut the built in palettes down to Rainbow; see
@@ -237,8 +242,8 @@ of colors and cut the built in palettes down to Rainbow; see
 | Test | What it covers |
 | ---- | -------------- |
 | `Tests/Unit/test_palette.gd` | The reader: the fixtures in `Tests/Data/Palettes`, the built in palettes, boundary and gap lookups, and every palette GPlates ships when that checkout is beside this one |
-| `Tests/Unit/test_styling.gd` | Which class a feature lands in, that each switch removes its own class and no other, the colour each style resolves to, the age so far, and the group styles: inherit through two levels, the nearest group deciding, the root as the default, opacity multiplying down, the file, clones and undo. A feature born at 500 Ma under a 200 My ramp is color A at 500, halfway at 400 and color B at 300 and at 0, moved only by `Geometry.resolve()` |
+| `Tests/Unit/test_styling.gd` | Which class a feature lands in, that each switch removes its own class and no other, the colour each style resolves to, the age so far, and the group styles: inherit through two levels, the nearest group deciding, the root as the default, a file's root style (Single color at half opacity) pinned on load, opacity multiplying down, the file, clones, undo, and the root refused. A feature born at 500 Ma under a 200 My ramp is color A at 500, halfway at 400 and color B at 300 and at 0, moved only by `Geometry.resolve()` |
 | `Tests/Unit/test_migration.gd` | A 0.7.0 view block's style landing on the root group, and a 0.10.0 style reading with the default ramp |
-| `Tests/Rendered/test_styling.gd` | Pixel probes of each style on the globe, a group on a single colour beside a group on own colours, a group's opacity, a 0.7.0 file drawn in its single colour, one polygon under the ramp red at 500 Ma and blue at 300 Ma without the geometry texture being uploaded again, the Earth showing where a switched off class was, and the chooser's list and preview strip, the ramp's among them |
-| `Tests/session.py` | The styling scenario: the styles on a running application, the root's ramp through the dialog, a palette read from a file, the switches through the View menu, and the whole lot through a save and a load. The Properties scenario sets a group's style and ramp through the panel, probes them and undoes them |
-| `Tests/performance.py` | The frame time playing under the age ramp beside the frame time playing in flat colors |
+| `Tests/Rendered/test_styling.gd` | Pixel probes of each style on the globe, a group on a single colour beside a group on own colours, a group's opacity, a 0.7.0 file drawn in a single colour opening in the feature colors, one polygon under the ramp red at 500 Ma and blue at 300 Ma without the geometry texture being uploaded again, the Earth showing where a switched off class was, a palette file loaded on a group's Palette row coloring that group, and no Palette row on the root |
+| `Tests/session.py` | The styling scenario: the View settings dialog refusing the six style fields, a group's styles on a running application, its ramp, a palette file and a malformed one loaded through the group's Load button, the switches through the View menu, and the whole lot through a save and a load, with the root's pinned style in the file. The Properties scenario sets a group's style and ramp through the panel, probes them and undoes them |
+| `Tests/performance.py` | The frame time playing under the age ramp, set on the group that holds every feature, beside the frame time playing in flat colors |
