@@ -138,8 +138,10 @@ func test_a_polyline_does_not_split_at_an_end() -> void:
 func test_a_polygon_splits_into_two_that_share_both_vertices() -> void:
 	var ring := _pentagon()
 	var halves := GeometryEdit.split_polygon(ring, 0, 2)
-	assert_eq(halves[0], PackedVector2Array([ring[0], ring[1], ring[2]]))
-	assert_eq(halves[1], PackedVector2Array([ring[2], ring[3], ring[4], ring[0]]))
+	# Each half starts with the cut, the first from 2 back to 0 and the second
+	# from 0 to 2.
+	assert_eq(halves[0], PackedVector2Array([ring[2], ring[0], ring[1]]))
+	assert_eq(halves[1], PackedVector2Array([ring[0], ring[2], ring[3], ring[4]]))
 	assert_eq(halves[0].size() + halves[1].size(), ring.size() + 2,
 		"every vertex once, and the two on the cut twice")
 
@@ -226,10 +228,10 @@ func test_a_straight_cut_puts_its_ends_on_the_boundary() -> void:
 	assert_eq(GeometryEdit.split_along_problem(ring, path), "")
 	var halves := GeometryEdit.split_along(ring, path)
 	assert_eq(halves[0], PackedVector2Array([
-		Vector2(5, 0), Vector2(10, 0), Vector2(10, 10), Vector2(5, 10)]),
+		Vector2(5, 10), Vector2(5, 0), Vector2(10, 0), Vector2(10, 10)]),
 		"the ends were projected onto the two edges they were clicked beside")
 	assert_eq(halves[1], PackedVector2Array([
-		Vector2(5, 10), Vector2(0, 10), Vector2(0, 0), Vector2(5, 0)]))
+		Vector2(5, 0), Vector2(5, 10), Vector2(0, 10), Vector2(0, 0)]))
 	assert_close(_feature_area(halves[0]), 50.0, 1e-3)
 	assert_close(_feature_area(halves[1]), 50.0, 1e-3)
 
@@ -240,11 +242,11 @@ func test_a_cut_with_two_points_between_its_ends_goes_to_both_halves() -> void:
 	assert_eq(GeometryEdit.split_along_problem(ring, path), "")
 	var halves := GeometryEdit.split_along(ring, path)
 	assert_eq(halves[0], PackedVector2Array([
-		Vector2(5, 0), Vector2(10, 0), Vector2(10, 10), Vector2(5, 10),
-		Vector2(7, 6), Vector2(3, 4)]), "the first half runs back along the cut")
+		Vector2(5, 10), Vector2(7, 6), Vector2(3, 4), Vector2(5, 0),
+		Vector2(10, 0), Vector2(10, 10)]), "the first half starts back along the cut")
 	assert_eq(halves[1], PackedVector2Array([
-		Vector2(5, 10), Vector2(0, 10), Vector2(0, 0), Vector2(5, 0),
-		Vector2(3, 4), Vector2(7, 6)]), "and the second forwards")
+		Vector2(5, 0), Vector2(3, 4), Vector2(7, 6), Vector2(5, 10),
+		Vector2(0, 10), Vector2(0, 0)]), "and the second forwards along it")
 	assert_close(_feature_area(halves[0]) + _feature_area(halves[1]), 100.0, 1e-3,
 		"the halves add up to the square")
 

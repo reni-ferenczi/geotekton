@@ -30,7 +30,7 @@ list holds more than one keyframe, which is what makes it the fixture for
 motion over time.
 
 `topology.middle-earth` is the fixture for a
-[line topology](../../Docs/Editing.md#line-topologies): two multipoints on the
+[line topology](../../Docs/Editing.md#topologies): two multipoints on the
 equator, `West Points` in red at 40, 25 and 10 degrees west and `East Points` in
 blue at 10, 25 and 40 degrees east, with a green `Boundary` running along all of
 both. The features it names are multipoints on purpose, so the only thing drawn

@@ -146,6 +146,11 @@ static func cut_problem(ring: PackedVector2Array, a: int, b: int,
 # The two polygons the ring becomes when it is cut from a to b through the
 # vertices of path. Both hold the two vertices the cut runs between and the
 # path; every other vertex goes to one half.
+#
+# Each half starts with the cut: its first path.size() + 2 vertices are the cut,
+# ends included, from high back to low in the first half and from low to high
+# in the second. The crust a split leaves names that run by index; see
+# Document._add_crust().
 static func split_polygon(ring: PackedVector2Array, a: int, b: int,
 		path := PackedVector2Array()) -> Array[PackedVector2Array]:
 	var low := mini(a, b)
@@ -156,14 +161,14 @@ static func split_polygon(ring: PackedVector2Array, a: int, b: int,
 		forward.reverse()
 	var backward := forward.duplicate()
 	backward.reverse()
-	var halves: Array[PackedVector2Array] = []
-	var first := ring.slice(low, high + 1)
+	var first := PackedVector2Array([ring[high]])
 	first.append_array(backward)
-	halves.append(first)
-	var second := ring.slice(high)
-	second.append_array(ring.slice(0, low + 1))
+	first.append_array(ring.slice(low, high))
+	var second := PackedVector2Array([ring[low]])
 	second.append_array(forward)
-	halves.append(second)
+	second.append_array(ring.slice(high))
+	second.append_array(ring.slice(0, low))
+	var halves: Array[PackedVector2Array] = [first, second]
 	return halves
 
 

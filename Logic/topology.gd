@@ -1,7 +1,7 @@
 class_name Topology
 
-# Resolving a line topology: turning its list of sections into the vertices it
-# draws at one time. See Docs/Editing.md#line-topologies.
+# Resolving a topology: turning its list of sections into the vertices it
+# draws at one time. See Docs/Editing.md#topologies.
 #
 # A topology borrows its geometry from other features, so where it is follows
 # from where they are. Resolving it at a time therefore means finding each
@@ -76,9 +76,10 @@ static func _resolve_section(root: Feature, node: Feature, section: TopologySect
 
 # Give a topology the rings its sections resolve to at that time.
 #
-# One ring per section that resolved, so the two ends of neighbouring sections
-# are not joined by a segment that no feature drew: a line topology is the
-# sections it names, not a shape closed around them.
+# An open topology gets one ring per section that resolved, so the two ends of
+# neighbouring sections are not joined by a segment that no feature drew: a line
+# topology is the sections it names, not a shape closed around them. A closed
+# one gets all of them joined into one ring; see join().
 #
 # The runs come back in world coordinates and are put into the topology's own
 # frame, because that is the frame everything else reads a feature's rings in.
@@ -91,8 +92,26 @@ static func rebuild(root: Feature, node: Feature, time: float) -> void:
 		var vertices: PackedVector2Array = entry["vertices"]
 		if not vertices.is_empty():
 			rings.append(Feature.apply_basis(vertices, into_local))
+	if node.closed and not rings.is_empty():
+		rings.assign([join(rings)])
 	node.rings = rings
 	node.rebuild_triangles()
+
+
+# The runs of a closed topology as one ring, in order, each one's end followed
+# by the next one's start and the last one's end by the first one's start. Where
+# two runs meet, the vertex they share is kept once; where they do not, the ring
+# simply goes on to the next run, and the edge between the two is the gap
+# closed. Nothing is intersected or trimmed: the runs are taken as the section
+# table cuts them.
+static func join(runs: Array[PackedVector2Array]) -> PackedVector2Array:
+	var ring := PackedVector2Array()
+	for run in runs:
+		var start := 1 if not ring.is_empty() and ring[-1].is_equal_approx(run[0]) else 0
+		ring.append_array(run.slice(start))
+	if ring.size() > 1 and ring[-1].is_equal_approx(ring[0]):
+		ring.remove_at(ring.size() - 1)
+	return ring
 
 
 # Resolve every topology in the tree at that time. Called before the geometry is

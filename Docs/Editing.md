@@ -19,8 +19,8 @@ number:
   [The Measure tool](#the-measure-tool).
 - **Circle** — Draws a circle from a centre or through three points; see
   [The Circle tool](#the-circle-tool). Offered on a Circle.
-- **Topology** — Builds a line topology out of the features it runs along; see
-  [Line topologies](#line-topologies). Offered on a Topology.
+- **Topology** — Builds a topology out of the features it runs along; see
+  [Topologies](#topologies). Offered on a Topology.
 - **Light** — Drags the light around the globe; see
   [The Light tool](#the-light-tool). Offered on the globe alone.
 - **Snap** — Whether a dragged vertex, a pole being placed or a point being
@@ -33,6 +33,10 @@ number:
 - **Ridge** — Whether the Split tool leaves a line along the cut. Shown only
   while that tool is active, on to start with, and remembered between sessions;
   see [The ridge](#the-ridge).
+- **Crust** — Whether the Split tool also leaves oceanic crust between the ridge
+  and each half. Shown beside Ridge while the Split tool is active, greyed out
+  while Ridge is off, on to start with, and remembered between sessions; see
+  [The crust](#the-crust).
 
 Which of Draw, Circle and Topology is offered follows the selected feature's
 [type](Properties.md#what-the-type-restricts), which is picked in the Properties
@@ -224,7 +228,7 @@ The Vertex tool edits the geometry of the selected feature on the globe itself.
 The [Properties](Properties.md) panel lists no coordinates, so this is where a
 vertex is moved, inserted or deleted. It is available once a leaf feature holding vertices of its own is
 selected; there is nothing to take hold of otherwise, and a
-[line topology](#line-topologies) borrows every vertex it draws from the
+[line topology](#topologies) borrows every vertex it draws from the
 features its sections run along.
 
 | Input | Action |
@@ -307,9 +311,10 @@ bar, since the parts of one feature are all of one kind. Pasting into a feature
 that holds the same kind appends another part, so the same shape can be laid
 down twice and the second copy moved off the first.
 
-A [line topology](#line-topologies) has no vertices of its own, but Copy Shape
-takes what its sections resolve to at the current time, one run per section.
-That is the way to turn a boundary into a polyline someone can edit.
+A [topology](#topologies) has no vertices of its own, but Copy Shape takes
+what its sections resolve to at the current time: one run per section, a
+polyline, or for a closed topology the one ring it is drawn as, a polygon.
+That is the way to turn a boundary into a shape someone can edit.
 
 The shape is held by the application rather than by the system clipboard, which
 Copy and Paste use for whole features. Copying a shape therefore leaves the
@@ -407,7 +412,11 @@ A cut is refused, with the reason in the status bar, when:
 A refused cut keeps its points, so the one at fault can be taken back with
 Ctrl+Z. A cut that is made records one undo version and goes back to the Move
 tool, with the first half selected. The status bar names what the cut left
-behind, `Split into Laurentia, Laurentia 2, Laurentia ridge`.
+behind, `Split into Laurentia, Laurentia 2, Laurentia ridge, Laurentia crust,
+Laurentia 2 crust`.
+
+Each half's ring starts with the cut: its first vertices are the two ends and
+the points between them, which is how the crust names that stretch.
 
 ### The ridge
 
@@ -432,7 +441,25 @@ features away together. Deleting a half afterwards leaves the span with a parent
 that cannot be followed, drawn in the warning color like a missing parent
 anywhere else, and undo mends it.
 
-With the switch off the cut leaves the two halves and nothing else.
+With the switch off the cut leaves the two halves and nothing else, and the
+Crust switch is greyed out.
+
+### The crust
+
+With **Crust** on as well, which is how it starts, the cut also leaves the sea
+floor that opens between the ridge and each half as they drift apart. These are
+two [closed topologies](#closed-topologies), `Laurentia crust` and
+`Laurentia 2 crust`, placed after the ridge, with the ridge's time range and
+colored steel blue. Each has two sections: the half's cut edge, from the first
+vertex of its ring to the last point of the cut, and the whole ridge, walked
+from the end the cut edge stops at, so the ring runs out along the half and
+back along the ridge.
+
+At the age of the cut both runs lie on the same line, so each crust encloses
+nothing and draws nothing. As the time moves towards the present the halves
+drift, the ridge stays midway, and each crust opens between its half's edge
+and the ridge. The crust is rebuilt with the other topologies at every time
+change, and it is part of the split's one undo version.
 
 The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
 operation with no points between the ends, and `GeometryEdit` works both out
@@ -564,7 +591,7 @@ polylines:
 
 The oldest vertex is the farthest from the hotspot and the youngest is on it.
 The track depends on the plate and on the time, so it is rebuilt the way a
-[line topology](#line-topologies) is: before the geometry is collected and at
+[topology](#topologies) is: before the geometry is collected and at
 every time change.
 
 Picking Hotspot in the Type selector of an empty feature builds the mark at
@@ -585,9 +612,9 @@ The file keeps the rings as well as the three values, so an older reader and
 the Python side see two polylines. On load the values win and the track is
 rebuilt; see [Persistence](Persistence.md#hotspots).
 
-## Line topologies
+## Topologies
 
-A **line topology** is a feature whose geometry is borrowed rather than drawn: a
+A **topology** is a feature whose geometry is borrowed rather than drawn: a
 list of **sections**, each naming another feature, a range of that feature's
 vertices and which way round to walk them. A plate boundary is the usual one —
 it runs along the edges of the plates on either side of it, so it should move
@@ -597,7 +624,8 @@ Nothing about it is stored as vertices. Every time the tree or the current time
 changes, `Logic/topology.gd` finds the features the sections name, takes the
 runs of vertices they cover and carries them through the rotation those features
 have then. What comes out is what is drawn, hit tested and measured, so from
-there on a topology is a polyline like any other.
+there on a topology is a polyline like any other, or a polygon when it is
+[closed](#closed-topologies).
 
 That is also why a topology has **no motion of its own** and no keyframe row
 in the [Properties](Properties.md) panel: where it is comes from the features
@@ -647,9 +675,27 @@ of itself — which is what undo, redo and every reload do; see
 
 ### The gap between two sections
 
-Each section becomes a **part of its own**, so nothing is drawn between the end
-of one and the start of the next. A line topology is the stretches it names, and
-a segment across the gap is one no feature ever drew.
+Each section of an open topology becomes a **part of its own**, so nothing is
+drawn between the end of one and the start of the next. An open topology is the
+stretches it names, and a segment across the gap is one no feature ever drew.
+
+### Closed topologies
+
+The **Closed** switch in the [Properties](Properties.md#the-section-table)
+panel joins the sections into one ring, which is drawn, filled, hit tested and
+measured as a polygon, with its area in the Geometry row. Turning it on or off
+is one undo version.
+
+The runs go in section order, each one walked the way its section says. Where
+the end of one run is the start of the next, that vertex is kept once, and
+where the last run ends on the first one's start, the ring closes there. Where
+two runs do not meet, the ring goes straight on to the next run, so the gap is
+closed by a chord. Nothing is intersected or trimmed at crossings: each run is
+the vertex range its section names. A broken section adds nothing to the ring
+and stays reported in the section table.
+
+A ring whose vertices all lie on one line, as a [crust](#the-crust) does at the
+age of its split, encloses nothing and draws nothing.
 
 ## The Light tool
 

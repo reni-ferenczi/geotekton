@@ -145,6 +145,7 @@ const HIGHLIGHT_RIDERS_KEY := "highlight_riders"
 @onready var segments_spin: SpinBox = %Segments
 @onready var segments_label: Label = %SegmentsLabel
 @onready var ridge_check: CheckButton = %Ridge
+@onready var crust_check: CheckButton = %Crust
 @onready var projection_selector: OptionButton = %Projection
 @onready var zoom_spin: SpinBox = %Zoom
 @onready var zoom_in_button: Button = %ZoomIn
@@ -340,6 +341,11 @@ func _ready() -> void:
 	snap_button.button_pressed = Config.get_snap_to_vertices()
 	ridge_check.button_pressed = Config.get_split_ridge()
 	ridge_check.toggled.connect(Config.set_split_ridge)
+	crust_check.button_pressed = Config.get_split_crust()
+	crust_check.toggled.connect(Config.set_split_crust)
+	# Crust lies between the ridge and the halves, so there is none without one.
+	crust_check.disabled = not ridge_check.button_pressed
+	ridge_check.toggled.connect(func(on: bool) -> void: crust_check.disabled = not on)
 	# The range and the starting value come from Circle, so the scene does
 	# not carry a second copy of what a circle may be cut into.
 	segments_spin.min_value = Circle.MIN_SEGMENTS
@@ -2008,10 +2014,11 @@ func set_active_tool(tool: Tool) -> void:
 	for entry: Tool in tool_buttons:
 		tool_buttons[entry].button_pressed = entry == tool
 	# Only the Circle tool reads the segment count, and only the Split tool the
-	# Ridge switch, so each shows its own.
+	# Ridge and Crust switches, so each shows its own.
 	segments_label.visible = tool == Tool.CIRCLE
 	segments_spin.visible = tool == Tool.CIRCLE
 	ridge_check.visible = tool == Tool.SPLIT
+	crust_check.visible = tool == Tool.SPLIT
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
@@ -3471,15 +3478,16 @@ func split_along_points() -> String:
 			nearest = distance
 			part = index
 	var ridge := ridge_check.button_pressed
-	var error := document.split_feature_along(feature, part, path, ridge)
+	var crust := ridge and crust_check.button_pressed
+	var error := document.split_feature_along(feature, part, path, ridge, crust)
 	if not error.is_empty():
 		return error
-	# The halves, and the ridge behind them, sit side by side where the polygon
-	# was, so the status bar reads them straight off the tree.
+	# The halves, and the ridge and crust behind them, sit side by side where
+	# the polygon was, so the status bar reads them straight off the tree.
 	var group := features.root.find_parent(feature)
 	var at := group.find_child(feature)
 	var made := PackedStringArray()
-	for child in group.children.slice(at, at + (3 if ridge else 2)):
+	for child in group.children.slice(at, at + 2 + int(ridge) + 2 * int(crust)):
 		made.append(child.title)
 	split_points = PackedVector2Array()
 	features.reload()
@@ -3589,7 +3597,7 @@ func _circle_commit() -> String:
 #
 # Which section runs which way, and which vertices of a feature a section
 # covers, are set afterwards in the Properties panel; see
-# Docs/Editing.md#line-topologies.
+# Docs/Editing.md#topologies.
 
 
 func _on_topology_input(lat: float, lon: float, event: InputEvent) -> void:

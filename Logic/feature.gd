@@ -6,7 +6,8 @@ class_name Feature
 #
 # A topology is the odd one out: it keeps no vertices of its own but a list of
 # sections borrowed from other features, and its rings are resolved from those.
-# It is drawn and hit tested as a polyline; see drawn_as() and Logic/topology.gd.
+# It is drawn and hit tested as a polyline, or as a polygon when it is closed;
+# see drawn_as() and Logic/topology.gd.
 enum GeometryKind { POLYGON, POLYLINE, MULTIPOINT, TOPOLOGY }
 
 # The kind as it appears in a file, and back.
@@ -46,7 +47,7 @@ var pnid: int = -1
 
 # What this node is called in the file, kept across a save and a load. A line
 # topology names the features its sections run along by this, so an id that only
-# lasted one run would not do; see Docs/Editing.md#line-topologies. A duplicate,
+# lasted one run would not do; see Docs/Editing.md#topologies. A duplicate,
 # a paste and a node arriving from a file without one all get a fresh id.
 var uuid: String = ""
 
@@ -89,10 +90,13 @@ var icon: String = FeatureIcon.NONE
 var geometry_kind: GeometryKind = GeometryKind.POLYGON
 var rings: Array[PackedVector2Array] = []
 
-# What a line topology is made of: runs of vertices borrowed from other
+# What a topology is made of: runs of vertices borrowed from other
 # features, in order. Only a topology has any, and a topology has nothing in
 # rings but what Topology.rebuild() resolved these into at the current time.
 var sections: Array[TopologySection] = []
+# Whether a topology joins its sections into one ring and is filled like a
+# polygon. See Topology.rebuild().
+var closed := false
 
 # What a Polar circles feature is built from: the first pole of the axis as
 # (latitude, longitude) in degrees, in the feature's own frame, the radius of
@@ -198,10 +202,12 @@ func kind_name() -> String:
 
 # The kind this feature is drawn, hit tested and measured as. A topology
 # resolves into one run of vertices per section, which is a polyline in every
-# way that matters below this point, so nothing downstream has to know the kind
-# exists at all.
+# way that matters below this point, or into one ring when it is closed, which
+# is a polygon; so nothing downstream has to know the kind exists at all.
 func drawn_as() -> GeometryKind:
-	return GeometryKind.POLYLINE if geometry_kind == GeometryKind.TOPOLOGY else geometry_kind
+	if geometry_kind != GeometryKind.TOPOLOGY:
+		return geometry_kind
+	return GeometryKind.POLYGON if closed else GeometryKind.POLYLINE
 
 
 func minimum_vertices() -> int:
@@ -249,7 +255,7 @@ func vertex_count() -> int:
 # other kinds are drawn and hit tested from their vertices directly.
 func rebuild_triangles() -> void:
 	triangles = PackedVector2Array()
-	if geometry_kind != GeometryKind.POLYGON:
+	if drawn_as() != GeometryKind.POLYGON:
 		return
 
 	for ring in rings:
@@ -326,6 +332,7 @@ func clone() -> Feature:
 	node.icon = icon
 	node.geometry_kind = geometry_kind
 	node.sections = TopologySection.clone_list(sections)
+	node.closed = closed
 	for ring in rings:
 		node.rings.append(ring.duplicate())
 	# Copied rather than recomputed: every undo step clones the whole tree.
@@ -455,6 +462,10 @@ func to_json() -> Variant:
 		# the time moves, so writing them would be writing down a derived value.
 		if geometry_kind == GeometryKind.TOPOLOGY:
 			data["sections"] = TopologySection.list_to_json(sections)
+			# Written only when set, so an open topology reads as it did before
+			# 0.20.0.
+			if closed:
+				data["closed"] = true
 		else:
 			data["rings"] = rings_to_json(rings)
 		data["time_range"] = [time_range.x, time_range.y]
@@ -501,6 +512,7 @@ static func from_json(data: Variant) -> Feature:
 		node.icon = str(data.get("icon", FeatureIcon.NONE))
 		node.geometry_kind = KIND_VALUES.get(data.get("geometry_kind", "polygon"), GeometryKind.POLYGON)
 		node.sections = TopologySection.list_from_json(data.get("sections", []))
+		node.closed = bool(data.get("closed", false))
 		node.rings = rings_from_json(data.get("rings", []))
 		node.rebuild_triangles()
 		var tr: Array = data.get("time_range", [0, 2000])

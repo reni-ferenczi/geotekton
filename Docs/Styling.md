@@ -29,7 +29,7 @@ The View menu carries one check item per class of geometry:
 | Polylines | A feature holding polyline rings, hotspots included |
 | Points | A multipoint |
 | Circles | A feature whose type is `circle`, whatever geometry it holds |
-| Topologies | A [line topology](Editing.md#line-topologies) |
+| Topologies | A [line topology](Editing.md#topologies) |
 
 A feature belongs to **exactly one** of them. `Styling.class_of()` decides in
 that order: a topology by the geometry it holds, then a circle by its feature

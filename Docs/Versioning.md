@@ -43,7 +43,8 @@ Earth, so it looks as it did; and 0.18.0 gave a leaf the axis, radius and segmen
 count of polar circles, and a leaf without them is some other type, so it reads a
 0.17.0 file as it stands; and 0.19.0 gave a leaf the place, plate and track step
 of a hotspot, which a 0.18.0 leaf does not have either, so that file too is read
-as it stands.
+as it stands; and 0.20.0 let a topology be closed, and a topology without the
+flag is open, so a 0.19.0 file is read as it stands as well.
 
 The first public release will have major version 1.
 

@@ -175,6 +175,16 @@ static func set_split_ridge(enabled: bool) -> void:
 	set_value("split_ridge", enabled)
 
 
+# Whether the Split tool leaves oceanic crust between the ridge and each half.
+# A switch beside Ridge, which does nothing while Ridge is off.
+static func get_split_crust() -> bool:
+	return bool(get_value("split_crust", true))
+
+
+static func set_split_crust(enabled: bool) -> void:
+	set_value("split_crust", enabled)
+
+
 # How wide a picture File > Export Image writes. The height follows from the
 # projection, so this one number settles the size of every export. The default
 # is large enough to print and the bounds are what a viewport can be asked for.

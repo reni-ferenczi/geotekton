@@ -20,7 +20,7 @@ selecting one deselects the others.
 The Draw button is **disabled** when no leaf feature is selected, that is when a
 group or nothing is selected, and when the selected feature's type is drawn with
 another tool: a Circle with the [Circle tool](Editing.md#the-circle-tool) and a
-Topology with the [Topology tool](Editing.md#line-topologies).
+Topology with the [Topology tool](Editing.md#topologies).
 
 If a newly selected feature has **no geometry** yet, the tool its type is drawn
 with is activated to streamline the workflow.

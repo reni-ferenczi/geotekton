@@ -356,7 +356,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true}
 
 		"sections":
-			# The section table of a line topology: pick a row, then press one of
+			# The section table of a topology: pick a row, then press one of
 			# its buttons.
 			if request.has("index"):
 				app.properties.select_section(int(request["index"]))
@@ -621,6 +621,9 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"split_points": _points_to_json(app.split_points),
 				"ridge": app.ridge_check.button_pressed,
 				"ridge_visible": app.ridge_check.is_visible_in_tree(),
+				"crust": app.crust_check.button_pressed,
+				"crust_visible": app.crust_check.is_visible_in_tree(),
+				"crust_enabled": not app.crust_check.disabled,
 				"measure_points": _points_to_json(app.measure_points),
 				"measure_label": _measure_label_to_json(),
 				"circle_points": _points_to_json(app.circle_points),
@@ -683,6 +686,11 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			if request.has("ridge"):
 				app.ridge_check.button_pressed = bool(request["ridge"])
 				app.ridge_check.toggled.emit(app.ridge_check.button_pressed)
+			if request.has("crust"):
+				if app.crust_check.disabled:
+					return {"ok": false, "error": "there is no crust without a ridge"}
+				app.crust_check.button_pressed = bool(request["crust"])
+				app.crust_check.toggled.emit(app.crust_check.button_pressed)
 			await _frames(2)
 			return {"ok": true}
 
@@ -1279,7 +1287,7 @@ func _feature_to_json(feature: Feature) -> Variant:
 	return data
 
 
-# What a line topology names and what each section came to at the current time,
+# What a topology names and what each section came to at the current time,
 # so a run can read a broken section without looking at the panel.
 func _sections_to_json(feature: Feature, time: float) -> Array:
 	var resolved := Topology.resolve(app.document.root, feature, time)

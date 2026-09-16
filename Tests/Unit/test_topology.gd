@@ -1,6 +1,6 @@
 extends TestCase
 
-# Line topologies: a feature whose geometry is a list of sections borrowed from
+# Topologies: a feature whose geometry is a list of sections borrowed from
 # other features, resolved at a time. What is checked here is the resolution
 # itself and what a file makes of it, without a window.
 #
@@ -296,3 +296,92 @@ func test_the_tree_says_whether_it_holds_a_topology() -> void:
 	assert_true(Topology.holds_any(root), "the fixture holds one")
 	root.children.remove_at(1)
 	assert_true(not Topology.holds_any(root), "and does not once it is taken out")
+
+
+### Closed topologies
+
+
+const NORTH_BACK := [Vector2(20, 30), Vector2(20, 0)]
+const CAP := [Vector2(0, 30), Vector2(20, 30), Vector2(20, 0), Vector2(0, 0)]
+
+
+# Root > West, the second line, and a closed topology running along the whole of
+# West and then the whole of the second.
+func _closed_tree(second: Array) -> Feature:
+	var root := Feature.create_group("Planet")
+	root.is_root = true
+	var west := Feature.create_feature("West")
+	west.add_ring(west_ring(), Feature.GeometryKind.POLYLINE)
+	root.children.append(west)
+	var other := Feature.create_feature("Other")
+	other.add_ring(PackedVector2Array(second), Feature.GeometryKind.POLYLINE)
+	root.children.append(other)
+	var boundary := Feature.create_feature("Boundary")
+	boundary.feature_type = "topology"
+	boundary.geometry_kind = Feature.GeometryKind.TOPOLOGY
+	boundary.closed = true
+	boundary.sections = [
+		TopologySection.whole_part(west, 0),
+		TopologySection.whole_part(other, 0),
+	]
+	root.children.append(boundary)
+	Topology.rebuild(root, boundary, 0.0)
+	return root
+
+
+func test_a_closed_topology_whose_sections_meet_is_one_ring_joined_once() -> void:
+	var boundary := _closed_tree(CAP).children[2]
+	assert_eq(boundary.drawn_as(), Feature.GeometryKind.POLYGON, "drawn as a polygon")
+	assert_eq(boundary.rings.size(), 1, "one ring")
+	assert_eq(boundary.rings[0], PackedVector2Array([Vector2(0, 0), Vector2(0, 10),
+		Vector2(0, 20), Vector2(0, 30), Vector2(20, 30), Vector2(20, 0)]),
+		"the shared vertex where the runs meet and the one where the ring closes are there once")
+	assert_eq(boundary.triangles.size(), 4 * 3, "a ring of six is four triangles")
+	assert_true(Measure.geometry_area(boundary) > 0.0, "and it has an area")
+
+
+func test_a_closed_topology_whose_sections_do_not_meet_is_closed_by_chords() -> void:
+	var boundary := _closed_tree(NORTH_BACK).children[2]
+	assert_eq(boundary.rings.size(), 1, "one ring")
+	assert_eq(boundary.rings[0].size(), WEST.size() + NORTH_BACK.size(), "every vertex once")
+	assert_true(not boundary.triangles.is_empty(), "filled")
+	# Twenty by thirty degrees at the equator, about 7.3 million square km and a
+	# little more, since the northern chord bows towards the pole.
+	assert_close(Measure.geometry_area(boundary), 7.5e6, 0.4e6, "the area between the lines")
+
+
+func test_a_closed_topology_along_one_line_and_back_encloses_nothing() -> void:
+	var back := WEST.duplicate()
+	back.reverse()
+	var boundary := _closed_tree(back).children[2]
+	assert_eq(boundary.rings[0].size(), 6, "out along the line and back")
+	assert_close(Measure.geometry_area(boundary), 0.0, 1e-3, "no area")
+
+
+func test_the_closed_flag_round_trips() -> void:
+	var root := _closed_tree(CAP)
+	var boundary: Feature = root.children[2]
+	var data: Dictionary = boundary.to_json()
+	assert_eq(data.get("closed"), true, "written")
+	assert_true(Feature.from_json(data).closed, "read back")
+	assert_true(boundary.clone().closed, "and cloned")
+	boundary.closed = false
+	assert_true(not boundary.to_json().has("closed"), "an open topology writes no key")
+	assert_true(not Feature.from_json(boundary.to_json()).closed, "and reads back open")
+
+
+func test_closing_a_topology_is_one_version_and_copies_as_one_polygon() -> void:
+	var document := Document.new()
+	document.root = _closed_tree(CAP)
+	document.root.children[2].closed = false
+	document.record()
+	var boundary: Feature = document.root.children[2]
+	var versions := document.applied
+	assert_eq(document.set_topology_closed(boundary, true), "")
+	assert_eq(document.applied, versions + 1, "one version")
+	assert_eq(boundary.rings.size(), 1, "rebuilt at once")
+	var shape := document.shape_of(boundary)
+	assert_eq(shape["kind"], Feature.GeometryKind.POLYGON, "Copy Shape takes a polygon")
+	assert_eq(shape["rings"].size(), 1, "of one ring")
+	assert_true(not document.set_topology_closed(document.root.children[0], true).is_empty(),
+		"a line cannot be closed")

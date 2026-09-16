@@ -53,7 +53,7 @@ const TO_TOOLTIP := "The age it disappears at; 0 is the present"
 const STYLE_TOOLTIP := ("Same as parent colors the features the way the group above does; "
 	+ "Feature colour and the others decide for themselves")
 
-# The columns of the section table of a line topology: the feature the section
+# The columns of the section table of a topology: the feature the section
 # runs along, the vertices of it the section covers, counted from one, and which
 # way round it is walked.
 const SECTION_COLUMNS = ["Feature", "From", "To", "Way"]
@@ -103,6 +103,7 @@ var delete_key_button: Button
 var sections: Tree
 var reverse_button: Button
 var remove_section_button: Button
+var closed_check: CheckBox
 var coupled_label: Label
 var decouple_button: Button
 var parent_selector: OptionButton
@@ -124,7 +125,8 @@ var track_step_spin: SpinBox
 # Every row of the form, each a label and the control beside it, and whether a
 # group and a feature have it.
 var _rows: Array[Dictionary] = []
-# The section table and its buttons, which only a line topology has.
+# The Closed switch, the section table and its buttons, which only a topology
+# has.
 var _topology_boxes: Array[Control] = []
 # The keyframe row, label and all, which a feature holding vertices of its own
 # has. A topology has no motion of its own, and a group carries none.
@@ -286,11 +288,19 @@ func _build() -> void:
 	_build_sections(box)
 
 
-# The section table of a line topology: which feature each section runs along,
+# The section table of a topology: which feature each section runs along,
 # which of its vertices, and which way round. The two ends are editable, so a
 # section built by clicking a whole feature can be trimmed to the stretch that
 # belongs to the boundary.
 func _build_sections(box: VBoxContainer) -> void:
+	closed_check = CheckBox.new()
+	closed_check.name = "Closed"
+	closed_check.text = "Closed"
+	closed_check.tooltip_text = "Join the sections into one ring and fill it"
+	closed_check.toggled.connect(_on_closed_toggled)
+	box.add_child(closed_check)
+	_topology_boxes.append(closed_check)
+
 	var heading := Label.new()
 	heading.name = "SectionHeading"
 	heading.text = "Sections"
@@ -611,6 +621,7 @@ func show_node(node_: Feature) -> void:
 			_show_polar_circles()
 		if is_hotspot:
 			_show_hotspot()
+		closed_check.button_pressed = node.closed
 		_fill_sections()
 		_fill_coupling()
 	else:
@@ -629,8 +640,9 @@ func show_time() -> void:
 		return
 	if node.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		_refill_sections()
-	# A hotspot's track has as many vertices as the time leaves samples.
-	if node.is_hotspot():
+	# A hotspot's track has as many vertices as the time leaves samples, and a
+	# closed topology's area follows the features it runs along.
+	if node.is_hotspot() or node.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		geometry_label.text = _geometry_summary(node)
 	_update_keyframes()
 	_update_coupling()
@@ -670,8 +682,11 @@ func _geometry_summary(feature: Feature) -> String:
 		for entry in _resolved_sections():
 			if not str(entry["problem"]).is_empty():
 				broken += 1
-		return "topology, %d section%s%s" % [count, "" if count == 1 else "s",
+		var sections_text := "topology, %d section%s%s" % [count, "" if count == 1 else "s",
 			"" if broken == 0 else ", %d broken" % broken]
+		if not feature.closed:
+			return sections_text
+		return _with_area(sections_text + ", closed", feature)
 	var vertices := feature.vertex_count()
 	var parts := feature.rings.size()
 	var summary := "%s, %d %s in %d %s" % [
@@ -680,6 +695,10 @@ func _geometry_summary(feature: Feature) -> String:
 		parts, "part" if parts == 1 else "parts"]
 	if feature.drawn_as() != Feature.GeometryKind.POLYGON:
 		return summary
+	return _with_area(summary, feature)
+
+
+func _with_area(summary: String, feature: Feature) -> String:
 	var radius := Config.get_planet_radius()
 	var area := Measure.geometry_area(feature, radius)
 	summary += ", " + Measure.format_area(area)
@@ -750,6 +769,18 @@ func _on_section_edited() -> void:
 		_take_back_section(error)
 		return
 	_refill_sections()
+	edited.emit()
+
+
+func _on_closed_toggled(on: bool) -> void:
+	if _filling or node == null or on == node.closed:
+		return
+	var error := document.set_topology_closed(node, on)
+	if not error.is_empty():
+		closed_check.set_pressed_no_signal(node.closed)
+		rejected.emit(error)
+		return
+	geometry_label.text = _geometry_summary(node)
 	edited.emit()
 
 
@@ -1347,6 +1378,8 @@ func to_json() -> Dictionary:
 	if coupled_label.get_parent().visible:
 		data["coupling"] = _coupling_to_json()
 	data["sections"] = _sections_to_json()
+	if closed_check.visible:
+		data["closed"] = closed_check.button_pressed
 	if pick_axis_button.visible:
 		data["polar_circles"] = {
 			"axis": [axis_lat_spin.value, axis_lon_spin.value],
@@ -1490,6 +1523,10 @@ func set_field(field: String, value: Variant) -> String:
 				circle_segments_spin.value = float(value)
 			_filling = false
 			_commit_polar_circles()
+		"closed":
+			if not closed_check.visible:
+				return "only a topology can be closed"
+			closed_check.button_pressed = bool(value)
 		"hotspot", "plate", "track_step":
 			if not pick_hotspot_button.visible:
 				return "only a hotspot has %s" % field

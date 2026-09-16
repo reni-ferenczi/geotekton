@@ -174,7 +174,7 @@ func _readout_text() -> String:
 	if node.is_group:
 		return "A group has no geometry of its own, so there is no place to follow."
 	if node.geometry_kind == Feature.GeometryKind.TOPOLOGY:
-		return "A line topology is resolved from the features its sections run along, so it has no motion of its own."
+		return "A topology is resolved from the features its sections run along, so it has no motion of its own."
 	if _samples.is_empty():
 		return "%s has no geometry yet." % node.title
 
