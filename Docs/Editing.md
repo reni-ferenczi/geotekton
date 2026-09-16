@@ -92,6 +92,22 @@ the [Properties](Properties.md) panel, so the colour is picked where it is
 shown; a right click puts the colour back to the one the feature's type gives.
 Everything else about a feature is edited in the Properties panel.
 
+Dragging a row moves the feature or group. Where it lands depends on the part
+of the row the pointer is over when the button is released, and the tree marks
+that part while the drag is on:
+
+- the band at the top of a row: before that row, next to it in the same group;
+- the band at the bottom of a row: after that row, next to it in the same group.
+  This is the same for a feature, a collapsed group and an expanded group, so
+  the band under a group's row is how an item leaves that group;
+- the middle of a group's row: into that group, as its last item;
+- the middle of a feature's row: after that feature;
+- the empty space under the rows, or the Planet row: the end of the top level.
+
+To put an item first in an open group, drop it on the band at the top of the
+group's first row. A group cannot be dropped into itself or anything under it.
+A move is one undo step.
+
 The feature selected in the tree is highlighted on the planet in yellow:
 
 - a **polygon** gets an outline along its rings;

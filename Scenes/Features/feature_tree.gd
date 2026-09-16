@@ -185,6 +185,10 @@ func _get_drag_data(at_position: Vector2) -> Variant:
 	if node == null or node.is_root:
 		return null
 
+	# The Tree clears the flags when a drop ends, so they are set again for
+	# every drag, here, before the pointer first moves over a row.
+	drop_mode_flags = DROP_MODE_ON_ITEM | DROP_MODE_INBETWEEN
+
 	var preview := Button.new()
 	preview.icon = item.get_icon(0)
 	set_drag_preview(preview)
@@ -197,74 +201,60 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 		return false
 
 	var dragged_node := data.get_metadata(0) as Feature
-
-	var over_item := get_item_at_position(at_position)
-	if over_item == null:
-		over_item = get_root()
-
-	var over_node := over_item.get_metadata(0) as Feature
+	var over_node := _node_at(at_position)
 	if over_node == null:
 		return false
 
-	if dragged_node.is_group:
-		if dragged_node.contains_node_at_any_depth(over_node):
-			return false
-
-	drop_mode_flags = DROP_MODE_ON_ITEM | DROP_MODE_INBETWEEN
-	return true
+	# A group cannot go into itself or anything under it.
+	return not (dragged_node.is_group and dragged_node.contains_node_at_any_depth(over_node))
 
 
+# Where a drop puts the dragged node, by the part of the row it lands on:
+# - the band above a row: before that row, as its sibling;
+# - the band below a row: after that row, as its sibling, whether the row is a
+#   leaf, a collapsed group or an expanded group;
+# - the middle of a group row: into that group, at the end;
+# - the middle of a leaf row: after that leaf;
+# - empty space, or anywhere on the root row: at the end of the root.
 func _drop_data(at_position: Vector2, data: Variant) -> void:
 	if data is not TreeItem:
 		return
 
 	var dragged_node := data.get_metadata(0) as Feature
-
-	var over_item := get_item_at_position(at_position)
-	if over_item == null:
-		over_item = get_root()
-
-	# -1: before item, 0: on item, 1: after item
-	var drop_position := get_drop_section_at_position(at_position)
-	if drop_position == -100:
-		drop_position = 0
-		over_item = get_root()
-
-	var over_node := over_item.get_metadata(0) as Feature
-	if over_node == null:
+	var over_node := _node_at(at_position)
+	if over_node == null or over_node == dragged_node:
 		return
 
 	var from_parent := root.find_parent(dragged_node)
 	if from_parent == null:
 		return
 
-	var from_index := from_parent.find_child(dragged_node)
-
-	if over_node.is_group and drop_position != -1:
-		from_parent.children.remove_at(from_index)
-		if drop_position == 0:
-			over_node.children.append(dragged_node)
-		else:
-			over_node.children.insert(0, dragged_node)
-		collapse(over_node, false)
-		program_changed.emit()
-		return
-
-	var to_parent := root.find_parent(over_node)
+	# -1: the band above the row, 0: its middle, 1: the band below it, and 2 the
+	# same band on a row that has children, which Godot means as "first child"
+	# and this tree takes as "after the row", like 1.
+	var section := get_drop_section_at_position(at_position)
+	var into := over_node.is_root or (over_node.is_group and section == 0)
+	var to_parent := over_node if into else root.find_parent(over_node)
 	if to_parent == null:
 		return
 
-	var to_index := to_parent.find_child(over_node)
-	from_parent.children.remove_at(from_index)
-	if drop_position == 1:
-		if to_index + 1 < to_parent.child_count():
-			to_parent.children.insert(to_index, dragged_node)
-		else:
-			to_parent.children.append(dragged_node)
-	else:
-		to_parent.children.insert(to_index, dragged_node)
+	# The index is taken after the removal, so "after" is after the row even
+	# when the dragged node sat above it in the same group.
+	from_parent.children.erase(dragged_node)
+	var to_index := to_parent.child_count()
+	if not into:
+		to_index = to_parent.find_child(over_node) + (0 if section == -1 else 1)
+	to_parent.children.insert(to_index, dragged_node)
 	collapse(to_parent, false)
 	program_changed.emit()
+
+
+# The node of the row under a point, the root when the point is below the rows.
+func _node_at(at_position: Vector2) -> Feature:
+	var item := get_item_at_position(at_position)
+	if item == null:
+		return root
+	return item.get_metadata(0) as Feature
 
 
 func _on_item_selected() -> void:
