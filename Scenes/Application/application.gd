@@ -2678,7 +2678,13 @@ func _input(event: InputEvent) -> void:
 		return
 	if _typing():
 		return
-	if _hotkey(key):
+	# Delete belongs to the vertex in hand ahead of Edit > Delete, whose
+	# accelerator would otherwise take the whole feature.
+	if key.keycode == KEY_DELETE and active_tool == Tool.VERTEX \
+			and vertex_in_hand() != NO_VERTEX:
+		_report(delete_selected_vertex())
+		get_viewport().set_input_as_handled()
+	elif _hotkey(key):
 		get_viewport().set_input_as_handled()
 
 
@@ -2749,9 +2755,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			else:
 				return
 		Tool.VERTEX:
-			if event.keycode == KEY_DELETE:
-				_report(delete_selected_vertex())
-			elif event.keycode == KEY_S:
+			if event.keycode == KEY_S:
 				_report(hold_split_from() if event.shift_pressed
 					else split_at_selected_vertex())
 			elif event.keycode == KEY_ESCAPE:
@@ -2992,8 +2996,22 @@ func _on_vertex_input(lat: float, lon: float, event: InputEvent) -> void:
 		return
 
 	var screen: Variant = planet_view.latlon_to_screen(lat, lon)
-	if screen != null:
+	if screen == null:
+		return
+	if event.ctrl_pressed:
+		_vertex_ctrl_press(feature, screen)
+	else:
 		_vertex_press(feature, screen)
+
+
+# Ctrl+press takes out the vertex under the pointer the way Delete does, and
+# does nothing anywhere else.
+func _vertex_ctrl_press(feature: Feature, screen: Vector2) -> void:
+	var own := _vertices_on_screen(feature)
+	var picked := GeometryEdit.nearest_point(own[0], screen, VERTEX_PICK_PIXELS)
+	if picked >= 0:
+		hovered_vertex = own[1][picked]
+		_report(delete_selected_vertex())
 
 
 # A press takes hold of the vertex under the pointer, or failing that puts a new
