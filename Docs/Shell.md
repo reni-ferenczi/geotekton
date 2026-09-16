@@ -17,18 +17,22 @@ two are asked for from the View menu when they are wanted, since they take their
 height off the planet view; once shown, they are remembered like the rest.
 
 The two splitters start at 576 px for the feature tree and 320 px for the
-properties panel. The feature tree is the wider of the two because its toolbar
-sets the floor: twelve buttons and four separators in one `HBoxContainer` that
-never wraps, so a `SplitContainer` cannot give the panel less than they need.
-That comes to 526 px. The offset was set to the 576 px the toolbar needed while
-it still had an Info button, and it has not been changed, so the layout stays
-as it was. Making the toolbar take less (wrapping it, scrolling it, a denser
-icon size, or moving the rare buttons into a menu) is what it would take to
-narrow the panel further; see GP-0019.
+properties panel, and either can be dragged narrower to give the planet more
+room. A `SplitContainer` never gives a panel less than its content asks for, so
+each panel has a floor:
 
-The middle column has the same floor for the same reason, and its wider row is
-the [view toolbar](Editing.md#the-view-toolbar) rather than the tools: the two
-panels and that row together are what the window has to be wide enough for.
+| Panel | Floor | What sets it |
+| --- | --- | --- |
+| Feature tree | 200 px | the tree itself; the toolbar above it is an `HFlowContainer`, so its buttons wrap onto more lines instead of widening the panel |
+| Properties | 220 px | `CONTENT_WIDTH` in `properties.gd`; see [Properties](Properties.md) |
+
+The toolbar's twelve buttons and four separators take 526 px on one line. The
+starting 576 px is left over from when the toolbar was wider, and keeping it
+keeps the layout the golden references show.
+
+The middle column has a floor too, and its widest row is the
+[view toolbar](Editing.md#the-view-toolbar) at about 670 px. With both side
+panels at their floors an 1800 px window leaves the column well over that.
 
 ## Menus
 
