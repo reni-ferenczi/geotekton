@@ -30,6 +30,7 @@ shader_parameter/width = Vector2(0.015, 0.015)
 shader_parameter/split = Vector2(24, 12)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ip3qi"]
+blend_mode = 1
 albedo_texture = ExtResource("3_4ilve")
 metallic_specular = 0.0
 
