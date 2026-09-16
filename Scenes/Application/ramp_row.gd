@@ -22,6 +22,7 @@ var span_spin: SpinBox
 
 var _colors: Array[Color] = []
 var _pickers: HBoxContainer
+var _rebuild_pending := false
 
 # The colours of the ramp, oldest last. Fewer than two is no ramp at all, so
 # anything shorter comes back as the default one.
@@ -57,7 +58,21 @@ func _init(max_span: float, span_suffix: String = "") -> void:
 
 # The pickers as the colours stand. Rebuilt rather than added to, so the − on
 # each colour past the second is where it belongs however many there are.
+#
+# Rebuilt a frame later rather than at once. What asks for a rebuild is a
+# signal of one of the widgets about to be replaced: a + or − being pressed, or
+# a picker's popup closing, which commits the style and has the panel set the
+# colours again. Freeing that widget while the viewport is still delivering the
+# event to it crashes the engine.
 func _rebuild() -> void:
+	if _rebuild_pending:
+		return
+	_rebuild_pending = true
+	_rebuild_now.call_deferred()
+
+
+func _rebuild_now() -> void:
+	_rebuild_pending = false
 	for child in _pickers.get_children():
 		_pickers.remove_child(child)
 		child.queue_free()
@@ -82,9 +97,8 @@ func _rebuild() -> void:
 		func() -> void: _colors.append(_colors[-1])))
 
 
-# A button that changes the list of colours, rebuilds the row and reports the
-# edit. The row it is in is freed by the rebuild, which is why `change` runs
-# first.
+# A button that changes the list of colours, asks for the rebuild and reports
+# the edit. The rebuild replaces the button itself, a frame later.
 func _button(button_name: String, text_: String, tooltip: String, change: Callable) -> Button:
 	var button := Button.new()
 	button.name = button_name
