@@ -165,17 +165,6 @@ static func set_snap_to_vertices(enabled: bool) -> void:
 	set_value("snap_to_vertices", enabled)
 
 
-# Whether the Circle tool commits a circle as an outline, a polyline, rather
-# than a polygon. A switch beside the segment count while that tool is active,
-# and the kind of choice someone makes once and keeps.
-static func get_circle_outline() -> bool:
-	return bool(get_value("circle_outline", false))
-
-
-static func set_circle_outline(enabled: bool) -> void:
-	set_value("circle_outline", enabled)
-
-
 # Whether the Split tool leaves a ridge along the cut. A switch beside the Split
 # button while that tool is active, on unless someone turns it off.
 static func get_split_ridge() -> bool:

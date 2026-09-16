@@ -29,11 +29,14 @@ const NONE_COLOR := Color.CHOCOLATE
 
 # Id to name, allowed geometry kinds and default colour, in the order the type
 # selector lists them.
+# The first kind is the one an empty feature of the type is drawn as. A Circle
+# is a polyline; it still allows a polygon, so a filled circle from an older file
+# reads back as a Circle.
 const CATALOG := {
 	"polygon": {"name": "Polygon", "kinds": ["polygon"], "color": Color.CHOCOLATE},
 	"line": {"name": "Line", "kinds": ["polyline"], "color": Color.CRIMSON},
 	"points": {"name": "Points", "kinds": ["multipoint"], "color": Color.GOLD},
-	CIRCLE: {"name": "Circle", "kinds": ["polygon", "polyline"], "color": Color.DARK_TURQUOISE},
+	CIRCLE: {"name": "Circle", "kinds": ["polyline", "polygon"], "color": Color.DARK_TURQUOISE},
 	"topology": {"name": "Topology", "kinds": ["topology"], "color": Color.MEDIUM_PURPLE},
 }
 

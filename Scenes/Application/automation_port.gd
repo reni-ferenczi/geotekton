@@ -624,7 +624,6 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"circle": _circle_to_json(),
 				"segments": app.circle_segments(),
 				"segments_visible": app.segments_spin.is_visible_in_tree(),
-				"outline": app.outline_check.button_pressed,
 				"draw_enabled": not app.draw_button.disabled,
 				"circle_enabled": not app.circle_button.disabled,
 				"topology_enabled": not app.topology_button.disabled,
@@ -678,9 +677,6 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			if request.has("snap"):
 				app.snap_button.button_pressed = bool(request["snap"])
 				app.snap_button.toggled.emit(app.snap_button.button_pressed)
-			if request.has("outline"):
-				app.outline_check.button_pressed = bool(request["outline"])
-				app.outline_check.toggled.emit(app.outline_check.button_pressed)
 			if request.has("ridge"):
 				app.ridge_check.button_pressed = bool(request["ridge"])
 				app.ridge_check.toggled.emit(app.ridge_check.button_pressed)
