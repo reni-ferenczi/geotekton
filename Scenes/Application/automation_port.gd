@@ -745,6 +745,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"default_view": Config.get_default_view(),
 				"view_defaults": Config.get_view_defaults().to_json(),
 				"planet_radius_km": Config.get_planet_radius(),
+				"planet_area_km2": Measure.planet_area(Config.get_planet_radius()),
+				"planet_area_label": app.planet_area_label.text,
 				"vertex_marker_scale": Config.get_vertex_marker_scale(),
 				"line_width_scale": Config.get_line_width_scale(),
 				"export_width": Config.get_export_width(),

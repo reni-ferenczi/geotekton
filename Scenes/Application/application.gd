@@ -231,6 +231,8 @@ var error_dialog: AcceptDialog
 var restore_session_check: CheckBox
 var default_folder_edit: LineEdit
 var radius_spin: SpinBox
+# The planet's surface under the radius box, following the box as it changes.
+var planet_area_label: Label
 var marker_spin: SpinBox
 var line_spin: SpinBox
 var export_width_spin: SpinBox
@@ -1306,6 +1308,12 @@ func _build_preferences_content() -> Control:
 
 	radius_spin = _form_spin(form, "PlanetRadius", "Planet radius (km)",
 		Measure.MIN_RADIUS_KM, Measure.MAX_RADIUS_KM, 1.0)
+	form.add_child(Control.new())
+	planet_area_label = Label.new()
+	planet_area_label.name = "PlanetArea"
+	form.add_child(planet_area_label)
+	radius_spin.value_changed.connect(func(radius: float) -> void:
+		planet_area_label.text = "Surface area %s" % Measure.format_area(Measure.planet_area(radius)))
 	marker_spin = _form_spin(form, "VertexMarkerScale", "Vertex marker size",
 		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
 	line_spin = _form_spin(form, "LineWidthScale", "Outline line width",
@@ -1800,6 +1808,7 @@ func _on_preferences_confirmed() -> void:
 	Config.set_ffmpeg(ffmpeg_edit.text.strip_edges())
 	_apply_outline_scale()
 	_show_measurement()
+	properties.show_radius()
 	_apply_python_preferences()
 
 
@@ -3687,8 +3696,13 @@ func _show_measurement(error: String = "") -> void:
 
 	var selected := features.feature_tree.get_selected_node()
 	var length := Measure.geometry_length(selected, radius)
-	status_measure.text = "" if length <= 0.0 else "%s along %s" % [
-		Measure.format_km(length), selected.title]
+	if length <= 0.0:
+		status_measure.text = ""
+	elif selected.drawn_as() == Feature.GeometryKind.POLYGON:
+		status_measure.text = "%s around %s, %s" % [Measure.format_km(length), selected.title,
+			Measure.format_area(Measure.geometry_area(selected, radius))]
+	else:
+		status_measure.text = "%s along %s" % [Measure.format_km(length), selected.title]
 
 
 ### Vertices on screen

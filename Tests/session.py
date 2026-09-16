@@ -10,6 +10,7 @@ Usage:
 """
 
 import colorsys
+import itertools
 import json
 import math
 import re
@@ -3032,6 +3033,73 @@ def run_measure_session(client: AutomationClient) -> None:
     client.call("set_preferences", preferences={"planet_radius_km": EARTH_RADIUS_KM})
 
 
+# A square of ten degrees on the equator, in the middle of the default view.
+AREA_SQUARE = [(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0)]
+
+
+def ring_area(ring: list[list[float]], radius: float) -> float:
+    """The smaller side of a ring on a sphere, as Measure.ring_area works it out."""
+    def unit(lat: float, lon: float) -> tuple[float, float, float]:
+        lat, lon = math.radians(lat), math.radians(lon)
+        return math.cos(lat) * math.cos(lon), math.sin(lat), math.cos(lat) * math.sin(lon)
+
+    def dot(u, v) -> float:
+        return sum(x * y for x, y in zip(u, v, strict=True))
+
+    a, *rest = [unit(*vertex) for vertex in ring]
+    excess = 0.0
+    for b, c in itertools.pairwise(rest):
+        triple = dot(a, (b[1] * c[2] - b[2] * c[1], b[2] * c[0] - b[0] * c[2], b[0] * c[1] - b[1] * c[0]))
+        excess += 2.0 * math.atan2(triple, 1.0 + dot(a, b) + dot(b, c) + dot(c, a))
+    excess = abs(excess)
+    return min(excess, 4.0 * math.pi - excess) * radius * radius
+
+
+def format_area(km2: float) -> str:
+    """An area the way Measure.format_area writes it."""
+    if km2 < 1000.0:
+        return f"{km2:.1f} km²"
+    if km2 < 1e6:
+        return f"{km2:,.0f} km²".replace(",", "\u2009")
+    return f"{km2 / 1e6:.2f} million km²"
+
+
+def run_area_session(client: AutomationClient) -> None:
+    """The area of a drawn polygon and of the planet, read against the radius preference."""
+    start_new_document(client)
+    ring = add_drawn(client, "Square", AREA_SQUARE)
+    for radius in (EARTH_RADIUS_KM, 3000.0):
+        client.call("set_preferences", preferences={"planet_radius_km": radius})
+        wanted = ring_area(ring, radius)
+        panel = client.call("get_properties")["properties"]
+        check(math.isclose(panel["area_km2"], wanted, rel_tol=1e-4),
+              f"the panel reports the square's area at {radius} km: {panel['area_km2']}, {wanted}")
+        shown = format_area(panel["area_km2"])
+        check(panel["geometry"].endswith(f"in 1 part, {shown}, 0.2 % of the planet"),
+              f"and the Geometry row shows it: {panel['geometry']!r}")
+        status = client.call("get_status")["status"]["measure"]
+        check(status.endswith(f" km around Square, {shown}"),
+              f"and so does the status bar: {status!r}")
+
+        planet = format_area(4.0 * math.pi * radius * radius)
+        preferences = client.call("get_preferences")["preferences"]
+        check(math.isclose(preferences["planet_area_km2"], 4.0 * math.pi * radius * radius)
+              and preferences["planet_area_label"] == f"Surface area {planet}",
+              f"the Preferences dialog shows the planet's area: {preferences['planet_area_label']!r}")
+        client.call("select", title=None)
+        panel = client.call("get_properties")["properties"]
+        check(panel["placeholder"].endswith(
+                  f"The planet's radius is {radius:.0f} km and its surface {planet}.")
+              and math.isclose(panel["planet_area_km2"], 4.0 * math.pi * radius * radius),
+              f"and so does the root group: {panel['placeholder']!r}")
+        client.call("select", title="Square")
+    client.call("set_preferences", preferences={"planet_radius_km": EARTH_RADIUS_KM})
+    client.call("select", title=None)
+    placeholder = client.call("get_properties")["properties"]["placeholder"]
+    check("6371 km and its surface 510.06 million km²" in placeholder,
+          f"Earth's radius gives Earth's surface: {placeholder!r}")
+
+
 def run_split_session(client: AutomationClient) -> None:
     """Cutting a polygon in two, with both halves keeping what they were."""
     start_new_document(client)
@@ -4403,6 +4471,7 @@ def main(argv: list[str]) -> int:
         run_snap_session(client)
         run_draw_from_geometry_session(client)
         run_measure_session(client)
+        run_area_session(client)
         run_split_session(client)
         run_split_tool_session(client)
         run_ridge_session(client)
