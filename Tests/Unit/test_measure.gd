@@ -112,6 +112,77 @@ func test_several_parts_are_added_up() -> void:
 		Measure.path_length(first) + Measure.path_length(second), 1e-6)
 
 
+### Areas
+
+
+func test_an_octant_is_an_eighth_of_the_planet() -> void:
+	var octant := PackedVector2Array([Vector2(0, 0), Vector2(0, 90), Vector2(90, 0)])
+	var got := Measure.ring_area(octant)
+	var wanted := Measure.planet_area() / 8.0
+	assert_true(absf(got - wanted) <= wanted * 1e-6, "%s is not %s" % [got, wanted])
+
+
+func test_a_circle_has_the_area_of_its_cap() -> void:
+	var ring := Circle.vertices(Vector2(30, 40), 10.0, 360)
+	var r := Measure.EARTH_RADIUS_KM
+	var cap := TAU * r * r * (1.0 - cos(deg_to_rad(10.0)))
+	var got := Measure.ring_area(ring)
+	assert_true(absf(got - cap) <= cap * 1e-3, "%s is not the cap's %s" % [got, cap])
+	var reversed := ring.duplicate()
+	reversed.reverse()
+	assert_close(Measure.ring_area(reversed), got, got * 1e-9, "the winding does not matter")
+
+
+func test_a_ring_around_the_pole_encloses_the_cap() -> void:
+	var ring := PackedVector2Array()
+	for lon in range(-180, 180):
+		ring.append(Vector2(-82, lon))
+	var r := Measure.EARTH_RADIUS_KM
+	var cap := TAU * r * r * (1.0 - cos(deg_to_rad(8.0)))
+	var got := Measure.ring_area(ring)
+	assert_true(absf(got - cap) <= cap * 1e-3, "%s is not the cap's %s" % [got, cap])
+
+
+func test_a_ring_across_the_date_line() -> void:
+	var across := PackedVector2Array([Vector2(0, 170), Vector2(0, -170), Vector2(10, -170), Vector2(10, 170)])
+	var here := PackedVector2Array([Vector2(0, -10), Vector2(0, 10), Vector2(10, 10), Vector2(10, -10)])
+	assert_close(Measure.ring_area(across), Measure.ring_area(here), 1.0,
+		"the same square on the other side of the planet")
+
+
+func test_the_area_of_each_kind_of_geometry() -> void:
+	var first := PackedVector2Array([Vector2(0, 0), Vector2(0, 10), Vector2(10, 10)])
+	var second := PackedVector2Array([Vector2(-30, 50), Vector2(-30, 60), Vector2(-20, 60)])
+	var polygon := Feature.create_feature("Polygon")
+	polygon.add_ring(first, Feature.GeometryKind.POLYGON)
+	polygon.add_ring(second, Feature.GeometryKind.POLYGON)
+	assert_close(Measure.geometry_area(polygon),
+		Measure.ring_area(first) + Measure.ring_area(second), 1e-3, "two parts add")
+
+	var polyline := Feature.create_feature("Polyline")
+	polyline.add_ring(first, Feature.GeometryKind.POLYLINE)
+	assert_eq(Measure.geometry_area(polyline), 0.0, "a line encloses nothing")
+	assert_eq(Measure.geometry_area(null), 0.0, "and neither does nothing")
+
+
+func test_the_planet_area() -> void:
+	assert_eq(Measure.format_area(Measure.planet_area(6371.0)), "510.06 million km²")
+
+
+func test_an_area_is_written_the_way_the_panels_show_it() -> void:
+	assert_eq(Measure.format_area(0.0), "0.0 km²")
+	assert_eq(Measure.format_area(123.44), "123.4 km²")
+	assert_eq(Measure.format_area(1234.4), "1\u202f234 km²")
+	assert_eq(Measure.format_area(999999.0), "999\u202f999 km²")
+	assert_eq(Measure.format_area(1234567.0), "1.23 million km²")
+
+
+func test_the_share_of_the_planet() -> void:
+	var planet := Measure.planet_area(1000.0)
+	assert_eq(Measure.format_share(planet * 0.002, 1000.0), "0.2\u00a0% of the planet")
+	assert_eq(Measure.format_share(planet * 0.0004, 1000.0), "", "too little to write")
+
+
 ### Along an arc
 
 

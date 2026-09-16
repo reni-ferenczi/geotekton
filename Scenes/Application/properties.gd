@@ -537,10 +537,7 @@ func show_node(node_: Feature) -> void:
 	var is_feature := editable and not node.is_group
 
 	placeholder.visible = not editable
-	if node != null and node.is_root:
-		placeholder.text = "The %s group holds everything and has nothing to edit." % node.title
-	else:
-		placeholder.text = "Nothing is selected."
+	placeholder.text = _root_sentence() if node != null and node.is_root else "Nothing is selected."
 	for row in _rows:
 		var shown: bool = (is_feature and row["on_a_feature"]) \
 			or (editable and node.is_group and row["on_a_group"])
@@ -594,6 +591,24 @@ func show_time() -> void:
 	_update_coupling()
 
 
+# The planet radius preference changed: the areas the panel shows are read
+# against it.
+func show_radius() -> void:
+	if node == null:
+		return
+	if node.is_root:
+		placeholder.text = _root_sentence()
+	elif not node.is_group:
+		geometry_label.text = _geometry_summary(node)
+
+
+func _root_sentence() -> String:
+	var radius := Config.get_planet_radius()
+	return ("The %s group holds everything and has nothing to edit. The planet's radius " +
+		"is %.0f km and its surface %s.") % [
+		node.title, radius, Measure.format_area(Measure.planet_area(radius))]
+
+
 func _type_index(type_id: String) -> int:
 	for index in type_selector.item_count:
 		if type_selector.get_item_metadata(index) == type_id:
@@ -614,10 +629,17 @@ func _geometry_summary(feature: Feature) -> String:
 			"" if broken == 0 else ", %d broken" % broken]
 	var vertices := feature.vertex_count()
 	var parts := feature.rings.size()
-	return "%s, %d %s in %d %s" % [
+	var summary := "%s, %d %s in %d %s" % [
 		feature.kind_name(),
 		vertices, "vertex" if vertices == 1 else "vertices",
 		parts, "part" if parts == 1 else "parts"]
+	if feature.drawn_as() != Feature.GeometryKind.POLYGON:
+		return summary
+	var radius := Config.get_planet_radius()
+	var area := Measure.geometry_area(feature, radius)
+	summary += ", " + Measure.format_area(area)
+	var share := Measure.format_share(area, radius)
+	return summary if share.is_empty() else summary + ", " + share
 
 
 ### The section table
@@ -1174,7 +1196,8 @@ func to_json() -> Dictionary:
 	if node == null:
 		return {"showing": "nothing", "width": size.x}
 	if node.is_root:
-		return {"showing": "root", "placeholder": placeholder.text, "width": size.x}
+		return {"showing": "root", "placeholder": placeholder.text, "width": size.x,
+			"planet_area_km2": Measure.planet_area(Config.get_planet_radius())}
 	var data := {
 		"showing": "group" if node.is_group else "feature",
 		"width": size.x,
@@ -1223,6 +1246,7 @@ func to_json() -> Dictionary:
 	data["time_to"] = int(to_spin.value)
 	data["tooltips"] = {"time_from": from_spin.tooltip_text, "time_to": to_spin.tooltip_text}
 	data["geometry"] = geometry_label.text
+	data["area_km2"] = Measure.geometry_area(node, Config.get_planet_radius())
 	if keyframe_count.get_parent().visible:
 		data["keyframes"] = {
 			"count": keyframe_count.text.to_int(),
