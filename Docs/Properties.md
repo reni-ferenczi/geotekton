@@ -152,7 +152,7 @@ the settings file.
 
 The box beside the color picker is the feature's opacity, from 0 to 100
 percent. It is the alpha of the same color, so it is saved with the color and
-undone with it, and the picker itself leaves the alpha alone. At 0 the Earth
+undone with it, and the picker itself leaves the alpha alone. At 0 the planet
 shows through the feature, which can still be selected by clicking where it is.
 The other styles supply their own color, so the box shows on the globe while
 the group deciding the feature's color is on Feature colour. The opacity of
