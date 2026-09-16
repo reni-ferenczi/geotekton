@@ -99,8 +99,8 @@ func test_the_zoom_buttons_move_by_the_documented_step() -> void:
 	view().zoom_out()
 	assert_close(view().zoom, PlanetView.DEFAULT_ZOOM * PlanetView.ZOOM_STEP, 1e-6,
 		"zooming out divides by it again")
-	view().reset_zoom()
-	assert_eq(view().zoom, PlanetView.DEFAULT_ZOOM, "reset goes back to the whole planet")
+	view().set_zoom(PlanetView.DEFAULT_ZOOM)
+	assert_eq(view().zoom, PlanetView.DEFAULT_ZOOM, "the default zoom is the whole planet")
 
 	view().set_zoom(6.5)
 	assert_close(view().zoom, 6.5, 1e-6, "a zoom set explicitly is the zoom")
@@ -108,7 +108,7 @@ func test_the_zoom_buttons_move_by_the_documented_step() -> void:
 	assert_eq(view().zoom, PlanetView.MAX_ZOOM, "a zoom past the end stops at the end")
 	view().set_zoom(0.0)
 	assert_eq(view().zoom, PlanetView.MIN_ZOOM, "and one before the start at the start")
-	view().reset_zoom()
+	view().set_zoom(PlanetView.DEFAULT_ZOOM)
 
 
 # Zooming in narrows the field of view, so the same stretch of the planet covers
@@ -132,7 +132,7 @@ func test_zooming_in_makes_the_planet_larger() -> void:
 	if zoomed_near != null and zoomed_far != null:
 		assert_true((zoomed_far as Vector2).distance_to(zoomed_near as Vector2) > span * 1.5,
 			"twenty degrees either side of the middle covers much more of the window")
-	view().reset_zoom()
+	view().set_zoom(PlanetView.DEFAULT_ZOOM)
 	await frames(1)
 
 

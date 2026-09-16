@@ -15,7 +15,6 @@
 [ext_resource type="Texture2D" uid="uid://b511xsklgdqqf" path="res://Assets/GodotIcons/NavigationLink3D.svg" id="13_tooltopology"]
 [ext_resource type="Texture2D" uid="uid://366sx70lun28" path="res://Assets/GodotIcons/ZoomLess.svg" id="14_zoomless"]
 [ext_resource type="Texture2D" uid="uid://bher4w8tsqu8o" path="res://Assets/GodotIcons/ZoomMore.svg" id="15_zoommore"]
-[ext_resource type="Texture2D" uid="uid://trlpbx6k11oj" path="res://Assets/GodotIcons/ZoomReset.svg" id="16_zoomreset"]
 [ext_resource type="Texture2D" uid="uid://c57mfqi8mb5ve" path="res://Assets/GodotIcons/RotateLeft.svg" id="17_rotateleft"]
 [ext_resource type="Texture2D" uid="uid://clt0hnssu7kmd" path="res://Assets/GodotIcons/RotateRight.svg" id="18_rotateright"]
 [ext_resource type="Texture2D" uid="uid://bu7s3wqnnfknb" path="res://Assets/GodotIcons/Reload.svg" id="19_reload"]
@@ -260,14 +259,6 @@ min_value = 100
 max_value = 10000
 step = 10
 suffix = "%"
-
-[node name="ZoomReset" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(40, 40)
-layout_mode = 2
-tooltip_text = "Back to the whole planet"
-icon = ExtResource("16_zoomreset")
-expand_icon = true
 
 [node name="CameraSeparator" type="VSeparator" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
 layout_mode = 2

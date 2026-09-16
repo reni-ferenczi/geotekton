@@ -156,10 +156,6 @@ func zoom_out() -> void:
 	set_zoom(zoom / ZOOM_STEP)
 
 
-func reset_zoom() -> void:
-	set_zoom(DEFAULT_ZOOM)
-
-
 # Point the camera back at the middle of the planet, the right way up.
 func reset_camera() -> void:
 	planet.lat = 0.0

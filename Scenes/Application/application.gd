@@ -92,7 +92,6 @@ enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, EXPORT_VIDEO, RU
 	PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, CONSOLE, STATUS_BAR, SETTINGS, FULL_SCREEN }
-enum TimeItem { OLDER, YOUNGER, OLDER_KEYFRAME, YOUNGER_KEYFRAME }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -145,7 +144,6 @@ const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false, ViewItem.CONSOLE: f
 @onready var zoom_spin: SpinBox = %Zoom
 @onready var zoom_in_button: Button = %ZoomIn
 @onready var zoom_out_button: Button = %ZoomOut
-@onready var zoom_reset_button: Button = %ZoomReset
 @onready var camera_latitude_spin: SpinBox = %CameraLatitude
 @onready var camera_longitude_spin: SpinBox = %CameraLongitude
 @onready var rotate_anticlockwise_button: Button = %RotateAnticlockwise
@@ -213,7 +211,6 @@ var scripts_menu: PopupMenu
 var recent_menu: PopupMenu
 var edit_menu: PopupMenu
 var view_menu: PopupMenu
-var time_menu: PopupMenu
 var help_menu: PopupMenu
 # The Edit commands again, on a right click on the globe.
 var globe_menu: PopupMenu
@@ -478,16 +475,6 @@ func _build_menus() -> void:
 	view_menu.add_item("Full Screen", ViewItem.FULL_SCREEN, KEY_F11)
 	view_menu.id_pressed.connect(_on_view_menu_id_pressed)
 
-	# The skips the timeline's < and > buttons make, as menu items so that their
-	# shortcuts work wherever the focus is.
-	time_menu = _add_menu("Time")
-	time_menu.add_item("Skip Older", TimeItem.OLDER, KEY_PAGEUP)
-	time_menu.add_item("Skip Younger", TimeItem.YOUNGER, KEY_PAGEDOWN)
-	time_menu.add_separator()
-	time_menu.add_item("Older Keyframe", TimeItem.OLDER_KEYFRAME, KEY_MASK_CTRL | KEY_PAGEUP)
-	time_menu.add_item("Younger Keyframe", TimeItem.YOUNGER_KEYFRAME, KEY_MASK_CTRL | KEY_PAGEDOWN)
-	time_menu.id_pressed.connect(_on_time_menu_id_pressed)
-
 	help_menu = _add_menu("Help")
 	help_menu.add_item("Documentation", HelpItem.DOCUMENTATION, KEY_F1)
 	help_menu.add_item("About Middle Earth", HelpItem.ABOUT)
@@ -673,14 +660,6 @@ func _on_view_menu_id_pressed(id: int) -> void:
 	_update_view_menu_checks()
 	if not isolated:
 		_save_panel_visibility()
-
-
-func _on_time_menu_id_pressed(id: int) -> void:
-	match id:
-		TimeItem.OLDER: timeline.step(true)
-		TimeItem.YOUNGER: timeline.step(false)
-		TimeItem.OLDER_KEYFRAME: timeline.jump_keyframe(true)
-		TimeItem.YOUNGER_KEYFRAME: timeline.jump_keyframe(false)
 
 
 func _on_help_menu_id_pressed(id: int) -> void:
@@ -2222,7 +2201,6 @@ func _build_view_toolbar() -> void:
 
 	zoom_in_button.pressed.connect(planet_view.zoom_in)
 	zoom_out_button.pressed.connect(planet_view.zoom_out)
-	zoom_reset_button.pressed.connect(planet_view.reset_zoom)
 	zoom_spin.value_changed.connect(
 		func(value: float) -> void: planet_view.set_zoom(value / 100.0))
 
@@ -2748,16 +2726,16 @@ func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 		undo()
 
 
-# Single key shortcuts, taken before the GUI pass rather than after it. A
-# focused Button answers Space itself, so a shortcut left to
-# _unhandled_key_input would press whichever button was last clicked instead of
-# reaching the application.
+# Single key shortcuts and the time keys, taken before the GUI pass rather than
+# after it. A focused Button answers Space itself and a focused Tree scrolls on
+# Page Up, so a shortcut left to _unhandled_key_input would reach whatever was
+# last clicked instead of the application.
 func _input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.is_pressed() or key.is_echo():
 		return
-	# A single key means a single key: Ctrl+S and the rest belong to the menus.
-	if key.ctrl_pressed or key.shift_pressed or key.alt_pressed or key.meta_pressed:
+	# Ctrl+S and the rest belong to the menus; only the time keys take Ctrl.
+	if key.shift_pressed or key.alt_pressed or key.meta_pressed:
 		return
 	if _typing():
 		return
@@ -2765,9 +2743,19 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-# Act on a single key shortcut and say whether it was one: Space for the
-# animation, and a letter for each tool.
+# Act on a shortcut and say whether it was one: Page Up and Page Down for the
+# timeline's < and > buttons, with Ctrl for << and >>, Space for the animation,
+# and a letter for each tool.
 func _hotkey(event: InputEventKey) -> bool:
+	if event.keycode == KEY_PAGEUP or event.keycode == KEY_PAGEDOWN:
+		var older := event.keycode == KEY_PAGEUP
+		if event.ctrl_pressed:
+			timeline.jump_keyframe(older)
+		else:
+			timeline.step(older)
+		return true
+	if event.ctrl_pressed:
+		return false
 	if TOOL_KEYS.has(event.keycode):
 		# A tool the toolbar greys out for what is selected is not armed by its
 		# key either, and the key is still the application's rather than

@@ -423,7 +423,6 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			var view_button: Button = {
 				"zoom_in": app.zoom_in_button,
 				"zoom_out": app.zoom_out_button,
-				"zoom_reset": app.zoom_reset_button,
 				"rotate_clockwise": app.rotate_clockwise_button,
 				"rotate_anticlockwise": app.rotate_anticlockwise_button,
 				"camera_reset": app.camera_reset_button,
@@ -1077,10 +1076,6 @@ func _menu_item(name: String) -> Array:
 		"view_settings": return [app.view_menu, Application.ViewItem.SETTINGS]
 		"full_screen": return [app.view_menu, Application.ViewItem.FULL_SCREEN]
 		"about": return [app.help_menu, Application.HelpItem.ABOUT]
-		"skip_older": return [app.time_menu, Application.TimeItem.OLDER]
-		"skip_younger": return [app.time_menu, Application.TimeItem.YOUNGER]
-		"keyframe_older": return [app.time_menu, Application.TimeItem.OLDER_KEYFRAME]
-		"keyframe_younger": return [app.time_menu, Application.TimeItem.YOUNGER_KEYFRAME]
 	if Styling.CLASSES.has(name):
 		return [app.view_menu, Application.class_menu_id(name)]
 	return []
