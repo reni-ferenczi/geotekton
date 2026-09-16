@@ -15,6 +15,13 @@ catalog lists only what the program treats differently:
 | `topology`      | Topology      | topology          | medium purple  |
 | `polar_circles` | Polar circles | polyline          | spring green   |
 
+The colors in the table are the ones the catalog comes with. The Feature colors
+section of the [Preferences](Shell.md#preferences) dialog can put another color
+in place of any of them, and `FeatureType.color()` answers with whichever is in
+effect. That color is what a feature of the type starts in and goes back to
+below, and what the [Feature type](Styling.md#the-draw-styles) draw style
+paints.
+
 The first kind listed is the one the tools draw into an empty feature of the
 type. The kinds are written as the names the file uses, so the catalog needs nothing
 from `Feature` to be read and says the same words the `geometry_kind` field
@@ -54,9 +61,10 @@ does through an undo that takes the geometry off again.
   none of them, and the Vertex tool is greyed out on them. The other buttons are
   greyed out, and picking a type arms the tool it calls for; see
   [Tools](Editing.md#tools).
-- **The color.** A new feature starts in chocolate. Changing the type changes
-  the color to the new type's default, but only while the color is still the
-  one the old type gave. A color someone picked is never overwritten. Drawing
+- **The color.** A new feature starts in the Polygon color, chocolate unless
+  the preferences say otherwise. Changing the type changes the color to the new
+  type's color, but only while the color is still the one the old type gives.
+  A feature keeps the color it holds when the preferences change. A color someone picked is never overwritten. Drawing
   the first shape leaves the color alone.
 - **The class.** A Circle and Polar circles are switched on and off with the circles in the View
   menu rather than with the polygons or the polylines; see

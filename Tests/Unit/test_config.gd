@@ -147,3 +147,21 @@ func test_the_ffmpeg_path_is_remembered_as_it_was_typed() -> void:
 	Config.set_ffmpeg("")
 	assert_eq(Config.get_ffmpeg(), "", "and clearing it asks for the search again")
 	_restore_the_real_config()
+
+
+func test_feature_colors_survive_a_reload() -> void:
+	_use_a_scratch_config()
+	assert_eq(Config.get_feature_colors(), {}, "no file, no feature colors")
+	assert_eq(FeatureType.color(FeatureType.POLYGON), Color.CHOCOLATE, "so the catalog color holds")
+	var blue := Color(0.0, 0.0, 1.0, 1.0)
+	Config.set_feature_colors({FeatureType.POLYGON: blue})
+	Config.forget()
+	assert_eq(Config.get_feature_colors(), {FeatureType.POLYGON: blue}, "the dictionary comes back")
+	assert_eq(Config.get_value("feature_colors"), {FeatureType.POLYGON: [0.0, 0.0, 1.0, 1.0]},
+		"written as [r, g, b, a]")
+	assert_eq(FeatureType.color(FeatureType.POLYGON), blue, "the preference wins over the catalog")
+	assert_eq(FeatureType.color(FeatureType.NONE), blue, "and is what a type the catalog lacks takes")
+	assert_eq(FeatureType.color(FeatureType.LINE), Color.CRIMSON, "a missing entry is the catalog color")
+	Config.set_value("feature_colors", {FeatureType.LINE: "red"})
+	assert_eq(FeatureType.color(FeatureType.LINE), Color.CRIMSON, "and so is one that is not a color")
+	_restore_the_real_config()

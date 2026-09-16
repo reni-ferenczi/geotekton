@@ -27,11 +27,9 @@ const POLAR_CIRCLES := "polar_circles"
 
 const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]
 
-# The colour a new feature starts in, before it holds anything.
-const NONE_COLOR := Color.CHOCOLATE
-
-# Id to name, allowed geometry kinds and default colour, in the order the type
-# selector lists them.
+# Id to name, allowed geometry kinds and catalog colour, in the order the type
+# selector lists them. The Preferences dialog can put another colour in place of
+# the catalog's; color() reads the one in effect.
 # The first kind is the one an empty feature of the type is drawn as. A Circle
 # is a polyline; it still allows a polygon, so a filled circle from an older file
 # reads back as a Circle.
@@ -70,8 +68,13 @@ static func label(type_id: String) -> String:
 	return str(CATALOG[type_id]["name"]) if CATALOG.has(type_id) else ""
 
 
+# The colour a feature of the type starts in and goes back to: the one the
+# preferences hold for it, else the catalog's. A type the catalog does not know
+# takes the Polygon colour, which is also what a new feature starts in.
 static func color(type_id: String) -> Color:
-	return CATALOG[type_id]["color"] as Color if CATALOG.has(type_id) else NONE_COLOR
+	if not CATALOG.has(type_id):
+		type_id = POLYGON
+	return Config.get_feature_colors().get(type_id, CATALOG[type_id]["color"])
 
 
 # The geometry kinds a feature of this type may hold, by name. A feature with no

@@ -205,6 +205,29 @@ static func set_ffmpeg(path: String) -> void:
 	set_value("ffmpeg", path.strip_edges())
 
 
+# The colour of each feature type where the Preferences dialog changed it, type
+# id to colour. A type missing here keeps its catalog colour, which is what
+# FeatureType.color() falls back to. The file holds [r, g, b, a] per type.
+static func get_feature_colors() -> Dictionary:
+	var colors := {}
+	var stored: Variant = get_value("feature_colors")
+	if stored is not Dictionary:
+		return colors
+	for type_id in stored:
+		var rgba: Variant = stored[type_id]
+		if rgba is Array and rgba.size() == 4:
+			colors[str(type_id)] = Color(float(rgba[0]), float(rgba[1]), float(rgba[2]), float(rgba[3]))
+	return colors
+
+
+static func set_feature_colors(colors: Dictionary) -> void:
+	var stored := {}
+	for type_id in colors:
+		var color: Color = colors[type_id]
+		stored[type_id] = [color.r, color.g, color.b, color.a]
+	set_value("feature_colors", stored)
+
+
 ### The view
 #
 # What a new document starts from: the scene settings it is given, and which
