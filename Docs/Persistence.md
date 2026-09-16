@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "features": { ... },
   "view": { ... }
 }
@@ -88,13 +88,13 @@ drawn the way its author chose:
 |---------------------|-------------------|---------------------|--------------|
 | `background_color`  | `[r, g, b, a]`    | black               | What is behind the planet |
 | `star_field`        | bool              | `true`              | Whether the star field is drawn on it |
-| `graticule_color`   | `[r, g, b, a]`    | white at a third    | The colour of the grid |
-| `graticule_spacing` | degrees, 1 to 90  | `15`                | How far apart its lines are |
+| `grid_color`        | `[r, g, b, a]`    | white at a third    | The color of the longitude and latitude lines |
+| `grid_spacing`      | degrees, 1 to 90  | `15`                | How far apart its lines are |
 | `light_direction`   | `[elevation, azimuth]` in degrees | `[0, 0]` | Where the light comes from, away from the line of sight |
 | `ambient`           | 0 to 1            | `0`                 | How much light reaches the night side |
-| `backdrop_path`     | string            | `""`                | The image the planet wears, if any |
-| `backdrop_opacity`  | 0 to 1            | `1`                 | How much of the Earth it covers |
-| `backdrop_visible`  | bool              | `true`              | Whether it is drawn at all |
+| `raster_path`       | string            | `""`                | The image the planet wears, if any |
+| `raster_opacity`    | 0 to 1            | `1`                 | How much of the Earth it covers |
+| `raster_visible`    | bool              | `true`              | Whether it is drawn at all |
 | `hidden_classes`    | list of names     | `[]`                | Which classes of geometry are switched off |
 
 `hidden_classes` is the [styling](Styling.md#the-visibility-switches): which
@@ -109,7 +109,7 @@ fewer settings still opens; see [0.5.0 to 0.6.0](#050-to-060) and
 [0.6.0 to 0.7.0](#060-to-070).
 
 The block is **on the undo stack** beside the tree: every version the stack
-records holds both, so a change of light, palette or backdrop is undone the way
+records holds both, so a change of light, palette or raster is undone the way
 a change of geometry is, and the dirty flag comes from the stack alone.
 `Document.view_edited()` is what records a view change. Up to 0.7.0 the block
 was left off the stack as a matter of how the document was looked at rather
@@ -122,17 +122,17 @@ is dragged over and records only the one left when the picker closes; a drag
 with the Light tool records once, on release. Every other field is one version
 per change.
 
-#### The backdrop path
+#### The raster path
 
-`backdrop_path` is stored relative to the file when the image sits beside it or
+`raster_path` is stored relative to the file when the image sits beside it or
 under it, so a project and its images can be moved together, and absolute
 otherwise. `Document.save_to_file()` works that out against the path being
 written, whichever way the image was picked and wherever the document was saved
-before, and `Document.resolve_backdrop()` turns it back into a path to read.
+before, and `Document.resolve_raster()` turns it back into a path to read.
 
 A document naming an image that is not there still opens: the planet keeps the
 built in Earth and the reason is recorded rather than thrown. See
-[Shader](Shader.md#the-backdrop-image).
+[Shader](Shader.md#the-raster).
 
 #### Defaults for new documents
 
@@ -447,6 +447,25 @@ without the key carries no icon, which is what every feature carried before.
 0.15.0 added `parent_b` to a coupling span. There is no migration step either:
 a span without the key rides on the one parent it names, which is what every
 span did before a ridge rode on two.
+
+#### 0.15.0 to 0.16.0
+
+0.16.0 renamed five keys of the `view` block. The image the planet wears is a
+raster, the word GPlates uses, so it is not confused with the background, and
+the graticule is a grid:
+
+| Up to 0.15.0, `view` | 0.16.0, `view`   |
+| -------------------- | ---------------- |
+| `backdrop_path`      | `raster_path`    |
+| `backdrop_opacity`   | `raster_opacity` |
+| `backdrop_visible`   | `raster_visible` |
+| `graticule_color`    | `grid_color`     |
+| `graticule_spacing`  | `grid_spacing`   |
+
+The values are kept as they are. The step is `Document.rename_view_keys()`.
+`Config.get_view_defaults()` renames the same keys in the preferences'
+`view_defaults` and writes the file back on the first read, so the defaults
+a user saved carry over.
 
 ## The config file
 

@@ -250,7 +250,7 @@ are gone, and where it does not the eleven frames are what is checked, since the
 suite may not depend on this machine having an encoder.
 
 The scene scenario edits every setting of the scene block, saves the document,
-reads it back and checks each one survived, with the backdrop image beside the
+reads it back and checks each one survived, with the raster beside the
 project so the path in the file is the relative one. It then drags the light
 with the Light tool and probes that the planet is brightest under where the drag
 ended, and finally stores the block as the default, checks that a new document
@@ -384,15 +384,15 @@ the stand-in scene is reached with `--scene=res://...`.
 | `triangle.middle-earth`   | One red triangle around lat/lon (-3, 0).                   |
 | `craton.middle-earth`     | One blue outline of 21 vertices with a bay, a narrow neck and a close pair, facing the camera. Written in the current format. |
 | `topology.middle-earth`   | Two multipoints on the equator and a line topology running along both, with a gap between the two sections. Written in the current format. |
-| `Backdrops/quarters.*`    | The same four coloured quarters as a PNG, a JPEG, a WebP and an SVG, for the backdrop image. |
+| `Rasters/quarters.*`      | The same four colored quarters as a PNG, a JPEG, a WebP and an SVG, for the raster. |
 | `two_cratons.middle-earth` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
 | `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
 | `group_styles.middle-earth` | The same three features under group styles: the polygon in a group on a single colour, the polyline in a group on own colours, and the markers straight under a root whose style in the file says feature type, which the loader pins to own colors. Written in 0.10.0. |
 | `motion.middle-earth`     | One red quad with three keyframes, which is the fixture for anything about motion over time. Written in the current format. |
 | `Palettes/*.cpt`          | A continuous, a discrete, a categorical and a malformed colour palette table. |
 
-`Tests/Data/Backdrops` holds a `.gdignore`, like `Tests/Golden`: the images
-there are read from disk at run time by `Backdrop.load_from()`, never imported
+`Tests/Data/Rasters` holds a `.gdignore`, like `Tests/Golden`: the images
+there are read from disk at run time by `Raster.load_from()`, never imported
 as project resources, so the engine has no business with them.
 
 `Tests/Unit/test_palette.gd` also reads every `.cpt` file under
@@ -460,8 +460,8 @@ The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
 | `scene_no_stars`     | `two_cratons.middle-earth` | the star field off, over a blue background |
 | `scene_light_east`   | `empty.middle-earth`       | the light 45° to the east  |
 | `scene_light_high`   | `empty.middle-earth`       | the light high to the west, with ambient |
-| `scene_backdrop`     | `empty.middle-earth`       | the backdrop image at full opacity |
-| `scene_backdrop_half`| `empty.middle-earth`       | the same image at half     |
+| `scene_raster`       | `empty.middle-earth`       | the raster at full opacity |
+| `scene_raster_half`  | `empty.middle-earth`       | the same image at half     |
 | `kinematics`         | `motion.middle-earth`      | default, with the kinematics panel up, the feature selected and the time at 500 Ma |
 
 `two_cratons.middle-earth` holds three features and no globe view shows all of
@@ -471,7 +471,7 @@ since a projection draws the whole planet at once. `Tests/Data/README.md` has
 the pixel counts and says which view to write a check against.
 
 The five map scenes are what says the inverse projection in the shader agrees
-with the one in `MapProjection`: a graticule drawn through the wrong inverse is
+with the one in `MapProjection`: a grid drawn through the wrong inverse is
 wrong everywhere at once, which no tolerance hides.
 
 A scene states more than its view: whether the kinematics panel is up, what is
@@ -547,7 +547,7 @@ a round trip is also a wait for the screen to catch up.
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
 | `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields, `export_width` and `ffmpeg` among them; only the keys given are changed. `get_preferences` also reports the `default_view` and the `view_defaults` a new document starts from |
-| `get_view_settings` | `view_settings`, the scene block the open document carries, and `backdrop_error`, why the image it names is not on the planet |
+| `get_view_settings` | `view_settings`, the scene block the open document carries, and `raster_error`, why the image it names is not on the planet |
 | `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. A key the dialog has no field for is refused with `no view setting called`, including the six style fields it once had (`draw_style`, `single_color`, `opacity`, `palette`, `ramp_colors`, `ramp_span`); a group's style is set with `set_property`. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
 | `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the skip, the keyframe markers with where each is on screen, the `couplings` bars of the selected feature with both ends and where the bar is drawn, and the animation settings |

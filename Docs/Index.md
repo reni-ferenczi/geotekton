@@ -8,7 +8,7 @@
 - [Persistence](Persistence.md) — The document, saving and loading, the file format, the view settings and the settings file
 - [Properties](Properties.md) — Feature types, the Properties panel and the Edit commands
 - [Scripting](Scripting.md) — The Python console, script files as menu entries, the API and the bridge protocol
-- [Shader](Shader.md) — Planet shader, lighting, the backdrop image, map projections, feature geometry and the outline overlay
+- [Shader](Shader.md) — Planet shader, lighting, the raster, map projections, feature geometry and the outline overlay
 - [Shell](Shell.md) — The application window: menus, panels, full screen, status bar, preferences, exporting a picture or a video of the animation and the command line
 - [Styling](Styling.md) — The visibility switches, the draw styles, the colour palettes and the CPT reader
 - [Testing](Testing.md) — Test modes, the automation port and golden image comparison

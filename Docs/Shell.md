@@ -178,8 +178,8 @@ whatever the window is doing: 3600 by 1800 for a rectangular or Mollweide map,
 3600 by 3600 for Mercator and orthographic, 3600 by 1826 for Robinson. See
 [Shader](Shader.md#the-export-camera) for how the camera is fitted to the sheet.
 
-Only the planet is in it. The graticule, the background colour, the star field
-and the backdrop image are whatever the view settings have them as; the panels,
+Only the planet is in it. The grid, the background color, the star field
+and the raster are whatever the view settings have them as; the panels,
 the measurement label, the selection highlight and the tool marks are not, and
 neither are the zoom, the camera offset or the view angle, which are put back
 untouched afterwards. Corners outside a Mollweide, Robinson or orthographic
