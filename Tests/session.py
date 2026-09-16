@@ -1609,33 +1609,32 @@ CIRCLE_SEGMENTS = 12
 CIRCLE_TOLERANCE = 0.5
 
 
-def build_circle(client: AutomationClient, kind: str, points: list[tuple[float, float]]) -> dict:
-    """Start a document, click the points with the Circle tool and commit.
+def build_circle(client: AutomationClient, points: list[tuple[float, float]]) -> dict:
+    """Start a document and click the points with the Circle tool.
 
     The Circle tool is offered on a Circle, which is picked in the Properties
-    panel; the Outline switch beside the segment box says whether the circle is
-    committed as a polygon or as a polyline.
+    panel.
     """
     start_new_document(client)
     # The segment count is set while its box is hidden, so the Circle tool has to
     # pick up a value typed in another tool.
     client.call("set_tool", tool="move", segments=CIRCLE_SEGMENTS)
     tool = client.call("get_tool")
-    check(not tool["segments_visible"], f"the Segments box is hidden in the Move tool ({kind})")
+    check(not tool["segments_visible"], "the Segments box is hidden in the Move tool")
     check(tool["segments"] == CIRCLE_SEGMENTS, f"but set_tool still sets it: {tool['segments']}")
     # Showing the box must fit in the toolbar's spare width. If it did not, the
     # splitter would give way and the planet would jump sideways under the pointer.
     before = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
     client.call("toolbar", button="AddFeature")
     check(not client.call("get_tool")["circle_enabled"],
-          f"the Circle tool waits for a Circle ({kind})")
+          "the Circle tool waits for a Circle")
     client.call("set_property", field="feature_type", value="circle")
     tool = client.call("get_tool")
-    check(tool["tool"] == "circle", f"picking the type arms the Circle tool ({kind})")
-    check(not tool["draw_enabled"], f"and takes the Draw tool away ({kind})")
-    client.call("set_tool", tool="circle", outline=kind == "polyline")
+    check(tool["tool"] == "circle", "picking the type arms the Circle tool")
+    check(not tool["draw_enabled"], "and takes the Draw tool away")
+    client.call("set_tool", tool="circle")
     tool = client.call("get_tool")
-    check(tool["segments_visible"], f"which shows the Segments box ({kind})")
+    check(tool["segments_visible"], "which shows the Segments box")
     after = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
     check(after == before, f"without moving the planet: {before} then {after}")
     if not draw(client, points):
@@ -1646,7 +1645,11 @@ def build_circle(client: AutomationClient, kind: str, points: list[tuple[float, 
 def run_circle_session(client: AutomationClient) -> None:
     """A circle from a centre and a rim point, and one through three points."""
     rim = (CIRCLE_CENTRE[0] + CIRCLE_RADIUS, CIRCLE_CENTRE[1])
-    tool = build_circle(client, "polygon", [CIRCLE_CENTRE, rim])
+    # What the planet shows at the centre with nothing drawn, before a click
+    # puts a marker there.
+    start_new_document(client)
+    planet = probe_at(client, *CIRCLE_CENTRE)
+    tool = build_circle(client, [CIRCLE_CENTRE, rim])
     if not tool:
         return
     if check(tool["circle"] is not None, "two clicks describe a circle"):
@@ -1658,30 +1661,30 @@ def run_circle_session(client: AutomationClient) -> None:
 
     client.call("key", key="Enter")
     feature = client.call("get_selected")["feature"]
+    check(feature["geometry_kind"] == "polyline",
+          f"the circle is an outline, a polyline: {feature['geometry_kind']}")
+    check(feature["feature_type"] == "circle",
+          f"which the Circle tool makes a Circle: {feature['feature_type']!r}")
     if check(len(feature["rings"]) == 1, "the circle is committed as one part"):
         ring = feature["rings"][0]
-        check(len(ring) == CIRCLE_SEGMENTS,
-              f"a polygon holds one vertex per segment: {len(ring)}")
+        # The polyline draws the whole circle, so it repeats its first vertex.
+        check(len(ring) == CIRCLE_SEGMENTS + 1,
+              f"it holds a vertex more than it has segments: {len(ring)}")
+        check(ring[-1] == ring[0], f"and closes on its first vertex: {ring[0]} {ring[-1]}")
         worst = max(abs(angular_distance(tuple(v), CIRCLE_CENTRE) - CIRCLE_RADIUS) for v in ring)
         check(worst < CIRCLE_TOLERANCE,
               f"every vertex sits the radius from the centre, within {worst:.4f} degrees")
-    feature = client.call("get_selected")["feature"]
-    check(feature["geometry_kind"] == "polygon", "and the feature is a polygon")
-    check(feature["feature_type"] == "circle",
-          f"which the Circle tool makes a Circle: {feature['feature_type']!r}")
 
-    # A polyline of the same segment count draws the whole circle, so it repeats
-    # its first vertex at the end.
-    tool = build_circle(client, "polyline", [CIRCLE_CENTRE, rim])
-    if tool:
-        client.call("key", key="Enter")
-        feature = client.call("get_selected")["feature"]
-        if check(len(feature["rings"]) == 1, "the polyline circle is committed as one part"):
-            check(len(feature["rings"][0]) == CIRCLE_SEGMENTS + 1,
-                  f"and holds a vertex more than it has segments: {len(feature['rings'][0])}")
-        check(feature["geometry_kind"] == "polyline",
-              f"Outline commits the circle as a polyline: {feature['geometry_kind']}")
-        check(feature["feature_type"] == "circle", "a polyline circle is a Circle too")
+        # Only the rim is drawn. The root is selected before the rim is probed,
+        # so the yellow highlight is off the line.
+        centre = probe_at(client, *CIRCLE_CENTRE)
+        check(is_colour(centre, planet),
+              f"the centre shows the planet, not a fill: {centre}, planet {planet}")
+        client.call("select", title=None)
+        rim_colour = probe_at(client, *ring[0])
+        check(is_colour(rim_colour, list(TYPE_COLORS[3])),
+              f"the rim is drawn in the Circle colour: {rim_colour}")
+        client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
     # Three points on the rim describe the same circle, without its centre ever
     # being clicked.
@@ -1690,7 +1693,7 @@ def run_circle_session(client: AutomationClient) -> None:
         (CIRCLE_CENTRE[0] - CIRCLE_RADIUS, CIRCLE_CENTRE[1]),
         (CIRCLE_CENTRE[0], CIRCLE_CENTRE[1] + CIRCLE_RADIUS),
     ]
-    tool = build_circle(client, "polygon", on_rim)
+    tool = build_circle(client, on_rim)
     if not tool:
         return
     if check(tool["circle"] is not None, "three clicks describe a circle"):
