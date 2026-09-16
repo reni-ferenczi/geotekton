@@ -305,6 +305,12 @@ The vertex scenarios come last: `run_vertex_session` drags a vertex, inserts one
 on an edge and deletes one, all at a time that has moved the feature away from
 where its vertices are stored, so an edit that forgot to map the click back into
 the feature's own frame would be caught even though the globe looked right;
+`run_vertex_delete_checks` Ctrl+clicks a vertex of a square, which leaves a
+triangle that one undo turns back into the square, and Ctrl+clicks an edge,
+which does nothing. It presses the physical Delete key with the pointer on a
+vertex, which takes the vertex out and leaves the feature in the tree. A
+Ctrl+click on the triangle is refused with the reason in the status bar, and
+Delete with no vertex held deletes the feature;
 `run_snap_session` drops a vertex a few pixels from one belonging to another
 feature, with snapping on and then off; `run_measure_session` reads a distance
 off the status bar and checks it against the arc it was told to measure, on two

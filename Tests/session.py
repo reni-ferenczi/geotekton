@@ -1884,12 +1884,12 @@ def add_polyline(client: AutomationClient, name: str,
     return True
 
 
-def click_at(client: AutomationClient, at: tuple[float, float]) -> bool:
-    """Click a point of the globe named by latitude and longitude."""
+def click_at(client: AutomationClient, at: tuple[float, float], ctrl: bool = False) -> bool:
+    """Click a point of the globe named by latitude and longitude, Ctrl held if asked."""
     screen = client.call("latlon_to_screen", lat=at[0], lon=at[1])["screen"]
     if not check(screen is not None, f"the point {at} is on the visible hemisphere"):
         return False
-    client.call("click", x=screen[0], y=screen[1])
+    client.call("click", x=screen[0], y=screen[1], ctrl=ctrl)
     return True
 
 
@@ -2023,6 +2023,12 @@ def run_broken_section_checks(client: AutomationClient) -> None:
 # A triangle around the middle of the default view, large enough that its
 # vertices are well apart on screen.
 VERTEX_POLYGON = [(-8.0, -8.0), (8.0, -8.0), (0.0, 8.0)]
+
+# A square in the same place, one vertex more than a polygon needs.
+VERTEX_SQUARE = [(-8.0, -8.0), (-8.0, 8.0), (8.0, 8.0), (8.0, -8.0)]
+
+# A place on the planet well away from every vertex and edge of both.
+VERTEX_EMPTY = (-30.0, -30.0)
 
 # Where the feature is moved to at time zero, and the time the vertices are
 # then edited at, which is between the one keyframe and nothing, so the feature
@@ -2724,6 +2730,79 @@ def run_vertex_session(client: AutomationClient) -> None:
         check(len(client.call("get_selected")["feature"]["rings"][0]) == 3,
               "and the triangle is still whole")
         check(undo_depth(client) == versions, "a refusal records no undo step")
+
+
+def run_vertex_delete_checks(client: AutomationClient) -> None:
+    """Ctrl+click and the Delete key take a vertex out of a square."""
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Square")
+    client.call("set_tool", tool="draw")
+    if not draw(client, VERTEX_SQUARE):
+        return
+    client.call("key", key="Enter")
+    client.call("set_tool", tool="vertex", snap=False)
+    square = client.call("get_selected")["feature"]["world_rings"][0]
+    check(len(square) == 4, f"a square was drawn: {square}")
+
+    ### Ctrl+click
+
+    versions = undo_depth(client)
+    if not click_at(client, midpoint(square[0], square[1]), ctrl=True):
+        return
+    check(len(client.call("get_selected")["feature"]["rings"][0]) == 4,
+          "Ctrl+click on an edge inserts nothing")
+    check(undo_depth(client) == versions, "and records nothing")
+
+    if not click_at(client, square[0], ctrl=True):
+        return
+    after = client.call("get_selected")["feature"]["world_rings"][0]
+    if check(len(after) == 3, f"Ctrl+click on a vertex leaves a triangle: {after}"):
+        check(worst_offset(after, [tuple(v) for v in square[1:]]) < 1e-4,
+              "made of the other three vertices")
+    check(undo_depth(client) == versions + 1, "deleting is one undo step")
+    client.call("menu", item="undo")
+    back = client.call("get_selected")["feature"]["world_rings"][0]
+    check(worst_offset(back, [tuple(v) for v in square]) < 1e-4,
+          f"undo puts the square back: {back}")
+
+    ### The Delete key with a vertex in hand
+
+    client.call("focus", release=True)
+    screen = client.call("latlon_to_screen", lat=square[0][0], lon=square[0][1])["screen"]
+    client.call("mouse_move", x=screen[0], y=screen[1])
+    check(client.call("get_tool")["hovered_vertex"] == [0, 0], "the pointer rests on a vertex")
+    versions = undo_depth(client)
+    client.call("key", key="Delete")
+    if not check("Square" in titles_of(client),
+                 "the Delete key with a vertex in hand leaves the feature in the tree"):
+        return
+    triangle = client.call("get_selected")["feature"]["world_rings"][0]
+    check(len(triangle) == 3, f"and takes the vertex out: {triangle}")
+    check(undo_depth(client) == versions + 1, "in one undo step")
+
+    ### Ctrl+click on a triangle
+
+    versions = undo_depth(client)
+    if not click_at(client, triangle[0], ctrl=True):
+        return
+    check(len(client.call("get_selected")["feature"]["rings"][0]) == 3,
+          "Ctrl+click on a vertex of a triangle is refused")
+    measure = client.call("get_status")["status"]["measure"]
+    check("polygon" in measure.lower(), f"with the reason in the status bar: {measure}")
+    check(undo_depth(client) == versions, "and records nothing")
+
+    ### The Delete key with nothing in hand
+
+    client.call("key", key="Escape")
+    screen = client.call("latlon_to_screen", lat=VERTEX_EMPTY[0], lon=VERTEX_EMPTY[1])["screen"]
+    client.call("mouse_move", x=screen[0], y=screen[1])
+    tool = client.call("get_tool")
+    check(tool["hovered_vertex"] is None and tool["selected_vertex"] is None,
+          f"nothing is in hand: {tool['hovered_vertex']}, {tool['selected_vertex']}")
+    client.call("key", key="Delete")
+    check("Square" not in titles_of(client),
+          "the Delete key with nothing in hand deletes the feature")
 
 
 def run_snap_session(client: AutomationClient) -> None:
@@ -4214,6 +4293,7 @@ def main(argv: list[str]) -> int:
         finally:
             shutil.rmtree(folder, ignore_errors=True)
         run_vertex_session(client)
+        run_vertex_delete_checks(client)
         run_snap_session(client)
         run_measure_session(client)
         run_split_session(client)

@@ -232,7 +232,8 @@ features its sections run along.
 | **Mouse motion** (while dragging) | The vertex follows the cursor, snapping if snapping is on |
 | **LMB release** | Drop it there — saves one undo version |
 | **LMB click** on an edge | Put a new vertex on that edge, where the click fell |
-| **Delete** | Take the vertex being held out |
+| **Ctrl+LMB press** on a vertex | Take that vertex out, as Delete does, without dragging |
+| **Delete** | Take the vertex being held out. While a vertex is held, this wins over **Edit > Delete**; with none held, Delete removes the feature as usual |
 | **S** | Split the feature at the vertex being held |
 | **Shift+S** | Hold that vertex as one end of a polygon cut |
 | **Escape** | Put a dragged vertex back and let go of it |
@@ -273,10 +274,17 @@ distance to something that cannot be seen means nothing.
 
 ### Deleting
 
-Delete takes out the vertex being held. It is **refused** when the part would
-fall under the minimum its kind needs — three for a polygon, two for a polyline,
-one for a multipoint — and the status bar says so. On the globe the alternative
-is a triangle disappearing under a single key press.
+Delete takes out the vertex being held: the one under the pointer, or the one
+last clicked when the pointer is on no vertex. Ctrl+LMB on a vertex does the
+same to the vertex clicked; Ctrl+LMB on an edge or on empty planet does nothing.
+Either one is a single undo version. Deleting a vertex is **refused** when the
+part would fall under the minimum its kind needs — three for a polygon, two for
+a polyline, one for a multipoint — and the status bar says so. Without that check, a single
+key press would make a triangle vanish from the globe.
+
+**Edit > Delete** uses the same Delete key to remove the whole feature. While
+the Vertex tool holds a vertex, the tool gets the key first and the feature
+stays. With nothing held, the key goes to the menu and deletes the feature.
 
 ### Copying a shape
 
