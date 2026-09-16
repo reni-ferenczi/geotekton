@@ -3507,7 +3507,8 @@ def run_ridge_session(client: AutomationClient) -> None:
     client.call("select", title="Old Shield")
     depth = undo_depth(client)
 
-    client.call("set_tool", tool="split", ridge=True)
+    # The crust has a scenario of its own.
+    client.call("set_tool", tool="split", ridge=True, crust=False)
     tool = client.call("get_tool")
     check(tool["ridge"] and tool["ridge_visible"],
           f"the Ridge switch is on and shown with the Split tool: {tool['ridge_visible']}")
@@ -3592,6 +3593,130 @@ def run_ridge_session(client: AutomationClient) -> None:
         client.call("menu", item="undo")
     titles = [f["title"] for f in client.call("get_features")["features"]]
     check(titles[-1:] == ["Old Shield"], f"undo puts the one craton back: {titles}")
+
+
+# The crust scenario splits a square along a meridian off the grid at an age
+# old enough to drift from, carries the halves apart by the same amount each
+# way, and probes midway between each half's cut edge and the ridge.
+CRUST_SQUARE = [(-10.0, -20.0), (-10.0, 26.0), (10.0, 26.0), (10.0, -20.0)]
+CRUST_CUT = [(-12.0, 3.0), (1.0, 4.0), (12.0, 3.0)]
+CRUST_AGE = 100.0
+CRUST_DRIFT = 12.0
+# Between each half's cut edge and the ridge at the present, off the grid lines.
+# The cut leaves Plate east of it and Plate 2 west.
+CRUST_PROBES = {"Plate 2 crust": (5.0, -3.0), "Plate crust": (5.0, 9.0)}
+# Steel blue, the colour the Split tool gives the crust.
+CRUST_COLOR = [0.275, 0.510, 0.706]
+CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust", "Plate 2 crust"]
+
+# Two lines a hand built topology runs along, end to end, and a point inside the
+# square they make once the topology is closed.
+CLOSED_SOUTH = [(20.0, 20.0), (20.0, 40.0)]
+CLOSED_NORTH = [(40.0, 40.0), (40.0, 20.0)]
+CLOSED_INSIDE = (32.0, 32.0)
+
+
+def probe_unhovered(client: AutomationClient, lat: float, lon: float) -> list[float]:
+    """probe_at() with the pointer moved well away, so no hover highlight is read."""
+    client.call("set_view", show_map=False, lat=lat, lon=lon, angle=0.0, zoom=1.0)
+    screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+    client.call("mouse_move", x=screen[0], y=screen[1] + 300)
+    return client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+
+
+def run_crust_session(client: AutomationClient) -> None:
+    """The Split tool leaving oceanic crust that opens as the halves drift apart."""
+    start_new_document(client)
+    client.call("set_time", time=CRUST_AGE)
+    add_drawn(client, "Plate", CRUST_SQUARE)
+    client.call("set_tool", tool="split", ridge=False)
+    tool = client.call("get_tool")
+    check(tool["crust_visible"] and not tool["crust_enabled"],
+          f"the Crust switch is shown with the Split tool and off without a ridge: {tool}")
+    check("ridge" in refusal(client, "set_tool", crust=True), "so it cannot be turned on")
+    client.call("set_tool", ridge=True, crust=True)
+    tool = client.call("get_tool")
+    check(tool["crust"] and tool["crust_enabled"], "with the ridge it can")
+    depth = undo_depth(client)
+    if not draw(client, CRUST_CUT):
+        return
+    client.call("key", key="Enter")
+    check(undo_depth(client) == depth + 1, "the split, the ridge and the crust are one version")
+    titles = [f["title"] for f in client.call("get_features")["features"]]
+    check(titles[-5:] == CRUST_TITLES, f"the halves, the ridge and two crusts: {titles}")
+    status = client.call("get_status")["status"]["measure"]
+    check(all(title in status for title in CRUST_TITLES),
+          f"the status bar names all five: {status!r}")
+    for title in CRUST_TITLES[3:]:
+        client.call("select", title=title)
+        crust = client.call("get_selected")["feature"]
+        check(crust["geometry_kind"] == "topology" and crust["time_range"] == [0, int(CRUST_AGE)],
+              f"{title} is a topology from the split on: {crust['time_range']}")
+        panel = client.call("get_properties")["properties"]
+        check(panel["closed"] and panel["area_km2"] < 1.0,
+              f"closed, and enclosing nothing at the split: {panel['area_km2']}")
+
+    # Held where they are at the split, carried apart at the present.
+    client.call("set_tool", tool="move")
+    for title in CRUST_TITLES[:2]:
+        client.call("select", title=title)
+        client.call("keyframes", button="Key")
+    client.call("set_time", time=0.0)
+    for title in CRUST_TITLES[:2]:
+        client.call("select", title=title)
+        middle = world_centroid(client)
+        shift = CRUST_DRIFT if middle[1] > CRUST_CUT[1][1] else -CRUST_DRIFT
+        if not drag(client, middle[0], middle[1] + shift):
+            return
+
+    client.call("select", title=None)
+    for title, (lat, lon) in CRUST_PROBES.items():
+        pixel = probe_unhovered(client, lat, lon)
+        check(is_colour(pixel, CRUST_COLOR), f"{title} fills the gap at ({lat}, {lon}): {pixel}")
+    for title in CRUST_PROBES:
+        client.call("select", title=title)
+        area = client.call("get_properties")["properties"]["area_km2"]
+        check(area > 1e5, f"{title} has opened: {area:.0f} km²")
+
+    run_closed_topology_checks(client)
+
+
+def run_closed_topology_checks(client: AutomationClient) -> None:
+    """The Closed switch on a topology built by hand fills it."""
+    client.call("select", title=None)
+    if not add_polyline(client, "South", CLOSED_SOUTH):
+        return
+    if not add_polyline(client, "North", CLOSED_NORTH):
+        return
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Loop")
+    client.call("set_property", field="feature_type", value="topology")
+    for line in (CLOSED_SOUTH, CLOSED_NORTH):
+        if not click_at(client, midpoint(list(line[0]), list(line[1]))):
+            return
+    panel = client.call("get_properties")["properties"]
+    check(panel["closed"] is False and len(panel["sections"]) == 2,
+          f"a new topology is open: {panel.get('closed')}, {panel['sections']}")
+    client.call("select", title=None)
+    topology = list(TYPE_COLORS[4])
+    check(not is_colour(probe_unhovered(client, *CLOSED_INSIDE), topology),
+          "an open topology fills nothing")
+
+    client.call("select", title="Loop")
+    depth = undo_depth(client)
+    client.call("set_property", field="closed", value=True)
+    check(undo_depth(client) == depth + 1, "closing it is one version")
+    panel = client.call("get_properties")["properties"]
+    check(panel["closed"] and ", closed, " in panel["geometry"] and panel["area_km2"] > 1e5,
+          f"the panel says so and gives the area: {panel['geometry']!r}")
+    rings = client.call("get_selected")["feature"]["rings"]
+    check(len(rings) == 1 and len(rings[0]) == 4, f"one ring of four: {rings}")
+    client.call("select", title=None)
+    pixel = probe_unhovered(client, *CLOSED_INSIDE)
+    check(is_colour(pixel, topology), f"and it is filled: {pixel}")
+    client.call("select", title="South")
+    check("topology" in refusal(client, "set_property", field="closed", value=True),
+          "a line has no Closed switch")
 
 
 def world_offset(first: list[list[float]], second: list[list[float]]) -> float:
@@ -4699,6 +4824,7 @@ def main(argv: list[str]) -> int:
         run_split_session(client)
         run_split_tool_session(client)
         run_ridge_session(client)
+        run_crust_session(client)
         run_copy_shape_session(client)
         run_rotate_session(client)
         run_circle_session(client)
