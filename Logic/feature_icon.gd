@@ -1,9 +1,13 @@
 class_name FeatureIcon
 
 # The built in glyphs a feature's tree row can carry, so that a mountain range
-# and a coastline are told apart at a glance. They are 16 pixel monochrome SVGs
-# under Assets/Icons/Features, white on transparent, which the tree tints the
-# way it tints the rule icon. See Docs/Properties.md.
+# and a coastline are told apart at a glance. See Docs/Properties.md.
+#
+# What a glyph has to be: an SVG with width="32" height="32" on its root, so it
+# rasterizes to 32 by 32 like the group and rule icons beside it, drawn in white
+# strokes on transparent so the tree can tint it. The viewBox is free. The file
+# goes into Assets/Icons/Features with the default import (svg/scale=1.0) and
+# its stem is named in CATALOG below.
 #
 # A feature stores the id, which is also the file stem and what the file holds.
 # Nothing else in the program reads it: the icon is for whoever is looking.

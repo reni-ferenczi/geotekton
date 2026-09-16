@@ -80,11 +80,22 @@ feature starts with none.
 | `crater`    | Crater    | A rim and a floor                      |
 | `marker`    | Marker    | A map pin, for anything else           |
 
-`Logic/feature_icon.gd` holds the catalog. Each id is the stem of a 16 pixel
-SVG under `Assets/Icons/Features`, drawn in white on nothing, so the tree tints
-it the way it tints the rule icon. Nothing else in the program reads the icon:
-it changes what the row shows and no more. A group's row says whether the group
-is open, as before, and takes no icon of its own.
+`Logic/feature_icon.gd` holds the catalog. Each id is the stem of an SVG under
+`Assets/Icons/Features`. Nothing else in the program reads the icon: it changes
+what the row shows and no more. A group's row says whether the group is open,
+as before, and takes no icon of its own.
+
+An icon is an SVG drawn at 32 by 32 pixels, the size of the group and rule
+icons beside it, in white strokes on a transparent background so the tree can
+tint it the way it tints the rule icon. To add or replace one:
+
+1. Put `width="32" height="32"` on the root `<svg>` element. The `viewBox` can
+   be anything; the built in glyphs draw on a 16 unit grid scaled up to 32.
+2. Drop the file into `Assets/Icons/Features`. The default import,
+   `svg/scale=1.0`, is the right one, and Godot imports the file on the next
+   launch.
+3. Name its stem in `FeatureIcon.CATALOG`, with the name the Icon selector
+   shows.
 
 A file written by hand can name an icon this version does not know. Such a
 feature keeps the name, shows the rule icon on its row, and the Icon row of the
