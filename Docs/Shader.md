@@ -31,6 +31,10 @@ rather than a cap of grid color. Parallels never converge and are drawn right
 up to the pole. The grid color's alpha is how much of the color a full line
 lays over the planet.
 
+The grid is laid over the feature fills, the way GPlates draws its
+graticule, so a polygon never hides it. The outline of the selected feature
+and the shape being drawn stay on top of the grid.
+
 ## Lighting and ambient
 
 The planet is a lit surface: the shader writes `ALBEDO` and the engine shades it
