@@ -77,6 +77,28 @@ func test_the_stars_show_on_a_coloured_background() -> void:
 	await use_settings({"background_color": ViewSettings.DEFAULT_BACKGROUND})
 
 
+# The stars are worked out from where they are rather than drawn at random, so
+# the same view shows the same sky every time.
+func test_the_star_field_is_the_same_every_frame() -> void:
+	await load_sample("triangle.middle-earth")
+	await use_settings({"star_field": true})
+	var first := await capture()
+	await frames(2)
+	var second := await capture()
+	assert_eq(count_differing(first, second), 0, "two captures of one view agree")
+
+
+# The stars give their own light, so where the planet's light comes from does
+# not change them.
+func test_the_light_does_not_reach_the_stars() -> void:
+	await load_sample("triangle.middle-earth")
+	await use_settings({"star_field": true, "light_direction": ViewSettings.DEFAULT_LIGHT})
+	var facing := await count_bright_pixels()
+	await use_settings({"light_direction": Vector2(0.0, 150.0)})
+	assert_eq(await count_bright_pixels(), facing, "a light from behind leaves the stars alone")
+	await use_settings({"light_direction": ViewSettings.DEFAULT_LIGHT})
+
+
 # The grid is drawn in the color the document asks for, on multiples of
 # the spacing. At ninety degrees apart the lines are wide enough to probe
 # without hunting for them: the equator is one, and (20, 20) is clear of both
