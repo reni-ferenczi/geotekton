@@ -23,8 +23,9 @@ number:
   [Line topologies](#line-topologies). Offered on a Topology.
 - **Light** — Drags the light around the globe; see
   [The Light tool](#the-light-tool). Offered on the globe alone.
-- **Snap** — Whether a dragged vertex, or a pole being placed, jumps onto a
-  nearby vertex. The Vertex and Pole tools use it; see [Snapping](#snapping).
+- **Snap** — Whether a dragged vertex, a pole being placed or a point being
+  drawn jumps onto a nearby vertex. The Vertex, Pole and Draw tools use it; see
+  [Snapping](#snapping).
 - **Split** — Cuts the selected polygon in two along a line drawn across it;
   see [The Split tool](#the-split-tool). Offered while a polygon is selected.
 - **Circle segments** — Shown only while the Circle tool is active; see
@@ -318,6 +319,13 @@ The feature tree selects one feature at a time. To gather the shapes of several
 features into one, copy and paste them one after another: each paste appends a
 part.
 
+Paste Shape while the Draw tool is active works differently: the vertices of
+every part of the shape are added, in order, to the points being drawn, and
+nothing reaches the feature until Enter commits the drawing. The kind of the
+drawing stays the one the feature's type gives, so a copied polygon can start
+a polyline. Right click and Ctrl+Z take the pasted points back one at a time.
+See [Draw](Draw.md#input-mapping).
+
 ## Snapping
 
 The **Snap** button in the toolbar decides whether a dragged vertex jumps onto a
@@ -329,6 +337,15 @@ the candidates; it is always nearest to itself.
 
 The reach is `Application.SNAP_PIXELS` in window pixels, and the nearest
 candidate inside it wins. The setting is remembered between runs.
+
+The [Draw tool](Draw.md#input-mapping) snaps too. A point clicked within reach
+of a vertex of any shown feature is placed on that vertex, and the tool
+remembers which feature, part and vertex it took. **Shift+LMB** on a second
+vertex of the same ring then adds the vertices between the two, so a new
+feature can follow the edge of an existing one exactly. A closed ring is
+followed the way that passes fewer vertices; an open one has only one way.
+Without a snapped point on that ring before it, Shift+LMB places one snapped
+point, and with Snap off it is a plain click.
 
 ## Splitting
 

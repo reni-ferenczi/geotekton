@@ -312,7 +312,10 @@ vertex, which takes the vertex out and leaves the feature in the tree. A
 Ctrl+click on the triangle is refused with the reason in the status bar, and
 Delete with no vertex held deletes the feature;
 `run_snap_session` drops a vertex a few pixels from one belonging to another
-feature, with snapping on and then off; `run_measure_session` reads a distance
+feature, with snapping on and then off; `run_draw_from_geometry_session` has
+the Draw tool snap a point onto a vertex, take a pasted triangle as held points
+and trace along a hexagon with Shift+click, and checks that Shift+click is a
+plain click with Snap off; `run_measure_session` reads a distance
 off the status bar and checks it against the arc it was told to measure, on two
 planet radii; `run_split_session` cuts a polygon in two between two vertices and
 checks that both halves kept the type, the colour, the time range and the
@@ -585,7 +588,7 @@ a round trip is also a wait for the screen to catch up.
 | `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
 | `coupling {button, parent, index, pick}` | presses `Couple` with the `parent` picked by title, `Decouple`, both at the current time, or `Remove` on the span at `index` in the panel's list. `pick: true` arms the pointer instead, so the next `click` on the planet names the parent, and `pick: false` puts it away |
 | `sections {button, index}`            | selects a section row of a line topology and presses `Reverse` or `Remove` in the panel |
-| `get_tool`                           | `tool` (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure` or `circle`), the Pole tool's `pole` as `[lat, lon]` or null, whether that click is picking the axis of polar circles (`picking_axis`), how many vertices the shape being drawn holds, which of the three drawing tools the selected feature's type offers (`draw_enabled`, `circle_enabled`, `topology_enabled`), the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split` (whether its `S` would split now), whether the Split tool is offered (`split_enabled`), its `split_points`, its `ridge` switch and whether that switch is shown (`ridge_visible`), the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`), its `outline` switch and the `circle` its clicks describe |
+| `get_tool`                           | `tool` (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure` or `circle`), the Pole tool's `pole` as `[lat, lon]` or null, whether that click is picking the axis of polar circles (`picking_axis`), how many vertices the shape being drawn holds (`drawing_vertices`), which of the three drawing tools the selected feature's type offers (`draw_enabled`, `circle_enabled`, `topology_enabled`), the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split` (whether its `S` would split now), whether the Split tool is offered (`split_enabled`), its `split_points`, its `ridge` switch and whether that switch is shown (`ridge_visible`), the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`), its `outline` switch and the `circle` its clicks describe |
 | `set_tool {tool, snap, segments, outline, ridge}` | picks the tool (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `circle`, `topology`, `light` or `split`), the snap switch, the segment count, the Circle tool's Outline switch and the Split tool's Ridge switch, refusing what the toolbar itself would not allow. Which kind the Draw and Circle tools produce comes from the feature's type, which `set_property` sets |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
@@ -602,7 +605,7 @@ a round trip is also a wait for the screen to catch up.
 | `get_view` / `set_view {lat, lon, angle, zoom, show_map, projection}` | where the camera looks, how far it is zoomed in, and whether the globe or one of the five map projections is drawn. `get_view` also reports the derived `fov`, the `window_size` and what the view toolbar fields read |
 | `view {button}` / `view {projection}` | presses a view toolbar button (`zoom_in`, `zoom_out`, `rotate_clockwise`, `rotate_anticlockwise`, `camera_reset`), or picks a view in the projection selector: `"globe"` or the number of a projection |
 | `mouse_move {x, y}`                  | moves the mouse                                                  |
-| `click {x, y, button, ctrl}`         | presses and releases a mouse button: `left`, `right`, `middle`, `wheel_up` or `wheel_down` |
+| `click {x, y, button, ctrl, shift}`  | presses and releases a mouse button: `left`, `right`, `middle`, `wheel_up` or `wheel_down`, with Ctrl or Shift held if asked |
 | `press {x, y, button}` / `release {x, y, button}` | half a click each, so a drag can be scripted: press, `mouse_move`, release |
 | `key {key, ctrl, shift}`             | presses and releases a key. A printable key carries its character too, so a focused text field types it |
 | `focus {widget\|release}`             | `focus`, the node name of whatever holds the keyboard focus, after giving it to the named widget or letting it go. Single key shortcuts read the focus, so a run has to be able to set it |
