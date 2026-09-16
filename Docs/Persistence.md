@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "features": { ... },
   "view": { ... }
 }
@@ -92,8 +92,9 @@ drawn the way its author chose:
 | `grid_spacing`      | degrees, 1 to 90  | `15`                | How far apart its lines are |
 | `light_direction`   | `[elevation, azimuth]` in degrees | `[0, 0]` | Where the light comes from, away from the line of sight |
 | `ambient`           | 0 to 1            | `0`                 | How much light reaches the night side |
+| `planet_color`      | `[r, g, b, a]`    | ocean blue, `[0.16, 0.36, 0.60, 1]` | The color of the planet where no raster covers it; the alpha is read as 1 whatever the file says |
 | `raster_path`       | string            | `""`                | The image the planet wears, if any |
-| `raster_opacity`    | 0 to 1            | `1`                 | How much of the Earth it covers |
+| `raster_opacity`    | 0 to 1            | `1`                 | How much of the planet color it covers |
 | `raster_visible`    | bool              | `true`              | Whether it is drawn at all |
 | `hidden_classes`    | list of names     | `[]`                | Which classes of geometry are switched off |
 
@@ -128,10 +129,13 @@ per change.
 under it, so a project and its images can be moved together, and absolute
 otherwise. `Document.save_to_file()` works that out against the path being
 written, whichever way the image was picked and wherever the document was saved
-before, and `Document.resolve_raster()` turns it back into a path to read.
+before, and `Document.resolve_raster()` turns it back into a path to read. A
+`res://` path, such as the built in Earth's
+`res://Assets/Textures/Earth.jpg`, names an image the application ships and is
+stored and resolved as it is.
 
-A document naming an image that is not there still opens: the planet keeps the
-built in Earth and the reason is recorded rather than thrown. See
+A document naming an image that is not there still opens: the planet shows its
+own color and the reason is recorded rather than thrown. See
 [Shader](Shader.md#the-raster).
 
 #### Defaults for new documents
@@ -466,6 +470,24 @@ The values are kept as they are. The step is `Document.rename_view_keys()`.
 `Config.get_view_defaults()` renames the same keys in the preferences'
 `view_defaults` and writes the file back on the first read, so the defaults
 a user saved carry over.
+
+#### 0.16.0 to 0.17.0
+
+0.17.0 added `planet_color` to the `view` block and made the built in Earth,
+which until then was drawn under every document, a raster like any other. A
+block without `planet_color` reads as the default, ocean blue.
+
+A file from before 0.17.0 whose `raster_path` is empty or missing, including a
+file with no `view` block at all, showed the Earth. The step gives it
+`raster_path` `res://Assets/Textures/Earth.jpg`, `raster_opacity` 1 and
+`raster_visible` true, so it looks as it did; the opacity and the switch did
+nothing while there was no image. A file naming an image keeps it with its
+opacity and switch, and at an opacity under 1 the image now blends over the
+planet color rather than over the Earth. The step is `Document._to_0_17_0()`.
+
+The preferences' `view_defaults` have no step. A block without `planet_color`
+takes the default, and one with an empty `raster_path` keeps it, so a new
+document has no raster.
 
 ## The config file
 

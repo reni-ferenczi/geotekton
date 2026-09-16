@@ -567,8 +567,8 @@ usually is.
 ## View settings
 
 **View > View Settings...** opens the scene around the features: what is behind
-the planet, what is drawn over it, where the light comes from and which image
-the planet wears. Every field takes effect as
+the planet, what is drawn over it, where the light comes from, the planet's
+own color and which image it wears. Every field takes effect as
 it is changed rather than when the dialog is closed, so the planet under it
 shows what is being chosen.
 
@@ -580,8 +580,14 @@ shows what is being chosen.
 | Grid spacing | How far apart its lines are, from 1 to 90 degrees |
 | Light elevation, light azimuth | Where the light comes from, away from the line of sight; `(0, 0)` shines from the camera |
 | Ambient light | How much light reaches the night side; 0 is a black night, 1 no night at all |
-| Raster shown, Raster opacity | Whether the image is drawn and how much of the Earth it covers |
-| Raster | The image the planet wears, in PNG, JPEG, WebP or SVG |
+| Planet color | The color of the planet where no raster covers it, ocean blue unless changed. The picker has no alpha, since the planet is never see-through |
+| Raster shown, Raster opacity | Whether the image is drawn and how much of the planet color it covers |
+| Raster | The image the planet wears, in PNG, JPEG, WebP or SVG. The field reads None when there is no image. **Browse...** picks a file, **Built in Earth** picks the Earth image that ships with Middle Earth, and **Clear** takes the image away |
+
+A new document has no raster, so its planet is the flat planet color. A file
+saved before 0.17.0 that named no image opens wearing the built in Earth, which
+is how it looked then; see
+[Persistence](Persistence.md#0160-to-0170).
 
 The dialog does not set what color the features come out. That is set per
 group, with the Style, Colour, Palette and Ramp rows of the
@@ -606,7 +612,7 @@ document looks like.
 
 An image that cannot be read — moved, renamed, or in a format Middle Earth does
 not read — is not an error the document has to be repaired from. The planet
-keeps the built in Earth and the reason appears under the path.
+shows its own color and the reason appears under the path.
 
 ## Preferences
 

@@ -59,7 +59,7 @@ DOMINANT_RATIO = 0.7
 
 
 # A feature whose colour is not dominated by one channel is recognised by its
-# hue instead. The planet lights what it draws and lets the Earth texture
+# hue instead. The planet lights what it draws and lets the raster beneath
 # through, which lifts every channel towards white and so washes the saturation
 # out; the hue is what comes through that unchanged.
 def hue_and_saturation(color: list[float]) -> tuple[float, float]:
@@ -485,7 +485,7 @@ def run_group_style_checks(client: AutomationClient) -> None:
     check(client.call("get_properties")["properties"]["style"]["opacity"] == 0,
           "the opacity box is the group's opacity")
     check(not is_colour(probe_at(client, lat, lon), single),
-          "and at none the Earth shows where the polygon is")
+          "and at none the planet shows where the polygon is")
 
     for _ in range(3):
         client.call("menu", item="undo")
@@ -1075,7 +1075,7 @@ def run_colour_session(client: AutomationClient) -> None:
     check(undo_depth(client) == versions + 1, "in one undo step")
     client.call("set_property", field="opacity", value=0)
     color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
-    check(dominant(color) != "red", f"at none the Earth shows through: {color}")
+    check(dominant(color) != "red", f"at none the planet shows through: {color}")
     client.call("menu", item="undo")
     client.call("menu", item="undo")
     check(client.call("get_properties")["properties"]["opacity"] == 100,
@@ -1410,7 +1410,7 @@ def run_visibility_checks(client: AutomationClient) -> None:
         return
     color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
     check(dominant(color) != "green",
-          f"so the Earth shows through where it would be: {color}")
+          f"so the planet shows through where it would be: {color}")
     check(client.call("get_features")["features"] is not None, "the tree still lists it")
 
     # The same probe point, with the time range widened to take that time in.
