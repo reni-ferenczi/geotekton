@@ -3329,6 +3329,9 @@ def run_copy_shape_session(client: AutomationClient) -> None:
     client.call("toolbar", button="AddFeature")
     client.call("set_property", field="name", value="Traced Quad")
     client.call("set_property", field="color", value=TRACE_COLOUR)
+    # The empty feature armed the Draw tool, which would take the shape as
+    # points to draw; the paste into the feature itself is made from Move.
+    client.call("set_tool", tool="move")
     depth = undo_depth(client)
 
     client.call("menu", item="paste_shape")

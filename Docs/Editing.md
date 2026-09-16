@@ -321,7 +321,8 @@ part.
 
 Paste Shape while the Draw tool is active works differently: the vertices of
 every part of the shape are added, in order, to the points being drawn, and
-nothing reaches the feature until Enter commits the drawing. The kind of the
+nothing reaches the feature until Enter commits the drawing. A new feature arms
+the Draw tool, so to paste straight into one, pick another tool first. The kind of the
 drawing stays the one the feature's type gives, so a copied polygon can start
 a polyline. Right click and Ctrl+Z take the pasted points back one at a time.
 See [Draw](Draw.md#input-mapping).
