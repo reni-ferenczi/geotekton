@@ -635,7 +635,9 @@ camera and hides while the midpoint is round the back of the globe or off the
 map. With fewer than two the status bar says what to click. Outside the
 Measure tool the same field shows the length along the selected feature's
 geometry: around the outline of a polygon, along a polyline, and nothing for a
-multipoint, whose vertices are separate markers rather than a path.
+multipoint, whose vertices are separate markers rather than a path. A polygon
+also gets its area, as in "4430.9 km around Laurentia, 1.23 million km²". The
+Geometry row of the [Properties panel](Properties.md) shows the same area.
 
 The two points and the line between them are drawn in the same yellow outline
 overlay the Draw tool uses.
@@ -651,8 +653,23 @@ the value the IUGG publishes.
 The distance itself is worked out with the haversine formula rather than from
 the dot product of the two points. The dot product of two nearly equal unit
 vectors is 1 to within the rounding of the arithmetic, and taking its arc cosine
-throws most of the digits away — and a short distance is what a measurement
+throws most of the digits away, and a short distance is what a measurement
 usually is.
+
+The Preferences dialog shows the planet's surface under the radius box and
+updates it as the box changes. The root group's sentence in the Properties
+panel gives the radius and the surface too: "The planet's radius is 6371 km
+and its surface 510.06 million km²."
+
+An area is spherical (`Measure.ring_area`). The ring is cut into a fan of
+triangles from its first vertex, and the signed excess of each triangle is
+added up, so a ring around a pole or across the date line needs no special
+case. A ring splits the sphere into two sides, and the area is the smaller
+one, which is also why the drawing direction makes no difference. The parts of
+a polygon are separate outlines, so their areas add. An area under a thousand
+square kilometres is written with one decimal, then in whole square kilometres
+with a thin space between the thousands, and from a million on in millions
+with two decimals.
 
 ## View settings
 

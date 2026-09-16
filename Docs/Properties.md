@@ -142,7 +142,12 @@ follows the feature tree selection, through
 The panel lists no coordinates. Middle Earth is for building worlds, and a
 vertex is placed, moved, inserted and deleted on the globe with the
 [Draw](Draw.md) and [Vertex](Editing.md#the-vertex-tool) tools. The Geometry row
-still says what the feature holds.
+still says what the feature holds: its kind, vertices and parts, and for a
+polygon its area and the share of the planet it covers, as in "polygon, 12
+vertices in 1 part, 1.23 million km², 0.2 % of the planet". The share has one
+decimal and is left out below 0.05 %. The area is read against the
+[planet radius](Editing.md#the-planet-radius) preference, so the row changes
+when the Preferences dialog is closed with another radius.
 
 A feature shows either the keyframe and coupling rows or the section table,
 never both: a [line topology](Editing.md#line-topologies) borrows its vertices
@@ -150,8 +155,9 @@ instead of holding them, and where it is comes from the features its sections
 run along.
 
 With nothing selected the panel says so and shows no rows at all, and so does
-the root group, which has no name of its own to change and no switch — the same
-as on its tree row. The root's style is pinned to each feature's own color and
+the root group, which has no name of its own to change and no switch, the same
+as on its tree row. The root's sentence gives the planet's radius and surface
+area instead. The root's style is pinned to each feature's own color and
 is not edited anywhere; see [Styling](Styling.md#group-styles).
 
 The panel keeps one width, `CONTENT_WIDTH`, whatever it is showing. Letting its
