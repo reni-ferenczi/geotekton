@@ -46,9 +46,13 @@ static func vertices(centre: Vector2, radius_deg: float, segments: int,
 	var up := cos(radius) * axis
 
 	var result := PackedVector2Array()
-	for i in range(count + (0 if closed else 1)):
+	for i in range(count):
 		var turn := TAU * float(i) / float(count)
 		result.append(_to_latlon(up + along * (cos(turn) * north + sin(turn) * east)))
+	# The repeat is the first vertex itself: worked out again, rounding could
+	# put it at another longitude on a circle around a pole.
+	if not closed:
+		result.append(result[0])
 	return result
 
 

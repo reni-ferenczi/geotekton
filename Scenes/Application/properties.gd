@@ -30,6 +30,10 @@ signal rejected(message: String)
 # owns the pick mode; the button only asks for it and shows whether it is on.
 signal pick_parent_requested(on: bool)
 
+# The Pick axis button was pressed. The Application owns the pick, which is the
+# Pole tool's click, and writes the axis through the document.
+signal pick_axis_requested()
+
 # The Load button on the Palette row was pressed. The Application owns the file
 # dialog and hands the path it gets back to load_palette().
 signal palette_file_requested()
@@ -102,6 +106,11 @@ var couple_button: Button
 var pick_parent_button: Button
 var spans: Tree
 var remove_span_button: Button
+var axis_lat_spin: SpinBox
+var axis_lon_spin: SpinBox
+var radius_spin: SpinBox
+var circle_segments_spin: SpinBox
+var pick_axis_button: Button
 
 # Every row of the form, each a label and the control beside it, and whether a
 # group and a feature have it.
@@ -111,6 +120,8 @@ var _topology_boxes: Array[Control] = []
 # The keyframe row, label and all, which a feature holding vertices of its own
 # has. A topology has no motion of its own, and a group carries none.
 var _motion_boxes: Array[Control] = []
+# The axis, radius and segment rows, which only polar circles have.
+var _polar_boxes: Array[Control] = []
 
 
 func _ready() -> void:
@@ -257,6 +268,7 @@ func _build() -> void:
 	geometry_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_row(form, "Geometry", geometry_label)
 
+	_build_polar_circles(form)
 	_build_keyframes(form)
 	_build_coupling(form, box)
 	_build_sections(box)
@@ -309,6 +321,42 @@ func _build_sections(box: VBoxContainer) -> void:
 	remove_section_button.tooltip_text = "Take the selected section out of the topology"
 	remove_section_button.pressed.connect(_on_remove_section_pressed)
 	buttons.add_child(remove_section_button)
+
+
+# The rows polar circles are built from: the first pole of the axis, the radius
+# of both circles, how many segments each has, and the button that picks the
+# axis off the planet. Each edit is one undo version.
+func _build_polar_circles(form: GridContainer) -> void:
+	axis_lat_spin = _polar_spin("AxisLatitude", -90.0, 90.0, 0.01, "°")
+	axis_lon_spin = _polar_spin("AxisLongitude", -180.0, 180.0, 0.01, "°")
+	radius_spin = _polar_spin("Radius", 0.01, Document.MAX_POLAR_RADIUS, 0.01, "")
+	circle_segments_spin = _polar_spin("Segments", Circle.MIN_SEGMENTS, Circle.MAX_SEGMENTS, 1, "")
+	for entry: Array in [["Axis latitude", axis_lat_spin], ["Axis longitude", axis_lon_spin],
+			["Radius (°)", radius_spin], ["Segments", circle_segments_spin]]:
+		_row(form, entry[0], entry[1])
+		_polar_boxes.append(_rows.back()["label"])
+		_polar_boxes.append(entry[1])
+
+	pick_axis_button = Button.new()
+	pick_axis_button.name = "PickAxis"
+	pick_axis_button.text = "Pick axis"
+	pick_axis_button.tooltip_text = "Click the planet to put the axis there"
+	pick_axis_button.pressed.connect(pick_axis_requested.emit)
+	_row(form, "", pick_axis_button)
+	_polar_boxes.append(_rows.back()["label"])
+	_polar_boxes.append(pick_axis_button)
+
+
+func _polar_spin(spin_name: String, low: float, high: float, step: float,
+		suffix: String) -> SpinBox:
+	var spin := SpinBox.new()
+	spin.name = spin_name
+	spin.min_value = low
+	spin.max_value = high
+	spin.step = step
+	spin.suffix = suffix
+	spin.value_changed.connect(func(_value: float) -> void: _commit_polar_circles())
+	return spin
 
 
 # The keyframe row: how many keyframes the feature has, and the two buttons that
@@ -505,6 +553,9 @@ func show_node(node_: Feature) -> void:
 		control.visible = is_topology
 	for control in _motion_boxes:
 		control.visible = is_feature and not is_topology
+	var is_polar := is_feature and node.is_polar_circles()
+	for control in _polar_boxes:
+		control.visible = is_polar
 
 	if not editable:
 		return
@@ -519,6 +570,8 @@ func show_node(node_: Feature) -> void:
 		from_spin.value = node.time_range.y
 		to_spin.value = node.time_range.x
 		geometry_label.text = _geometry_summary(node)
+		if is_polar:
+			_show_polar_circles()
 		_fill_sections()
 		_fill_coupling()
 	else:
@@ -927,9 +980,9 @@ func _on_type_selected(index: int) -> void:
 		_filling = false
 		rejected.emit(error)
 		return
-	_filling = true
-	_show_color()
-	_filling = false
+	# Polar circles show rows no other type has, so the whole panel is filled
+	# again rather than the color alone.
+	show_node(node)
 	edited.emit()
 
 
@@ -944,6 +997,41 @@ func _on_icon_selected(index: int) -> void:
 		rejected.emit(error)
 		return
 	edited.emit()
+
+
+# Call while _filling.
+func _show_polar_circles() -> void:
+	axis_lat_spin.value = node.axis.x
+	axis_lon_spin.value = node.axis.y
+	radius_spin.value = node.radius
+	circle_segments_spin.value = node.circle_segments
+
+
+func _commit_polar_circles() -> void:
+	if _filling or node == null or not node.is_polar_circles():
+		return
+	var axis := Vector2(_unrounded(axis_lat_spin, node.axis.x),
+		_unrounded(axis_lon_spin, node.axis.y))
+	var radius := _unrounded(radius_spin, node.radius)
+	var segments := int(circle_segments_spin.value)
+	if axis == node.axis and radius == node.radius and segments == node.circle_segments:
+		return
+	var error := document.set_polar_circles(node, axis, radius, segments)
+	if not error.is_empty():
+		_filling = true
+		_show_polar_circles()
+		_filling = false
+		rejected.emit(error)
+		return
+	geometry_label.text = _geometry_summary(node)
+	edited.emit()
+
+
+# A box shows a picked axis rounded to its step. The value the feature holds is
+# kept while the box still shows it, so editing the radius does not move the
+# axis by the rounding.
+func _unrounded(spin: SpinBox, held: float) -> float:
+	return held if absf(spin.value - held) <= spin.step * 0.5 else spin.value
 
 
 # The color on the button and the opacity in percent beside it. Call while
@@ -1144,6 +1232,13 @@ func to_json() -> Dictionary:
 	if coupled_label.get_parent().visible:
 		data["coupling"] = _coupling_to_json()
 	data["sections"] = _sections_to_json()
+	if pick_axis_button.visible:
+		data["polar_circles"] = {
+			"axis": [axis_lat_spin.value, axis_lon_spin.value],
+			"radius": radius_spin.value,
+			"circle_segments": int(circle_segments_spin.value),
+			"pick_axis": not pick_axis_button.disabled,
+		}
 	return data
 
 
@@ -1257,6 +1352,19 @@ func set_field(field: String, value: Variant) -> String:
 			from_spin.value = float(value)
 		"time_to":
 			to_spin.value = float(value)
+		"axis", "radius", "circle_segments":
+			if not pick_axis_button.visible:
+				return "only polar circles have %s" % field
+			_filling = true
+			if field == "axis":
+				axis_lat_spin.value = float(value[0])
+				axis_lon_spin.value = float(value[1])
+			elif field == "radius":
+				radius_spin.value = float(value)
+			else:
+				circle_segments_spin.value = float(value)
+			_filling = false
+			_commit_polar_circles()
 		_:
 			return "no such property: %s" % field
 	return ""

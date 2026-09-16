@@ -309,7 +309,7 @@ def worst_offset(ring: list[list[float]], points: list[tuple[float, float]]) -> 
 
 # The five feature types in the order the selector offers them, and the one
 # each drawn kind gives, as Logic/feature_type.gd has them.
-FEATURE_TYPES = ["polygon", "line", "points", "circle", "topology"]
+FEATURE_TYPES = ["polygon", "line", "points", "circle", "topology", "polar_circles"]
 KIND_TYPES = {"polygon": "polygon", "polyline": "line", "multipoint": "points"}
 
 
@@ -564,7 +564,7 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["showing"] == "feature", f"selecting a feature fills the panel: {panel['showing']}")
     check(panel["name"] == "Red Triangle", f"with its name: {panel['name']}")
     check(panel["feature_type"] == "polygon", f"its type: {panel['feature_type']}")
-    check(panel["types"] == FEATURE_TYPES, f"the type selector offers the five: {panel['types']}")
+    check(panel["types"] == FEATURE_TYPES, f"the type selector offers the six: {panel['types']}")
     check(panel["color"][:3] == [1.0, 0.0, 0.0], f"its colour: {panel['color']}")
     check(panel["enabled"] is True, "its enabled flag")
     check(panel["time_range"] == [0, 2000], f"its time range: {panel['time_range']}")
@@ -1092,7 +1092,8 @@ def run_colour_session(client: AutomationClient) -> None:
 
 
 # The default colour of each feature type, in the order Logic/feature_type.gd
-# lists them: chocolate, crimson, gold, dark turquoise and medium purple. Every
+# lists them: chocolate, crimson, gold, dark turquoise, medium purple and spring
+# green. Every
 # picker starts with these as its presets.
 TYPE_COLORS = [
     (0.824, 0.412, 0.118),
@@ -1100,6 +1101,7 @@ TYPE_COLORS = [
     (1.0, 0.843, 0.0),
     (0.0, 0.808, 0.820),
     (0.576, 0.439, 0.859),
+    (0.0, 1.0, 0.498),
 ]
 
 
@@ -1125,7 +1127,7 @@ def run_color_picker_checks(client: AutomationClient) -> None:
     panel = client.call("get_properties")["properties"]
     check(panel["color_picker_open"], "and opens the picker of the Colour row")
     offered = presets(client)
-    check(offered[:5] == TYPE_COLORS, f"which offers the five type colours: {offered}")
+    check(offered[:6] == TYPE_COLORS, f"which offers the six type colours: {offered}")
 
     client.call("key", key="Escape")
     check(not client.call("get_properties")["properties"]["color_picker_open"],
@@ -1708,6 +1710,148 @@ def run_circle_session(client: AutomationClient) -> None:
     check(client.call("get_tool")["circle"] is None, "Escape drops the clicked points")
     check(client.call("get_selected")["feature"]["rings"] == [],
           "and leaves the feature without geometry")
+
+
+### The Polar circles scenario
+
+# The radius the circles are given, where the Pick axis clicks land, both facing
+# the camera at the default view, and the pole a drag turns the circles about.
+POLAR_RADIUS = 15.0
+POLAR_PICK = (10.0, 20.0)
+POLAR_REPICK = (-20.0, -15.0)
+POLAR_POLE = (0.0, -30.0)
+POLAR_TURN = 30.0
+
+
+def antipode(place: tuple[float, float]) -> tuple[float, float]:
+    """The point on the far side of the planet."""
+    return (-place[0], (place[1] + 360.0) % 360.0 - 180.0)
+
+
+def check_polar_rings(rings: list, axis: tuple[float, float], radius: float, what: str) -> None:
+    """Two closed rings, the first around the axis and the second around its antipode."""
+    if not check(len(rings) == 2, f"{what}: two rings: {len(rings)}"):
+        return
+    for ring, centre in zip(rings, (axis, antipode(axis)), strict=True):
+        check(ring[0] == ring[-1], f"{what}: a ring closes on its first vertex")
+        worst = max(abs(angular_distance(tuple(v), centre) - radius) for v in ring)
+        check(worst < CIRCLE_TOLERANCE,
+              f"{what}: every vertex sits {radius} degrees from {centre}, within {worst:.4f}")
+
+
+def pick_axis(client: AutomationClient, at: tuple[float, float]) -> bool:
+    """Press Pick axis and click the planet."""
+    client.call("properties", button="PickAxis")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "pole" and tool["picking_axis"],
+          f"Pick axis arms the Pole tool for the pick: {tool['tool']}")
+    return click_at(client, at)
+
+
+def run_polar_circles_session(client: AutomationClient) -> None:
+    """Polar circles: typed on an empty feature, sized, picked and turned."""
+    start_new_document(client)
+    client.call("set_tool", tool="move", snap=False)
+    client.call("toolbar", button="AddFeature")
+    depth = undo_depth(client)
+    client.call("set_property", field="feature_type", value="polar_circles")
+    feature = client.call("get_selected")["feature"]
+    check(feature["feature_type"] == "polar_circles",
+          f"the type is Polar circles: {feature['feature_type']!r}")
+    check(feature["geometry_kind"] == "polyline", f"drawn as polylines: {feature['geometry_kind']}")
+    check(undo_depth(client) == depth + 1, "picking the type is one version")
+    panel = client.call("get_properties")["properties"]
+    polar = panel.get("polar_circles")
+    if not check(polar is not None, f"the panel shows the polar circle rows: {sorted(panel)}"):
+        return
+    check(polar["axis"] == [90.0, 0.0] and polar["radius"] == 23.0
+          and polar["circle_segments"] == 36, f"with the auroral defaults: {polar}")
+    check_polar_rings(feature["rings"], (90.0, 0.0), 23.0, "the new feature")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "move", f"the feature holds its circles, so Move stays: {tool['tool']}")
+    check(not tool["vertex_enabled"], "and the Vertex tool is not offered")
+
+    depth = undo_depth(client)
+    client.call("set_property", field="radius", value=POLAR_RADIUS)
+    client.call("set_property", field="circle_segments", value=24)
+    check(undo_depth(client) == depth + 2, "each edit of a row is one version")
+    feature = client.call("get_selected")["feature"]
+    check(len(feature["rings"][0]) == 25,
+          f"the segment count rebuilds the rings: {len(feature['rings'][0])}")
+    check_polar_rings(feature["rings"], (90.0, 0.0), POLAR_RADIUS, "the smaller circles")
+
+    # The cross marks the axis while the pick is armed, and Escape gives it up.
+    look_at(client, (0.0, 0.0))
+    client.call("properties", button="PickAxis")
+    pole = client.call("get_tool")["pole"]
+    check(pole is not None and angular_distance(tuple(pole), (90.0, 0.0)) < 0.01,
+          f"the cross marks the current axis while picking: {pole}")
+    client.call("key", key="Escape")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "move" and not tool["picking_axis"], "Escape gives the pick up")
+
+    # A click moves the axis to where it landed, and Move is back.
+    depth = undo_depth(client)
+    if not pick_axis(client, POLAR_PICK):
+        return
+    tool = client.call("get_tool")
+    check(tool["tool"] == "move" and not tool["picking_axis"] and tool["pole"] is None,
+          f"the click ends the pick and Move is back: {tool['tool']}")
+    check(undo_depth(client) == depth + 1, "the pick is one version")
+    polar = client.call("get_properties")["properties"]["polar_circles"]
+    check(angular_distance(tuple(polar["axis"]), POLAR_PICK) < CIRCLE_TOLERANCE,
+          f"the axis is where the click landed: {polar['axis']}")
+    feature = client.call("get_selected")["feature"]
+    check_polar_rings(feature["rings"], POLAR_PICK, POLAR_RADIUS, "after the pick")
+
+    # The rim is drawn in the type's colour. The root is selected before the
+    # probe, so the highlight is off the line.
+    client.call("select", title=None)
+    rim = probe_at(client, *feature["rings"][0][0])
+    check(is_colour(rim, list(TYPE_COLORS[5])),
+          f"the rim is drawn in the Polar circles colour: {rim}")
+    client.call("select", title="Feature")
+    look_at(client, (0.0, 0.0))
+
+    # A drag with the Pole tool writes a keyframe, and both circles follow it.
+    client.call("set_tool", tool="pole")
+    if not click_at(client, POLAR_POLE):
+        return
+    grab = (10.0, 0.0)
+    if not turn(client, grab, turn_about(grab, POLAR_POLE, POLAR_TURN)):
+        return
+    angle = status_angle(client)
+    feature = client.call("get_selected")["feature"]
+    check(len(feature["keyframes"]) == 1, f"the turn is a keyframe: {feature['keyframes']}")
+    check_polar_rings(feature["rings"], POLAR_PICK, POLAR_RADIUS, "the circles in their own frame")
+    turned = turn_about(POLAR_PICK, POLAR_POLE, angle)
+    check(angular_distance(turned, POLAR_PICK) > 5.0, f"the turn moves the axis: {turned}")
+    check_polar_rings(feature["world_rings"], turned, POLAR_RADIUS, "the turned circles")
+    client.call("key", key="Escape")
+    client.call("set_tool", tool="move")
+
+    # A pick on a turned feature puts the axis where the click is on the globe.
+    if not pick_axis(client, POLAR_REPICK):
+        return
+    feature = client.call("get_selected")["feature"]
+    check_polar_rings(feature["world_rings"], POLAR_REPICK, POLAR_RADIUS,
+                      "picked on the turned feature")
+    client.call("menu", item="undo")
+    feature = client.call("get_selected")["feature"]
+    check_polar_rings(feature["world_rings"], turned, POLAR_RADIUS, "undo puts the axis back")
+
+    # A feature holding a shape does not become polar circles.
+    if not add_polyline(client, "Plain Line", WEST_LINE):
+        return
+    client.call("set_property", field="feature_type", value="polar_circles")
+    dialog = client.call("get_dialog")["dialog"]
+    if check(dialog is not None and "empty feature" in dialog["text"],
+             f"the refusal says why: {dialog}"):
+        client.call("dialog", button="OK")
+    feature = client.call("get_selected")["feature"]
+    check(feature["feature_type"] == "line", f"a drawn line stays a line: {feature['feature_type']}")
+    check("polar_circles" not in client.call("get_properties")["properties"],
+          "and shows no polar circle rows")
 
 
 ### The Topology scenario
@@ -4078,6 +4222,7 @@ def main(argv: list[str]) -> int:
         run_copy_shape_session(client)
         run_rotate_session(client)
         run_circle_session(client)
+        run_polar_circles_session(client)
         run_topology_session(client)
         run_kinematics_session(client)
         run_python_session(client)

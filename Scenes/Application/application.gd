@@ -312,6 +312,7 @@ func _ready() -> void:
 	properties.pick_parent_requested.connect(
 		func(on: bool) -> void: start_parent_pick() if on else end_parent_pick())
 	properties.palette_file_requested.connect(choose_palette)
+	properties.pick_axis_requested.connect(start_axis_pick)
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
 	document.time_changed.connect(_on_time_changed)
@@ -1932,6 +1933,8 @@ func _on_cursor_moved(lat: float, lon: float) -> void:
 
 func set_active_tool(tool: Tool) -> void:
 	taken_back = PackedVector2Array()
+	# The axis pick lasts one click of the Pole tool; any change of tool ends it.
+	picking_axis = false
 	if active_tool == Tool.DRAW and tool != Tool.DRAW:
 		_outline_cancel()
 	if active_tool == Tool.VERTEX and tool != Tool.VERTEX:
@@ -1982,7 +1985,7 @@ func snapping() -> bool:
 func _update_tool_buttons() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var editable := _can_spin(selected)
-	vertex_button.disabled = not editable
+	vertex_button.disabled = not _can_edit_vertices(selected)
 	rotate_button.disabled = not editable
 	pole_button.disabled = not editable
 	snap_button.disabled = active_tool != Tool.VERTEX and active_tool != Tool.POLE
@@ -2043,6 +2046,11 @@ func _on_feature_selected(node: Feature) -> void:
 	# not survive an undo.
 	var editable := node == null or _can_spin(node)
 	if (active_tool == Tool.VERTEX or _spins(active_tool)) and not editable:
+		set_active_tool(Tool.MOVE)
+	if active_tool == Tool.VERTEX and node != null and not _can_edit_vertices(node):
+		set_active_tool(Tool.MOVE)
+	# The axis being picked belongs to the feature that asked for it.
+	if picking_axis and node != null and node.pnid != axis_pick_pnid:
 		set_active_tool(Tool.MOVE)
 	if active_tool == Tool.SPLIT and node != null and not _can_split_along(node):
 		set_active_tool(Tool.MOVE)
@@ -2205,6 +2213,12 @@ func _can_spin(node: Feature) -> bool:
 	return node != null and not node.is_group and node.has_own_vertices()
 
 
+# Polar circles are rebuilt from their axis and radius, so a vertex moved by
+# hand would not last; they are turned, not edited.
+func _can_edit_vertices(node: Feature) -> bool:
+	return _can_spin(node) and not node.is_polar_circles()
+
+
 # The tool the feature's type calls for, or Move when nothing draws it: a
 # feature that holds a shape already, a group, or nothing selected.
 func _tool_for(node: Feature) -> Tool:
@@ -2361,7 +2375,7 @@ func _moved_far_enough(lat: float, lon: float) -> bool:
 # says nothing.
 func _spin_start(lat: float, lon: float) -> void:
 	var feature := features.feature_tree.get_selected_node()
-	if not _can_spin(feature):
+	if picking_axis or not _can_spin(feature):
 		return
 	var axis := Feature.centroid_axis(features.root, feature, document.current_time) \
 		if active_tool == Tool.ROTATE else Feature._latlon_to_xyz_s(pole_at)
@@ -2437,8 +2451,51 @@ func _place_pole(at: Vector2) -> void:
 			var picked := GeometryEdit.nearest_point(candidates[0], screen, SNAP_PIXELS)
 			if picked >= 0:
 				pole_at = candidates[2][picked]
+	if picking_axis:
+		_finish_axis_pick(pole_at)
+		return
 	_refresh_selection_outline()
 	_show_measurement()
+
+
+### Picking the axis of polar circles
+#
+# The Pick axis button of the Properties panel arms the Pole tool for one click,
+# with its cross on the current axis. The click, snapped like any pole, becomes
+# the new axis in the feature's own frame, and the tool goes back to Move.
+# Escape or another tool gives the pick up. See Docs/Editing.md#polar-circles.
+
+var picking_axis: bool = false
+var axis_pick_pnid: int = -1
+
+
+func start_axis_pick() -> void:
+	var feature := features.feature_tree.get_selected_node()
+	if feature == null or not feature.is_polar_circles():
+		return
+	set_active_tool(Tool.POLE)
+	picking_axis = true
+	axis_pick_pnid = feature.pnid
+	var to_world := Feature.world_basis(features.root, feature, document.current_time)
+	pole_at = Feature.apply_basis(PackedVector2Array([feature.axis]), to_world)[0]
+	_refresh_selection_outline()
+	_show_measurement()
+
+
+func _finish_axis_pick(world: Vector2) -> void:
+	var feature := features.feature_tree.get_selected_node()
+	set_active_tool(Tool.MOVE)
+	if feature == null or not feature.is_polar_circles():
+		return
+	var to_local := Feature.world_basis(features.root, feature, document.current_time).transposed()
+	var axis := Feature.apply_basis(PackedVector2Array([world]), to_local)[0]
+	var error := document.set_polar_circles(feature, axis, feature.radius, feature.circle_segments)
+	if not error.is_empty():
+		_report(error)
+		return
+	features.reload()
+	_show_selection(features.feature_tree.get_selected_node())
+	refresh_geometry()
 
 
 # How far each arm of the cross marking the pole reaches, in degrees.
@@ -2675,7 +2732,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 	match active_tool:
 		Tool.POLE:
-			if event.keycode == KEY_ESCAPE:
+			if event.keycode == KEY_ESCAPE and picking_axis:
+				set_active_tool(Tool.MOVE)
+			elif event.keycode == KEY_ESCAPE:
 				_spin_cancel()
 				pole_at = NO_POLE
 				_refresh_selection_outline()
@@ -3475,6 +3534,10 @@ func _show_measurement(error: String = "") -> void:
 		status_measure.text = "click a centre and the rim, or three points on the rim" 			if circle.is_empty() else "centre %.2f° %.2f°   radius %s   %d segments" % [
 				(circle[0] as Vector2).x, (circle[0] as Vector2).y,
 				Circle.format_radius(circle[1]), circle_segments()]
+		return
+
+	if picking_axis:
+		status_measure.text = "click the planet to put the axis of the polar circles there"
 		return
 
 	if _spins(active_tool):

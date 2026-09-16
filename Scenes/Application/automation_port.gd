@@ -609,6 +609,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"vertex_enabled": not app.vertex_button.disabled,
 				"pole": null if app.pole_at == Application.NO_POLE
 					else [app.pole_at.x, app.pole_at.y],
+				"picking_axis": app.picking_axis,
 				"snapping": app.snapping(),
 				"selected_vertex": _vertex_to_json(app.selected_vertex),
 				"hovered_vertex": _vertex_to_json(app.hovered_vertex),
