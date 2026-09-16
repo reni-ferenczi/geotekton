@@ -6,8 +6,9 @@ extends TestCase
 const TRIANGLE := [Vector2(0, 0), Vector2(0, 10), Vector2(10, 0)]
 
 
-func test_the_catalog_is_the_five_types() -> void:
-	assert_eq(FeatureType.CATALOG.keys(), ["polygon", "line", "points", "circle", "topology"],
+func test_the_catalog_is_the_six_types() -> void:
+	assert_eq(FeatureType.CATALOG.keys(),
+		["polygon", "line", "points", "circle", "topology", "polar_circles"],
 		"in the order the selector lists them")
 
 

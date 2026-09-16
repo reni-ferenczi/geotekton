@@ -108,7 +108,7 @@ func _walk(node: Feature, deciding: GroupStyle, opacity: float) -> void:
 static func class_of(feature: Feature) -> String:
 	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return TOPOLOGIES
-	if feature.feature_type == FeatureType.CIRCLE:
+	if feature.feature_type in [FeatureType.CIRCLE, FeatureType.POLAR_CIRCLES]:
 		return CIRCLES
 	match feature.geometry_kind:
 		Feature.GeometryKind.POLYLINE:

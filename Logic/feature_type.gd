@@ -2,8 +2,8 @@ class_name FeatureType
 
 # What a feature is. The type is picked in the Properties panel and says what
 # the tools draw into the feature: a Polygon a polygon, a Line a polyline,
-# Points a multipoint, a Topology a line topology, and a Circle either a polygon
-# or a polyline, whichever the Circle tool's Outline switch asks for. Once the
+# Points a multipoint, a Topology a line topology, a Circle a closed polyline and
+# Polar circles two closed polylines built from an axis and a radius. Once the
 # feature holds a shape, a type that does not hold that kind gives way to the
 # kind's own. Middle Earth is a world building tool and does not carry the GPGIM
 # over. See Docs/Properties.md.
@@ -21,6 +21,9 @@ const NONE := ""
 # The type a ridge left by the Split tool is given.
 const LINE := "line"
 const CIRCLE := "circle"
+# Two circles of one radius around an axis and its antipode, rebuilt from the
+# parameters the feature keeps; see Feature.rebuild_polar_circles().
+const POLAR_CIRCLES := "polar_circles"
 
 const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]
 
@@ -38,6 +41,7 @@ const CATALOG := {
 	"points": {"name": "Points", "kinds": ["multipoint"], "color": Color.GOLD},
 	CIRCLE: {"name": "Circle", "kinds": ["polyline", "polygon"], "color": Color.DARK_TURQUOISE},
 	"topology": {"name": "Topology", "kinds": ["topology"], "color": Color.MEDIUM_PURPLE},
+	POLAR_CIRCLES: {"name": "Polar circles", "kinds": ["polyline"], "color": Color.SPRING_GREEN},
 }
 
 # The type each geometry kind gives a feature that holds it.

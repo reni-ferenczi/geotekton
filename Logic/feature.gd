@@ -94,6 +94,18 @@ var rings: Array[PackedVector2Array] = []
 # rings but what Topology.rebuild() resolved these into at the current time.
 var sections: Array[TopologySection] = []
 
+# What a Polar circles feature is built from: the first pole of the axis as
+# (latitude, longitude) in degrees, in the feature's own frame, the radius of
+# both circles in degrees and how many segments each is cut into. The second
+# pole is the antipode of the first. No other type reads them; the rings are
+# rebuilt from them by rebuild_polar_circles(). The defaults are the auroral
+# ovals, which lie about 23 degrees from the geomagnetic poles.
+const DEFAULT_AXIS := Vector2(90.0, 0.0)
+const DEFAULT_RADIUS := 23.0
+var axis: Vector2 = DEFAULT_AXIS
+var radius: float = DEFAULT_RADIUS
+var circle_segments: int = Circle.DEFAULT_SEGMENTS
+
 # Triangles covering the polygon rings, 3 vertices each, wound so that they face
 # outwards. Derived from rings by rebuild_triangles(), never read from a file.
 var triangles := PackedVector2Array()
@@ -265,6 +277,23 @@ func add_ring(ring: PackedVector2Array, kind: GeometryKind) -> void:
 	rebuild_triangles()
 
 
+func is_polar_circles() -> bool:
+	return not is_group and feature_type == FeatureType.POLAR_CIRCLES
+
+
+# Replace the rings with the two circles the axis, the radius and the segment
+# count describe: one closed polyline around the axis and one around its
+# antipode.
+func rebuild_polar_circles() -> void:
+	var antipode := Vector2(-axis.x, wrapf(axis.y + 180.0, -180.0, 180.0))
+	geometry_kind = GeometryKind.POLYLINE
+	rings.assign([
+		Circle.vertices(axis, radius, circle_segments, false),
+		Circle.vertices(antipode, radius, circle_segments, false),
+	])
+	rebuild_triangles()
+
+
 ### Clone (preserves pnid) and Duplicate (new pnid)
 
 
@@ -290,6 +319,9 @@ func clone() -> Feature:
 	node.keyframes = Keyframe.clone_list(keyframes)
 	node.couplings = Coupling.clone_list(couplings)
 	node.time_range = time_range
+	node.axis = axis
+	node.radius = radius
+	node.circle_segments = circle_segments
 	for child in children:
 		node.children.append(child.clone())
 	return node
@@ -409,6 +441,13 @@ func to_json() -> Variant:
 		else:
 			data["rings"] = rings_to_json(rings)
 		data["time_range"] = [time_range.x, time_range.y]
+		# Only Polar circles write their parameters, so a missing key means the
+		# feature is some other type. The rings above are written anyway, for a
+		# reader that knows nothing about them.
+		if is_polar_circles():
+			data["axis"] = [axis.x, axis.y]
+			data["radius"] = radius
+			data["circle_segments"] = circle_segments
 	return data
 
 
@@ -445,6 +484,13 @@ static func from_json(data: Variant) -> Feature:
 		node.rebuild_triangles()
 		var tr: Array = data.get("time_range", [0, 2000])
 		node.time_range = Vector2i(tr[0], tr[1])
+		var a: Array = data.get("axis", [DEFAULT_AXIS.x, DEFAULT_AXIS.y])
+		node.axis = Vector2(a[0], a[1])
+		node.radius = float(data.get("radius", DEFAULT_RADIUS))
+		node.circle_segments = int(data.get("circle_segments", Circle.DEFAULT_SEGMENTS))
+		# The parameters win over the rings the file holds.
+		if node.is_polar_circles():
+			node.rebuild_polar_circles()
 	return node
 
 
