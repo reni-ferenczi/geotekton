@@ -727,7 +727,7 @@ File > Preferences carries three settings that belong to the tools:
 
 | Setting | What it does |
 |---------|--------------|
-| Planet radius (km) | What distances are read against, in whole kilometres |
+| Planet radius (km) | What distances and areas are read against, in whole kilometres, with the surface area it gives shown under it |
 | Vertex marker size | How large the outline overlay draws its vertex markers |
 | Outline line width | How wide it draws the lines between them |
 
