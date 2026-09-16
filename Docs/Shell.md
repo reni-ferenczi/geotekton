@@ -18,12 +18,13 @@ height off the planet view; once shown, they are remembered like the rest.
 
 The two splitters start at 576 px for the feature tree and 320 px for the
 properties panel. The feature tree is the wider of the two because its toolbar
-sets the floor: thirteen buttons and five separators in one `HBoxContainer` that
+sets the floor: twelve buttons and four separators in one `HBoxContainer` that
 never wraps, so a `SplitContainer` cannot give the panel less than they need.
-576 px is what that comes to, and the offset says so rather than asking for a
-width it cannot have. Making the toolbar take less — wrapping it, scrolling it, a
-denser icon size, or moving the rare buttons into a menu — is what it would take
-to narrow the panel; see GP-0019.
+That comes to 526 px. The offset was set to the 576 px the toolbar needed while
+it still had an Info button, and it has not been changed, so the layout stays
+as it was. Making the toolbar take less (wrapping it, scrolling it, a denser
+icon size, or moving the rare buttons into a menu) is what it would take to
+narrow the panel further; see GP-0019.
 
 The middle column has the same floor for the same reason, and its wider row is
 the [view toolbar](Editing.md#the-view-toolbar) rather than the tools: the two
@@ -76,13 +77,6 @@ adding an item means adding an enum value and one `add_item` line.
 | View Settings... |     | The scene around the features and how they are coloured; see [Editing](Editing.md#view-settings) |
 | Full Screen | F11      | Enter or leave full screen                |
 
-| Time         | Shortcut  | What it does                              |
-| ------------ | --------- | ----------------------------------------- |
-| Skip Older   | Page Up   | The timeline's `<` button: one skip towards the older end; see [Time](Time.md#the-time-control) |
-| Skip Younger | Page Down | The `>` button: one skip towards the younger end |
-| Older Keyframe | Ctrl+Page Up | The `<<` button: the selected node's next keyframe towards the older end |
-| Younger Keyframe | Ctrl+Page Down | The `>>` button: the same towards the younger end |
-
 | Help          | Shortcut | What it does                          |
 | ------------- | -------- | ------------------------------------- |
 | Documentation | F1       | Open the `Docs` folder on GitHub      |
@@ -93,16 +87,22 @@ focus, except where a focused control takes the key first: Ctrl+C and Ctrl+V in
 a text field are still the text field's. The Edit commands are on the feature
 tree toolbar as well, and Duplicate and Delete are also on a right click on the
 globe; see [Properties](Properties.md#edit-commands). The toolbar also has Save
-and Load buttons, which run the File > Save and File > Open commands.
+and Load buttons, which run the File > Save and File > Open commands. Help is
+only in the Help menu.
 
-**Space** and the tool letters are the shortcuts that are not menu items. Space
-starts the animation and stops it again; see
-[Time](Time.md#the-time-control). A letter picks a tool, `M` for Move, `R` for
-Rotate and so on, as listed in
-[Editing](Editing.md#the-tool-keys). All of them are read from anywhere but a
-text field, which takes the key as the character it is, and all of them are
-single keys: every menu accelerator carries Ctrl or is a key of its own, so
-none of them collide.
+The time keys, **Space** and the tool letters are the shortcuts that are not
+menu items. **Page Up** and **Page Down** do what the timeline's `<` and `>`
+buttons do, one skip towards the older or the younger end, and **Ctrl+Page Up**
+and **Ctrl+Page Down** do what `<<` and `>>` do, the selected node's next
+keyframe either way; see [Time](Time.md#the-time-control). Space starts the
+animation and stops it again. A letter picks a tool, `M` for Move, `R` for
+Rotate and so on, as listed in [Editing](Editing.md#the-tool-keys).
+
+`Application._input` reads all of them before the GUI pass, so a focused tree
+or button does not take the key first. A text field does: it takes the key as
+the character it is, or as its own Page Up. No menu accelerator uses Page Up or
+Page Down, and the other keys are single keys, so none of them collide with a
+menu.
 
 ## Full screen
 

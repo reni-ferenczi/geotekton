@@ -1444,8 +1444,8 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(client.call("get_timeline")["timeline"]["skip"] == 10.0, "the skip box takes a new value")
     client.call("key", key="PageDown")
     check(client.call("get_time")["time"] == 390.0, "Page Down skips towards the younger end by it")
-    client.call("menu", item="skip_older")
-    check(client.call("get_time")["time"] == 400.0, "and Time > Skip Older comes back")
+    client.call("key", key="PageUp")
+    check(client.call("get_time")["time"] == 400.0, "and Page Up comes back")
     client.call("key", key="PageUp")
     check(client.call("get_time")["time"] == 400.0, "a skip never leaves the animation range")
     run_keyframe_jump_checks(client)
@@ -1547,9 +1547,9 @@ def run_keyframe_jump_checks(client: AutomationClient) -> None:
     client.call("timeline", button="YoungerKeyframe")
     check(client.call("get_time")["time"] == TIME_A,
           f"the younger keyframe button lands on {TIME_A}: {client.call('get_time')['time']}")
-    client.call("menu", item="keyframe_older")
+    client.call("key", key="PageUp", ctrl=True)
     check(client.call("get_time")["time"] == TIME_B,
-          f"Time > Older Keyframe lands on {TIME_B}: {client.call('get_time')['time']}")
+          f"Ctrl+Page Up lands on the older keyframe, {TIME_B}: {client.call('get_time')['time']}")
     client.call("key", key="PageUp", ctrl=True)
     check(client.call("get_time")["time"] == TIME_B,
           "and there is no older keyframe to go on to")
@@ -1953,8 +1953,9 @@ def run_zoom_checks(client: AutomationClient) -> None:
 
     client.call("set_view", zoom=8.0)
     check(client.call("get_view")["zoom"] == 8.0, "a zoom typed in is the zoom")
-    client.call("view", button="zoom_reset")
-    check(client.call("get_view")["zoom"] == 1.0, "and reset goes back to the whole planet")
+    client.call("set_view", zoom=1.1)
+    client.call("view", button="zoom_out")
+    check(client.call("get_view")["zoom"] == 1.0, "zooming out stops at the whole planet")
 
     client.call("view", button="rotate_clockwise")
     check(client.call("get_view")["angle"] == 15.0, "one press turns the view clockwise")

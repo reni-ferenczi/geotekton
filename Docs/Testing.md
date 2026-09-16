@@ -212,8 +212,8 @@ The projection scenario asks each of the six views — the globe and the five
 map projections — where the red triangle is, probes the pixel there, reads the
 place back out of it and clicks it, so a projection whose forward and inverse
 disagree fails on the pixel and one the shader draws differently fails on the
-click. It then steps the zoom in and out, types one in, resets it, turns the
-view each way and resets the camera, checking the toolbar fields follow.
+click. It then steps the zoom in and out, types one in, zooms out as far as it
+goes, turns the view each way and resets the camera, checking the toolbar fields follow.
 
 The export scenario writes pictures of the two cratons sample and reads them
 back with Pillow. On the globe the menu item is greyed out and the command says
@@ -553,7 +553,7 @@ a round trip is also a wait for the screen to catch up.
 | `set_skip {skip}`                    | types a skip into the box beside the timeline's `<` and `>` buttons |
 | `get_performance`                    | the frame rate, how much there is to draw, and whether it is playing |
 | `get_view` / `set_view {lat, lon, angle, zoom, show_map, projection}` | where the camera looks, how far it is zoomed in, and whether the globe or one of the five map projections is drawn. `get_view` also reports the derived `fov`, the `window_size` and what the view toolbar fields read |
-| `view {button}` / `view {projection}` | presses a view toolbar button (`zoom_in`, `zoom_out`, `zoom_reset`, `rotate_clockwise`, `rotate_anticlockwise`, `camera_reset`), or picks a view in the projection selector: `"globe"` or the number of a projection |
+| `view {button}` / `view {projection}` | presses a view toolbar button (`zoom_in`, `zoom_out`, `rotate_clockwise`, `rotate_anticlockwise`, `camera_reset`), or picks a view in the projection selector: `"globe"` or the number of a projection |
 | `mouse_move {x, y}`                  | moves the mouse                                                  |
 | `click {x, y, button, ctrl}`         | presses and releases a mouse button: `left`, `right`, `middle`, `wheel_up` or `wheel_down` |
 | `press {x, y, button}` / `release {x, y, button}` | half a click each, so a drag can be scripted: press, `mouse_move`, release |
@@ -569,7 +569,7 @@ a round trip is also a wait for the screen to catch up.
 | `cancel_export`                      | stops a running export at its next frame                         |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
-| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `export_image`, `export_video`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, `skip_older`, `skip_younger`, `keyframe_older`, `keyframe_younger`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
+| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `export_image`, `export_video`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |
