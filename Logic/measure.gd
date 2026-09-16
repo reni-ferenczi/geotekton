@@ -156,23 +156,24 @@ static func format_km(km: float) -> String:
 
 
 # An area the way the panels show it: a decimal on a small area, whole square
-# kilometres with the thousands set apart by thin spaces up to a million, and
-# millions beyond that.
+# kilometers up to a million, and millions beyond that. The thousands are set
+# apart by a narrow space a line does not break at.
 static func format_area(km2: float) -> String:
 	if km2 < 1000.0:
 		return "%.1f km²" % km2
 	if km2 < 1.0e6:
 		var digits := "%.0f" % km2
 		var cut := digits.length() - 3
-		return "%s %s km²" % [digits.left(cut), digits.substr(cut)]
+		return "%s\u202f%s km²" % [digits.left(cut), digits.substr(cut)]
 	return "%.2f million km²" % (km2 / 1.0e6)
 
 
 # How much of the planet an area is, for the Properties panel: one decimal, and
-# nothing at all when it would round to nothing.
+# nothing at all when it would round to nothing. The line does not break before
+# the percent sign.
 static func format_share(km2: float, radius: float) -> String:
 	var percent := km2 / planet_area(radius) * 100.0
-	return "" if percent < 0.05 else "%.1f %% of the planet" % percent
+	return "" if percent < 0.05 else "%.1f\u00a0%% of the planet" % percent
 
 
 static func _unit64(v: Vector2) -> PackedFloat64Array:

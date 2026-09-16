@@ -172,14 +172,14 @@ func test_the_planet_area() -> void:
 func test_an_area_is_written_the_way_the_panels_show_it() -> void:
 	assert_eq(Measure.format_area(0.0), "0.0 km²")
 	assert_eq(Measure.format_area(123.44), "123.4 km²")
-	assert_eq(Measure.format_area(1234.4), "1 234 km²")
-	assert_eq(Measure.format_area(999999.0), "999 999 km²")
+	assert_eq(Measure.format_area(1234.4), "1\u202f234 km²")
+	assert_eq(Measure.format_area(999999.0), "999\u202f999 km²")
 	assert_eq(Measure.format_area(1234567.0), "1.23 million km²")
 
 
 func test_the_share_of_the_planet() -> void:
 	var planet := Measure.planet_area(1000.0)
-	assert_eq(Measure.format_share(planet * 0.002, 1000.0), "0.2 % of the planet")
+	assert_eq(Measure.format_share(planet * 0.002, 1000.0), "0.2\u00a0% of the planet")
 	assert_eq(Measure.format_share(planet * 0.0004, 1000.0), "", "too little to write")
 
 

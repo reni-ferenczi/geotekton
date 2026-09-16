@@ -3060,7 +3060,7 @@ def format_area(km2: float) -> str:
     if km2 < 1000.0:
         return f"{km2:.1f} km²"
     if km2 < 1e6:
-        return f"{km2:,.0f} km²".replace(",", "\u2009")
+        return f"{km2:,.0f} km²".replace(",", "\u202f")
     return f"{km2 / 1e6:.2f} million km²"
 
 
@@ -3075,7 +3075,7 @@ def run_area_session(client: AutomationClient) -> None:
         check(math.isclose(panel["area_km2"], wanted, rel_tol=1e-4),
               f"the panel reports the square's area at {radius} km: {panel['area_km2']}, {wanted}")
         shown = format_area(panel["area_km2"])
-        check(panel["geometry"].endswith(f"in 1 part, {shown}, 0.2 % of the planet"),
+        check(panel["geometry"].endswith(f"in 1 part, {shown}, 0.2\u00a0% of the planet"),
               f"and the Geometry row shows it: {panel['geometry']!r}")
         status = client.call("get_status")["status"]["measure"]
         check(status.endswith(f" km around Square, {shown}"),

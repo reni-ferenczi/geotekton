@@ -667,9 +667,9 @@ added up, so a ring around a pole or across the date line needs no special
 case. A ring splits the sphere into two sides, and the area is the smaller
 one, which is also why the drawing direction makes no difference. The parts of
 a polygon are separate outlines, so their areas add. An area under a thousand
-square kilometres is written with one decimal, then in whole square kilometres
-with a thin space between the thousands, and from a million on in millions
-with two decimals.
+square kilometers is written with one decimal, then in whole square kilometers
+with a narrow no-break space between the thousands, and from a million on in
+millions with two decimals.
 
 ## View settings
 
@@ -727,7 +727,7 @@ File > Preferences carries three settings that belong to the tools:
 
 | Setting | What it does |
 |---------|--------------|
-| Planet radius (km) | What distances and areas are read against, in whole kilometres, with the surface area it gives shown under it |
+| Planet radius (km) | What distances and areas are read against, in whole kilometers, with the surface area it gives shown under it |
 | Vertex marker size | How large the outline overlay draws its vertex markers |
 | Outline line width | How wide it draws the lines between them |
 

@@ -145,7 +145,8 @@ vertex is placed, moved, inserted and deleted on the globe with the
 still says what the feature holds: its kind, vertices and parts, and for a
 polygon its area and the share of the planet it covers, as in "polygon, 12
 vertices in 1 part, 1.23 million km², 0.2 % of the planet". The share has one
-decimal and is left out below 0.05 %. The area is read against the
+decimal, a no-break space before the percent sign so the line never
+breaks there, and is left out below 0.05 %. The area is read against the
 [planet radius](Editing.md#the-planet-radius) preference, so the row changes
 when the Preferences dialog is closed with another radius.
 
