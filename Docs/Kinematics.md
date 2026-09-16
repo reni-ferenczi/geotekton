@@ -11,14 +11,18 @@ panels; see [Shell](Shell.md#menus).
 
 ## What is graphed
 
-Three rows, one under the other, sharing a time axis that runs from the oldest
-time on the left to the youngest on the right, exactly as the timeline slider
-does. A white line stands on the current time and moves with it.
+By default the panel draws one row, the rate, over a time axis that runs from
+the oldest time on the left to the youngest on the right, exactly as the
+timeline slider does. View > Kinematics: latitude and longitude adds a row for
+each above the rate, all three sharing the axis, and makes the panel two rows
+taller to fit them. The switch is remembered in the settings file as
+`kinematics_place`, like the panels themselves. A white line stands on the
+current time in every row and moves with it.
 
 | Row       | What it shows                          | Range it is drawn against |
 | --------- | -------------------------------------- | ------------------------- |
-| Latitude  | Where the middle of the feature is      | -90° to +90°              |
-| Longitude | The same, east and west                 | -180° to +180°            |
+| Latitude  | Where the middle of the feature is, when switched on | -90° to +90° |
+| Longitude | The same, east and west, when switched on | -180° to +180°          |
 | Rate      | How fast it turns, one bar per span between keyframes | zero to the fastest span |
 
 The two place rows are drawn against the whole of what a latitude and a
@@ -26,8 +30,9 @@ longitude can be, rather than against what this feature happens to cover. A
 craton that has hardly moved then reads as one that has hardly moved, instead of
 being blown up until its wobble fills the box.
 
-Above them is a line of the same numbers at the current time: the title, the
-time, the place, and the rate in both units.
+Above the rows is a line of the same numbers at the current time: the title,
+the time, the place, and the rate in both units. It gives the latitude and the
+longitude whether or not their rows are drawn.
 
 ## The quantities
 
