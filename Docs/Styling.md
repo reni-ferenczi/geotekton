@@ -208,7 +208,8 @@ of the geometry never reads a file it has read before.
 
 Custom is listed first. Below the palette row the dialog has a Ramp row with the
 root style's colors and its span; the strip previews the ramp from age zero to
-the end of the last span.
+the end of the last span. In both places the colors wrap onto further lines
+once there are more than fit beside each other, each with its − button.
 
 That chooser is the root group's. A group's palette row in the Properties panel
 lists the built in palettes and the file its style already names, and has no
