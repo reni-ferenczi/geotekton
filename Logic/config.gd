@@ -233,8 +233,14 @@ static func set_default_view(name: String) -> void:
 	set_value("default_view", name)
 
 
+# A block written before 0.16.0 names the raster and the grid by their old
+# keys. They are renamed and written back on the first read, so the values the
+# user saved carry over.
 static func get_view_defaults() -> ViewSettings:
-	return ViewSettings.from_json(get_value("view_defaults"))
+	var block: Variant = get_value("view_defaults")
+	if block is Dictionary and Document.rename_view_keys(block):
+		set_value("view_defaults", block)
+	return ViewSettings.from_json(block)
 
 
 # The block holds the scene settings only. A `style` key an older version

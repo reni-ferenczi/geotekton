@@ -11,7 +11,7 @@ extends RenderedCase
 const SAMPLE := "topology.middle-earth"
 
 # Between two vertices of the western section, and of the eastern one. Both are
-# well away from the markers themselves and off the graticule.
+# well away from the markers themselves and off the grid.
 const ON_WEST_SECTION := Vector2(0.0, -32.5)
 const ON_EAST_SECTION := Vector2(0.0, 17.5)
 

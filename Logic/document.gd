@@ -796,7 +796,7 @@ func save_to_file(file_path: String) -> String:
 	# An image beside the file being written is stored relative to it, wherever
 	# it was picked from and wherever the document was saved before, so a
 	# project and its images can be moved together.
-	view.backdrop_path = relative_backdrop(resolve_backdrop(), file_path)
+	view.raster_path = relative_raster(resolve_raster(), file_path)
 	var data := to_json()
 	var file := FileAccess.open(file_path, FileAccess.WRITE)
 	if file == null:
@@ -810,7 +810,7 @@ func save_to_file(file_path: String) -> String:
 	return ""
 
 
-### The backdrop image
+### The raster
 #
 # The path is stored relative when the image sits in the project's own folder or
 # under it, so a project and its images can be moved together, and absolute
@@ -819,7 +819,7 @@ func save_to_file(file_path: String) -> String:
 
 
 # The path to write for an image the user picked, given where the file is going.
-static func relative_backdrop(image_path: String, project_path: String) -> String:
+static func relative_raster(image_path: String, project_path: String) -> String:
 	if image_path.is_empty() or project_path.is_empty() or image_path.is_relative_path():
 		return image_path
 	var folder := project_path.get_base_dir().replace("\\", "/").rstrip("/")
@@ -829,23 +829,23 @@ static func relative_backdrop(image_path: String, project_path: String) -> Strin
 	return image.substr(folder.length() + 1)
 
 
-# Where the backdrop image actually is, resolved against the project file it was
+# Where the raster actually is, resolved against the project file it was
 # stored beside. Empty when the document names no image.
-func resolve_backdrop() -> String:
-	if view.backdrop_path.is_empty():
+func resolve_raster() -> String:
+	if view.raster_path.is_empty():
 		return ""
-	if view.backdrop_path.is_absolute_path():
-		return view.backdrop_path
+	if view.raster_path.is_absolute_path():
+		return view.raster_path
 	if path.is_empty():
-		return view.backdrop_path
-	return path.get_base_dir().path_join(view.backdrop_path)
+		return view.raster_path
+	return path.get_base_dir().path_join(view.raster_path)
 
 
 # Bring a parsed file up to the format this version writes, based on the
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.15.0"):
+	if not _is_older_than(version, "0.16.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -873,8 +873,36 @@ static func migrate(data: Dictionary) -> Dictionary:
 	# 0.15.0 let a coupling span name a second parent. A span without the key
 	# rides on one parent, which is what every span did before, so there is
 	# none either.
-	data["version"] = "0.15.0"
+	if _is_older_than(version, "0.16.0") and view is Dictionary:
+		rename_view_keys(view)
+	data["version"] = "0.16.0"
 	return data
+
+
+# 0.16.0 renamed five keys of the view block, calling the backdrop image a
+# raster, the word GPlates uses, and the graticule a grid.
+const VIEW_KEYS_BEFORE_0_16_0 := {
+	"backdrop_path": "raster_path",
+	"backdrop_opacity": "raster_opacity",
+	"backdrop_visible": "raster_visible",
+	"graticule_color": "grid_color",
+	"graticule_spacing": "grid_spacing",
+}
+
+
+# Rename the keys a view block had before 0.16.0, in place. The preferences'
+# view_defaults hold the same block, so Config uses this too. A block naming a
+# setting by both keys keeps the new one. Returns whether anything was renamed.
+static func rename_view_keys(view: Dictionary) -> bool:
+	var renamed := false
+	for old: String in VIEW_KEYS_BEFORE_0_16_0:
+		if not view.has(old):
+			continue
+		var value: Variant = view[old]
+		view.erase(old)
+		view.get_or_add(VIEW_KEYS_BEFORE_0_16_0[old], value)
+		renamed = true
+	return renamed
 
 
 # The built in tables 0.13.0 dropped when the palette list became Custom and

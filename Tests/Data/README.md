@@ -39,9 +39,9 @@ Every polygon is wound counter-clockwise as seen from outside the sphere, which 
 (-10, -10), (-10, 10), (10, 0) is the wrong way round; the files use
 (-10, -10), (10, 0), (-10, 10).
 
-## Backdrop images
+## Rasters
 
-`Backdrops/` holds the fixtures for the image a document wears in place of the
+`Rasters/` holds the fixtures for the image a document wears in place of the
 built in Earth: the same picture as `quarters.png`, `quarters.jpg`,
 `quarters.webp` and `quarters.svg`. Each is 64 by 32, split into four solid
 quarters — red north-west, green north-east, blue south-west, yellow south-east
@@ -49,7 +49,7 @@ quarters — red north-west, green north-east, blue south-west, yellow south-eas
 format that arrived upside down or mirrored fails.
 
 The folder carries a `.gdignore`. The files are read from disk at run time by
-`Backdrop.load_from()`, the way any image on the machine is, and never imported
+`Raster.load_from()`, the way any image on the machine is, and never imported
 as project resources.
 
 ## Colour palettes
@@ -73,7 +73,7 @@ them when that checkout is beside this one and says so when it is not.
 
 Coordinates are (latitude, longitude) in degrees. `Tests/Unit/test_sample_files.gd`
 checks each of them with `Planet.hit_test`; the rendered tests read the screen
-pixel at the same points. The clear probes stay off the graticule, which is drawn on
+pixel at the same points. The clear probes stay off the grid, which is drawn on
 multiples of 15 degrees.
 
 ### triangle.middle-earth (0.1.0)
@@ -145,7 +145,7 @@ Root group `Planet` > group `Plates` > `West Points`, `East Points`, and
 
 The two probes on the boundary sit between markers, where nothing but the
 resolved topology is drawn. The one at (0, 3) is in the gap between the two
-sections, off the graticule, and shows the Earth: the sections are not joined
+sections, off the grid, and shows the Earth: the sections are not joined
 up. The two on the markers are at vertices the boundary also runs through, and
 the marker wins there, so they say the features are still drawn under it.
 

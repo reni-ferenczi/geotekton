@@ -717,8 +717,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {
 				"ok": true,
 				"view_settings": app.document.view.to_json(),
-				# Why the backdrop image is not on the planet, empty while it is.
-				"backdrop_error": app.backdrop.error,
+				# Why the raster is not on the planet, empty while it is.
+				"raster_error": app.raster.error,
 			}
 
 		"set_view_settings":

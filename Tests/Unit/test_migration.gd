@@ -31,7 +31,7 @@ func test_the_samples_keep_the_edges_their_triangles_left_on_the_boundary() -> v
 		var before: Array = []
 		_collect_leaves(raw["features"], before)
 		var migrated := Document.migrate(raw.duplicate(true))
-		assert_eq(str(migrated["version"]), "0.15.0", "%s is migrated to 0.15.0" % file_name)
+		assert_eq(str(migrated["version"]), "0.16.0", "%s is migrated to 0.16.0" % file_name)
 
 		var after: Array = []
 		_collect_leaves(migrated["features"], after)
@@ -129,7 +129,7 @@ func test_a_leaf_at_0_4_0_under_no_moving_group_is_left_alone() -> void:
 	var expected: Dictionary = data["features"].duplicate(true)
 	expected["feature_type"] = FeatureType.NONE
 	assert_eq(migrated["features"], expected, "the leaf is as it was, its type left to its geometry")
-	assert_eq(migrated["version"], "0.15.0", "at the current version")
+	assert_eq(migrated["version"], "0.16.0", "at the current version")
 
 
 ### 0.7.0 to 0.8.0: groups stop carrying motion
@@ -222,7 +222,7 @@ func test_a_0_7_0_file_opens_each_old_type_as_one_of_the_five() -> void:
 	var migrated := Document.migrate({"version": "0.7.0",
 		"features": {"type": "Group", "title": "Planet", "children": children},
 		"view": {"hidden_classes": ["small_circles", "points"]}})
-	assert_eq(migrated["version"], "0.15.0", "at the current version")
+	assert_eq(migrated["version"], "0.16.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	for i in OLD_TYPES.size():
 		assert_eq(root.children[i].feature_type, OLD_TYPES[i][2], root.children[i].title)
@@ -301,7 +301,7 @@ func test_a_0_9_0_file_keeps_its_types() -> void:
 		"type": "Group", "title": "Planet", "children": [
 			{"type": "Feature", "title": "Ring", "feature_type": "circle", "rings": []}]}})
 	assert_eq(migrated["features"]["children"][0]["feature_type"], "circle", "the circle stays one")
-	assert_eq(migrated["version"], "0.15.0", "at the current version")
+	assert_eq(migrated["version"], "0.16.0", "at the current version")
 
 
 ### 0.12.0 to 0.13.0: the ramp's two ends become a list of colours
@@ -317,7 +317,7 @@ func test_a_0_12_0_ramp_becomes_a_list_of_its_two_ends() -> void:
 	var migrated := Document.migrate({"version": "0.12.0",
 		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style,
 			"children": []}})
-	assert_eq(migrated["version"], "0.15.0", "at the current version")
+	assert_eq(migrated["version"], "0.16.0", "at the current version")
 	var written: Dictionary = migrated["features"]["style"]
 	assert_eq(written.get("ramp_colors"), [brown, grey], "the two ends are the two stops")
 	assert_true(not written.has("ramp_from") and not written.has("ramp_to"), "and the keys are gone")
@@ -334,7 +334,7 @@ func test_a_0_12_0_style_without_a_ramp_takes_the_new_default() -> void:
 		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style.duplicate(),
 			"children": []}})
 	assert_eq(migrated["features"]["style"], style, "the style is left as it was")
-	assert_eq(migrated["version"], "0.15.0", "at the current version")
+	assert_eq(migrated["version"], "0.16.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	assert_eq(root.style.palette, "rainbow", "the palette it named")
 	assert_eq(root.style.ramp_colors, Palette.DEFAULT_RAMP_COLORS, "and the default ramp")
@@ -361,7 +361,7 @@ func test_a_0_13_0_leaf_reads_with_no_icon() -> void:
 	var migrated := Document.migrate({"version": "0.13.0", "features": {
 		"type": "Group", "is_group": true, "title": "Planet", "children": [
 			{"type": "Feature", "title": "Shield", "rings": []}]}})
-	assert_eq(migrated["version"], "0.15.0", "at the current version")
+	assert_eq(migrated["version"], "0.16.0", "at the current version")
 	var leaf: Feature = Feature.from_json(migrated["features"]).children[0]
 	assert_eq(leaf.icon, FeatureIcon.NONE, "and the leaf carries no icon")
 
@@ -376,10 +376,60 @@ func test_a_0_14_0_span_reads_with_one_parent() -> void:
 		"type": "Group", "is_group": true, "title": "Planet", "children": [
 			{"type": "Feature", "title": "Shield", "rings": [],
 				"couplings": [{"from": 500.0, "to": 200.0, "parent": "a-uuid"}]}]}})
-	assert_eq(migrated["version"], "0.15.0", "at the current version")
+	assert_eq(migrated["version"], "0.16.0", "at the current version")
 	var leaf: Feature = Feature.from_json(migrated["features"]).children[0]
 	assert_eq(leaf.couplings[0].parent, "a-uuid", "the parent it named")
 	assert_eq(leaf.couplings[0].parent_b, "", "and no second one")
+
+
+### 0.15.0 to 0.16.0: the backdrop is a raster and the graticule a grid
+
+
+const VIEW_0_15_0 := {
+	"backdrop_path": "art/earth.png",
+	"backdrop_opacity": 0.4,
+	"backdrop_visible": false,
+	"graticule_color": [0.9, 0.4, 0.1, 0.5],
+	"graticule_spacing": 30.0,
+	"ambient": 0.25,
+}
+const SCRATCH := "user://test_migration.middle-earth"
+
+
+func test_a_0_15_0_view_block_keeps_its_raster_and_grid() -> void:
+	var migrated := Document.migrate({"version": "0.15.0", "features": {}, "view": VIEW_0_15_0})
+	assert_eq(migrated["version"], "0.16.0", "at the current version")
+	var view: Dictionary = migrated["view"]
+	for old: String in Document.VIEW_KEYS_BEFORE_0_16_0:
+		assert_true(not view.has(old), "%s is gone" % old)
+	var settings := ViewSettings.from_json(view)
+	assert_eq(settings.raster_path, "art/earth.png", "the raster")
+	assert_close(settings.raster_opacity, 0.4, 1e-6, "its opacity")
+	assert_eq(settings.raster_visible, false, "and its switch")
+	assert_eq(settings.grid_color, Color(0.9, 0.4, 0.1, 0.5), "the grid color")
+	assert_eq(settings.grid_spacing, 30.0, "and its spacing")
+	assert_close(settings.ambient, 0.25, 1e-6, "a key that kept its name is left alone")
+	assert_eq(VIEW_0_15_0.has("backdrop_path"), true, "and the block passed in is not changed")
+
+
+# The keys a 0.16.0 file writes are the ones it reads back.
+func test_a_0_16_0_file_round_trips() -> void:
+	var document := Document.new()
+	document.view.raster_path = "C:/pictures/earth.png"
+	document.view.raster_opacity = 0.5
+	document.view.raster_visible = false
+	document.view.grid_color = Color(0.2, 0.4, 0.6, 1.0)
+	document.view.grid_spacing = 20.0
+	assert_eq(document.save_to_file(SCRATCH), "", "the document is written")
+	var file := FileAccess.open(SCRATCH, FileAccess.READ)
+	var raw: Dictionary = JSON.parse_string(file.get_as_text())
+	file.close()
+	assert_eq(Document.migrate(raw), raw, "migration leaves a 0.16.0 file as it is")
+
+	var reloaded := Document.new()
+	assert_eq(reloaded.load_from_file(SCRATCH), "", "the written file loads back")
+	assert_eq(reloaded.view.to_json(), document.view.to_json(), "with the same view block")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 
 
 func test_version_ordering() -> void:

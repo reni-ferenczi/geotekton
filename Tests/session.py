@@ -2277,26 +2277,26 @@ def run_scene_session(client: AutomationClient, folder: Path) -> None:
     # The image goes beside the project, which is what makes the path in the
     # file a relative one.
     image = folder / "quarters.png"
-    shutil.copyfile(ROOT / "Tests" / "Data" / "Backdrops" / "quarters.png", image)
+    shutil.copyfile(ROOT / "Tests" / "Data" / "Rasters" / "quarters.png", image)
     client.call("load", path=str(sample))
     client.call("set_view", show_map=False, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
 
     edited = {
         "background_color": [0.1, 0.0, 0.2, 1.0],
         "star_field": False,
-        "graticule_color": [1.0, 0.5, 0.0, 1.0],
-        "graticule_spacing": 30.0,
+        "grid_color": [1.0, 0.5, 0.0, 1.0],
+        "grid_spacing": 30.0,
         "light_direction": [15.0, -25.0],
         "ambient": 0.3,
-        "backdrop_path": str(image),
-        "backdrop_opacity": 0.75,
-        "backdrop_visible": True,
+        "raster_path": str(image),
+        "raster_opacity": 0.75,
+        "raster_visible": True,
     }
     client.call("set_view_settings", view_settings=edited)
     check(client.call("get_document")["document"]["dirty"],
           "editing the scene settings offers the document for saving")
-    check(client.call("get_view_settings")["backdrop_error"] == "",
-          "and the backdrop image it names loads")
+    check(client.call("get_view_settings")["raster_error"] == "",
+          "and the raster it names loads")
 
     saved = folder / "scene.middle-earth"
     client.call("expect_file_dialog", path=str(saved))
@@ -2310,9 +2310,9 @@ def run_scene_session(client: AutomationClient, folder: Path) -> None:
     client.call("load", path=str(saved))
     back = client.call("get_view_settings")["view_settings"]
     for key, value in edited.items():
-        if key == "backdrop_path":
+        if key == "raster_path":
             # An image beside the project is stored relative to it.
-            check(back[key] == image.name, f"the backdrop path came back as {back[key]}")
+            check(back[key] == image.name, f"the raster path came back as {back[key]}")
         elif isinstance(value, list):
             check(all(abs(a - b) < 1e-3 for a, b in zip(back[key], value)),
                   f"{key} survived the round trip: {back[key]}")
@@ -2363,7 +2363,7 @@ def run_light_tool_checks(client: AutomationClient) -> None:
 
 def run_view_default_checks(client: AutomationClient, sample: Path) -> None:
     """What a new document starts from, and what a saved one brings with it."""
-    client.call("set_view_settings", view_settings={"ambient": 0.45, "graticule_spacing": 25.0})
+    client.call("set_view_settings", view_settings={"ambient": 0.45, "grid_spacing": 25.0})
     client.call("view", projection=3)
     client.call("set_view_settings", button="SaveAsDefault")
     preferences = client.call("get_preferences")["preferences"]
@@ -2372,21 +2372,21 @@ def run_view_default_checks(client: AutomationClient, sample: Path) -> None:
 
     # Move away from the default, so what a new document picks up is the
     # preference and not what happened to be on screen.
-    client.call("set_view_settings", view_settings={"ambient": 0.9, "graticule_spacing": 5.0})
+    client.call("set_view_settings", view_settings={"ambient": 0.9, "grid_spacing": 5.0})
     client.call("view", projection=0)
     client.call("menu", item="new")
     if client.call("get_dialog")["dialog"] is not None:
         client.call("dialog", button="Discard")
     fresh = client.call("get_view_settings")["view_settings"]
     check(fresh["ambient"] == 0.45, f"a new document takes the default ambient: {fresh['ambient']}")
-    check(fresh["graticule_spacing"] == 25.0, "and the default graticule spacing")
+    check(fresh["grid_spacing"] == 25.0, "and the default grid spacing")
     check(client.call("get_view")["toolbar"]["projection"] == "Robinson",
           "and opens in the default view")
 
     # A document that says something of its own wins over the preference.
     client.call("load", path=str(sample))
     opened = client.call("get_view_settings")["view_settings"]
-    check(opened["ambient"] == 0.0 and opened["graticule_spacing"] == 15.0,
+    check(opened["ambient"] == 0.0 and opened["grid_spacing"] == 15.0,
           f"an opened document brings its own settings: {opened['ambient']}")
 
     client.call("set_view_settings", button="RestoreDefaults")

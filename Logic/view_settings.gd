@@ -1,8 +1,8 @@
 class_name ViewSettings
 extends RefCounted
 
-# How the scene around the features is drawn: the background, the graticule, the
-# light and the backdrop image on the planet, along with which classes of
+# How the scene around the features is drawn: the background, the grid, the
+# light and the raster on the planet, along with which classes of
 # geometry are shown at all and what colour the features come out.
 #
 # These belong to a document rather than to whoever is at the keyboard, because
@@ -17,13 +17,13 @@ extends RefCounted
 # The scene as it was drawn before any of this was settable, so a document that
 # says nothing about its view looks the way every file did until 0.6.0.
 const DEFAULT_BACKGROUND := Color(0.0, 0.0, 0.0, 1.0)
-const DEFAULT_GRATICULE_COLOR := Color(1.0, 1.0, 1.0, 0.3333)
-const DEFAULT_GRATICULE_SPACING := 15.0
+const DEFAULT_GRID_COLOR := Color(1.0, 1.0, 1.0, 0.3333)
+const DEFAULT_GRID_SPACING := 15.0
 const DEFAULT_LIGHT := Vector2(0.0, 0.0)
 const DEFAULT_AMBIENT := 0.0
-const DEFAULT_BACKDROP_OPACITY := 1.0
+const DEFAULT_RASTER_OPACITY := 1.0
 
-# What the graticule may be spaced at, in degrees. The lower end keeps the
+# What the grid may be spaced at, in degrees. The lower end keeps the
 # window from being filled with lines; the upper end still draws the equator and
 # one meridian.
 const MIN_SPACING := 1.0
@@ -42,8 +42,8 @@ const MAX_AMBIENT := 1.0
 var background_color: Color = DEFAULT_BACKGROUND
 var star_field: bool = true
 
-var graticule_color: Color = DEFAULT_GRATICULE_COLOR
-var graticule_spacing: float = DEFAULT_GRATICULE_SPACING
+var grid_color: Color = DEFAULT_GRID_COLOR
+var grid_spacing: float = DEFAULT_GRID_SPACING
 
 # Where the light comes from, as an elevation and an azimuth in degrees away
 # from the camera: (0, 0) shines straight down the line of sight, which is where
@@ -54,10 +54,10 @@ var ambient: float = DEFAULT_AMBIENT
 
 # An image drawn on the planet in place of the built in Earth. The path is
 # relative to the project file when the image sits beside it; see
-# Document.resolve_backdrop().
-var backdrop_path: String = ""
-var backdrop_opacity: float = DEFAULT_BACKDROP_OPACITY
-var backdrop_visible: bool = true
+# Document.resolve_raster().
+var raster_path: String = ""
+var raster_opacity: float = DEFAULT_RASTER_OPACITY
+var raster_visible: bool = true
 
 # The classes of geometry the View menu has switched off, by the names in
 # Styling.CLASSES. Kept as what is hidden rather than what is shown, so an empty
@@ -77,13 +77,13 @@ func to_json() -> Dictionary:
 	return {
 		"background_color": _color_to_json(background_color),
 		"star_field": star_field,
-		"graticule_color": _color_to_json(graticule_color),
-		"graticule_spacing": graticule_spacing,
+		"grid_color": _color_to_json(grid_color),
+		"grid_spacing": grid_spacing,
 		"light_direction": [light_direction.x, light_direction.y],
 		"ambient": ambient,
-		"backdrop_path": backdrop_path,
-		"backdrop_opacity": backdrop_opacity,
-		"backdrop_visible": backdrop_visible,
+		"raster_path": raster_path,
+		"raster_opacity": raster_opacity,
+		"raster_visible": raster_visible,
 		"hidden_classes": Array(hidden_classes),
 	}
 
@@ -98,20 +98,20 @@ static func from_json(data: Variant) -> ViewSettings:
 	settings.background_color = _color_from_json(
 		data.get("background_color"), DEFAULT_BACKGROUND)
 	settings.star_field = bool(data.get("star_field", true))
-	settings.graticule_color = _color_from_json(
-		data.get("graticule_color"), DEFAULT_GRATICULE_COLOR)
-	settings.graticule_spacing = clampf(
-		float(data.get("graticule_spacing", DEFAULT_GRATICULE_SPACING)),
+	settings.grid_color = _color_from_json(
+		data.get("grid_color"), DEFAULT_GRID_COLOR)
+	settings.grid_spacing = clampf(
+		float(data.get("grid_spacing", DEFAULT_GRID_SPACING)),
 		MIN_SPACING, MAX_SPACING)
 	var light: Variant = data.get("light_direction")
 	if light is Array and (light as Array).size() >= 2:
 		settings.light_direction = clamp_light(Vector2(float(light[0]), float(light[1])))
 	settings.ambient = clampf(
 		float(data.get("ambient", DEFAULT_AMBIENT)), MIN_AMBIENT, MAX_AMBIENT)
-	settings.backdrop_path = str(data.get("backdrop_path", ""))
-	settings.backdrop_opacity = clampf(
-		float(data.get("backdrop_opacity", DEFAULT_BACKDROP_OPACITY)), 0.0, 1.0)
-	settings.backdrop_visible = bool(data.get("backdrop_visible", true))
+	settings.raster_path = str(data.get("raster_path", ""))
+	settings.raster_opacity = clampf(
+		float(data.get("raster_opacity", DEFAULT_RASTER_OPACITY)), 0.0, 1.0)
+	settings.raster_visible = bool(data.get("raster_visible", true))
 	var hidden: Variant = data.get("hidden_classes")
 	if hidden is Array:
 		for name in hidden:
@@ -138,10 +138,10 @@ func hide_class(class_id: String, hidden: bool) -> void:
 		hidden_classes.remove_at(at)
 
 
-# How many divisions of the whole planet the graticule spacing comes to, which
+# How many divisions of the whole planet the grid spacing comes to, which
 # is what planet.gdshader counts in: longitude first, then latitude.
-func graticule_split() -> Vector2:
-	return Vector2(360.0 / graticule_spacing, 180.0 / graticule_spacing)
+func grid_split() -> Vector2:
+	return Vector2(360.0 / grid_spacing, 180.0 / grid_spacing)
 
 
 ### The light

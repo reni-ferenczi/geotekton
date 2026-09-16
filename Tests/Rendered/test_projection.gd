@@ -19,7 +19,7 @@ const KINDS := [
 ]
 
 # The middle of the red triangle of triangle.middle-earth, and a point well
-# clear of it. Both are away from the graticule, which is drawn on multiples of
+# clear of it. Both are away from the grid, which is drawn on multiples of
 # fifteen degrees.
 const RED_TRIANGLE := Vector2(-3.0, 0.0)
 const BARE_PLANET := Vector2(-3.0, 47.0)

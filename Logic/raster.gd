@@ -1,4 +1,4 @@
-class_name Backdrop
+class_name Raster
 extends RefCounted
 
 # The image a document wears in place of the built in Earth.
@@ -7,9 +7,9 @@ extends RefCounted
 # resource, so any image on the machine can be dropped onto the planet. What
 # comes back is either a texture or the reason there is none; a document naming
 # an image that has since been moved still opens, showing the built in Earth and
-# saying why. See Docs/Shader.md#the-backdrop-image.
+# saying why. See Docs/Shader.md#the-raster.
 
-# The formats a backdrop may be in: what the engine reads as a raster, plus SVG,
+# The formats a raster may be in: the bitmap formats the engine reads, plus SVG,
 # which it rasterizes from the text of the file.
 const EXTENSIONS := ["png", "jpg", "jpeg", "webp", "svg"]
 
@@ -23,8 +23,8 @@ var error: String = ""
 
 # Read the image at a path. The result always answers: `texture` is null exactly
 # when `error` says why.
-static func load_from(path: String) -> Backdrop:
-	var result := Backdrop.new()
+static func load_from(path: String) -> Raster:
+	var result := Raster.new()
 	if path.is_empty():
 		return result
 	var extension := path.get_extension().to_lower()
@@ -33,7 +33,7 @@ static func load_from(path: String) -> Backdrop:
 			path.get_file(), ", ".join(EXTENSIONS)]
 		return result
 	if not FileAccess.file_exists(path):
-		result.error = "The backdrop image %s is not there" % path
+		result.error = "The raster %s is not there" % path
 		return result
 
 	var image := Image.new()
