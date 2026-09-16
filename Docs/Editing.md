@@ -575,7 +575,7 @@ shows what is being chosen.
 | Setting | What it does |
 |---------|--------------|
 | Background | The colour behind the planet |
-| Star field | Whether the stars are drawn on it |
+| Star field | Whether the stars are drawn; they add their light to the background colour, so the colour shows between them |
 | Graticule | The colour of the grid |
 | Graticule spacing | How far apart its lines are, from 1 to 90 degrees |
 | Light elevation, light azimuth | Where the light comes from, away from the line of sight; `(0, 0)` shines from the camera |
