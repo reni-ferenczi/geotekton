@@ -69,6 +69,50 @@ static func geometry_length(feature: Feature, radius: float = EARTH_RADIUS_KM) -
 	return total
 
 
+# The area a ring encloses on a sphere of the given radius, in the square of the
+# radius's units.
+#
+# A fan of spherical triangles from the first vertex, each one's signed excess
+# added up, so a ring around a pole or across the date line needs nothing
+# special. A closed ring has two sides and the smaller one is taken, which also
+# makes the drawing direction irrelevant.
+#
+# The unit vectors are worked out in floats rather than in a Vector3, whose
+# single precision would add up over the hundreds of thin triangles a circle
+# makes.
+static func ring_area(ring: PackedVector2Array, radius: float = EARTH_RADIUS_KM) -> float:
+	if ring.size() < 3:
+		return 0.0
+	var a := _unit64(ring[0])
+	var b := _unit64(ring[1])
+	var excess := 0.0
+	for i in range(2, ring.size()):
+		var c := _unit64(ring[i])
+		var triple := a[0] * (b[1] * c[2] - b[2] * c[1]) \
+			+ a[1] * (b[2] * c[0] - b[0] * c[2]) \
+			+ a[2] * (b[0] * c[1] - b[1] * c[0])
+		excess += 2.0 * atan2(triple, 1.0 + _dot64(a, b) + _dot64(b, c) + _dot64(c, a))
+		b = c
+	var steradians := absf(excess)
+	return minf(steradians, 4.0 * PI - steradians) * radius * radius
+
+
+# The area of a feature's polygon, its parts added up. Anything not drawn as a
+# polygon encloses nothing.
+static func geometry_area(feature: Feature, radius: float = EARTH_RADIUS_KM) -> float:
+	if feature == null or feature.drawn_as() != Feature.GeometryKind.POLYGON:
+		return 0.0
+	var total := 0.0
+	for ring in feature.rings:
+		total += ring_area(ring, radius)
+	return total
+
+
+# The surface of the whole planet.
+static func planet_area(radius: float = EARTH_RADIUS_KM) -> float:
+	return 4.0 * PI * radius * radius
+
+
 # The point a fraction of the way along the great circle arc from a to b. The
 # ends themselves at 0 and 1, so the two are exact rather than nearly right.
 #
@@ -109,6 +153,36 @@ static func format_km(km: float) -> String:
 	if km < 10000.0:
 		return "%.1f km" % km
 	return "%.0f km" % km
+
+
+# An area the way the panels show it: a decimal on a small area, whole square
+# kilometres with the thousands set apart by thin spaces up to a million, and
+# millions beyond that.
+static func format_area(km2: float) -> String:
+	if km2 < 1000.0:
+		return "%.1f km²" % km2
+	if km2 < 1.0e6:
+		var digits := "%.0f" % km2
+		var cut := digits.length() - 3
+		return "%s %s km²" % [digits.left(cut), digits.substr(cut)]
+	return "%.2f million km²" % (km2 / 1.0e6)
+
+
+# How much of the planet an area is, for the Properties panel: one decimal, and
+# nothing at all when it would round to nothing.
+static func format_share(km2: float, radius: float) -> String:
+	var percent := km2 / planet_area(radius) * 100.0
+	return "" if percent < 0.05 else "%.1f %% of the planet" % percent
+
+
+static func _unit64(v: Vector2) -> PackedFloat64Array:
+	var lat := deg_to_rad(v.x)
+	var lon := deg_to_rad(v.y)
+	return PackedFloat64Array([cos(lat) * cos(lon), sin(lat), cos(lat) * sin(lon)])
+
+
+static func _dot64(a: PackedFloat64Array, b: PackedFloat64Array) -> float:
+	return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
 
 static func _to_unit(v: Vector2) -> Vector3:
