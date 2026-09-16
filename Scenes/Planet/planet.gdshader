@@ -3,9 +3,10 @@ shader_type spatial;
 
 uniform bool is_globe = false;
 
-// The planet's own color, linear, under any raster. Opaque: the alpha is not
-// read, since the planet is never see-through.
-uniform vec4 planet_color = vec4(0.022, 0.107, 0.319, 1.0);
+// The planet's own color under any raster, given in sRGB as the document holds
+// it; source_color has the engine linearize it, as it does the raster. Opaque:
+// the alpha is not read, since the planet is never see-through.
+uniform vec4 planet_color : source_color = vec4(0.16, 0.36, 0.60, 1.0);
 
 // The image a document wears, blended over the planet color by raster_opacity.
 // Zero is no raster at all, which is what a document naming no image, hiding the

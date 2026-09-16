@@ -95,7 +95,9 @@ func apply_view_settings(settings: ViewSettings) -> void:
 		globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
 		# Linearized for the same reason the feature colours are; see set_geometry().
 		material.set_shader_parameter("color", settings.grid_color.srgb_to_linear())
-		material.set_shader_parameter("planet_color", settings.planet_color.srgb_to_linear())
+		# Not linearized here: the uniform is a source_color, which the engine
+		# linearizes itself.
+		material.set_shader_parameter("planet_color", settings.planet_color)
 		material.set_shader_parameter("split", settings.grid_split())
 
 

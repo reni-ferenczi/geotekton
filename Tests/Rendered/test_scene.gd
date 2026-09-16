@@ -1,7 +1,7 @@
 extends RenderedCase
 
 # The scene around the features against the real window: the background, the
-# star field, the grid, the light and the image the planet wears.
+# star field, the grid, the light, the planet's color and the image it wears.
 #
 # Every claim is a pixel, and the pixels are read out of one capture per frame
 # rather than one per probe, since a capture copies the whole window back off
@@ -16,6 +16,24 @@ const CORNER_PATCH := 120
 
 # A saturated blue and a mid grey, the backgrounds the stars are checked on.
 const BACKGROUNDS: Array[Color] = [Color(0.1, 0.2, 0.8), Color(0.5, 0.5, 0.5)]
+
+# A place on the globe clear of the grid lines at their default spacing of 15
+# degrees, and near enough the middle of the default view to face the light.
+const PLANET_PROBE := Vector2(7.5, 7.5)
+
+# Two planet colors far from each other and from the default.
+const PLANET_COLORS: Array[Color] = [Color(0.8, 0.3, 0.1), Color(0.2, 0.7, 0.3)]
+
+# How far a pixel of the planet may be from the same place under an image of
+# its color: the two differ only by how the texture is sampled.
+const PLANET_TOLERANCE := 0.02
+
+# Places on the Earth image well away from each other: land and sea on either
+# side of the Atlantic, the Sahara and the Gulf of Guinea, all in the default
+# view and between grid lines. The ocean in the image is darker than the
+# planet color, so not even the sea matches it.
+const EARTH_PROBES: Array[Vector2] = [
+	Vector2(22.5, 7.5), Vector2(7.5, -7.5), Vector2(-7.5, 22.5), Vector2(37.5, -22.5)]
 
 
 # The star field is added onto the background, so the colour shows between the
@@ -161,14 +179,82 @@ func test_the_light_tool_gives_way_to_a_map() -> void:
 	assert_true(not app.light_button.disabled, "and is offered again on the globe")
 
 
-### The raster
+### The planet color and the raster
+
+
+# The planet with no raster is its own color. The pixel is lit and encoded on
+# its way to the screen, so it is not the number the document holds; what it is
+# held against is the same place drawn under an opaque image of that one color,
+# which goes through the same light, and its dominant channel.
+func test_with_no_raster_the_planet_is_its_own_color() -> void:
+	await load_sample("empty.middle-earth")
+	await look_at_latlon(0.0, 0.0)
+	var here: Vector2 = view().latlon_to_screen(PLANET_PROBE.x, PLANET_PROBE.y)
+	await use_settings({"raster_path": ""})
+	await check_planet_colour(here, ViewSettings.DEFAULT_PLANET_COLOR)
+	for colour: Color in PLANET_COLORS:
+		await use_settings({"planet_color": colour})
+		await check_planet_colour(here, colour)
+	await clear_raster()
+
+
+# The picker offers no alpha, and a color given with one anyway, as the
+# automation port can, comes out opaque in the document and on the planet.
+func test_a_planet_color_with_an_alpha_comes_back_opaque() -> void:
+	await load_sample("empty.middle-earth")
+	await look_at_latlon(0.0, 0.0)
+	await use_settings({"raster_path": ""})
+	var here: Vector2 = view().latlon_to_screen(PLANET_PROBE.x, PLANET_PROBE.y)
+	app.show_view_settings()
+	var picker: ColorPickerButton = app.view_fields["planet_color"]
+	assert_true(not picker.edit_alpha, "the picker offers no alpha")
+	picker.color = Color(0.8, 0.3, 0.1, 0.2)
+	app._on_view_field_changed()
+	app.view_dialog.hide()
+	await frames(2)
+	assert_eq(app.document.view.planet_color, Color(0.8, 0.3, 0.1, 1.0),
+		"the document holds the color opaque")
+	assert_close(await probe(here), await flat_image_colour(here, Color(0.8, 0.3, 0.1)),
+		PLANET_TOLERANCE, "and the planet shows it at full strength")
+	await use_settings({"planet_color": ViewSettings.DEFAULT_PLANET_COLOR})
+	await clear_raster()
+
+
+# The Built in Earth button names the image that ships with the application, and
+# the planet is no longer one flat color.
+func test_the_built_in_earth_button_puts_the_earth_on_the_planet() -> void:
+	await load_sample("empty.middle-earth")
+	await look_at_latlon(0.0, 0.0)
+	await use_settings({"raster_path": ""})
+	app.show_view_settings()
+	var earth_button: Button = app.view_dialog.find_child("BuiltInEarth", true, false)
+	assert_true(earth_button != null, "the dialog has the button")
+	if earth_button == null:
+		app.view_dialog.hide()
+		return
+	earth_button.pressed.emit()
+	app.view_dialog.hide()
+	await frames(2)
+	assert_eq(app.document.view.raster_path, ViewSettings.BUILT_IN_EARTH,
+		"the raster is the built in Earth")
+	assert_eq(app.raster.error, "", "and it loaded")
+
+	var image := await capture()
+	for probe_at: Vector2 in EARTH_PROBES:
+		var screen: Vector2 = view().latlon_to_screen(probe_at.x, probe_at.y)
+		var pixel := image.get_pixel(int(screen.x), int(screen.y))
+		var flat := await flat_image_colour(screen, ViewSettings.DEFAULT_PLANET_COLOR)
+		assert_true(not _near(pixel, flat, PLANET_TOLERANCE),
+			"%s is not the flat planet color: %s against %s" % [probe_at, pixel, flat])
+	await clear_raster()
 
 
 func test_an_image_is_drawn_on_the_planet_and_blended_at_half_opacity() -> void:
 	await load_sample("empty.middle-earth")
 	await look_at_latlon(0.0, 0.0)
 	var here: Vector2 = view().latlon_to_screen(30.0, -30.0)
-	var earth := await probe(here)
+	await use_settings({"raster_path": ""})
+	var bare := await probe(here)
 
 	await use_settings({"raster_path": raster_path()})
 	assert_eq(app.raster.error, "", "the image loaded")
@@ -177,26 +263,27 @@ func test_an_image_is_drawn_on_the_planet_and_blended_at_half_opacity() -> void:
 
 	await use_settings({"raster_opacity": 0.5})
 	var half := await probe(here)
-	assert_true(half.r < full.r and half.r > earth.r,
-		"half opacity is between the image and the Earth: %s" % half)
+	assert_true(half.r < full.r and half.r > bare.r,
+		"half opacity is between the image and the planet color: %s" % half)
 
 	await use_settings({"raster_visible": false})
-	assert_close(await probe(here), earth, 0.02, "hiding it brings the Earth back")
+	assert_close(await probe(here), bare, 0.02, "hiding it brings the planet color back")
 	await clear_raster()
 
 
-# A document naming an image that is not there still opens: the planet keeps the
-# built in Earth and the reason is there to be read.
-func test_an_image_that_is_not_there_falls_back_to_the_earth() -> void:
+# A document naming an image that is not there still opens: the planet shows
+# its own color and the reason is there to be read.
+func test_an_image_that_is_not_there_falls_back_to_the_planet_color() -> void:
 	await load_sample("empty.middle-earth")
 	await look_at_latlon(0.0, 0.0)
 	var here: Vector2 = view().latlon_to_screen(30.0, -30.0)
-	var earth := await probe(here)
+	await use_settings({"raster_path": ""})
+	var bare := await probe(here)
 
 	await use_settings({"raster_path": "C:/nowhere/missing.png"})
 	assert_true(app.raster.error.contains("not there"),
 		"the reason is recorded: %s" % app.raster.error)
-	assert_close(await probe(here), earth, 0.02, "and the Earth is still what is drawn")
+	assert_close(await probe(here), bare, 0.02, "and the planet color is what is drawn")
 	await clear_raster()
 
 
@@ -215,10 +302,36 @@ func use_settings(changes: Dictionary) -> void:
 
 func clear_raster() -> void:
 	await use_settings({
+		"planet_color": ViewSettings.DEFAULT_PLANET_COLOR,
 		"raster_path": "",
 		"raster_opacity": ViewSettings.DEFAULT_RASTER_OPACITY,
 		"raster_visible": true,
 	})
+
+
+func check_planet_colour(screen: Vector2, colour: Color) -> void:
+	var pixel := await probe(screen)
+	assert_close(pixel, await flat_image_colour(screen, colour), PLANET_TOLERANCE,
+		"the planet is %s where no raster covers it" % colour)
+	assert_eq(dominant_channel(pixel), dominant_channel(colour), "and looks it: %s" % pixel)
+
+
+# The pixel at a place with the planet wearing an opaque image of one color,
+# which is what the planet color is drawn as. The document's own raster is put
+# back afterwards.
+func flat_image_colour(screen: Vector2, colour: Color) -> Color:
+	var flat := Image.create(4, 2, false, Image.FORMAT_RGBA8)
+	flat.fill(colour)
+	view().planet.set_raster(ImageTexture.create_from_image(flat), 1.0)
+	await frames(2)
+	var pixel := await probe(screen)
+	app.apply_view_settings()
+	await frames(2)
+	return pixel
+
+
+func _near(a: Color, b: Color, tolerance: float) -> bool:
+	return absf(a.r - b.r) <= tolerance and absf(a.g - b.g) <= tolerance 		and absf(a.b - b.b) <= tolerance
 
 
 func raster_path() -> String:
