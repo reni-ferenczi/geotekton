@@ -2,7 +2,7 @@
 
 [ext_resource type="Shader" uid="uid://diyn5fhv3xlpq" path="res://Scenes/Planet/planet.gdshader" id="1_4ilve"]
 [ext_resource type="Script" uid="uid://dvlkwdhf7so0a" path="res://Scenes/Planet/planet.gd" id="1_wwls2"]
-[ext_resource type="Texture2D" uid="uid://bi7ak16g3vioi" path="res://Assets/Textures/Starfield.png" id="3_4ilve"]
+[ext_resource type="Shader" uid="uid://dgeo0ufvx2fpe" path="res://Scenes/Planet/starfield.gdshader" id="3_4ilve"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_510pn"]
 radial_segments = 128
@@ -26,10 +26,9 @@ shader_parameter/color = Vector4(1, 1, 1, 0.3333)
 shader_parameter/width = Vector2(0.015, 0.015)
 shader_parameter/split = Vector2(24, 12)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ip3qi"]
-blend_mode = 1
-albedo_texture = ExtResource("3_4ilve")
-metallic_specular = 0.0
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_stars"]
+render_priority = 0
+shader = ExtResource("3_4ilve")
 
 [node name="Planet" type="Node3D"]
 script = ExtResource("1_wwls2")
@@ -55,7 +54,7 @@ metadata/_edit_lock_ = true
 unique_name_in_owner = true
 transform = Transform3D(4.2, 0, 0, 0, -4.371139e-08, -2.1, 0, 1, -9.1793915e-08, 0, 0, -1)
 mesh = SubResource("PlaneMesh_510pn")
-surface_material_override/0 = SubResource("StandardMaterial3D_ip3qi")
+surface_material_override/0 = SubResource("ShaderMaterial_stars")
 metadata/_edit_lock_ = true
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]

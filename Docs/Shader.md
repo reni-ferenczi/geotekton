@@ -38,6 +38,29 @@ The direction is fixed to the view rather than to the planet, so turning the
 globe carries the terminator across it and a document looks the same whichever
 way it is turned. That is what GPlates does by default too.
 
+## The star field
+
+The stars behind the planet come from `Scenes/Planet/starfield.gdshader`, the
+material of the `Background` quad in `planet.tscn`. No image holds them. The
+shader cuts the quad's UV into 1024 by 512 cells and hashes each cell's
+integer coordinates, with the `seed` uniform, into the star it holds, if any:
+about half the cells get one. The hash also sets the star's place in its cell,
+its size (1, 2 or 3, weighted 85, 12 and 3 percent), a brightness of up to
+`85 * size` in 0-255 steps, and one of three tints (white, a little blue, a
+little yellow). A star is a disc with a radius of `size - 0.5` texels, at 8192
+texels across the quad. A fragment adds up the stars of its own cell and the
+eight around it, so a star can reach over a cell border.
+
+A star smaller than a screen pixel is spread to the pixel's size, found with
+`fwidth`, and dimmed by the same ratio. Its light stays the same and it does
+not flicker as the view moves. `GAIN` scales the sum so the corner patch in
+`Tests/Rendered/test_scene.gd` is as bright as it was with the 8192 by 4096
+image the shader replaced.
+
+The material is `unshaded` and `blend_add`: the stars add onto the
+environment's background color and the directional light does not reach
+them. `ViewSettings.star_field` shows or hides the quad.
+
 ## The raster
 
 The base of the planet is one flat color, `planet_color`, which
