@@ -148,6 +148,18 @@ After committing, the tool:
 
 The algorithm runs in the 2D lat/lon plane and handles **concave polygons** correctly. Self-intersecting polygons are not supported and will produce undefined results.
 
+Two kinds of ring have no proper shape in that plane, and are handled first:
+
+- **Across the date line.** The longitudes are unwrapped before clipping, so
+  each step from one vertex to the next is under 180 degrees. A quad from 175 E
+  to 175 W is clipped as the 10 degree quad it is, not as one 350 degrees wide.
+- **Round a pole.** When the longitude steps of a ring, each taken the short
+  way, add up to a full turn, the ring encloses a pole. It is cut into a fan of
+  triangles `(pole, v[i], v[i+1])`, one per vertex, with the pole on the side
+  where most of the ring's latitude lies. The pole is added to the triangle
+  list as an extra vertex. A ring at one latitude, which a circle centered on
+  the pole is, would otherwise have no area and no fill at all.
+
 ### Winding Order Correction
 
 Ear clipping keeps the winding of the ring it was given, which is whichever way

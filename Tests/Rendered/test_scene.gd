@@ -200,6 +200,42 @@ func test_the_globe_pole_is_not_flooded_by_the_grid() -> void:
 	await use_settings({"grid_color": ViewSettings.DEFAULT_GRID_COLOR})
 
 
+
+# GP-0085: a polygon round the south pole at 82 S fills the bottom of the
+# rectangular map from its scalloped top edge down to the pole, which the
+# projection stretches across the whole sheet. The grid is drawn over the fill,
+# so the meridians run through the band. The vertices sit half way between
+# meridians, so the probes at their longitudes are clear of the grid.
+func test_a_polygon_round_the_pole_is_a_band_with_the_grid_through_it() -> void:
+	await load_sample("empty.middle-earth")
+	await clear_raster()
+	var ring := PackedVector2Array()
+	for i in range(12):
+		ring.append(Vector2(-82.0, -172.5 + 30.0 * i))
+	var polar := Feature.create_feature("Polar", Color(0.9, 0.1, 0.0))
+	polar.add_ring(ring, Feature.GeometryKind.POLYGON)
+	app.features.root.children.append(polar)
+	app.refresh_geometry()
+	app.features.feature_tree.select_node(polar)
+	await look_at_latlon(0.0, 0.0)
+	view().planet.show_map = true
+	view().planet.projection = MapProjection.Kind.RECTANGULAR
+	await frames(2)
+	var image := await capture()
+
+	for vertex in ring:
+		for entry in [[-84.0, "red"], [-89.0, "red"], [-80.0, "blue"]]:
+			var at: Vector2 = view().latlon_to_screen(entry[0], vertex.y)
+			var pixel := image.get_pixel(int(at.x), int(at.y))
+			assert_eq(dominant_channel(pixel), entry[1],
+				"(%s, %s) is %s: %s" % [entry[0], vertex.y, entry[1], pixel])
+	for k in range(1, 24):
+		assert_grid_line(image, -86.0, -180.0 + k * GRID_STEP, Vector2(0.0, GRID_STEP / 2.0))
+
+	app.features.feature_tree.select_root()
+	view().planet.show_map = false
+	await frames(2)
+
 # Whether a pixel within one of where (lat, lon) lands on screen, along the
 # row or column through it, is brighter than the planet at `offset` degrees
 # away.

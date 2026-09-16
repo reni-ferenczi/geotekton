@@ -265,9 +265,7 @@ void fragment() {
 	line_x *= 1.0 - smoothstep(0.25, 0.5, d.x);
 	float line_y = 1.0 - smoothstep(0.0, d.y, f.y);
 	float g = max(line_x, line_y);
-
-	// Mix grid & surface
-	vec3 base = mix(surface, color.rgb, g * color.a);
+	vec3 base = surface;
 
 	// Precompute sphere position for the geometry and the outline
 	vec3 p = latlon_to_unit(vec2(lat, lon));
@@ -351,6 +349,10 @@ void fragment() {
 			base = mix(base, fill, coverage);
 		}
 	}
+
+	// The grid goes over the feature fills, the way GPlates draws its
+	// graticule, so a polygon never hides it. The outline stays on top.
+	base = mix(base, color.rgb, g * color.a);
 
 	// Outline overlay
 	if (outline_vertex_count > 0) {

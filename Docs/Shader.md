@@ -31,6 +31,10 @@ rather than a cap of grid color. Parallels never converge and are drawn right
 up to the pole. The grid color's alpha is how much of the color a full line
 lays over the planet.
 
+The grid is laid over the feature fills, the way GPlates draws its
+graticule, so a polygon never hides it. The outline of the selected feature
+and the shape being drawn stay on top of the grid.
+
 ## Lighting and ambient
 
 The planet is a lit surface: the shader writes `ALBEDO` and the engine shades it
@@ -149,6 +153,24 @@ two tables — the length of each parallel and its distance from the equator —
 appear in both files and have to stay the same in both; the shader interpolates
 them exactly as `MapProjection._robinson_at()` does, so a round trip through the
 table is exact.
+
+### A polygon round a pole
+
+A polygon whose ring circles a pole looks different on every projection,
+because every projection draws the pole differently. On the globe it is a cap.
+The rectangular map stretches the pole into a line as wide as the sheet, so
+the cap becomes a band along the top or bottom edge, and Robinson's pole is a
+line a little over half as wide, which makes the band shorter at the ends.
+Mercator stops at 85.05 degrees, so the band runs off the sheet's edge before
+the pole. The band's inner edge is
+scalloped: the edge between two vertices at the same latitude is a great
+circle, and a great circle between them runs closer to the pole than the
+parallel, most at the midpoint between the vertices. Mollweide's pole is a
+point, so the band narrows to it at both ends of the sheet, and the
+orthographic view shows the cap as the globe does. The grid is drawn over
+the fill, so the band shows the meridians running through it. See
+[Triangulation](Draw.md#triangulation--ear-clipping) for how such a ring is
+filled.
 
 ### The export camera
 
