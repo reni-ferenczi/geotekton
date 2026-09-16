@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "features": { ... },
   "view": { ... }
 }
@@ -258,6 +258,29 @@ other type. `rings` holds the two closed polylines as usual, for a reader that
 knows nothing about the type. On load the three values win:
 `Feature.from_json()` rebuilds the rings from them, and a missing value takes
 its default, `[90, 0]`, 23 and 36. See [Editing](Editing.md#polar-circles).
+
+#### Hotspots
+
+A leaf of type `hotspot` also carries the three values its rings are built
+from:
+
+```json
+"feature_type": "hotspot",
+"hotspot": [19.4, -155.3],
+"plate": "6f1c...",
+"track_step": 5.0,
+"geometry_kind": "polyline",
+"rings": [[...], [...]]
+```
+
+`hotspot` is the latitude and longitude of the hotspot in the world frame,
+`plate` the uuid of the feature it burns through, empty for none, and
+`track_step` the spacing of the track in millions of years. The keys are
+optional and written only for this type. `rings` holds the mark and, when there
+is one, the track, for a reader that knows nothing about the type. On load the
+values win: the track is rebuilt from them before the geometry is collected.
+A missing value takes its default, `[0, 0]`, no plate and 5. See
+[Editing](Editing.md#hotspots).
 
 #### Line topologies
 
@@ -522,6 +545,12 @@ document has no raster.
 0.18.0 added `axis`, `radius` and `circle_segments` to a leaf feature, for
 [polar circles](#polar-circles). The step changes nothing but the version: a
 leaf without the keys is not polar circles, and no file before 0.18.0 holds one.
+
+#### 0.18.0 to 0.19.0
+
+0.19.0 added `hotspot`, `plate` and `track_step` to a leaf feature, for
+[hotspots](#hotspots). The step changes nothing but the version: a leaf
+without the keys is not a hotspot, and no file before 0.19.0 holds one.
 
 ## The config file
 

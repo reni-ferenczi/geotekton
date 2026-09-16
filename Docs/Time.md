@@ -57,6 +57,14 @@ about, never from the frame before it, so a long animation cannot drift away
 from what the keyframes say. Landing exactly on a keyframe gives back what that
 keyframe holds, without passing through a quaternion on the way.
 
+### The world frame
+
+The world frame is the one a feature with no keyframes and no coupling sits in:
+`Feature.world_basis()` is the identity for it. There is no absolute reference
+frame by name, so the world frame is also the mantle frame, and a
+[hotspot](Editing.md#hotspots) is fixed in it. Its track shows how the plate
+it names moved over it, whatever the plate rides on.
+
 ### Groups do not move
 
 A group is organization: it holds features and other groups, and carries no

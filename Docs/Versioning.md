@@ -41,7 +41,9 @@ that renames them; and 0.17.0 gave the planet a color of its own and made the
 built in Earth a raster, which has a step that gives a file naming no raster the
 Earth, so it looks as it did; and 0.18.0 gave a leaf the axis, radius and segment
 count of polar circles, and a leaf without them is some other type, so it reads a
-0.17.0 file as it stands.
+0.17.0 file as it stands; and 0.19.0 gave a leaf the place, plate and track step
+of a hotspot, which a 0.18.0 leaf does not have either, so that file too is read
+as it stands.
 
 The first public release will have major version 1.
 

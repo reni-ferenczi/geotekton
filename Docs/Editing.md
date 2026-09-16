@@ -534,6 +534,57 @@ the three values, so an older reader and the Python side see two polylines.
 When the file is loaded, the values win; see
 [Persistence](Persistence.md#polar-circles).
 
+## Hotspots
+
+A **hotspot** is a plume fixed in the mantle. A plate drifting over it gets a
+chain of volcanoes, the oldest farthest from the hotspot; Hawaii and the
+Emperor seamounts are the textbook case. GPlates has a `HotSpot` point feature
+and, separately, the motion path feature, and a hotspot track there is the
+motion path of the plate point that sits over the hotspot today. Here both are
+one feature of type Hotspot.
+
+The hotspot sits still in the world frame, which is the mantle frame; see
+[Time](Time.md#the-world-frame). The feature keeps three values: where the
+hotspot is, as a latitude and longitude, the plate it burns through, which is
+any leaf feature holding vertices of its own, and the track step in millions of
+years, 5 by default, 0.1 to 100. Its own time range says when the hotspot is
+active, from the From age to the To age.
+
+`Hotspot.rebuild()` in `Logic/hotspot.gd` gives the feature up to two
+polylines:
+
+- the **mark**, a closed ring one degree around the hotspot, cut into 24
+  segments, so the hotspot shows whatever the plate does;
+- the **track**, one vertex for every step from the From age down to the
+  current time, the current time included. The vertex for age `t` is the plate
+  point that was over the hotspot at `t`, carried with the plate to the current
+  time: `B(T) * B(t)^T * H`, with `B` the plate's world rotation, `T` the
+  current time and `H` the hotspot. Ages at which the plate does not exist are
+  left out. With no plate, or fewer than two vertices, there is no track.
+
+The oldest vertex is the farthest from the hotspot and the youngest is on it.
+The track depends on the plate and on the time, so it is rebuilt the way a
+[line topology](#line-topologies) is: before the geometry is collected and at
+every time change.
+
+Picking Hotspot in the Type selector of an empty feature builds the mark at
+once. A feature that holds a shape, or has keyframes or couplings, cannot
+become a hotspot. A hotspot never moves: the keyframe and coupling rows are
+hidden, a Move drag does nothing, and the Vertex, Rotate and Pole tools are
+greyed out. Pasting a shape into it and the Python bridge's ring edit are
+refused.
+
+The [Properties panel](Properties.md#the-hotspot-rows) edits the three values,
+one undo version each. **Pick** arms the [Pole tool](#turning-a-feature) for
+one click, with its cross on the hotspot. The click, snapped to a vertex while
+Snap is on, is where the hotspot goes, and when the click lands on a feature
+that can be the plate, that feature becomes the plate. Escape, another tool or
+selecting another feature gives the pick up.
+
+The file keeps the rings as well as the three values, so an older reader and
+the Python side see two polylines. On load the values win and the track is
+rebuilt; see [Persistence](Persistence.md#hotspots).
+
 ## Line topologies
 
 A **line topology** is a feature whose geometry is borrowed rather than drawn: a
