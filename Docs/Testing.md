@@ -194,6 +194,14 @@ answers with the stem of the row's texture, so a row that kept the rule icon
 fails there. It saves, loads, undoes and redoes, and checks that a glyph nobody
 offers and a group are both refused.
 
+The feature color preference checks draw a chocolate polygon in a new group,
+then set the Polygon color to blue through `set_preferences`. A new feature's
+Colour row and swatch are blue, the old polygon's swatch stays chocolate, the
+group on the Feature type style paints the old polygon blue at an off-grid
+probe, and a right click on its swatch gives it blue. The `CatalogColors`
+button then puts chocolate back in `get_preferences` and on the planet, which
+is also what leaves the preferences as a golden run expects them.
+
 The Edit menu scenario copies a feature, so a run puts a `.middle-earth` feature
 on the clipboard of whoever is running it. A golden run empties it, for the same
 reason: the Paste button of the feature tree toolbar is greyed out by what the
@@ -583,7 +591,7 @@ a round trip is also a wait for the screen to catch up.
 | ------------------------------------ | ---------------------------------------------------------------- |
 | `ping`                               | `version`, the application version                               |
 | `load {path}`                        | loads a `.middle-earth` file, absolute path                      |
-| `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` and `row_icon`, the file stem of the picture the row is showing |
+| `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` and `row_icon`, the file stem of the picture the row is showing, and for a feature `swatch`, the color its row's swatch shows |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
 | `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `keyframes`, `couplings`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a line topology, its `sections` with what each one resolved to |
 | `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers, the `icon` the feature carries and the `icons` the selector offers, whether the colour picker is open (`color_picker_open`) and the `color_presets` it offers, the `time_range` in the file's order, the `time_from` and `time_to` the two boxes show with their `tooltips`, the `area_km2` the feature's polygon encloses (0 for anything else), and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed, and `coupling`: what it is `coupled_to` now, the `parents` the picker offers and the `parent` it shows, whether `couple`, `decouple`, `remove` and the `pick` pointer can be pressed, whether the pointer is `picking`, and the `spans` listed with whether each is `broken`. Polar circles add `polar_circles`: the `axis`, `radius` and `circle_segments` the rows show and whether `pick_axis` can be pressed. On the root, the `placeholder` sentence and the `planet_area_km2`. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100, `palette`, `ramp_colors` and `ramp_span`), the `style_label` the Style selector shows and its `tooltips` entry `style`, and the `styles` and `palettes` its selectors offer |
@@ -595,7 +603,7 @@ a round trip is also a wait for the screen to catch up.
 | `set_tool {tool, snap, segments, outline, ridge}` | picks the tool (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `circle`, `topology`, `light` or `split`), the snap switch, the segment count, the Circle tool's Outline switch and the Split tool's Ridge switch, refusing what the toolbar itself would not allow. Which kind the Draw and Circle tools produce comes from the feature's type, which `set_property` sets |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
-| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields, `export_width` and `ffmpeg` among them; only the keys given are changed. `get_preferences` also reports the `default_view` and the `view_defaults` a new document starts from, the `planet_area_km2` the radius gives and the `planet_area_label` the dialog shows under the radius box |
+| `get_preferences` / `set_preferences {preferences, button}` | the settings the Preferences dialog holds, driven through its own fields, `export_width`, `ffmpeg` and `feature_colors` (type id to `[r, g, b, a]`) among them; only the keys given are changed. `button` names a button of the dialog to press first, such as `CatalogColors`. `get_preferences` also reports the `feature_colors` in effect for every type, the `default_view` and the `view_defaults` a new document starts from, the `planet_area_km2` the radius gives and the `planet_area_label` the dialog shows under the radius box |
 | `get_view_settings` | `view_settings`, the scene block the open document carries, and `raster_error`, why the image it names is not on the planet |
 | `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. A key the dialog has no field for is refused with `no view setting called`, including the six style fields it once had (`draw_style`, `single_color`, `opacity`, `palette`, `ramp_colors`, `ramp_span`); a group's style is set with `set_property`. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault`, `RestoreDefaults`, `BuiltInEarth` or `ClearRaster`. The `planet_color` field keeps a color opaque whatever alpha it is given |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |

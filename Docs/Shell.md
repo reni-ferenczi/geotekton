@@ -160,6 +160,13 @@ In the dialog under File > Preferences:
   on the path. A path naming a file that is not there means this machine has no
   encoder, and the frames are then left as they are; see
   [Exporting a video of the animation](#exporting-a-video-of-the-animation).
+- **Feature colors** — one color picker per [feature type](Properties.md#the-type-catalog),
+  in catalog order, for the color a new feature of the type starts in, the
+  one a type change and the swatch's right click go back to, and the one the
+  Feature type draw style paints. The pickers offer no alpha. **Catalog
+  colors** puts every picker back to the color the catalog comes with. Only
+  the colors that differ from the catalog are saved, and features that already
+  exist keep the color they hold.
 - **Interpreter** and **Script directories**, under a Python heading — which
   Python runs the scripting bridge and where the scripts that become menu
   entries are looked for. Leaving the interpreter empty means the project's own
