@@ -5,9 +5,9 @@ extends TestCase
 # something drawn on it: an SVG that failed to rasterize comes back fully
 # transparent, which no screenshot would give away.
 
-# The thinnest of them, the river, covers 22 of the 256 pixels. The floor is
+# The thinnest of them, the river, covers 84 of the 1024 pixels. The floor is
 # there to catch a glyph that came out blank, not to measure the drawing.
-const MIN_DRAWN_PIXELS := 15
+const MIN_DRAWN_PIXELS := 60
 
 
 func test_every_id_in_the_catalog_has_a_glyph() -> void:
@@ -16,7 +16,8 @@ func test_every_id_in_the_catalog_has_a_glyph() -> void:
 		assert_true(texture != null, "%s has a texture" % id)
 		if texture == null:
 			continue
-		assert_eq(texture.get_size(), Vector2(16, 16), "%s is 16 pixels square" % id)
+		assert_eq(texture.get_size(), Vector2(32, 32),
+			"%s is 32 pixels square, the size of the rule icon" % id)
 
 		var image := texture.get_image()
 		var drawn := 0
