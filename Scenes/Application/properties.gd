@@ -177,6 +177,11 @@ func _build() -> void:
 		icon_selector.set_item_metadata(icon_selector.item_count - 1, icon_id)
 	icon_selector.item_selected.connect(_on_icon_selected)
 	_row(form, "Icon", icon_selector)
+	# A selector that does not fit its longest item is as tall as the item it
+	# shows, and None has no picture. The row keeps the height of one that has.
+	icon_selector.select(1)
+	icon_selector.custom_minimum_size.y = icon_selector.get_combined_minimum_size().y
+	icon_selector.select(0)
 
 	style_selector = _selector("Style")
 	style_selector.tooltip_text = STYLE_TOOLTIP
@@ -449,6 +454,11 @@ func _row(form: GridContainer, text: String, control: Control, on_a_group: bool 
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	form.add_child(label)
 	form.add_child(control)
+	# A row that wraps when the panel is narrow keeps the spacing of a row that
+	# does not, which the theme gives HBoxContainer only.
+	if control is HFlowContainer:
+		control.add_theme_constant_override("h_separation",
+			control.get_theme_constant("separation", "HBoxContainer"))
 	_rows.append({"label": label, "control": control, "on_a_group": on_a_group,
 		"on_a_feature": on_a_feature})
 
