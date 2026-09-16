@@ -29,9 +29,6 @@ number:
   see [The Split tool](#the-split-tool). Offered while a polygon is selected.
 - **Circle segments** — Shown only while the Circle tool is active; see
   [Segments of a circle](#segments-of-a-circle).
-- **Outline** — Whether the Circle tool commits a polyline rather than a
-  polygon. Shown beside the segment box, and remembered between sessions; see
-  [What it commits](#what-it-commits).
 - **Ridge** — Whether the Split tool leaves a line along the cut. Shown only
   while that tool is active, on to start with, and remembered between sessions;
   see [The ridge](#the-ridge).
@@ -111,7 +108,7 @@ A move is one undo step.
 The feature selected in the tree is highlighted on the planet in yellow:
 
 - a **polygon** gets an outline along its rings;
-- a **line** (a polyline, a topology, or a circle drawn as a line) is drawn
+- a **line** (a polyline, a topology, or a circle) is drawn
   thicker;
 - a **multipoint** gets larger markers on its vertices.
 
@@ -451,23 +448,21 @@ A committed circle is not a true curve but a ring of straight edges. The
 starting at 36. Only this tool reads it, so the box is shown only while the
 Circle tool is active. The preview and the status bar follow it as it changes.
 
-The box and the Outline switch beside it fit in the toolbar's spare width, so
-showing them does not push the Properties panel aside or move the planet. That
-is why neither label is longer. The scripted session checks that the planet
+The box fits in the toolbar's spare width, so showing it does not push the
+Properties panel aside or move the planet. That is why its label is not longer. The scripted session checks that the planet
 stays put when the tool changes.
 
 ### What it commits
 
-The circle becomes a ring cut into the number of segments the box holds. The
-**Outline** switch beside the box says which kind of ring:
+The circle becomes an outline: a **polyline** cut into the number of segments
+the box holds, with one vertex per segment plus the first one repeated at the
+end, so the line goes all the way around. It is drawn at the feature line width,
+the same as the [Pole tool](#turning-a-feature)'s cross, and the inside stays
+uncovered.
 
-- With the switch off, a **polygon**, one vertex per segment, closing from the
-  last back to the first.
-- With it on, a **polyline**, one vertex more, the first one repeated at the
-  end, so it draws the whole circle rather than stopping a segment short.
-
-The switch is a preference rather than part of a document, so it is remembered
-between sessions the way the snap switch is.
+A filled circle, a polygon, still reads back as a Circle from a file that holds
+one, but the tool does not add to it: committing on such a feature is refused
+with a message in the status bar. Draw the outline on a new Circle instead.
 
 The vertices are worked out in world coordinates and then mapped into the
 feature's own frame, the same way the Draw tool does it, so a circle drawn while

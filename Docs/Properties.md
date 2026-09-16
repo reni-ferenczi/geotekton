@@ -11,10 +11,11 @@ catalog lists only what the program treats differently:
 | `polygon`  | Polygon  | polygon           | chocolate      |
 | `line`     | Line     | polyline          | crimson        |
 | `points`   | Points   | multipoint        | gold           |
-| `circle`   | Circle   | polygon, polyline | dark turquoise |
+| `circle`   | Circle   | polyline, polygon | dark turquoise |
 | `topology` | Topology | topology          | medium purple  |
 
-The kinds are written as the names the file uses, so the catalog needs nothing
+The first kind listed is the one the tools draw into an empty feature of the
+type. The kinds are written as the names the file uses, so the catalog needs nothing
 from `Feature` to be read and says the same words the `geometry_kind` field
 does.
 
@@ -23,7 +24,7 @@ does.
 A new feature is a Polygon. The Type selector of the Properties panel is the one
 place the type is picked, and on a feature holding nothing it takes any of the
 five, because the type is what the tools then draw: Polygon a polygon, Line a
-polyline, Points a multipoint, Circle either of the first two through the
+polyline, Points a multipoint, Circle a closed polyline through the
 [Circle tool](Editing.md#the-circle-tool) and Topology a boundary built with the
 [Topology tool](Editing.md#line-topologies).
 
