@@ -194,11 +194,15 @@ reason: the Paste button of the feature tree toolbar is greyed out by what the
 clipboard holds, and an unknown clipboard is a 40 by 40 difference in every
 scene.
 
-The styling scenario probes what each draw style paints on the globe, reads a
-palette out of a `.cpt` file and a malformed one out of another, switches each
-class of geometry off through the View menu and checks that only its own class
-left the screen, then saves the document and reads the whole styling back; see
-[Styling](Styling.md).
+The styling scenario first checks that the View settings dialog refuses the six
+style fields it used to have and that the root has nothing to edit. It then sets
+each draw style on the group holding the three features and probes what it
+paints on the globe. It loads a palette from a `.cpt` file through that group's
+Load button, and a malformed one the same way, which names its bad lines in an
+error dialog. It switches each class of geometry off through the View menu and
+checks that only its own class left the screen. Last it saves the document,
+checks that the root's style in the file is the pinned one, and reads the
+group's styling back; see [Styling](Styling.md).
 
 The circle scenario builds a circle twice over: from a centre and a point
 on the rim, and from three points on the rim with the centre never clicked. Both
@@ -383,7 +387,7 @@ the stand-in scene is reached with `--scene=res://...`.
 | `Backdrops/quarters.*`    | The same four coloured quarters as a PNG, a JPEG, a WebP and an SVG, for the backdrop image. |
 | `two_cratons.middle-earth` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
 | `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
-| `group_styles.middle-earth` | The same three features under group styles: the polygon in a group on a single colour, the polyline in a group on own colours, and the markers under a root on the feature type style. Written in the current format. |
+| `group_styles.middle-earth` | The same three features under group styles: the polygon in a group on a single colour, the polyline in a group on own colours, and the markers straight under a root whose style in the file says feature type, which the loader pins to own colors. Written in 0.10.0. |
 | `motion.middle-earth`     | One red quad with three keyframes, which is the fixture for anything about motion over time. Written in the current format. |
 | `Palettes/*.cpt`          | A continuous, a discrete, a categorical and a malformed colour palette table. |
 
@@ -407,7 +411,7 @@ probe point to the front before reading its pixel.
 `uv run Tests/run.py performance` builds a document of a given triangle count,
 every feature of it moving between two keyframes, and reports the frame time
 three times: standing still, playing the animation, and playing again with the
-root group on the Feature age style over the custom ramp. Standing still
+group that holds every feature on the Feature age style over the custom ramp. Standing still
 comes first so that what playback adds can be told apart from what drawing that
 much geometry costs whether anything moves or not. The third reading is what
 recoloring every feature on every frame adds; it is reported, not held against
@@ -542,9 +546,9 @@ a round trip is also a wait for the screen to catch up.
 | `set_tool {tool, snap, segments, outline, ridge}` | picks the tool (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `circle`, `topology`, `light` or `split`), the snap switch, the segment count, the Circle tool's Outline switch and the Split tool's Ridge switch, refusing what the toolbar itself would not allow. Which kind the Draw and Circle tools produce comes from the feature's type, which `set_property` sets |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
-| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields, `export_width` and `ffmpeg` among them; only the keys given are changed. `get_preferences` also reports the `default_view`, the `view_defaults` and the `style_defaults` a new document starts from |
-| `get_view_settings` | `view_settings`, the scene block the open document carries, `style`, the root group's style the same dialog edits, `backdrop_error`, why the image it names is not on the planet, and `palette_errors`, what could not be read of the palette the root names |
-| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. The root group's style is set through the dialog's `draw_style`, `single_color`, `opacity`, `palette`, `ramp_colors` and `ramp_span` fields. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
+| `get_preferences` / `set_preferences {preferences}` | the settings the Preferences dialog holds, driven through its own fields, `export_width` and `ffmpeg` among them; only the keys given are changed. `get_preferences` also reports the `default_view` and the `view_defaults` a new document starts from |
+| `get_view_settings` | `view_settings`, the scene block the open document carries, and `backdrop_error`, why the image it names is not on the planet |
+| `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. A key the dialog has no field for is refused with `no view setting called`, including the six style fields it once had (`draw_style`, `single_color`, `opacity`, `palette`, `ramp_colors`, `ramp_span`); a group's style is set with `set_property`. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault` or `RestoreDefaults` |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
 | `get_timeline`                       | the slider and its range, the typed time, whether it is playing, the skip, the keyframe markers with where each is on screen, the `couplings` bars of the selected feature with both ends and where the bar is drawn, and the animation settings |
 | `get_kinematics`                     | `kinematics`, what the motion graphs hold: the `span` they cover, the `samples` of the path, one entry per `segments` between two keyframes, what both come to at the current time, and where the `cursor` is drawn across the plotting area |
@@ -572,6 +576,7 @@ a round trip is also a wait for the screen to catch up.
 | `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `export_image`, `export_video`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `features`, `properties`, `timeline`, `kinematics`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
+| `properties {button}`                | presses a button of the Properties panel by node name, such as `LoadPalette` on a group's Palette row, refusing one the panel does not show |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |
 | `swatch {title\|pnid, button}`        | presses the colour swatch of a feature's tree row, opening the groups above it first and checking that the swatch is under the point before it presses. A `left` press selects the feature and opens the picker, a `right` one puts the type's default colour back |
 | `get_panels`                         | `panels`, which of the six panels are shown                      |

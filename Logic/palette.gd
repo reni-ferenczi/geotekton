@@ -344,9 +344,9 @@ func high() -> float:
 	return 0.0 if slices.is_empty() else float(slices[-1]["high"])
 
 
-# The palette across its whole range, for the strip the chooser previews it
-# with. A categorical palette has no range, so its entries come back in the
-# order they were read.
+# The palette across its whole range, in `steps` evenly spaced colors. A
+# categorical palette has no range, so its entries come back in the order they
+# were read.
 func sample(steps: int) -> PackedColorArray:
 	var colors := PackedColorArray()
 	if is_categorical():

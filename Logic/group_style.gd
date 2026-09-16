@@ -2,14 +2,13 @@ class_name GroupStyle
 extends RefCounted
 
 # How a group colors the features under it, the way a GPlates layer colors
-# everything in it at once. Every group carries one; the root group's is the
-# document default, which the View settings dialog edits, and any other group's
-# is edited in the Properties panel. Styling.color_of() walks up from a feature
-# to the nearest group whose mode is not inherit. See Docs/Styling.md.
+# everything in it at once. Every group carries one, edited in the Properties
+# panel. The root group's is pinned to for_root(): nothing edits it and a file
+# cannot change it. Styling.color_of() walks up from a feature to the nearest
+# group whose mode is not inherit. See Docs/Styling.md.
 
 # The view settings keys that 0.10.0 moved onto the root group, against the
-# style field each became. Document.migrate() and the preferences both read
-# older blocks through it.
+# style field each became. Document.migrate() reads older blocks through it.
 const VIEW_KEYS := {"draw_style": "mode", "single_color": "color", "palette": "palette"}
 
 # An id in Styling.MODES. Inherit leaves the choice to the group above.
@@ -33,8 +32,9 @@ var ramp_colors: Array[Color] = Palette.DEFAULT_RAMP_COLORS.duplicate()
 var ramp_span: float = Palette.DEFAULT_RAMP_SPAN
 
 
-# The document default: the root has nothing above it to inherit from, so it
-# starts on each feature's own colour.
+# The root group's style, the only one it ever has: the root has nothing above
+# it to inherit from, so it draws each feature in its own color at full opacity,
+# with the default palette and ramp.
 static func for_root() -> GroupStyle:
 	var style := GroupStyle.new()
 	style.mode = Styling.BY_FEATURE

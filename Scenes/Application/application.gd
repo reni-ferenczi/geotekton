@@ -52,9 +52,6 @@ static var IMPORT_FILTERS := PackedStringArray([
 # from it straight after, so this is scratch space rather than a save.
 const IMPORT_SCRATCH := "user://imported.middle-earth"
 
-# How finely the palette preview strip samples the palette it draws.
-const PALETTE_PREVIEW_STEPS := 128
-
 # Answers a file dialog without showing one. Set by the automation port so a
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
@@ -230,10 +227,6 @@ var script_directories_edit: TextEdit
 var view_dialog: AcceptDialog
 # Why the backdrop image is not on the planet, shown under the path field.
 var backdrop_warning: Label
-# The strip the palette chooser previews the chosen palette with, and why the
-# palette it names could not be read.
-var palette_preview: TextureRect
-var palette_warning: Label
 # The fields of the View settings dialog, by the name of the setting each edits.
 var view_fields: Dictionary = {}
 var animation_dialog: AcceptDialog
@@ -263,13 +256,9 @@ var video_result: Dictionary = {}
 var backdrop := Backdrop.new()
 var _backdrop_path: String = ""
 
-# The palette the open document names, read once and kept for the same reason:
-# rebuilding the geometry must not read a file. `palette.errors` says what could
-# not be read of it.
-var palette := Palette.resolve(Palette.DEFAULT)
-
-# Every palette read so far, by source: the root group's and whatever other
-# groups name. Styling reads a palette it has not seen into it.
+# Every palette read so far, by source, kept for the same reason: rebuilding
+# the geometry must not read a file. Styling reads a palette it has not seen
+# into it.
 var palettes := {}
 
 # What to do once the unsaved changes prompt has been answered.
@@ -309,6 +298,7 @@ func _ready() -> void:
 	properties.rejected.connect(_show_error)
 	properties.pick_parent_requested.connect(
 		func(on: bool) -> void: start_parent_pick() if on else end_parent_pick())
+	properties.palette_file_requested.connect(choose_palette)
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
 	document.time_changed.connect(_on_time_changed)
@@ -716,7 +706,7 @@ func new_document() -> void:
 
 # An empty document, drawn the way the preferences say a new one should be.
 func _reset_document() -> void:
-	document.reset(Config.get_view_defaults(), Config.get_style_defaults())
+	document.reset(Config.get_view_defaults())
 	_apply_default_view()
 
 
@@ -1106,28 +1096,11 @@ func _on_root_replaced(same_document: bool) -> void:
 # Draw the scene the way the open document asks for. Called when a document
 # arrives and after every change to its view settings.
 func apply_view_settings() -> void:
-	_load_palette()
 	_load_backdrop()
 	planet_view.apply_view_settings(document.view)
 	_update_view_menu_checks()
 	if view_dialog.visible:
 		backdrop_warning.text = backdrop.error
-
-
-# Read the palette the root group names, unless it has been read already. A
-# palette that cannot be read is not a failure of the document either: what did
-# parse of it is used and the reasons are pushed as warnings.
-func _load_palette() -> void:
-	var source := document.root.style.palette
-	# The ramp is made of the style's own fields, so there is nothing to read.
-	if source == Palette.RAMP:
-		palette = document.root.style.ramp()
-		return
-	if not palettes.has(source):
-		palettes[source] = Palette.resolve(source)
-		for problem in palettes[source].errors:
-			push_warning("%s: %s" % [source, problem])
-	palette = palettes[source]
 
 
 # Put the image the document names on the planet. The file is read only when the
@@ -1390,59 +1363,6 @@ func _build_view_content() -> Control:
 		ViewSettings.MIN_AMBIENT, ViewSettings.MAX_AMBIENT, 0.05)
 	_view_check(form, "backdrop_visible", "Backdrop image shown")
 	_view_spin(form, "backdrop_opacity", "Backdrop opacity", 0.0, 1.0, 0.05)
-	# The root group's style, which is the document default for colors.
-	_view_option(form, "draw_style", "Draw style", Styling.STYLES)
-	_view_color(form, "single_color", "Single colour")
-	_view_spin(form, "opacity", "Feature opacity", 0.0, 1.0, 0.05)
-
-	box.add_child(_view_section("Palette"))
-	var palette_row := HBoxContainer.new()
-	box.add_child(palette_row)
-	var palette_choice := OptionButton.new()
-	palette_choice.name = "Palette"
-	palette_choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	palette_choice.item_selected.connect(
-		func(_index: int) -> void: _on_view_field_changed())
-	palette_row.add_child(palette_choice)
-	view_fields["palette"] = palette_choice
-
-	var load_palette := Button.new()
-	load_palette.name = "LoadPalette"
-	load_palette.text = "Load..."
-	load_palette.tooltip_text = "Read a GMT colour palette table from a .cpt file"
-	load_palette.pressed.connect(choose_palette)
-	palette_row.add_child(load_palette)
-
-	# The colours of the custom ramp and the span between two of them. Only the
-	# Custom palette reads them.
-	var ramp_box := HBoxContainer.new()
-	ramp_box.name = "RampBox"
-	box.add_child(ramp_box)
-	var ramp_label := Label.new()
-	ramp_label.text = "Ramp"
-	ramp_box.add_child(ramp_label)
-	var ramp_row := RampRow.new(Document.MAX_TIME, "My")
-	ramp_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ramp_row.previewed.connect(func() -> void: _on_view_field_changed(false))
-	ramp_row.committed.connect(func() -> void: _on_view_field_changed())
-	ramp_box.add_child(ramp_row)
-	view_fields["ramp_colors"] = ramp_row
-	view_fields["ramp_span"] = ramp_row.span_spin
-
-	# The palette from one end of its range to the other, so what is about to be
-	# drawn with is visible before anything is drawn with it.
-	palette_preview = TextureRect.new()
-	palette_preview.name = "PalettePreview"
-	palette_preview.custom_minimum_size = Vector2(0, 18)
-	palette_preview.stretch_mode = TextureRect.STRETCH_SCALE
-	palette_preview.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	box.add_child(palette_preview)
-
-	palette_warning = Label.new()
-	palette_warning.name = "PaletteWarning"
-	palette_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	palette_warning.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
-	box.add_child(palette_warning)
 
 	box.add_child(_view_section("Backdrop image"))
 	var row := HBoxContainer.new()
@@ -1477,7 +1397,7 @@ func _build_view_content() -> Control:
 	remember.text = "Save as default"
 	remember.tooltip_text = "Start every new document with these settings"
 	remember.pressed.connect(func() -> void:
-		Config.set_view_defaults(document.view, document.root.style)
+		Config.set_view_defaults(document.view)
 		Config.set_default_view(projection_selector.get_item_text(
 			projection_selector.selected)))
 	defaults.add_child(remember)
@@ -1488,7 +1408,6 @@ func _build_view_content() -> Control:
 	restore.tooltip_text = "Put this document back to the settings a new one starts with"
 	restore.pressed.connect(func() -> void:
 		document.view = Config.get_view_defaults()
-		document.root.style = Config.get_style_defaults()
 		document.view_edited()
 		_fill_view_fields()
 		apply_view_settings()
@@ -1511,40 +1430,11 @@ func _view_spin(form: GridContainer, key: String, text: String,
 	view_fields[key] = spin
 
 
-# A selector over a dictionary of id to label. The id rides on the item as its
-# metadata, so what the document stores never depends on what the item is called.
-func _view_option(form: GridContainer, key: String, text: String, entries: Dictionary) -> void:
-	var label := Label.new()
-	label.text = text
-	form.add_child(label)
-	var button := OptionButton.new()
-	button.name = key.to_pascal_case()
-	for id in entries:
-		button.add_item(str(entries[id]))
-		button.set_item_metadata(button.item_count - 1, id)
-	button.item_selected.connect(func(_index: int) -> void: _on_view_field_changed())
-	form.add_child(button)
-	view_fields[key] = button
-
-
 # A heading between two groups of fields on a dialog.
 func _view_section(text: String) -> Control:
 	var label := Label.new()
 	label.text = text
 	return label
-
-
-# The id behind the selected item of a selector built by _view_option().
-static func option_value(button: OptionButton) -> String:
-	return "" if button.selected < 0 else str(button.get_item_metadata(button.selected))
-
-
-# Pick the item carrying an id. Nothing changes when the list does not hold it.
-static func select_option(button: OptionButton, value: String) -> void:
-	for index in button.item_count:
-		if str(button.get_item_metadata(index)) == value:
-			button.select(index)
-			return
 
 
 func _view_check(form: GridContainer, key: String, text: String) -> void:
@@ -1584,14 +1474,19 @@ func choose_backdrop() -> void:
 		IMAGE_FILTERS)
 
 
-# Pick a GMT colour palette table to draw the feature age style with. Stored as
-# the path it was picked from, beside the built in palettes it joins in the list.
+# Pick a GMT color palette table for the group the Properties panel shows,
+# which adds it to that group's palette choices. Stored as the path it was
+# picked from. The file is read here, again if it was read before, so an edited
+# file is picked up and what could not be read of it is said at once. What did
+# read is used all the same.
 func choose_palette() -> void:
 	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Colour palette",
 		func(path: String) -> void:
-			document.root.style.palette = path
-			_fill_palette_choices()
-			_on_view_field_changed(),
+			var palette := Palette.resolve(path)
+			palettes[path] = palette
+			properties.load_palette(path)
+			if not palette.errors.is_empty():
+				_show_error("%s:\n%s" % [path.get_file(), "\n".join(palette.errors)]),
 		PALETTE_FILTERS)
 
 
@@ -1599,39 +1494,6 @@ func show_view_settings() -> void:
 	_fill_view_fields()
 	backdrop_warning.text = backdrop.error
 	view_dialog.popup_centered()
-
-
-# The palettes the chooser offers: the built in ones, and the file the document
-# names when it names one. Rebuilt rather than added to, so switching from one
-# file to another leaves one entry rather than two.
-func _fill_palette_choices() -> void:
-	var choice: OptionButton = view_fields["palette"]
-	choice.clear()
-	var listed := Palette.choices()
-	for key in listed:
-		choice.add_item(str(listed[key]))
-		choice.set_item_metadata(choice.item_count - 1, key)
-	var named := document.root.style.palette
-	if not named.is_empty() and not listed.has(named):
-		choice.add_item(named.get_file())
-		choice.set_item_metadata(choice.item_count - 1, named)
-		choice.set_item_tooltip(choice.item_count - 1, named)
-	select_option(choice, named)
-
-
-# Draw the chosen palette across its whole range, and say underneath what could
-# not be read of it.
-func _show_palette_preview() -> void:
-	var strip := palette.sample(PALETTE_PREVIEW_STEPS)
-	if strip.is_empty():
-		palette_preview.texture = null
-	else:
-		var image := Image.create(strip.size(), 1, false, Image.FORMAT_RGBA8)
-		for x in strip.size():
-			image.set_pixel(x, 0, strip[x])
-		palette_preview.texture = ImageTexture.create_from_image(image)
-	palette_warning.text = "
-".join(Array(palette.errors))
 
 
 # Put what the document holds into the fields, without firing the signals that
@@ -1648,14 +1510,6 @@ func _fill_view_fields() -> void:
 	view_fields["backdrop_visible"].set_pressed_no_signal(settings.backdrop_visible)
 	view_fields["backdrop_opacity"].set_value_no_signal(settings.backdrop_opacity)
 	view_fields["backdrop_path"].text = settings.backdrop_path
-	var style := document.root.style
-	select_option(view_fields["draw_style"], Styling.normalize_style(style.mode))
-	view_fields["single_color"].color = style.color
-	view_fields["opacity"].set_value_no_signal(style.opacity)
-	view_fields["ramp_colors"].colors = style.ramp_colors
-	view_fields["ramp_span"].set_value_no_signal(style.ramp_span)
-	_fill_palette_choices()
-	_show_palette_preview()
 
 
 # One field moved: take the whole block off the dialog and hand it to the
@@ -1674,17 +1528,9 @@ func _on_view_field_changed(commit: bool = true) -> void:
 	settings.backdrop_visible = view_fields["backdrop_visible"].button_pressed
 	settings.backdrop_opacity = view_fields["backdrop_opacity"].value
 	settings.backdrop_path = view_fields["backdrop_path"].text
-	var style := document.root.style
-	style.color = view_fields["single_color"].color
-	style.mode = option_value(view_fields["draw_style"])
-	style.opacity = view_fields["opacity"].value
-	style.palette = option_value(view_fields["palette"])
-	style.ramp_colors = view_fields["ramp_colors"].colors
-	style.ramp_span = view_fields["ramp_span"].value
 	if commit:
 		document.view_edited()
 	apply_view_settings()
-	_show_palette_preview()
 	refresh_geometry()
 
 

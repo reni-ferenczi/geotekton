@@ -249,13 +249,15 @@ The three features of `mixed_geometry.middle-earth`, at the same places, spread
 over group styles: root group `Planet` on the feature type style > group
 `Continental Crust` on a single colour, `[0.1, 0.6, 0.9, 1]`, holding
 `Red Triangle`; group `Cratons` on own colours holding `Blue Ridge`; and
-`Green Stations` straight under the root. Each probe is drawn by a different
-rule: the nearest group's single colour, a feature's own colour under a group
-that says so over a root that says otherwise, and the root's default.
+`Green Stations` straight under the root. The root's style in the file is
+read and then pinned to own colors on load (GP-0066), so the file is also the
+fixture for a root style that no longer counts. Each probe is drawn by a
+different rule: the nearest group's single colour, a feature's own color under
+a group that says so, and the root's pinned style.
 
 | Probe       | Expected feature | Colour                               |
 | ----------- | ---------------- | ------------------------------------ |
 | (-3, 0)     | Red Triangle     | Continental Crust's `[0.1, 0.6, 0.9]` |
 | (0, 40)     | Blue Ridge       | its own blue, `[0, 0, 1]`            |
-| (-30, -30)  | Green Stations   | the Points type colour, gold         |
+| (-30, -30)  | Green Stations   | its own green, `[0, 1, 0]`           |
 | (5, 17)     | nothing          | the Earth                            |

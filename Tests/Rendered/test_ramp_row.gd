@@ -92,32 +92,12 @@ func test_a_long_ramp_wraps_inside_the_panel() -> void:
 		"and sits beside the first line")
 
 
-func test_a_mouse_click_on_plus_in_the_view_dialog_adds_a_colour() -> void:
-	await load_sample("mixed_geometry.middle-earth")
-	app.show_view_settings()
-	await frames(3)
-	var row := app.view_fields["ramp_colors"] as RampRow
-	var before := row.colors.size()
-
-	await _press("AddRampColor", row, app.view_dialog)
-	assert_eq(row.colors.size(), before + 1, "a click on + in the dialog adds a colour")
-	assert_eq(app.document.root.style.ramp_colors.size(), before + 1, "and the root's style holds it")
-
-	await _press("DropRampColor%d" % before, row, app.view_dialog)
-	assert_eq(row.colors.size(), before, "a click on − in the dialog takes it out again")
-	app.view_dialog.hide()
-	await frames(2)
-
-
-func _press(button_name: String, row: RampRow = app.properties.ramp_row, window: Window = null) -> void:
-	var button := row.find_child(button_name, true, false) as Button
+func _press(button_name: String) -> void:
+	var button := app.properties.ramp_row.find_child(button_name, true, false) as Button
 	assert_true(button != null, "the row shows a %s button" % button_name)
 	if button == null:
 		return
-	var center := button.get_global_rect().get_center()
-	if window != null:
-		center += Vector2(window.position)
-	await click(center)
+	await click(button.get_global_rect().get_center())
 
 
 func _group(title: String) -> Feature:

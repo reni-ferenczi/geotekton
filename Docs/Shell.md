@@ -74,7 +74,7 @@ adding an item means adding an enum value and one `add_item` line.
 | Points      |          | The same for the multipoints              |
 | Circles     |          | The same for the features typed as circles |
 | Topologies  |          | The same for the line topologies          |
-| View Settings... |     | The scene around the features and how they are coloured; see [Editing](Editing.md#view-settings) |
+| View Settings... |     | The scene around the features; see [Editing](Editing.md#view-settings) |
 | Full Screen | F11      | Enter or leave full screen                |
 
 | Help          | Shortcut | What it does                          |

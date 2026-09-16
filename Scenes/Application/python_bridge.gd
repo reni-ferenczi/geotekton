@@ -301,7 +301,7 @@ func _serve(request_: Dictionary) -> Dictionary:
 			return {"ok": true}
 
 		"new":
-			app.document.reset(Config.get_view_defaults(), Config.get_style_defaults())
+			app.document.reset(Config.get_view_defaults())
 			return {"ok": true}
 
 		"open":

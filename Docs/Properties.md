@@ -128,8 +128,8 @@ run along.
 
 With nothing selected the panel says so and shows no rows at all, and so does
 the root group, which has no name of its own to change and no switch — the same
-as on its tree row. The root's style is the document default and is edited in
-the View settings dialog.
+as on its tree row. The root's style is pinned to each feature's own color and
+is not edited anywhere; see [Styling](Styling.md#group-styles).
 
 The panel keeps one width, `CONTENT_WIDTH`, whatever it is showing. Letting its
 content set the width would let the split container hand the difference to the
@@ -181,7 +181,9 @@ A group has no keyframe row, since a group carries no motion. It has its
 - **Colour** is the color the Single colour mode paints with, and the box beside
   it is the group's opacity, multiplied into every feature under the group.
 - **Palette** is what the Feature age mode reads. It lists the built in palettes
-  and the file the style names, if it names one, with Custom first.
+  and the file the style names, if it names one, with Custom first. **Load...**
+  beside it reads a GMT `.cpt` file and gives it to the group, which adds the
+  file to the list; see [Styling](Styling.md#the-chooser).
 - **Ramp** is the [custom ramp](Styling.md#the-custom-ramp): a color picker per
   stop, a **+** that adds another stop and a **−** on every one past the second,
   and the span between two of them in My. Only the Custom palette reads it.

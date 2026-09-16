@@ -72,12 +72,11 @@ func _init() -> void:
 ### The document as a whole
 
 
-# Start an empty document with a fresh undo stack, as after File > New. The
-# style is the root group's, which is the document default for colors.
-func reset(settings: ViewSettings = null, style: GroupStyle = null) -> void:
+# Start an empty document with a fresh undo stack, as after File > New.
+func reset(settings: ViewSettings = null) -> void:
 	root = Feature.create_group("Planet")
 	root.is_root = true
-	root.style = style.clone() if style != null else GroupStyle.for_root()
+	root.style = GroupStyle.for_root()
 	view = settings.clone() if settings != null else ViewSettings.new()
 	versions.clear()
 	applied = 0
@@ -97,11 +96,8 @@ func is_dirty() -> bool:
 # this records the version, which is what makes the change count and what
 # lets it be undone. A block that still says what the last version says
 # records nothing, so a picker opened and closed again is not an undo step.
-# The View settings dialog edits the root group's style as well, so that counts
-# as part of the block here.
 func view_edited() -> void:
-	if applied > 0 and versions[applied - 1].view.to_json() == view.to_json() \
-			and versions[applied - 1].root.style.to_json() == root.style.to_json():
+	if applied > 0 and versions[applied - 1].view.to_json() == view.to_json():
 		return
 	record()
 
@@ -199,10 +195,13 @@ func set_icon(feature: Feature, icon: String) -> String:
 
 
 # Give a group another style: how the features under it are colored and how
-# opaque they are. Refused on a leaf, which has no style.
+# opaque they are. Refused on a leaf, which has no style, and on the root,
+# whose style is pinned.
 func set_style(group: Feature, style: GroupStyle) -> String:
 	if group == null or not group.is_group:
 		return "Only a group has a style."
+	if group.is_root:
+		return "The root group's style cannot be changed."
 	group.style = style.clone()
 	record()
 	return ""
@@ -746,9 +745,11 @@ func load_from_file(file_path: String) -> String:
 	var migrated := migrate(data)
 	var loaded := Feature.from_json(migrated["features"])
 	loaded.is_root = true
-	# The root has nothing above it to inherit from.
-	if loaded.style != null and loaded.style.mode == Styling.INHERIT:
-		loaded.style.mode = Styling.BY_FEATURE
+	# The root's style is pinned: the style block a file gives it is read and
+	# then replaced, so a feature under no group of its own is drawn in its own
+	# color at full opacity. Saving writes this style back, which is what an
+	# older reader expects to find there.
+	loaded.style = GroupStyle.for_root()
 
 	root = loaded
 	view = ViewSettings.from_json(migrated.get("view"))
@@ -906,8 +907,9 @@ static func _to_0_13_0(node: Variant) -> void:
 
 # 0.10.0 gave groups a style, in place of GPlates layer coloring. The document's
 # draw style, single colour and palette left the view block and became the style
-# of the root group, which is the document default. A block that named none of
-# them leaves the root on its default, each feature's own colour.
+# of the root group. A block that named none of them leaves the root on its
+# default, each feature's own colour. load_from_file() pins the root's style
+# afterwards, so what this step writes there is read and then replaced.
 static func _to_0_10_0(data: Dictionary) -> void:
 	var view: Variant = data.get("view")
 	var features: Variant = data.get("features")

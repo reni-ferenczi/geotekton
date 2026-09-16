@@ -98,8 +98,10 @@ drawn the way its author chose:
 | `hidden_classes`    | list of names     | `[]`                | Which classes of geometry are switched off |
 
 `hidden_classes` is the [styling](Styling.md#the-visibility-switches): which
-features are drawn. What colour they come out is the style of the root group
-since 0.10.0; see [Feature tree serialization](#feature-tree-serialization).
+features are drawn. Since 0.10.0 the color they come out is decided by the
+styles of the groups above them; see
+[Feature tree serialization](#feature-tree-serialization). The block has no
+style keys, and the dialog that edits it has no style rows.
 
 Every key is optional. A block that does not name one gets the default, and a
 value out of range is brought back into it, so a file from a version that knew
@@ -137,10 +139,11 @@ built in Earth and the reason is recorded rather than thrown. See
 The preferences hold a second copy of the same block, which is what File > New
 starts a document from, together with the view it opens in. The View settings
 dialog writes both with **Save as default** and puts the open document back to
-them with **Restore defaults**. The root group's style goes with the block, as
-`style` inside it; a block saved before 0.10.0 names it by the three view keys
-it had then and is read through them. An opened file always wins over the
-preference: the block in the file is what that document says about itself.
+them with **Restore defaults**. The block holds the scene settings only. The
+root's style is pinned, so there is no default to keep for it: a `style` key
+that versions before GP-0066 wrote into the block is ignored, and so are the
+three style keys of a block saved before 0.10.0. An opened file always wins over
+the preference: the block in the file is what that document says about itself.
 
 ### Feature tree serialization
 
@@ -171,9 +174,18 @@ built in palette's key or the path of a `.cpt` file. `ramp_colors` is the
 [custom ramp](Styling.md#the-custom-ramp)'s two colors or more, each
 `[r, g, b, a]`, and `ramp_span` the My between one and the next, at least 1. A
 group without the key inherits at
-full opacity, and so does one naming a mode this version does not know. The
-root group's style is the document default: a root without one, or on inherit,
-draws each feature in its own colour.
+full opacity, and so does one naming a mode this version does not know.
+
+The **root group's style is pinned** to `GroupStyle.for_root()`: `feature` mode,
+full opacity, and the default palette and ramp. `Document.load_from_file()`
+reads the root's `style` like any other group's and then replaces it with the
+pinned one, so a file's root style has no effect on what is drawn: a feature
+under no group of its own is drawn in its own color. Saving writes the pinned
+style back, which is the defaults, so an older version that still reads the
+root's style finds a valid one and draws the same. Nothing in the application
+edits the root's style, and `Document.set_style()` refuses the root. The key is
+still written and still read, so this is not a format change and the version
+number stays the same.
 
 **Feature (leaf) node:**
 
@@ -389,11 +401,14 @@ group as `mode`, `color` and `palette`, at full opacity:
 | `single_color`      | `color`, alpha and all           |
 | `palette`           | `palette`                        |
 
-A file drawn in a single colour opens drawn in the same colour, and a block that
-named none of the three leaves the root on each feature's own colour, which is
-what it drew. Every other group arrives without a style and inherits. The step
-is `Document._to_0_10_0()`. The preferences' `view_defaults` are not rewritten,
-but they are read through the same three keys until they are saved again.
+A block that named none of the three leaves the root on each feature's own
+colour, which is what it drew. Every other group arrives without a style and
+inherits. The step is `Document._to_0_10_0()`. Since the root's style is
+[pinned](#feature-tree-serialization), the loader replaces the style this step
+writes onto the root: a file drawn in a single color opens with each feature in
+its own color, and drawing it in one color again takes a group with that style.
+The preferences' `view_defaults` are not rewritten, and the three keys in them
+are ignored.
 
 #### 0.10.0 to 0.11.0
 
