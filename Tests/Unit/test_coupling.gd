@@ -700,3 +700,71 @@ func test_the_motion_times_of_a_rider_include_its_parents_inside_the_span() -> v
 	assert_eq(document.decouple(child, 200.0), "")
 	assert_eq(Array(Kinematics.motion_times(document.root, child)), [200.0, 350.0, 500.0, 800.0],
 		"the parent's keyframe at 350 Ma, but not those outside the span")
+
+
+### The riders of a feature
+
+
+# A root holding one polygon per title, with no keyframes: riders() reads the
+# spans alone.
+func _riders_tree(titles: Array) -> Dictionary:
+	var root := Feature.create_group("Root")
+	var nodes := {"root": root}
+	for title in titles:
+		var node := _polygon(title)
+		root.children.append(node)
+		nodes[title] = node
+	return nodes
+
+
+func _titles(riders: Array[Feature]) -> Array:
+	var titles := riders.map(func(node: Feature) -> String: return node.title)
+	titles.sort()
+	return titles
+
+
+func test_the_riders_of_a_chain_are_everything_below_it() -> void:
+	var nodes := _riders_tree(["Top", "Middle", "Bottom"])
+	nodes["Middle"].couplings.append(Coupling.create(500.0, 0.0, nodes["Top"].uuid))
+	nodes["Bottom"].couplings.append(Coupling.create(500.0, 0.0, nodes["Middle"].uuid))
+	var root: Feature = nodes["root"]
+	assert_eq(_titles(Coupling.riders(root, nodes["Top"].uuid, 300.0)), ["Bottom", "Middle"])
+	assert_eq(_titles(Coupling.riders(root, nodes["Middle"].uuid, 300.0)), ["Bottom"])
+	assert_eq(_titles(Coupling.riders(root, nodes["Bottom"].uuid, 300.0)), [])
+
+
+func test_the_riders_of_a_fork_are_both_branches() -> void:
+	var nodes := _riders_tree(["Stem", "Left", "Right", "Leaf"])
+	for branch in ["Left", "Right"]:
+		nodes[branch].couplings.append(Coupling.create(500.0, 0.0, nodes["Stem"].uuid))
+	nodes["Leaf"].couplings.append(Coupling.create(500.0, 0.0, nodes["Left"].uuid))
+	assert_eq(_titles(Coupling.riders(nodes["root"], nodes["Stem"].uuid, 100.0)),
+		["Leaf", "Left", "Right"])
+
+
+func test_a_ridge_rides_on_each_of_its_parents_once() -> void:
+	var nodes := _riders_tree(["West", "East", "Ridge", "Seamount"])
+	nodes["Ridge"].couplings.append(
+		Coupling.create(500.0, 0.0, nodes["West"].uuid, nodes["East"].uuid))
+	nodes["Seamount"].couplings.append(Coupling.create(500.0, 0.0, nodes["Ridge"].uuid))
+	for side in ["West", "East"]:
+		assert_eq(_titles(Coupling.riders(nodes["root"], nodes[side].uuid, 100.0)),
+			["Ridge", "Seamount"], "the riders of %s" % side)
+
+
+func test_a_span_counts_only_while_it_holds() -> void:
+	var nodes := _riders_tree(["Parent", "Rider"])
+	nodes["Rider"].couplings.append(Coupling.create(500.0, 200.0, nodes["Parent"].uuid))
+	var root: Feature = nodes["root"]
+	var uuid: String = nodes["Parent"].uuid
+	assert_eq(_titles(Coupling.riders(root, uuid, 600.0)), [], "older than the span")
+	assert_eq(_titles(Coupling.riders(root, uuid, 500.0)), ["Rider"], "where it starts")
+	assert_eq(_titles(Coupling.riders(root, uuid, 200.0)), [], "where it ends")
+	assert_eq(_titles(Coupling.riders(root, uuid, 100.0)), [], "younger than the span")
+
+
+func test_riders_stop_at_a_loop() -> void:
+	var nodes := _riders_tree(["One", "Two"])
+	nodes["One"].couplings.append(Coupling.create(500.0, 0.0, nodes["Two"].uuid))
+	nodes["Two"].couplings.append(Coupling.create(500.0, 0.0, nodes["One"].uuid))
+	assert_eq(_titles(Coupling.riders(nodes["root"], nodes["One"].uuid, 100.0)), ["Two"])
