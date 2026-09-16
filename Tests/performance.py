@@ -35,6 +35,8 @@ DEFAULT_BUDGET_MS = 1000.0 / 60.0
 # How the sample is built: this many features, each a circle cut into
 # (VERTICES - 2) triangles, all of them moving between two keyframes.
 FEATURES = 50
+# The group they all sit in.
+GROUP = "Blobs"
 LATITUDES = [-40.0, -20.0, 0.0, 20.0, 40.0]
 CIRCLE_RADIUS = 6.0
 
@@ -111,7 +113,16 @@ def build_sample(path: Path, triangles: int, coupled: bool = False) -> int:
             "is_group": True,
             "type": "Group",
             "keyframes": [],
-            "children": children,
+            # One group holds every feature, so a style set on it reaches all
+            # of them; the root's own style is pinned.
+            "children": [{
+                "title": GROUP,
+                "enabled": True,
+                "is_group": True,
+                "type": "Group",
+                "keyframes": [],
+                "children": children,
+            }],
         },
     }, indent="\t"), encoding="utf-8")
     return FEATURES * per_feature
@@ -160,9 +171,10 @@ def measure(client: AutomationClient, budget_ms: float, coupled: Path) -> bool:
 
     # The same playback colored by age, whose colors move every frame. The span
     # is longer than any feature's age here, so no color reaches the end of it.
-    client.call("set_view_settings", view_settings={
-        "draw_style": "age", "palette": "ramp", "ramp_span": 3000.0,
-    })
+    client.call("select", title=GROUP)
+    for field, value in (("style", "age"), ("palette", "ramp"), ("ramp_span", 3000.0)):
+        client.call("set_property", field=field, value=value)
+    client.call("select", title=None)
     client.call("timeline", button="Reset")
     client.call("timeline", button="Play")
     aging = report("playing, colored by age", sample_frames(client))

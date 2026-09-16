@@ -3263,28 +3263,63 @@ TYPE_COLOURS = {"polygons": [0.824, 0.412, 0.118], "polylines": [0.863, 0.078, 0
                 "points": [1.0, 0.843, 0.0]}
 
 
+# The six fields the View settings dialog had for the root group's style until
+# GP-0066. The dialog refuses each of them now.
+STYLE_FIELDS = ["draw_style", "single_color", "opacity", "palette", "ramp_colors", "ramp_span"]
+
+
+def select_shapes(client: AutomationClient) -> None:
+    """Select the group of mixed_geometry.middle-earth that holds all three features."""
+    client.call("select", title="Shapes")
+
+
+def group_style(client: AutomationClient) -> dict:
+    """The style the Properties panel shows for the selected group."""
+    return client.call("get_properties")["properties"]["style"]
+
+
 def run_styling_session(client: AutomationClient, folder: Path) -> None:
-    """The draw styles, the palette read from a file, and the class switches."""
-    # GP-0053: a new document starts on the custom ramp, black to white.
+    """The draw styles of a group, a palette loaded from a file, and the class switches."""
+    # GP-0066: the dialog has no style rows, and the port no root style.
     start_new_document(client)
-    style = client.call("get_view_settings")["style"]
-    check(style["palette"] == "ramp"
-          and style["ramp_colors"] == [[0.0, 0.0, 0.0, 1.0], [1.0, 1.0, 1.0, 1.0]]
-          and style["ramp_span"] == 300.0,
-          f"a new document's root ramps black to white over 300 My: {style}")
+    answer = client.call("get_view_settings")
+    check("style" not in answer and "palette_errors" not in answer,
+          f"the view settings carry no style: {sorted(answer)}")
+    check("style_defaults" not in client.call("get_preferences")["preferences"],
+          "and neither do the preferences")
+    for field in STYLE_FIELDS:
+        refused = ""
+        try:
+            client.call("set_view_settings", view_settings={field: "single"})
+        except RuntimeError as error:
+            refused = str(error)
+        check(f"no view setting called {field}" in refused,
+              f"the dialog has no {field} row: {refused}")
+    client.call("select", title=None)
+    check(client.call("get_properties")["properties"]["showing"] == "root",
+          "and the root has nothing to edit in the panel either")
+    check(not client.call("get_document")["document"]["dirty"],
+          "the refused fields left the document as it was")
 
     sample = ROOT / "Tests" / "Data" / "mixed_geometry.middle-earth"
     client.call("load", path=str(sample))
     client.call("mouse_move", x=10, y=10)
+    select_shapes(client)
+    # GP-0053: a group from a file that names no style ramps black to white.
+    style = group_style(client)
+    check(style["palette"] == "ramp"
+          and style["ramp_colors"] == [[0.0, 0.0, 0.0, 1.0], [1.0, 1.0, 1.0, 1.0]]
+          and style["ramp_span"] == 300.0,
+          f"a group's ramp runs black to white over 300 My: {style}")
 
     single = [0.1, 0.6, 0.9, 1.0]
-    client.call("set_view_settings",
-                view_settings={"draw_style": "single", "single_color": single})
+    client.call("set_property", field="style", value="single")
+    client.call("set_property", field="color", value=single)
     for name, (lat, lon) in STYLE_PROBES.items():
         check(is_colour(probe_at(client, lat, lon), single),
               f"the single colour style paints the {name[:-1]}")
 
-    client.call("set_view_settings", view_settings={"draw_style": "type"})
+    client.call("set_property", field="style", value="type")
     for name, (lat, lon) in STYLE_PROBES.items():
         check(is_colour(probe_at(client, lat, lon), TYPE_COLOURS[name]),
               f"the feature type style paints the {name[:-1]} in its type's colour")
@@ -3294,8 +3329,17 @@ def run_styling_session(client: AutomationClient, folder: Path) -> None:
     run_styling_round_trip(client, folder)
 
 
+def load_palette(client: AutomationClient, path: Path) -> None:
+    """Press Load... on the selected group's Palette row and answer with a file."""
+    client.call("expect_file_dialog", path=str(path))
+    client.call("properties", button="LoadPalette")
+    asked = client.call("get_file_dialog")["file_dialog"]
+    check(asked is not None and asked["title"] == "Colour palette",
+          f"the Load button asks for a palette file: {asked}")
+
+
 def run_palette_checks(client: AutomationClient) -> None:
-    """The feature age style over a built in palette and one read from a file."""
+    """The feature age style over a built in palette, the ramp and a palette file."""
     # How old a feature is is measured from the current time, and a document
     # opens at the oldest age of the animation, so read the ages at the present.
     client.call("set_time", time=0.0)
@@ -3305,25 +3349,27 @@ def run_palette_checks(client: AutomationClient) -> None:
     for title, age in ages.items():
         client.call("select", title=title)
         client.call("set_property", field="time_from", value=age)
-    client.call("select", title=None)
+    select_shapes(client)
 
     # Rainbow runs through six colours two hundred million years apart, so each
     # of the three ages lands halfway along a different pair of them.
-    client.call("set_view_settings", view_settings={"draw_style": "age", "palette": "rainbow"})
+    client.call("set_property", field="style", value="age")
+    client.call("set_property", field="palette", value="rainbow")
     expected = {"polygons": [1.0, 0.5, 0.0], "polylines": [0.5, 1.0, 0.0],
                 "points": [0.5, 0.0, 1.0]}
     for name, (lat, lon) in STYLE_PROBES.items():
         check(is_colour(probe_at(client, lat, lon), expected[name]),
               f"the {name[:-1]} takes the palette colour for its age")
 
-    # GP-0053: the root's custom ramp through the dialog, red to blue over
-    # 200 My. The polyline at 300 and the markers at 900 are past it, so blue.
+    # GP-0053: the group's custom ramp, red to blue over 200 My. The polyline
+    # at 300 and the markers at 900 are past it, so blue.
     ramp = {"palette": "ramp", "ramp_span": 200.0,
             "ramp_colors": [[1.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0]]}
-    client.call("set_view_settings", view_settings=ramp)
-    style = client.call("get_view_settings")["style"]
+    for field, value in ramp.items():
+        client.call("set_property", field=field, value=value)
+    style = group_style(client)
     check(all(style[key] == value for key, value in ramp.items()),
-          f"the root group carries the ramp the dialog was given: {style}")
+          f"the group carries the ramp it was given: {style}")
     for name in ("polylines", "points"):
         lat, lon = STYLE_PROBES[name]
         check(is_colour(probe_at(client, lat, lon), [0.0, 0.0, 1.0]),
@@ -3332,8 +3378,8 @@ def run_palette_checks(client: AutomationClient) -> None:
     # A third colour added to the ramp: green 200 My after blue. The markers at
     # 900 are past the whole ramp, so they take the new last colour, while the
     # polyline at 300 is halfway from blue to it.
-    client.call("set_view_settings", view_settings={"ramp_colors": ramp["ramp_colors"]
-                                                    + [[0.0, 1.0, 0.0, 1.0]]})
+    client.call("set_property", field="ramp_colors",
+                value=ramp["ramp_colors"] + [[0.0, 1.0, 0.0, 1.0]])
     lat, lon = STYLE_PROBES["points"]
     check(is_colour(probe_at(client, lat, lon), [0.0, 1.0, 0.0]),
           "a colour added to the ramp reaches the feature past the end of it")
@@ -3341,14 +3387,18 @@ def run_palette_checks(client: AutomationClient) -> None:
     check(is_colour(probe_at(client, lat, lon), [0.0, 0.5, 0.5]),
           "and the one at 300 Ma is halfway along the second span")
 
-    # The same again from a file rather than from the built in list. The
-    # fixture ramps black to red between 0 and 100, then red to white to 200.
+    # GP-0066: the same again from a file, loaded through the group's own
+    # Load button. The fixture ramps black to red between 0 and 100, then red
+    # to white to 200.
     palette = ROOT / "Tests" / "Data" / "Palettes" / "continuous.cpt"
-    client.call("set_view_settings", view_settings={"palette": str(palette)})
-    answer = client.call("get_view_settings")
-    check(answer["style"]["palette"] == str(palette),
-          "the root group names the palette file it was given")
-    check(answer["palette_errors"] == [], "which reads without error")
+    depth = client.call("get_document")["document"]["undo_depth"]
+    load_palette(client, palette)
+    panel = client.call("get_properties")["properties"]
+    check(panel["style"]["palette"] == str(palette) and str(palette) in panel["palettes"],
+          f"the group names the palette file and offers it: {panel['style']['palette']}")
+    check(client.call("get_document")["document"]["undo_depth"] == depth + 1,
+          "loading it is one undo version")
+    check(client.call("get_dialog")["dialog"] is None, "and it reads without error")
     lat, lon = STYLE_PROBES["polygons"]
     check(is_colour(probe_at(client, lat, lon), [1.0, 0.0, 0.0]),
           "and 100 Ma is the boundary its two ramps share, which is red")
@@ -3359,16 +3409,24 @@ def run_palette_checks(client: AutomationClient) -> None:
     # A file the reader cannot make sense of says which lines it could not read
     # rather than leaving the planet unexplained.
     broken = ROOT / "Tests" / "Data" / "Palettes" / "malformed.cpt"
-    client.call("set_view_settings", view_settings={"palette": str(broken)})
-    errors = client.call("get_view_settings")["palette_errors"]
-    check(len(errors) == 2 and all(error.startswith("line ") for error in errors),
-          f"a malformed palette reports its lines: {errors}")
+    select_shapes(client)
+    load_palette(client, broken)
+    dialog = client.call("get_dialog")["dialog"]
+    text = dialog["text"] if dialog else ""
+    check("malformed.cpt" in text and "line 2" in text and "line 4" in text,
+          f"a malformed palette reports its lines: {text!r}")
+    if dialog:
+        client.call("dialog", button=dialog["buttons"][0])
+    select_shapes(client)
+    check(group_style(client)["palette"] == str(broken),
+          "and what did read of it is used all the same")
 
 
 def run_class_switch_checks(client: AutomationClient) -> None:
     """Each View menu switch takes its own class off the globe and no other."""
-    client.call("set_view_settings",
-                view_settings={"draw_style": "feature", "hidden_classes": []})
+    select_shapes(client)
+    client.call("set_property", field="style", value="feature")
+    client.call("set_view_settings", view_settings={"hidden_classes": []})
     for hidden in STYLE_PROBES:
         client.call("menu", item=hidden)
         stored = client.call("get_view_settings")["view_settings"]["hidden_classes"]
@@ -3383,15 +3441,15 @@ def run_class_switch_checks(client: AutomationClient) -> None:
 
 
 def run_styling_round_trip(client: AutomationClient, folder: Path) -> None:
-    """The active style, its colour, its palette and the switches survive the file."""
+    """A group's style, its colour and palette file, and the switches survive the file."""
     palette = ROOT / "Tests" / "Data" / "Palettes" / "discrete.cpt"
-    edited = {
-        "draw_style": "age",
-        "single_color": [0.3, 0.7, 0.2, 1.0],
-        "palette": str(palette),
-        "hidden_classes": ["points", "topologies"],
-    }
-    client.call("set_view_settings", view_settings=edited)
+    colour = [0.3, 0.7, 0.2, 1.0]
+    hidden = ["points", "topologies"]
+    select_shapes(client)
+    client.call("set_property", field="style", value="age")
+    client.call("set_property", field="color", value=colour)
+    load_palette(client, palette)
+    client.call("set_view_settings", view_settings={"hidden_classes": hidden})
     check(client.call("get_document")["document"]["dirty"],
           "picking a style offers the document for saving")
 
@@ -3399,27 +3457,30 @@ def run_styling_round_trip(client: AutomationClient, folder: Path) -> None:
     client.call("expect_file_dialog", path=str(saved))
     client.call("menu", item="save_as")
     written = json.loads(saved.read_text(encoding="utf-8"))
-    check(written["features"]["style"]["mode"] == "age" and "draw_style" not in written["view"],
-          "the file carries the active style on the root group")
+    root_style = written["features"]["style"]
+    check(written["features"]["children"][0]["style"]["mode"] == "age"
+          and "draw_style" not in written["view"],
+          "the file carries the active style on the group")
+    check(root_style["mode"] == "feature" and root_style["opacity"] == 1.0
+          and root_style["palette"] == "ramp",
+          f"and the root's pinned style, the defaults: {root_style}")
 
     client.call("menu", item="new")
     if client.call("get_dialog")["dialog"] is not None:
         client.call("dialog", button="Discard")
     client.call("load", path=str(saved))
-    answer = client.call("get_view_settings")
-    style = answer["style"]
-    back = {**answer["view_settings"], "draw_style": style["mode"],
-            "single_color": style["color"], "palette": style["palette"]}
-    for key, value in edited.items():
-        if key == "single_color":
-            check(all(abs(a - b) < 1e-3 for a, b in zip(back[key], value)),
-                  f"{key} survived the round trip: {back[key]}")
-        else:
-            check(back[key] == value, f"{key} survived the round trip: {back[key]}")
+    select_shapes(client)
+    style = group_style(client)
+    check(style["mode"] == "age" and style["palette"] == str(palette),
+          f"the style and its palette file survived the round trip: {style}")
+    check(all(abs(a - b) < 1e-3 for a, b in zip(style["color"], colour)),
+          f"and the colour: {style['color']}")
+    stored = client.call("get_view_settings")["view_settings"]["hidden_classes"]
+    check(stored == hidden, f"and the switches: {stored}")
 
     # Put the switches back on, so the scenarios after this one see everything.
-    client.call("set_view_settings",
-                view_settings={"hidden_classes": [], "draw_style": "feature"})
+    client.call("set_view_settings", view_settings={"hidden_classes": []})
+    client.call("set_property", field="style", value="feature")
 
 
 ### The kinematics scenario
