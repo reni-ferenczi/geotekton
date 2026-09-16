@@ -304,6 +304,31 @@ vertices is what it is for, and a thick line would cover those dots.
 The hit test does not widen with the highlight: a selected line is picked with
 the same `Planet.LINE_HIT_WIDTH` as any other.
 
+### Riders of the selected feature
+
+With View > [Highlight riders](Editing.md#highlighting-riders) on, the features
+riding on the highlighted one at the current time are drawn in `RIDER_COLOR`,
+orange. `Application._find_riders()` asks `Coupling.riders()` for them, which
+walks the couplings downward, and `_drawn_riders()` passes them on only while
+`_highlighted_feature()` names a feature, so the tools that drop the selection
+highlight drop this one too.
+
+| Kind | Highlight | Drawn by |
+|---|---|---|
+| Polygon | An orange outline along its rings, fill unchanged | Outline style 6 |
+| Line | Its segments at the normal `geometry_line_width`, opaque orange | The segment pass, from the `related` flag |
+| Multipoint | Its markers at their normal size, opaque orange | The marker pass, from the `related` flag |
+
+The width stays normal so a rider cannot be taken for the selection, which is
+thicker as well as yellow. `RIDER_COLOR` in the shader is `Planet.RIDER_COLOR`,
+an sRGB orange, in linear light; `test_shader_constants.gd` holds the two to
+each other. The tree tints a rider's row in the same orange at a quarter
+alpha, `FeatureTree.RIDER_TINT`.
+
+`Application._refresh_feature_state()` works the riders out again, so they
+follow a change of selection, of tool and of time along with the selection
+highlight.
+
 ### Winding Order
 
 The half-plane tests assume **counter-clockwise (CCW)** winding, seen from
@@ -319,8 +344,8 @@ color per feature, and that is the whole of what a step of an animation or a
 change of color re-uploads, whatever the triangle count is.
 
 `feature_data` uses `FORMAT_RGBAF` with **width = feature count** and
-**height = 4 rows**, one column of the rotation per row in the first three and
-the color in the fourth:
+**height = 5 rows**, one column of the rotation per row in the first three, the
+color in the fourth and the rider flag in the fifth:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
@@ -328,6 +353,7 @@ the color in the fourth:
 | 1 | m01 | m11 | m21 | visible |
 | 2 | m02 | m12 | m22 | selected |
 | 3 | red (linear) | green (linear) | blue (linear) | opacity |
+| 4 | related | 0 | 0 | 0 |
 
 The color is what the draw style resolved for the feature, which is why it
 lives here rather than beside the vertices. The selection highlight of GP-0034
@@ -338,8 +364,12 @@ an animation, and neither has to rebuild the geometry texture to do so.
 fill. `visible` is 0 while the feature is outside its time range, so it is
 skipped without the geometry texture being rebuilt. `selected` is 1 on the
 feature the tree has selected, which draws its segments thicker and yellow; see
-[The selected feature](#the-selected-feature). Selecting another feature
-re-uploads this texture and nothing else.
+[The selected feature](#the-selected-feature). `related` is 1 on a feature
+riding on the selected one while riders are highlighted, which draws its lines
+and markers orange; see
+[Riders of the selected feature](#riders-of-the-selected-feature). The first
+four rows have no channel left over, so the flag takes a row of its own.
+Selecting another feature re-uploads this texture and nothing else.
 
 The pointer is not the only thing that ends a hover. A change of the current
 time moves the features under a pointer that need not have moved at all, so
@@ -435,9 +465,9 @@ Packs the primitives into a `FORMAT_RGBAF` image and sets `geometry_data` and
 `geometry_count` on both the globe and the map material. A geometry with no
 primitives clears everything.
 
-### `Planet.set_feature_state(geometry: Geometry, hovered_feature: Feature = null, selected_feature: Feature = null)`
+### `Planet.set_feature_state(geometry: Geometry, hovered_feature: Feature = null, selected_feature: Feature = null, related: Array[Feature] = [])`
 
-Packs `bases`, `shown`, `colors`, the hover and the selection into
+Packs `bases`, `shown`, `colors`, the hover, the selection and the riders into
 `feature_data`. This is what a step of an animation calls, and it is the only
 thing it calls. A change of color takes the same path:
 `Application.refresh_colors()` calls `geometry.recolor()` and then this, which
@@ -495,13 +525,14 @@ the same for every vertex of a part:
 | 3 | Closed, every segment alike — a polygon in the Vertex tool, a closed circle |
 | 4 | Closed like 3, with no vertex markers — the rings of a selected polygon |
 | 5 | The vertex markers only, twice the size — a selected multipoint |
+| 6 | Closed like 4, in `RIDER_COLOR`: the rings of a polygon riding on the selected feature |
 
-`Planet.OutlineStyle` names the same six values.
+`Planet.OutlineStyle` names the same seven values.
 
 ### Outline Math
 
 **Vertex dots**: the chord distance from the fragment to the nearest vertex,
-antialiased via `smoothstep`. Every vertex gets one except in style 4. Style 5
+antialiased via `smoothstep`. Every vertex gets one except in styles 4 and 6. Style 5
 divides the distance by `SELECTED_MARKER_SCALE`, which draws the same dot twice
 as large.
 
@@ -513,7 +544,7 @@ its own. When the style closes the part, that vertex joins back to the vertex
 the part started at, at reduced opacity for style 1 and at full opacity for
 styles 3 and 4.
 
-The outline is composited on top of everything else using yellow color (`vec3(1, 1, 0)`) at the computed alpha.
+The outline is composited on top of everything else using yellow color (`vec3(1, 1, 0)`) at the computed alpha. Style 6 keeps a distance of its own and is laid down in `RIDER_COLOR` first, so the yellow of a selection drawn over the same place wins.
 
 ## Notes
 
@@ -571,7 +602,7 @@ today; raising the limit is GP-0030 in the workspace ticket list.
 
 Playing costs almost nothing over standing still, which is the point of
 keeping the rotation in `feature_data`: what a frame of an animation changes is
-four texels per feature. The limit is the per-fragment loop over the triangles
+five texels per feature. The limit is the per-fragment loop over the triangles
 themselves, which the strategies below address.
 
 ### Optimization Strategies

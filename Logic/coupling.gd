@@ -136,6 +136,31 @@ static func reaches(nodes: Dictionary, start: Feature, target: Feature) -> bool:
 	return false
 
 
+# Every feature that rides on the one with `uuid` at a time, and whatever rides
+# on those in turn: the couplings walked downward, the way reaches() walks them
+# up. A rider of two parents counts once. The list never holds the feature
+# itself, even where a broken document loops back to it.
+static func riders(root: Feature, uuid: String, time: float) -> Array[Feature]:
+	var on := {}
+	for node: Feature in index(root).values():
+		var span: Coupling = null if node.is_group else span_at(node, time)
+		if span == null:
+			continue
+		for parent in span.parents():
+			on.get_or_add(parent, []).append(node)
+	var result: Array[Feature] = []
+	var seen := {uuid: true}
+	var queue: Array[String] = [uuid]
+	while not queue.is_empty():
+		for rider: Feature in on.get(queue.pop_back(), []):
+			if seen.has(rider.uuid):
+				continue
+			seen[rider.uuid] = true
+			result.append(rider)
+			queue.append(rider.uuid)
+	return result
+
+
 ### Where a coupled feature is
 
 

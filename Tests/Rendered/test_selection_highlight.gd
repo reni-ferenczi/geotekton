@@ -168,6 +168,75 @@ func test_a_selected_multipoint_keeps_its_markers_drawn_larger() -> void:
 			% [selected["yellow"], editing["yellow"]])
 
 
+# GP-0075: with View > Highlight riders on, selecting a feature traces what
+# rides on it in orange, next to its own yellow, and tints the riders' rows.
+func test_a_polygon_riding_on_the_selection_is_traced_orange() -> void:
+	var parent := await _load_with_raster("two_cratons.middle-earth", "Red Triangle", Color.BLACK)
+	var rider := _find("Blue Quad")
+	if parent == null or rider == null:
+		return
+	assert_eq(app.document.couple(rider, parent, app.document.current_time), "")
+	app.refresh_geometry()
+	view().set_zoom(POLYGON_ZOOM)
+	var rider_edge := await _edge_probe(rider)
+	var parent_edge := await _edge_probe(parent)
+	if rider_edge.is_empty() or parent_edge.is_empty():
+		fail("both features have an edge away from the grid")
+		await _restore()
+		return
+
+	_select(parent)
+	var off_rider := await _count_at(rider_edge)
+	_toggle_riders()
+	var on_rider := await _count_at(rider_edge)
+	var on_parent := await _count_at(parent_edge)
+	var tint := _row(rider).get_custom_bg_color(0)
+	_toggle_riders()
+	var tint_after := _row(rider).get_custom_bg_color(0)
+	await _restore()
+
+	assert_true(off_rider["orange"] == 0 and off_rider["blue"] > 0,
+		"switched off, the rider's edge is its own blue: %s" % off_rider)
+	assert_true(on_rider["orange"] > 0 and on_rider["yellow"] == 0,
+		"switched on, the rider's edge is orange: %s" % on_rider)
+	assert_true(on_parent["yellow"] > 0,
+		"and the selected parent's edge is yellow: %s" % on_parent)
+	assert_eq(tint, FeatureTree.RIDER_TINT, "the rider's row is tinted")
+	assert_true(tint_after != FeatureTree.RIDER_TINT, "and loses the tint when switched off")
+
+
+func test_a_line_riding_on_the_selection_is_drawn_orange_at_its_width() -> void:
+	var parent := await _load_with_raster("mixed_geometry.middle-earth", "Red Triangle")
+	var rider := _find("Blue Ridge")
+	if parent == null or rider == null:
+		return
+	assert_eq(app.document.couple(rider, parent, app.document.current_time), "")
+	app.refresh_geometry()
+	# Blue Ridge runs along the meridian at 40 degrees east; see
+	# test_a_selected_line_is_drawn_thicker_and_yellow for the point beside it.
+	var lat := 5.0
+	var beside := 40.0 + rad_to_deg(asin(LINE_WIDTH * 1.375 / cos(deg_to_rad(lat))))
+	await look_at_latlon(lat, 40.0)
+	view().set_zoom(LINE_ZOOM)
+	await frames(2)
+	var on: Variant = view().latlon_to_screen(lat, 40.0)
+	var off: Variant = view().latlon_to_screen(lat, beside)
+	if on == null or off == null:
+		fail("both probe points are in view")
+		await _restore()
+		return
+	_select(parent)
+	_toggle_riders()
+	await frames(2)
+	var image := await capture()
+	_toggle_riders()
+	await _restore()
+	assert_eq(_count(image, on, 1)["orange"], 9,
+		"the rider's line is orange: %s" % _count(image, on, 1))
+	assert_eq(_count(image, off, 1)["red"], 9,
+		"and no wider than before: %s" % _count(image, off, 1))
+
+
 ### Helpers
 
 # Load a sample over a flat raster. Red by default; a green feature needs
@@ -181,6 +250,39 @@ func _load_with_raster(sample: String, title: String, raster := Color.RED) -> Fe
 	var feature := _find(title)
 	assert_true(feature != null, "the sample holds %s" % title)
 	return feature
+
+
+# The View menu's Highlight riders switch, flipped the way a click does it.
+func _toggle_riders() -> void:
+	app._on_view_menu_id_pressed(Application.ViewItem.HIGHLIGHT_RIDERS)
+
+
+func _row(feature: Feature) -> TreeItem:
+	return app.features.feature_tree.items[feature.pnid]
+
+
+# A point on an edge of a feature away from the grid, as the place to turn the
+# globe to, or an empty array. The samples put many edges on grid lines, so a
+# few places along each edge are tried.
+func _edge_probe(feature: Feature) -> Array:
+	var ring := _world_ring(feature)
+	for i in ring.size():
+		for along in [0.5, 0.3, 0.7]:
+			var point := Measure.along(ring[i], ring[(i + 1) % ring.size()], along)
+			if not _near_grid(point):
+				return [point]
+	return []
+
+
+# Turn to a probe from _edge_probe() and count the colors around it.
+func _count_at(edge: Array) -> Dictionary:
+	var middle: Vector2 = edge[0]
+	await look_at_latlon(middle.x, middle.y)
+	await frames(2)
+	var centre: Variant = view().latlon_to_screen(middle.x, middle.y)
+	if centre == null:
+		return {"yellow": 0, "orange": 0, "red": 0, "green": 0, "blue": 0}
+	return _count(await capture(), centre, EDGE_REACH)
 
 
 func _restore() -> void:
@@ -242,15 +344,18 @@ func _near_grid(point: Vector2) -> bool:
 	return false
 
 
-# How many pixels of a square around a point are yellow, and how many each
-# channel dominates.
+# How many pixels of a square around a point are yellow, how many are the rider
+# orange, and how many each channel dominates.
 func _count(image: Image, centre: Vector2, reach: int) -> Dictionary:
-	var counts := {"yellow": 0, "red": 0, "green": 0, "blue": 0}
+	var counts := {"yellow": 0, "orange": 0, "red": 0, "green": 0, "blue": 0}
 	for dy in range(-reach, reach + 1):
 		for dx in range(-reach, reach + 1):
 			var color := image.get_pixel(int(centre.x) + dx, int(centre.y) + dy)
 			if color.r > 0.5 and color.g > 0.5 and color.b < color.r * 0.5:
 				counts["yellow"] += 1
+				continue
+			if color.r > 0.6 and color.g > color.r * 0.3 and color.g < color.r * 0.7 					and color.b < color.r * 0.25:
+				counts["orange"] += 1
 				continue
 			var channel := dominant_channel(color)
 			if counts.has(channel):

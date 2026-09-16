@@ -768,6 +768,13 @@ def run_coupling_session(client: AutomationClient, folder: Path) -> None:
           f"the timeline draws the span as a bar from older to younger: {bars}")
     check(client.call("latlon_to_screen", lat=15.0, lon=20.0)["screen"] == planet,
           "the coupling rows leave the planet where it was")
+    check(not client.call("get_panels")["panels"]["highlight_riders"],
+          "riders are not highlighted until that is asked for")
+    client.call("menu", item="highlight_riders")
+    check(client.call("get_panels")["panels"]["highlight_riders"],
+          "the View menu switches the rider highlight on")
+    client.call("menu", item="highlight_riders")
+    check(not client.call("get_panels")["panels"]["highlight_riders"], "and off again")
 
     # Couple, drag the parent: the child moves with it.
     client.call("set_time", time=DECOUPLED_AT)

@@ -40,6 +40,16 @@ func test_the_shader_allows_the_same_slack_at_an_edge() -> void:
 		"the shader's MAP_EDGE_SLACK")
 
 
+# The shader writes linear light, so its orange is Planet.RIDER_COLOR linearized.
+func test_the_shader_draws_riders_in_the_same_orange() -> void:
+	var numbers := _constant("RIDER_COLOR").trim_prefix("vec3(").trim_suffix(")").split(",")
+	var wanted := Planet.RIDER_COLOR.srgb_to_linear()
+	assert_eq(numbers.size(), 3, "the shader's RIDER_COLOR has three components")
+	for i in mini(numbers.size(), 3):
+		assert_close(numbers[i].strip_edges().to_float(), wanted[i], 1e-5,
+			"component %d of the shader's RIDER_COLOR" % i)
+
+
 # The two tables are written out in the shader as float[19] literals, in the
 # same order MapProjection lists them: the lengths first, the distances second.
 func test_the_shader_carries_the_same_robinson_tables() -> void:

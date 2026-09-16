@@ -58,19 +58,25 @@ uniform float geometry_point_radius = 0.02;
 // highlight color.
 const float SELECTED_LINE_SCALE = 2.0;
 const vec3 HIGHLIGHT_COLOR = vec3(1.0, 1.0, 0.0);
+// What the segments of a feature riding on the selected one are drawn in, at the
+// normal width: Planet.RIDER_COLOR, an sRGB orange, in linear light.
+const vec3 RIDER_COLOR = vec3(1.0, 0.214041, 0.0);
 
 // Per feature state at the current time (filter_nearest for exact texel reads)
-// Layout: width = feature count, height = 4
+// Layout: width = feature count, height = 5
 //   Row 0: (m00, m10, m20, hovered)  -- the first column of the rotation
 //   Row 1: (m01, m11, m21, visible)  -- the second
 //   Row 2: (m02, m12, m22, selected) -- the third
 //   Row 3: (r, g, b, a)              -- the color, linear, alpha the opacity
+//   Row 4: (related, 0, 0, 0)
 // Keeping the rotation and the color here rather than beside the vertices is
 // what makes a step of an animation or a change of color cheap: only these
-// four texels per feature are re-uploaded, whatever the triangle count is.
+// five texels per feature are re-uploaded, whatever the triangle count is.
 // `visible` is 0 while the feature is outside its time range, `hovered` is 1
-// while the pointer rests on it, and `selected` is 1 on the feature whose
-// segments are drawn thicker and yellow.
+// while the pointer rests on it, `selected` is 1 on the feature whose
+// segments are drawn thicker and yellow, and `related` is 1 on a feature riding
+// on the selected one, whose lines and markers are drawn orange. A related
+// polygon keeps its fill; the outline overlay traces it instead.
 uniform sampler2D feature_data : filter_nearest, repeat_disable;
 
 // Outline overlay data texture (filter_nearest for exact texel reads)
@@ -80,8 +86,9 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 // texture. style 0 draws an open line, 1 closes it with a faint last segment
 // (the shape being drawn), 2 draws the vertex markers only, 3 closes it with
 // every segment alike (a polygon in the Vertex tool), 4 closes it the same way
-// with no markers (a selected polygon) and 5 draws larger markers only (a
-// selected multipoint). Every style but 4 marks each vertex.
+// with no markers (a selected polygon), 5 draws larger markers only (a
+// selected multipoint) and 6 closes it like 4 in RIDER_COLOR (a polygon riding
+// on the selected feature). Every style but 4 and 6 marks each vertex.
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
 uniform float outline_line_width = 0.002;
@@ -266,6 +273,7 @@ void fragment() {
 	float hovered = 0.0;
 	bool feature_visible = true;
 	bool feature_selected = false;
+	bool feature_related = false;
 	vec4 feature_color = vec4(1.0);
 
 	for (int i = 0; i < geometry_count; i++) {
@@ -283,6 +291,7 @@ void fragment() {
 			feature_visible = f1.w > 0.5;
 			feature_selected = f2.w > 0.5;
 			feature_color = texelFetch(feature_data, ivec2(feature, 3), 0);
+			feature_related = texelFetch(feature_data, ivec2(feature, 4), 0).r > 0.5;
 		}
 		if (!feature_visible) {
 			continue;
@@ -307,16 +316,22 @@ void fragment() {
 		} else if (kind == 1) {
 			float d = arc_distance(a, rotation * latlon_to_unit(row0.zw), p);
 			// A selected line is drawn thicker and yellow, and opaque, so it
-			// shows even at an opacity of zero.
+			// shows even at an opacity of zero. A related line keeps its width
+			// and is drawn opaque orange.
 			float line_width = geometry_line_width;
 			if (feature_selected) {
 				line_width *= SELECTED_LINE_SCALE;
 				paint = vec4(HIGHLIGHT_COLOR, 1.0);
+			} else if (feature_related) {
+				paint = vec4(RIDER_COLOR, 1.0);
 			}
 			coverage = 1.0 - smoothstep(line_width * 0.5, line_width, d);
 		} else {
 			float d = chord(a, p);
 			coverage = 1.0 - smoothstep(geometry_point_radius * 0.7, geometry_point_radius, d);
+			if (feature_related) {
+				paint = vec4(RIDER_COLOR, 1.0);
+			}
 		}
 
 		if (coverage > 0.0) {
@@ -335,6 +350,7 @@ void fragment() {
 		float min_dot_dist = 1e10;
 		float min_line_dist = 1e10;
 		float closing_line_dist = 1e10;
+		float rider_line_dist = 1e10;
 
 		for (int i = 0; i < outline_vertex_count; i++) {
 			vec4 v = texelFetch(outline_data, ivec2(i, 0), 0);
@@ -345,7 +361,7 @@ void fragment() {
 				min_dot_dist = min(min_dot_dist, chord(a, p) / SELECTED_MARKER_SCALE);
 				continue;
 			}
-			if (style != 4) {
+			if (style != 4 && style != 6) {
 				min_dot_dist = min(min_dot_dist, chord(a, p));
 			}
 			if (style == 2) {
@@ -366,6 +382,8 @@ void fragment() {
 			float d = arc_distance(a, b, p);
 			if (last && style == 1) {
 				closing_line_dist = min(closing_line_dist, d);
+			} else if (style == 6) {
+				rider_line_dist = min(rider_line_dist, d);
 			} else {
 				min_line_dist = min(min_line_dist, d);
 			}
@@ -376,6 +394,8 @@ void fragment() {
 		float line_alpha = 1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, min_line_dist);
 		float closing_alpha = (1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, closing_line_dist)) * outline_closing_opacity;
 		float outline_alpha = max(dot_alpha, max(line_alpha, closing_alpha));
+		float rider_alpha = 1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, rider_line_dist);
+		base = mix(base, RIDER_COLOR, rider_alpha);
 		base = mix(base, vec3(1.0, 1.0, 0.0), outline_alpha);
 	}
 

@@ -21,6 +21,11 @@ const POINT_HIT_RADIUS := 0.025
 const DEFAULT_DOT_RADIUS := 0.006
 const DEFAULT_LINE_WIDTH := 0.002
 
+# What a feature riding on the selected one is traced in, when the View menu
+# asks for it, and what tints its row in the tree. planet.gdshader
+# holds the same color, linearized, as RIDER_COLOR.
+const RIDER_COLOR := Color(1.0, 0.5, 0.0)
+
 # Style of one part of the outline overlay. Matches planet.gdshader.
 enum OutlineStyle {
 	OPEN = 0,           # a line from the first vertex to the last
@@ -29,6 +34,7 @@ enum OutlineStyle {
 	CLOSED = 3,         # closed, with every segment drawn the same
 	OUTLINE = 4,        # closed like CLOSED, with no vertex markers
 	MARKERS = 5,        # the vertex markers only, drawn larger
+	RIDER = 6,          # closed like OUTLINE, in RIDER_COLOR
 }
 
 # The map mesh with the sheet of a projection half a unit tall, which is what a
@@ -301,22 +307,23 @@ func set_geometry(geometry: Geometry) -> void:
 
 
 # Upload where each feature sits, whether it is there at the current time, what
-# color it is, which one the pointer rests on and which one is highlighted as
-# selected. This is the whole of what one step of an animation, a change of
-# color or a change of selection touches, so it is four texels per feature
-# rather than anything per triangle. Call geometry.resolve() for the wanted time
-# first.
+# color it is, which one the pointer rests on, which one is highlighted as
+# selected and which ones ride on that one. This is the whole of what one step of an
+# animation, a change of color or a change of selection touches, so it is five
+# texels per feature rather than anything per triangle. Call geometry.resolve()
+# for the wanted time first.
 func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
-		selected_feature: Feature = null) -> void:
+		selected_feature: Feature = null, related: Array[Feature] = []) -> void:
 	var count := geometry.features.size()
 	if count == 0:
 		return
 
-	# Data texture: width = feature count, height = 4, 32-bit float RGBA. The
+	# Data texture: width = feature count, height = 5, 32-bit float RGBA. The
 	# first three rows carry one column of the rotation each, with the hover,
 	# the visibility and the selection in the channels the rotation leaves over;
-	# the fourth is the color.
-	var img := Image.create(count, 4, false, Image.FORMAT_RGBAF)
+	# the fourth is the color and the fifth says whether the feature rides on the
+	# selected one.
+	var img := Image.create(count, 5, false, Image.FORMAT_RGBAF)
 	for i in range(count):
 		var m: Basis = geometry.bases[i]
 		var hovered := 1.0 if geometry.features[i] == hovered_feature else 0.0
@@ -330,6 +337,7 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 		# it was picked. The alpha is left as it is. See
 		# Docs/Shader.md#colour-space.
 		img.set_pixel(i, 3, geometry.colors[i].srgb_to_linear())
+		img.set_pixel(i, 4, Color(1.0 if geometry.features[i] in related else 0.0, 0.0, 0.0))
 
 	var tex := ImageTexture.create_from_image(img)
 	for material in [globe.get_surface_override_material(0), map.get_surface_override_material(0)]:

@@ -122,6 +122,26 @@ points in place of the highlight, and the Draw tool's preview of the shape
 being drawn is drawn over it as before. See
 [Shader](Shader.md#the-selected-feature).
 
+### Highlighting riders
+
+View > Highlight riders shows which features are
+[coupled](Time.md#coupling) to the selected one. It is off by default, and the
+choice is remembered like the panel switches. While it is on and a feature is
+selected, every feature riding on it at the current time is marked, and so is
+everything riding on those in turn:
+
+- on the planet, a rider is traced in orange: a line or a multipoint is drawn
+  orange at its normal width, and a polygon keeps its fill and gets an orange
+  outline. The selection stays yellow, so the two are not mixed up;
+- in the tree, a rider's row gets a faint orange background. The row is tinted
+  even while the rider is outside its time range, so the coupling shows when
+  the planet leaves the rider out.
+
+The marks follow the current time, since a coupling holds over a span of it.
+They show in the tools that highlight the selection, which leaves out Vertex,
+Circle, Light and Measure; the tree keeps its tint in every tool. A selected
+group has no riders.
+
 Up to 0.1.0 the rows also had invert, single, wrap, resize and repeat, five
 switches left over from the rule editor this interface came from. Nothing read
 them and they were dropped in 0.2.0, files included.
