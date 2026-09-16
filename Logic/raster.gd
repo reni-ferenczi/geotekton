@@ -1,13 +1,15 @@
 class_name Raster
 extends RefCounted
 
-# The image a document wears in place of the built in Earth.
+# The image a document wears over the planet color.
 #
 # The file is read from wherever the document points, not imported as a project
-# resource, so any image on the machine can be dropped onto the planet. What
-# comes back is either a texture or the reason there is none; a document naming
-# an image that has since been moved still opens, showing the built in Earth and
-# saying why. See Docs/Shader.md#the-raster.
+# resource, so any image on the machine can be dropped onto the planet. The one
+# exception is an image the application ships, a res:// path such as the built
+# in Earth, which is loaded as the imported resource it is. What comes back is
+# either a texture or the reason there is none; a document naming an image that
+# has since been moved still opens, showing the planet color and saying why.
+# See Docs/Shader.md#the-raster.
 
 # The formats a raster may be in: the bitmap formats the engine reads, plus SVG,
 # which it rasterizes from the text of the file.
@@ -17,7 +19,7 @@ const EXTENSIONS := ["png", "jpg", "jpeg", "webp", "svg"]
 # without the coastlines going soft, small enough to load in a moment.
 const SVG_WIDTH := 2048.0
 
-var texture: ImageTexture = null
+var texture: Texture2D = null
 var error: String = ""
 
 
@@ -31,6 +33,12 @@ static func load_from(path: String) -> Raster:
 	if not EXTENSIONS.has(extension):
 		result.error = "%s is not an image Middle Earth reads (%s)" % [
 			path.get_file(), ", ".join(EXTENSIONS)]
+		return result
+	if path.begins_with("res://"):
+		if not ResourceLoader.exists(path, "Texture2D"):
+			result.error = "The raster %s is not there" % path
+			return result
+		result.texture = load(path)
 		return result
 	if not FileAccess.file_exists(path):
 		result.error = "The raster %s is not there" % path

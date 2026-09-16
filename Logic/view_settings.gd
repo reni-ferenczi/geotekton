@@ -2,8 +2,8 @@ class_name ViewSettings
 extends RefCounted
 
 # How the scene around the features is drawn: the background, the grid, the
-# light and the raster on the planet, along with which classes of
-# geometry are shown at all and what colour the features come out.
+# light, the planet's own color and the raster on it, along with which classes
+# of geometry are shown at all and what colour the features come out.
 #
 # These belong to a document rather than to whoever is at the keyboard, because
 # a map of a world is drawn the way its author chose, so they are saved with the
@@ -22,6 +22,15 @@ const DEFAULT_GRID_SPACING := 15.0
 const DEFAULT_LIGHT := Vector2(0.0, 0.0)
 const DEFAULT_AMBIENT := 0.0
 const DEFAULT_RASTER_OPACITY := 1.0
+
+# The planet under any raster: an ocean blue. Unlike the scene settings above,
+# this is not how files were drawn before it existed; those carried the built in
+# Earth, and Document.migrate() gives it back to them as their raster.
+const DEFAULT_PLANET_COLOR := Color(0.16, 0.36, 0.60)
+
+# The image the developers call the built in Earth, which a raster path may name
+# like any file on disk.
+const BUILT_IN_EARTH := "res://Assets/Textures/Earth.jpg"
 
 # What the grid may be spaced at, in degrees. The lower end keeps the
 # window from being filled with lines; the upper end still draws the equator and
@@ -52,8 +61,15 @@ var grid_spacing: float = DEFAULT_GRID_SPACING
 var light_direction: Vector2 = DEFAULT_LIGHT
 var ambient: float = DEFAULT_AMBIENT
 
-# An image drawn on the planet in place of the built in Earth. The path is
-# relative to the project file when the image sits beside it; see
+# The color of the planet where no raster covers it. Always opaque: the planet
+# is never see-through, so whatever alpha is given is dropped.
+var planet_color: Color = DEFAULT_PLANET_COLOR:
+	set(value):
+		planet_color = Color(value, 1.0)
+
+# An image drawn over the planet color. Empty is none. The path is relative to
+# the project file when the image sits beside it, and a res:// path names an
+# image the application ships, such as BUILT_IN_EARTH; see
 # Document.resolve_raster().
 var raster_path: String = ""
 var raster_opacity: float = DEFAULT_RASTER_OPACITY
@@ -81,6 +97,7 @@ func to_json() -> Dictionary:
 		"grid_spacing": grid_spacing,
 		"light_direction": [light_direction.x, light_direction.y],
 		"ambient": ambient,
+		"planet_color": _color_to_json(planet_color),
 		"raster_path": raster_path,
 		"raster_opacity": raster_opacity,
 		"raster_visible": raster_visible,
@@ -108,6 +125,8 @@ static func from_json(data: Variant) -> ViewSettings:
 		settings.light_direction = clamp_light(Vector2(float(light[0]), float(light[1])))
 	settings.ambient = clampf(
 		float(data.get("ambient", DEFAULT_AMBIENT)), MIN_AMBIENT, MAX_AMBIENT)
+	settings.planet_color = _color_from_json(
+		data.get("planet_color"), DEFAULT_PLANET_COLOR)
 	settings.raster_path = str(data.get("raster_path", ""))
 	settings.raster_opacity = clampf(
 		float(data.get("raster_opacity", DEFAULT_RASTER_OPACITY)), 0.0, 1.0)

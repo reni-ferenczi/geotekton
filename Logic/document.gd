@@ -815,12 +815,13 @@ func save_to_file(file_path: String) -> String:
 # The path is stored relative when the image sits in the project's own folder or
 # under it, so a project and its images can be moved together, and absolute
 # otherwise. A document with no path of its own has nothing to be relative to
-# and stores what it was given.
+# and stores what it was given. An image the application ships, a res:// path,
+# is stored and resolved as it is.
 
 
 # The path to write for an image the user picked, given where the file is going.
 static func relative_raster(image_path: String, project_path: String) -> String:
-	if image_path.is_empty() or project_path.is_empty() or image_path.is_relative_path():
+	if image_path.is_empty() or project_path.is_empty() or image_path.is_relative_path() 			or image_path.begins_with("res://"):
 		return image_path
 	var folder := project_path.get_base_dir().replace("\\", "/").rstrip("/")
 	var image := image_path.replace("\\", "/")
@@ -834,7 +835,7 @@ static func relative_raster(image_path: String, project_path: String) -> String:
 func resolve_raster() -> String:
 	if view.raster_path.is_empty():
 		return ""
-	if view.raster_path.is_absolute_path():
+	if view.raster_path.is_absolute_path() or view.raster_path.begins_with("res://"):
 		return view.raster_path
 	if path.is_empty():
 		return view.raster_path
@@ -845,7 +846,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.16.0"):
+	if not _is_older_than(version, "0.17.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -875,8 +876,26 @@ static func migrate(data: Dictionary) -> Dictionary:
 	# none either.
 	if _is_older_than(version, "0.16.0") and view is Dictionary:
 		rename_view_keys(view)
-	data["version"] = "0.16.0"
+	if _is_older_than(version, "0.17.0"):
+		data["view"] = _to_0_17_0(view)
+	data["version"] = "0.17.0"
 	return data
+
+
+# 0.17.0 gave the planet a color of its own and made the built in Earth, which
+# was always under everything, a raster like any other. A file from before that
+# names no raster showed the Earth, so it gets the Earth as its raster, fully
+# opaque and shown, which is how it looked; the opacity and the switch did
+# nothing without an image. A file naming an image keeps it, over the planet
+# color now rather than over the Earth. A file with no view block at all gets
+# one holding just the raster. Returns the block.
+static func _to_0_17_0(view: Variant) -> Dictionary:
+	var block: Dictionary = view if view is Dictionary else {}
+	if str(block.get("raster_path", "")).is_empty():
+		block["raster_path"] = ViewSettings.BUILT_IN_EARTH
+		block["raster_opacity"] = 1.0
+		block["raster_visible"] = true
+	return block
 
 
 # 0.16.0 renamed five keys of the view block, calling the backdrop image a

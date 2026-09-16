@@ -2,12 +2,15 @@ shader_type spatial;
 //render_mode depth_draw_always;
 
 uniform bool is_globe = false;
-uniform sampler2D earth_tex : source_color;
 
-// The image a document wears in place of the built in Earth, blended over it by
-// raster_opacity. Zero is no raster at all, which is what a document
-// naming no image, hiding the one it names or failing to read it comes to, and
-// the fragment then never samples the texture.
+// The planet's own color, linear, under any raster. Opaque: the alpha is not
+// read, since the planet is never see-through.
+uniform vec4 planet_color = vec4(0.022, 0.107, 0.319, 1.0);
+
+// The image a document wears, blended over the planet color by raster_opacity.
+// Zero is no raster at all, which is what a document naming no image, hiding the
+// one it names or failing to read it comes to, and the fragment then never
+// samples the texture.
 uniform sampler2D raster_tex : source_color, repeat_disable;
 uniform float raster_opacity = 0.0;
 
@@ -233,10 +236,10 @@ void fragment() {
 		surface_uv = vec2(lon / TAU + 0.5, 0.5 - lat / PI);
 	}
 
-	// Fetch base Earth color, under whatever image the document wears
-	vec4 earth = texture(earth_tex, surface_uv);
+	// The planet color, under whatever image the document wears
+	vec3 surface = planet_color.rgb;
 	if (raster_opacity > 0.0) {
-		earth = mix(earth, texture(raster_tex, surface_uv), raster_opacity);
+		surface = mix(surface, texture(raster_tex, surface_uv).rgb, raster_opacity);
 	}
 
 	// Longitude and latitude grids
@@ -248,8 +251,8 @@ void fragment() {
 	}
 	bool g = f.x < width.x || f.y < width.y;
 
-	// Mix grid & earth
-	vec3 base = mix(earth.rgb, color.rgb, g ? color.a : 0.0);
+	// Mix grid & surface
+	vec3 base = mix(surface, color.rgb, g ? color.a : 0.0);
 
 	// Precompute sphere position for the geometry and the outline
 	vec3 p = latlon_to_unit(vec2(lat, lon));

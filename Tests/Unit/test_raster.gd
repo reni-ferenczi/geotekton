@@ -61,11 +61,25 @@ func test_a_format_that_is_not_an_image_says_so() -> void:
 
 
 # A document that names no image is not a failure: there is nothing to load and
-# nothing to complain about, and the built in Earth is what shows.
+# nothing to complain about, and the planet color is what shows.
 func test_no_image_at_all_is_not_an_error() -> void:
 	var raster := Raster.load_from("")
 	assert_eq(raster.texture, null, "there is no texture")
 	assert_eq(raster.error, "", "and nothing went wrong")
+
+
+# The built in Earth ships with the application as an imported texture, so it
+# is loaded as a resource rather than read off the disk.
+func test_the_built_in_earth_loads_as_a_resource() -> void:
+	var raster := Raster.load_from(ViewSettings.BUILT_IN_EARTH)
+	if not assert_no_error(raster, "the built in Earth"):
+		return
+	assert_eq(raster.texture.get_width(), 2 * raster.texture.get_height(),
+		"it wraps the planet, twice as wide as it is tall")
+
+	var missing := Raster.load_from("res://Assets/Textures/NoSuchEarth.jpg")
+	assert_eq(missing.texture, null, "a shipped image that is not there has no texture")
+	assert_true(missing.error.contains("not there"), "and says so: %s" % missing.error)
 
 
 func assert_no_error(raster: Raster, name: String) -> bool:

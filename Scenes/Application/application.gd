@@ -1107,7 +1107,7 @@ func apply_view_settings() -> void:
 # path it resolves to changes, so dragging the opacity does not read it again.
 #
 # An image that cannot be read is not a failure of the document: the planet
-# keeps the built in Earth, the reason is pushed as a warning and the View
+# shows its own color, the reason is pushed as a warning and the View
 # settings dialog shows it beside the path.
 func _load_raster() -> void:
 	var path := document.resolve_raster()
@@ -1339,9 +1339,9 @@ func _form_spin(form: GridContainer, name: String, text: String,
 # How playback walks the timeline: where it starts and ends, how far one frame
 # moves, how fast the frames come, and what happens at the two ends.
 # The scene around the features: what is behind the planet, what is drawn over
-# it, where the light comes from and which image the planet wears. Every field
-# takes effect as it is changed rather than when the dialog is closed, so the
-# planet under it shows what is being chosen.
+# it, where the light comes from, the planet's color and which image it wears.
+# Every field takes effect as it is changed rather than when the dialog is
+# closed, so the planet under it shows what is being chosen.
 func _build_view_content() -> Control:
 	var box := VBoxContainer.new()
 	box.name = "ViewSettings"
@@ -1361,6 +1361,8 @@ func _build_view_content() -> Control:
 	_view_spin(form, "light_azimuth", "Light azimuth (°)", -180.0, 180.0, 1.0)
 	_view_spin(form, "ambient", "Ambient light",
 		ViewSettings.MIN_AMBIENT, ViewSettings.MAX_AMBIENT, 0.05)
+	# The planet is never see-through, so its picker offers no alpha.
+	_view_color(form, "planet_color", "Planet color").edit_alpha = false
 	_view_check(form, "raster_visible", "Raster shown")
 	_view_spin(form, "raster_opacity", "Raster opacity", 0.0, 1.0, 0.05)
 
@@ -1370,7 +1372,7 @@ func _build_view_content() -> Control:
 	var edit := LineEdit.new()
 	edit.name = "RasterPath"
 	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	edit.placeholder_text = "The built in Earth"
+	edit.placeholder_text = "None"
 	edit.text_submitted.connect(func(_text: String) -> void: _on_view_field_changed())
 	edit.focus_exited.connect(_on_view_field_changed)
 	row.add_child(edit)
@@ -1381,6 +1383,15 @@ func _build_view_content() -> Control:
 	browse.text = "Browse..."
 	browse.pressed.connect(choose_raster)
 	row.add_child(browse)
+
+	var earth := Button.new()
+	earth.name = "BuiltInEarth"
+	earth.text = "Built in Earth"
+	earth.tooltip_text = "Wear the Earth image that comes with Middle Earth"
+	earth.pressed.connect(func() -> void:
+		edit.text = ViewSettings.BUILT_IN_EARTH
+		_on_view_field_changed())
+	row.add_child(earth)
 
 	var clear := Button.new()
 	clear.name = "ClearRaster"
@@ -1448,7 +1459,7 @@ func _view_check(form: GridContainer, key: String, text: String) -> void:
 	view_fields[key] = check
 
 
-func _view_color(form: GridContainer, key: String, text: String) -> void:
+func _view_color(form: GridContainer, key: String, text: String) -> ColorPickerButton:
 	var label := Label.new()
 	label.text = text
 	form.add_child(label)
@@ -1462,6 +1473,7 @@ func _view_color(form: GridContainer, key: String, text: String) -> void:
 	button.popup_closed.connect(_on_view_field_changed)
 	form.add_child(button)
 	view_fields[key] = button
+	return button
 
 
 # Pick the image the planet wears. It is stored relative to the project file
@@ -1507,6 +1519,7 @@ func _fill_view_fields() -> void:
 	view_fields["light_elevation"].set_value_no_signal(settings.light_direction.x)
 	view_fields["light_azimuth"].set_value_no_signal(settings.light_direction.y)
 	view_fields["ambient"].set_value_no_signal(settings.ambient)
+	view_fields["planet_color"].color = settings.planet_color
 	view_fields["raster_visible"].set_pressed_no_signal(settings.raster_visible)
 	view_fields["raster_opacity"].set_value_no_signal(settings.raster_opacity)
 	view_fields["raster_path"].text = settings.raster_path
@@ -1525,6 +1538,7 @@ func _on_view_field_changed(commit: bool = true) -> void:
 	settings.light_direction = ViewSettings.clamp_light(Vector2(
 		view_fields["light_elevation"].value, view_fields["light_azimuth"].value))
 	settings.ambient = view_fields["ambient"].value
+	settings.planet_color = view_fields["planet_color"].color
 	settings.raster_visible = view_fields["raster_visible"].button_pressed
 	settings.raster_opacity = view_fields["raster_opacity"].value
 	settings.raster_path = view_fields["raster_path"].text

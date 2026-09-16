@@ -83,7 +83,7 @@ func _apply_projection() -> void:
 
 
 # How the scene around the features is drawn: the star field behind the planet,
-# the grid over it and where the light comes from. The rest of the block —
+# the planet's own color, the grid over it and where the light comes from. The rest of the block —
 # the background colour and the ambient level — belongs to the environment,
 # which PlanetView owns; see PlanetView.apply_view_settings().
 func apply_view_settings(settings: ViewSettings) -> void:
@@ -95,12 +95,13 @@ func apply_view_settings(settings: ViewSettings) -> void:
 		globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
 		# Linearized for the same reason the feature colours are; see set_geometry().
 		material.set_shader_parameter("color", settings.grid_color.srgb_to_linear())
+		material.set_shader_parameter("planet_color", settings.planet_color.srgb_to_linear())
 		material.set_shader_parameter("split", settings.grid_split())
 
 
-# Put an image on the planet in place of the built in Earth, at the opacity the
-# document asks for. A null texture or an opacity of zero leaves the Earth as it
-# is, which is what a document naming no image comes to.
+# Put an image over the planet color, at the opacity the document asks for. A
+# null texture or an opacity of zero leaves the flat color, which is what a
+# document naming no image comes to.
 func set_raster(texture: Texture2D, opacity: float) -> void:
 	for material in [
 		globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
