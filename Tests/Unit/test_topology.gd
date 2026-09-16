@@ -1,6 +1,6 @@
 extends TestCase
 
-# Line topologies: a feature whose geometry is a list of sections borrowed from
+# Topologies: a feature whose geometry is a list of sections borrowed from
 # other features, resolved at a time. What is checked here is the resolution
 # itself and what a file makes of it, without a window.
 #

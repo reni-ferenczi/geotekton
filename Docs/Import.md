@@ -138,7 +138,7 @@ Importing one region rather than the whole planet is what works today.
 
 | Dropped                      | Why                                                   |
 | ---------------------------- | ------------------------------------------------------ |
-| Topological features         | Their geometry is resolved from other features rather than held, and Middle Earth resolves [line topologies](Editing.md#line-topologies) of its own instead |
+| Topological features         | Their geometry is resolved from other features rather than held, and Middle Earth resolves [line topologies](Editing.md#topologies) of its own instead |
 | Rasters, scalar coverages, deformation networks | No geometry of their own to convert  |
 | A polygon's holes            | Interior rings come in as further outlines, since several rings on one polygon are separate outlines here rather than holes; see [Draw](Draw.md#data-model) |
 | A feature's second geometry kind | A feature holds rings of one kind, so a feature mixing a line and a polygon keeps the kind of its first geometry |

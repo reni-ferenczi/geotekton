@@ -2,7 +2,7 @@ class_name FeatureType
 
 # What a feature is. The type is picked in the Properties panel and says what
 # the tools draw into the feature: a Polygon a polygon, a Line a polyline,
-# Points a multipoint, a Topology a line topology, a Circle a closed polyline,
+# Points a multipoint, a Topology a topology, a Circle a closed polyline,
 # Polar circles two closed polylines built from an axis and a radius, and a
 # Hotspot the track it burns into a plate and a ring marking it. Once the
 # feature holds a shape, a type that does not hold that kind gives way to the

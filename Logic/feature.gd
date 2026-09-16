@@ -47,7 +47,7 @@ var pnid: int = -1
 
 # What this node is called in the file, kept across a save and a load. A line
 # topology names the features its sections run along by this, so an id that only
-# lasted one run would not do; see Docs/Editing.md#line-topologies. A duplicate,
+# lasted one run would not do; see Docs/Editing.md#topologies. A duplicate,
 # a paste and a node arriving from a file without one all get a fresh id.
 var uuid: String = ""
 
@@ -90,7 +90,7 @@ var icon: String = FeatureIcon.NONE
 var geometry_kind: GeometryKind = GeometryKind.POLYGON
 var rings: Array[PackedVector2Array] = []
 
-# What a line topology is made of: runs of vertices borrowed from other
+# What a topology is made of: runs of vertices borrowed from other
 # features, in order. Only a topology has any, and a topology has nothing in
 # rings but what Topology.rebuild() resolved these into at the current time.
 var sections: Array[TopologySection] = []

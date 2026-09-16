@@ -3597,7 +3597,7 @@ func _circle_commit() -> String:
 #
 # Which section runs which way, and which vertices of a feature a section
 # covers, are set afterwards in the Properties panel; see
-# Docs/Editing.md#line-topologies.
+# Docs/Editing.md#topologies.
 
 
 func _on_topology_input(lat: float, lon: float, event: InputEvent) -> void:

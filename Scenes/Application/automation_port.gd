@@ -356,7 +356,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true}
 
 		"sections":
-			# The section table of a line topology: pick a row, then press one of
+			# The section table of a topology: pick a row, then press one of
 			# its buttons.
 			if request.has("index"):
 				app.properties.select_section(int(request["index"]))
@@ -1287,7 +1287,7 @@ func _feature_to_json(feature: Feature) -> Variant:
 	return data
 
 
-# What a line topology names and what each section came to at the current time,
+# What a topology names and what each section came to at the current time,
 # so a run can read a broken section without looking at the panel.
 func _sections_to_json(feature: Feature, time: float) -> Array:
 	var resolved := Topology.resolve(app.document.root, feature, time)

@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "features": { ... },
   "view": { ... }
 }
@@ -212,9 +212,9 @@ number stays the same.
 ```
 
 `uuid` is what the node is called in the file. It is written for groups as well
-as for features and is kept across a save and a load, because a line topology
+as for features and is kept across a save and a load, because a topology
 names the features its sections run along by it; see
-[Editing](Editing.md#line-topologies). A duplicate and a paste each get a fresh
+[Editing](Editing.md#topologies). A duplicate and a paste each get a fresh
 one, so no two nodes of a document share an id.
 
 `feature_type` is an id from the catalog in `Logic/feature_type.gd`. A feature
@@ -282,9 +282,9 @@ values win: the track is rebuilt from them before the geometry is collected.
 A missing value takes its default, `[0, 0]`, no plate and 5. See
 [Editing](Editing.md#hotspots).
 
-#### Line topologies
+#### Topologies
 
-A **line topology** carries `sections` instead of `rings`, because its vertices
+A **topology** carries `sections` instead of `rings`, because its vertices
 are resolved from the features it runs along every time the tree or the current
 time moves, and writing them down would be writing down a derived value:
 
@@ -312,7 +312,11 @@ indices the run goes between, both ends included and counted from zero, and
 whether the run is walked backwards. A section whose feature is not in the file
 is kept as it stands, so a topology loads and saves whole even while one of the
 features it names is missing; see
-[Editing](Editing.md#line-topologies).
+[Editing](Editing.md#topologies).
+
+A closed topology adds `"closed": true`, and the sections are then joined into
+one filled ring; see [Editing](Editing.md#closed-topologies). An open topology
+writes no `closed` key, and a topology without one is open.
 
 `keyframes` is where the feature is over time: a list of `{time, rotation}`,
 sorted with the youngest first, `time` an age in millions of years before
@@ -552,6 +556,12 @@ leaf without the keys is not polar circles, and no file before 0.18.0 holds one.
 [hotspots](#hotspots). The step changes nothing but the version: a leaf
 without the keys is not a hotspot, and no file before 0.19.0 holds one.
 
+#### 0.19.0 to 0.20.0
+
+0.20.0 added `closed` to a topology, for
+[closed topologies](#topologies). The step changes nothing but the version: a
+topology without the key is open, which is what every topology was before.
+
 ## The config file
 
 `Logic/config.gd` keeps one JSON file per user, `%APPDATA%\MiddleEarth\config.json`,
@@ -573,6 +583,7 @@ more than the last change.
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |
 | `vertex_marker_scale`, `line_width_scale` | How large the outline overlay is drawn, as multiples of the shader defaults |
 | `snap_to_vertices`                 | Whether a dragged vertex snaps onto a nearby one |
+| `split_ridge`, `split_crust`       | Whether the Split tool leaves a ridge, and crust beside it. Both on when the file says nothing |
 | `export_width`                     | How wide an exported picture or video is; the height follows from what is being shown |
 | `ffmpeg`                           | Which ffmpeg encodes the frames of a video; the path is searched when unset |
 | `feature_colors`                   | Feature type id to `[r, g, b, a]`, for the types whose color the Preferences dialog changed; a type missing here has its catalog color |

@@ -1,11 +1,11 @@
 class_name TopologySection
 extends RefCounted
 
-# One piece of a line topology: a run of vertices borrowed from another feature.
+# One piece of a topology: a run of vertices borrowed from another feature.
 #
 # The feature is named by its uuid rather than by its position in the tree,
 # because a topology outlives a save and the tree is rebuilt from the file every
-# time; see Docs/Editing.md#line-topologies. The range is a pair of indices into
+# time; see Docs/Editing.md#topologies. The range is a pair of indices into
 # one part of that feature, both ends included, and the direction says which way
 # round the run is walked.
 #

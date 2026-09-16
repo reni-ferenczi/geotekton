@@ -35,14 +35,14 @@ place the type is picked, and on a feature holding nothing it takes any of the
 seven, because the type is what the tools then draw: Polygon a polygon, Line a
 polyline, Points a multipoint, Circle a closed polyline through the
 [Circle tool](Editing.md#the-circle-tool) and Topology a boundary built with the
-[Topology tool](Editing.md#line-topologies). Polar circles and Hotspot need
+[Topology tool](Editing.md#topologies). Polar circles and Hotspot need
 no tool: picking the type builds their rings at once, so the feature is never
 empty; see [Polar circles](Editing.md#polar-circles) and
 [Hotspots](Editing.md#hotspots).
 
 Once a feature holds a shape, its type has to hold that shape's kind. A polygon
 is a Polygon or a Circle, a polyline a Line or a Circle, a multipoint Points and
-a line topology a Topology; anything else is refused. Polar circles and
+a topology a Topology; anything else is refused. Polar circles and
 Hotspot are picked on an empty feature only, since they replace whatever rings
 the feature holds, and Hotspot only on one without keyframes or couplings. A type the feature carries
 that does not hold its kind, or that the catalog does not know, gives way to the
@@ -167,7 +167,7 @@ breaks there, and is left out below 0.05 %. The area is read against the
 when the Preferences dialog is closed with another radius.
 
 A feature shows either the keyframe and coupling rows or the section table,
-never both: a [line topology](Editing.md#line-topologies) borrows its vertices
+never both: a [topology](Editing.md#topologies) borrows its vertices
 instead of holding them, and where it is comes from the features its sections
 run along.
 
@@ -342,9 +342,14 @@ time, since the parent in effect changes with it.
 
 ### The section table
 
-Only a [line topology](Editing.md#line-topologies) has one. One row per section:
-the feature it runs along, the two vertices it runs between, counted from one,
-and `on` or `back` for which way round it is walked.
+Only a [topology](Editing.md#topologies) has one. Above it, the **Closed**
+switch joins the sections into one filled ring; see
+[Closed topologies](Editing.md#closed-topologies). Switching it is one undo
+version, and on a closed topology the Geometry row reads "topology, 2 sections,
+closed" followed by the ring's area and share of the planet, which follow the
+current time. Below the switch, one row per section: the feature it runs along,
+the two vertices it runs between, counted from one, and `on` or `back` for which
+way round it is walked.
 
 `From` and `To` are editable, so a section added by clicking a whole feature can
 be trimmed to the stretch that belongs to the boundary. This table is the only
@@ -385,6 +390,7 @@ undo version:
 | `remove_section`        | anything but a topology, and a section that is not there |
 | `reverse_section`       | the same                                           |
 | `set_section_range`     | the same, and a vertex number below one            |
+| `set_topology_closed`   | anything but a topology                            |
 
 A method that can refuse returns the message saying why and changes nothing;
 the panel puts the widget back and shows the message in an error dialog.

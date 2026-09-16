@@ -53,7 +53,7 @@ const TO_TOOLTIP := "The age it disappears at; 0 is the present"
 const STYLE_TOOLTIP := ("Same as parent colors the features the way the group above does; "
 	+ "Feature colour and the others decide for themselves")
 
-# The columns of the section table of a line topology: the feature the section
+# The columns of the section table of a topology: the feature the section
 # runs along, the vertices of it the section covers, counted from one, and which
 # way round it is walked.
 const SECTION_COLUMNS = ["Feature", "From", "To", "Way"]
@@ -288,7 +288,7 @@ func _build() -> void:
 	_build_sections(box)
 
 
-# The section table of a line topology: which feature each section runs along,
+# The section table of a topology: which feature each section runs along,
 # which of its vertices, and which way round. The two ends are editable, so a
 # section built by clicking a whole feature can be trimmed to the stretch that
 # belongs to the boundary.
