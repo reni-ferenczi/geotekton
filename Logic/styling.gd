@@ -42,10 +42,12 @@ const BY_AGE := "age"
 const BY_TYPE := "type"
 
 # What a group other than the root may also say: nothing, leaving the choice to
-# the group above it.
+# the group above it. The file keeps the name `inherit`; the chooser calls it
+# Same as parent, since a nested group on it follows its parent's style where
+# one on Feature colour would not.
 const INHERIT := "inherit"
 const MODES := {
-	"inherit": "Inherit",
+	"inherit": "Same as parent",
 	"feature": "Feature colour",
 	"single": "Single colour",
 	"age": "Feature age",

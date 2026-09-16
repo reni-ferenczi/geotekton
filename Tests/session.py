@@ -589,6 +589,10 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["style"]["mode"] == "inherit" and panel["style"]["opacity"] == 100,
           f"a group from an older file inherits at full opacity: {panel['style']}")
     check(panel["styles"] == GROUP_STYLES, f"the style selector offers these: {panel['styles']}")
+    check(panel["style_label"] == "Same as parent",
+          f"inherit is shown as Same as parent: {panel['style_label']!r}")
+    check(panel["tooltips"]["style"].startswith("Same as parent colors the features"),
+          f"with a hover description of it: {panel['tooltips']}")
     run_group_style_checks(client)
 
     # The name in the panel is the name on the tree row, and undo moves both back.
