@@ -41,6 +41,9 @@ const TIME_LIMIT := int(Document.MAX_TIME)
 # age towards the present. `From` is the older end, which is `time_range.y`.
 const FROM_TOOLTIP := "The age the feature appears at, in millions of years ago; larger is older"
 const TO_TOOLTIP := "The age it disappears at; 0 is the present"
+# On the group Style row. Same as parent is the one mode that decides nothing.
+const STYLE_TOOLTIP := ("Same as parent colors the features the way the group above does; "
+	+ "Feature colour and the others decide for themselves")
 
 # The columns of the section table of a line topology: the feature the section
 # runs along, the vertices of it the section covers, counted from one, and which
@@ -178,11 +181,12 @@ func _build() -> void:
 	_row(form, "Icon", icon_selector)
 
 	style_selector = _selector("Style")
+	style_selector.tooltip_text = STYLE_TOOLTIP
 	for mode_id in Styling.MODES:
 		style_selector.add_item(str(Styling.MODES[mode_id]))
 		style_selector.set_item_metadata(style_selector.item_count - 1, mode_id)
 	style_selector.item_selected.connect(func(_index: int) -> void: _commit_style())
-	_row(form, "Style", style_selector, true, false)
+	_row(form, "Style", style_selector, true, false, STYLE_TOOLTIP)
 
 	# The color and its opacity share a row. The picker leaves the alpha alone,
 	# since the box beside it is where the opacity is set. On a group they are
@@ -1095,6 +1099,8 @@ func to_json() -> Dictionary:
 				func(c: Color) -> Array: return [c.r, c.g, c.b, c.a]),
 			"ramp_span": ramp_row.span_spin.value,
 		}
+		data["style_label"] = style_selector.get_item_text(mode) if mode >= 0 else ""
+		data["tooltips"] = {"style": style_selector.tooltip_text}
 		data["styles"] = range(style_selector.item_count).map(
 			func(index: int) -> String: return str(style_selector.get_item_metadata(index)))
 		data["palettes"] = range(palette_selector.item_count).map(

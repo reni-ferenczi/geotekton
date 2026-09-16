@@ -381,6 +381,27 @@ func test_the_nearest_group_not_on_inherit_decides() -> void:
 	assert_eq(_leaf_color(root), Color(1.0, 0.0, 0.0, 0.8), "Inner on own colours gives the leaf's")
 
 
+func test_inherit_is_called_same_as_parent() -> void:
+	assert_eq(Styling.MODES[Styling.INHERIT], "Same as parent", "the chooser's label")
+	assert_eq(Styling.INHERIT, "inherit", "while the file keeps its name")
+
+
+# What sets Same as parent apart from Feature colour: a nested group on it follows
+# its parent's style, also when the parent changes, where one on Feature colour
+# keeps the features' own colors.
+func test_a_nested_group_on_same_as_parent_follows_its_parent() -> void:
+	var root := _nested()
+	var outer: Feature = root.children[0]
+	var inner: Feature = outer.children[0]
+	outer.style.mode = Styling.BY_SINGLE
+	outer.style.color = SINGLE
+	assert_eq(_leaf_color(root), SINGLE, "Inner on Same as parent takes Outer's single color")
+	outer.style.color = OTHER_SINGLE
+	assert_eq(_leaf_color(root), OTHER_SINGLE, "and follows when Outer changes")
+	inner.style.mode = Styling.BY_FEATURE
+	assert_eq(_leaf_color(root), Color(1.0, 0.0, 0.0, 0.8), "Inner on Feature colour keeps the leaf's own")
+
+
 func test_the_root_style_is_the_default() -> void:
 	var root := _nested()
 	assert_eq(_leaf_color(root), Color(1.0, 0.0, 0.0, 0.8), "a fresh root draws the leaf's own colour")
