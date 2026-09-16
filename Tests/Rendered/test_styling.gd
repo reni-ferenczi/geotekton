@@ -7,7 +7,8 @@ extends RenderedCase
 #
 # The fixture is mixed_geometry.middle-earth: a red polygon at (-3, 0), a blue
 # polyline through (0, 40) and green markers at (-30, -30) and (30, -30), one
-# feature of each class the switches cover.
+# feature of each class the switches cover, all three in the Shapes group. The
+# styles are set on that group, since the root's style is pinned.
 
 const POLYGON := Vector2(-3.0, 0.0)
 const POLYLINE := Vector2(0.0, 40.0)
@@ -31,7 +32,7 @@ func test_each_feature_is_drawn_in_its_own_colour() -> void:
 func test_the_single_colour_style_paints_all_three_the_same() -> void:
 	var single := Color(0.1, 0.6, 0.9, 1.0)
 	await _load_styled({"draw_style": Styling.BY_SINGLE})
-	app.document.root.style.color = single
+	_shapes().style.color = single
 	app.refresh_geometry()
 	await _check(POLYGON, single, "the polygon")
 	await _check(POLYLINE, single, "the polyline")
@@ -78,7 +79,7 @@ func test_the_age_ramp_colors_one_feature_differently_at_two_times() -> void:
 	if feature == null:
 		return
 	feature.time_range = Vector2i(0, 500)
-	var style: GroupStyle = app.document.root.style
+	var style: GroupStyle = _shapes().style
 	style.ramp_colors = [Color.RED, Color.BLUE]
 	style.ramp_span = 200.0
 	app.refresh_geometry()
@@ -168,9 +169,10 @@ func test_a_color_change_uploads_only_the_feature_state() -> void:
 ### Group styles
 
 
-# group_styles.middle-earth: the root on the feature type style, Continental
-# Crust on a single colour holding the red polygon, Cratons on own colours
-# holding the blue polyline, and the green markers straight under the root.
+# group_styles.middle-earth: the root on the feature type style in the file,
+# which the loader pins to own colors, Continental Crust on a single colour
+# holding the red polygon, Cratons on own colours holding the blue polyline,
+# and the green markers straight under the root.
 const CRUST_COLOR := Color(0.1, 0.6, 0.9, 1.0)
 
 
@@ -178,7 +180,7 @@ func test_a_group_on_a_single_colour_beside_a_group_on_own_colours() -> void:
 	await load_sample("group_styles.middle-earth")
 	await _check(POLYGON, CRUST_COLOR, "the polygon in Continental Crust's single colour")
 	await _check(POLYLINE, Color.BLUE, "the polyline in its own colour under Cratons")
-	await _check(POINT, FeatureType.color("points"), "the markers in the root's type colour")
+	await _check(POINT, Color.GREEN, "the markers in their own color, whatever the root said")
 
 
 # A group's opacity lays everything under it over the Earth, the way a feature's
@@ -198,9 +200,10 @@ func test_a_group_opacity_lays_its_features_over_the_earth() -> void:
 	await _check(POLYLINE, Color.BLUE, "while the other group is untouched")
 
 
-# A 0.7.0 file drawn in a single colour still is: the migration puts the style on
-# the root group and the probe finds the colour the view block named.
-func test_a_0_7_0_file_in_a_single_colour_opens_drawn_the_same() -> void:
+# A 0.7.0 file drawn in a single colour: the migration puts the style on the
+# root group and the loader pins it (GP-0066), so each feature opens in its own
+# color.
+func test_a_0_7_0_file_in_a_single_colour_opens_in_the_feature_colors() -> void:
 	var raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(
 		"%s/%s" % [DATA_DIR, "group_styles.middle-earth"]))
 	var crust: Dictionary = raw["features"]["children"][0]
@@ -217,106 +220,84 @@ func test_a_0_7_0_file_in_a_single_colour_opens_drawn_the_same() -> void:
 	app._on_craton_hovered(NAN, NAN)
 	app.refresh_geometry()
 	await frames(2)
-	assert_eq(app.document.root.style.mode, Styling.BY_SINGLE, "the root group carries the style")
-	assert_eq(app.document.root.style.color, Color(0.9, 0.5, 0.1, 1.0), "and the colour")
-	await _check(POLYGON, Color(0.9, 0.5, 0.1, 1.0), "the polygon in that colour")
-	await _check(POINT, Color(0.9, 0.5, 0.1, 1.0), "and the markers")
+	assert_eq(app.document.root.style.mode, Styling.BY_FEATURE, "the root is on own colors")
+	await _check(POLYGON, Color.RED, "the polygon in its own color")
+	await _check(POINT, Color.GREEN, "and the markers in theirs")
 	DirAccess.remove_absolute(path)
 
 
-### The palette chooser
+### The palette row
 
 
-# The chooser lists every built in palette and previews the chosen one across
-# its whole range, so what is about to be drawn with is visible before anything
-# is drawn with it. Read off the strip itself rather than looked at.
-func test_the_chooser_lists_and_previews_the_built_in_palettes() -> void:
-	await load_sample("empty.middle-earth")
-	app.show_view_settings()
-	var choice: OptionButton = app.view_fields["palette"]
-	var listed: Array = []
-	for index in choice.item_count:
-		listed.append(str(choice.get_item_metadata(index)))
-	assert_eq(listed, [Palette.RAMP, "rainbow"], "Custom and Rainbow are offered")
-
-	for key in Palette.BUILT_IN:
-		Application.select_option(choice, str(key))
-		app._on_view_field_changed()
-		_check_preview(Palette.built_in(str(key)), "the built in %s" % key)
-
-	# The ramp previews the root style's own colours over its spans.
-	var stops: Array[Color] = [Color.RED, Color.BLUE, Color.GREEN]
-	app.view_fields["ramp_colors"].colors = stops
-	Application.select_option(choice, Palette.RAMP)
-	app._on_view_field_changed()
-	assert_eq(app.document.root.style.ramp_colors, stops, "the dialog's ramp is the root's")
-	_check_preview(Palette.ramp(stops, app.document.root.style.ramp_span), "the ramp")
-	app.view_dialog.hide()
-
-
-# A palette read from a file joins the list under its file name and previews the
-# same way, which is the whole of what loading one comes to.
-func test_a_palette_read_from_a_file_joins_the_list_and_previews() -> void:
-	await load_sample("empty.middle-earth")
-	var path := ProjectSettings.globalize_path("res://Tests/Data/Palettes/continuous.cpt")
-	app.document.root.style.palette = path
-	app.apply_view_settings()
-	app.show_view_settings()
-
-	var choice: OptionButton = app.view_fields["palette"]
-	assert_eq(choice.item_count, Palette.choices().size() + 1, "one entry more than built in")
-	assert_eq(Application.option_value(choice), path, "and it is the one chosen")
-	assert_eq(choice.get_item_text(choice.selected), "continuous.cpt", "under its file name")
-	_check_preview(Palette.load_from(path), "the palette read from the file")
-	app.view_dialog.hide()
-
-
-# A palette with a line the reader could not take still previews what it did
-# read, with the reason underneath it rather than nowhere.
-func test_a_malformed_palette_says_which_lines_it_could_not_read() -> void:
-	await load_sample("empty.middle-earth")
-	app.document.root.style.palette = ProjectSettings.globalize_path(
-		"res://Tests/Data/Palettes/malformed.cpt")
-	app.apply_view_settings()
-	app.show_view_settings()
-	assert_true(app.palette_warning.text.contains("line 2"), "the first bad line is named")
-	assert_true(app.palette_warning.text.contains("line 4"), "and so is the second")
-	assert_true(app.palette_preview.texture != null, "what did read is still previewed")
-	app.view_dialog.hide()
-
-
-# The strip is the palette from one end of its range to the other.
-func _check_preview(expected: Palette, what: String) -> void:
-	var texture: Texture2D = app.palette_preview.texture
-	assert_true(texture != null, "%s is previewed" % what)
-	if texture == null:
+# GP-0066: the Load button on a group's Palette row asks the application for a
+# file, and the palette read from it joins that group's choices under its file
+# name and colors the features under the group. The file dialog is answered
+# the way the automation port answers it. The discrete fixture is three flat
+# slices, so the age picks one outright.
+func test_a_palette_loaded_on_the_palette_row_colors_the_group() -> void:
+	await load_sample("mixed_geometry.middle-earth")
+	var path := ProjectSettings.globalize_path("res://Tests/Data/Palettes/discrete.cpt")
+	var shapes := _shapes()
+	var red := _feature_at(POLYGON)
+	if shapes == null or red == null:
 		return
-	var strip: Image = texture.get_image()
-	assert_eq(strip.get_width(), Application.PALETTE_PREVIEW_STEPS, "%s across the strip" % what)
-	var wanted := expected.sample(Application.PALETTE_PREVIEW_STEPS)
-	for x in [0, strip.get_width() / 2, strip.get_width() - 1]:
-		assert_close(strip.get_pixel(x, 0), wanted[x], 1.0 / 255.0,
-			"%s at step %d of the strip" % [what, x])
+	red.time_range = Vector2i(0, 5)
+	app.document.set_time(0.0)
+	app.features.feature_tree.select_node(shapes)
+	await frames(2)
+	app.properties.set_field("style", Styling.BY_AGE)
+
+	var asked := []
+	var hook := Application.file_dialog_hook
+	Application.file_dialog_hook = func(_mode: int, title: String, on_paths: Callable) -> void:
+		asked.append(title)
+		on_paths.call(PackedStringArray([path]))
+	var button := app.properties.find_child("LoadPalette", true, false) as Button
+	assert_true(button != null and button.is_visible_in_tree(), "a group shows the Load button")
+	if button != null:
+		button.pressed.emit()
+	Application.file_dialog_hook = hook
+	await frames(2)
+
+	assert_eq(asked, ["Colour palette"], "which asks for a palette file")
+	assert_eq(shapes.style.palette, path, "the group names the file")
+	var selector: OptionButton = app.properties.palette_selector
+	assert_eq(selector.item_count, Palette.choices().size() + 1, "one entry more than built in")
+	assert_eq(selector.get_item_text(selector.selected), "discrete.cpt", "chosen under its file name")
+	await _check(POLYGON, Palette.load_from(path).color_at(5.0), "the polygon, 5 Ma old")
+
+
+func test_the_root_shows_no_palette_row() -> void:
+	await load_sample("mixed_geometry.middle-earth")
+	app.features.feature_tree.select_node(app.document.root)
+	await frames(2)
+	var button := app.properties.find_child("LoadPalette", true, false) as Button
+	assert_true(button != null and not button.is_visible_in_tree(), "the root has no Load button")
 
 
 ### Helpers
 
 
 # Load the fixture and give the document the styling the case is about: the
-# switches in the view block and the style on the root group.
+# switches in the view block and the style on the Shapes group.
 func _load_styled(block: Dictionary) -> void:
 	await load_sample("mixed_geometry.middle-earth")
 	var settings := ViewSettings.new()
 	for class_id in block.get("hidden_classes", []):
 		settings.hide_class(str(class_id), true)
 	app.document.view = settings
-	var style := GroupStyle.for_root()
+	var style := GroupStyle.new()
 	style.mode = Styling.normalize_style(str(block.get("draw_style", Styling.BY_FEATURE)))
 	style.palette = str(block.get("palette", Palette.DEFAULT))
-	app.document.root.style = style
+	_shapes().style = style
 	app.apply_view_settings()
 	app.refresh_geometry()
 	await frames(2)
+
+
+# The group of mixed_geometry.middle-earth that holds all three features.
+func _shapes() -> Feature:
+	return app.document.root.children[0]
 
 
 # The feature covering a point, so a case can edit the one it is about to probe

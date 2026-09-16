@@ -191,6 +191,19 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"properties":
+			# A button of the Properties panel by node name, pressed only while
+			# the panel shows it, the way a person could.
+			var wanted := str(request.get("button", ""))
+			var found := app.properties.find_child(wanted, true, false)
+			if found is not Button or not (found as Button).is_visible_in_tree():
+				return {"ok": false, "error": "the Properties panel shows no button called %s" % wanted}
+			if (found as Button).disabled:
+				return {"ok": false, "error": "the %s button is disabled" % wanted}
+			(found as Button).pressed.emit()
+			await _frames(2)
+			return {"ok": true}
+
 		"toolbar":
 			var buttons := app.features.get_node_or_null("PanelContainer/Buttons")
 			var button := buttons.get_node_or_null(str(request.get("button", ""))) if buttons != null else null
@@ -704,12 +717,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {
 				"ok": true,
 				"view_settings": app.document.view.to_json(),
-				# The root group's style, which the same dialog edits.
-				"style": app.document.root.style.to_json(),
 				# Why the backdrop image is not on the planet, empty while it is.
 				"backdrop_error": app.backdrop.error,
-				# What could not be read of the palette the document names.
-				"palette_errors": Array(app.palette.errors),
 			}
 
 		"set_view_settings":
@@ -736,7 +745,6 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true, "preferences": {
 				"default_view": Config.get_default_view(),
 				"view_defaults": Config.get_view_defaults().to_json(),
-				"style_defaults": Config.get_style_defaults().to_json(),
 				"planet_radius_km": Config.get_planet_radius(),
 				"vertex_marker_scale": Config.get_vertex_marker_scale(),
 				"line_width_scale": Config.get_line_width_scale(),
@@ -885,14 +893,12 @@ func _circle_to_json() -> Variant:
 	}
 
 
-# Drive the View settings fields from a block, one field per setting, and say
-# which key was not one of them. The elevation and the azimuth are two fields of
-# one setting, so a request may name either the pair or one of them.
-# Drive the View settings dialog's own fields from a block, and say what could
-# not be set. Setting a field is not enough on its own: a colour and a selector
-# do not report a change made in code the way a spin box does, so the dialog is
-# told once at the end that its fields have moved, exactly as the last field
-# someone edits by hand would tell it.
+# Drive the View settings dialog's own fields from a block, one field per
+# setting, and say which key was not one of them. The elevation and the azimuth
+# are two fields of one setting, given as the pair. Setting a field is not
+# enough on its own: a color button does not report a change made in code the
+# way a spin box does, so the dialog is told once at the end that its fields
+# have moved, exactly as the last field someone edits by hand would tell it.
 func _fill_view_dialog(block: Dictionary) -> String:
 	var fields: Dictionary = app.view_fields
 	for key in block:
@@ -907,28 +913,9 @@ func _fill_view_dialog(block: Dictionary) -> String:
 			if not problem.is_empty():
 				return problem
 			continue
-		if name == "palette":
-			# A palette is a built in name or the path of a file, and a path is
-			# not in the list until the document names it, which is what
-			# picking one through the dialog's Load button comes to.
-			app.document.root.style.palette = str(block[key])
-			app._fill_palette_choices()
-			continue
 		if not fields.has(name):
 			return "no view setting called %s" % name
 		var field: Control = fields[name]
-		if field is RampRow:
-			var wanted: Variant = block[key]
-			if wanted is not Array or (wanted as Array).size() < Palette.MIN_RAMP_COLORS:
-				return "a ramp takes a list of at least %d colours" % Palette.MIN_RAMP_COLORS
-			(field as RampRow).colors = GroupStyle.colors_from(wanted)
-			continue
-		if field is OptionButton:
-			var button := field as OptionButton
-			Application.select_option(button, str(block[key]))
-			if Application.option_value(button) != str(block[key]):
-				return "%s cannot be set to %s" % [name, block[key]]
-			continue
 		if field is SpinBox:
 			(field as SpinBox).value = float(block[key])
 		elif field is CheckBox:

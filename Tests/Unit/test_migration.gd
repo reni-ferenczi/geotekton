@@ -260,8 +260,9 @@ func test_every_sample_opens_with_one_of_the_five() -> void:
 ### 0.9.0 to 0.10.0: the draw style becomes the root group's
 
 
-# The three styling keys of a 0.7.0 view block land on the root group, and a
-# document opened from it draws with them.
+# The three styling keys of a 0.7.0 view block land on the root group. A
+# document opened from it pins the root's style after that (GP-0066), which
+# Tests/Unit/test_styling.gd checks.
 func test_a_0_7_0_draw_style_becomes_the_style_of_the_root_group() -> void:
 	var migrated := Document.migrate({"version": "0.7.0",
 		"features": {"type": "Group", "title": "Planet", "children": []},

@@ -5,7 +5,7 @@ class_name Properties
 # be edited. A leaf feature shows its name, type, colour, enabled switch, time
 # range, what its geometry holds and how many keyframes it has; a group shows
 # the name, the switch and its style: how the features under it are colored.
-# The root group's style is edited in the View settings dialog instead. See
+# The root group's style is pinned, so the root shows nothing to edit. See
 # Docs/Properties.md.
 #
 # The panel never writes to a feature itself. Every edit goes through the
@@ -29,6 +29,10 @@ signal rejected(message: String)
 # The pointer button on the Ride on row was pressed or let go. The Application
 # owns the pick mode; the button only asks for it and shows whether it is on.
 signal pick_parent_requested(on: bool)
+
+# The Load button on the Palette row was pressed. The Application owns the file
+# dialog and hands the path it gets back to load_palette().
+signal palette_file_requested()
 
 # The oldest age either end of a time range can name.
 const TIME_LIMIT := int(Document.MAX_TIME)
@@ -206,9 +210,22 @@ func _build() -> void:
 	opacity_spin.value_changed.connect(func(_value: float) -> void: _commit_color())
 	color_row.add_child(opacity_spin)
 
+	# The palette and the button that reads one from a GMT .cpt file.
+	var palette_row := HBoxContainer.new()
+	palette_row.name = "PaletteRow"
+	_row(form, "Palette", palette_row, true, false)
+
 	palette_selector = _selector("Palette")
+	palette_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	palette_selector.item_selected.connect(func(_index: int) -> void: _commit_style())
-	_row(form, "Palette", palette_selector, true, false)
+	palette_row.add_child(palette_selector)
+
+	var load_palette_button := Button.new()
+	load_palette_button.name = "LoadPalette"
+	load_palette_button.text = "Load..."
+	load_palette_button.tooltip_text = "Read a GMT color palette table from a .cpt file"
+	load_palette_button.pressed.connect(palette_file_requested.emit)
+	palette_row.add_child(load_palette_button)
 
 	# The colours the Custom palette reads and the My between two of them.
 	ramp_row = RampRow.new(TIME_LIMIT)
@@ -943,6 +960,18 @@ func _show_style() -> void:
 		palette_selector.set_item_metadata(palette_selector.item_count - 1, style.palette)
 		palette_selector.set_item_tooltip(palette_selector.item_count - 1, style.palette)
 	palette_selector.select(_item_index(palette_selector, style.palette))
+
+
+# Give the group on show the palette read from a file, as one edit. The file
+# joins the palette choices under its name, the way _show_style() lists it.
+func load_palette(path: String) -> void:
+	if node == null or node.is_root or not node.is_group:
+		return
+	if _item_index(palette_selector, path) < 0:
+		palette_selector.add_item(path.get_file())
+		palette_selector.set_item_metadata(palette_selector.item_count - 1, path)
+	palette_selector.select(_item_index(palette_selector, path))
+	_commit_style()
 
 
 func _item_index(selector: OptionButton, id: String) -> int:

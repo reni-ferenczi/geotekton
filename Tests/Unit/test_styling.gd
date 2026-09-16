@@ -284,6 +284,45 @@ func test_a_document_that_names_no_style_draws_the_feature_colours() -> void:
 		assert_eq(bare.colors[index], feature.color, "%s without any styling" % feature.title)
 
 
+# GP-0066: the root's style is pinned. A file whose root says Single color at
+# half opacity, over a palette and a ramp of its own, opens with every feature
+# in its own color at full opacity, and is written back with the pinned style.
+func test_a_root_style_in_a_file_is_read_and_then_pinned() -> void:
+	var written := Document.new()
+	written.root = _build_tree()
+	written.root.is_root = true
+	var style := written.root.style
+	style.mode = Styling.BY_SINGLE
+	style.color = SINGLE
+	style.opacity = 0.5
+	style.palette = "rainbow"
+	style.ramp_colors = [SINGLE, OTHER_SINGLE, SINGLE]
+	style.ramp_span = 450.0
+	var path := ProjectSettings.globalize_path("user://test_styling_pinned_root.middle-earth")
+	assert_eq(written.save_to_file(path), "", "the file is written")
+	var raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+	assert_eq(raw["features"]["style"]["mode"], Styling.BY_SINGLE, "with the root on Single color")
+
+	var document := Document.new()
+	assert_eq(document.load_from_file(path), "", "and opens")
+	assert_eq(document.root.style.to_json(), GroupStyle.for_root().to_json(),
+		"with the root on the pinned style, palette and ramp included")
+	var geometry := Planet.collect_geometry(document.root, 0.0,
+		Styling.of(document.view, document.root))
+	assert_true(geometry.features.size() > 0, "and something to draw")
+	for index in geometry.features.size():
+		var feature: Feature = geometry.features[index]
+		assert_eq(geometry.colors[index], Color(feature.color, 1.0),
+			"%s in its own color at full opacity" % feature.title)
+
+	assert_eq(document.save_to_file(path), "", "saved again")
+	raw = JSON.parse_string(FileAccess.get_file_as_string(path))
+	assert_eq(GroupStyle.from_json(raw["features"]["style"]).to_json(),
+		GroupStyle.for_root().to_json(),
+		"it writes the pinned style for the root")
+	DirAccess.remove_absolute(path)
+
+
 func test_a_style_name_from_nowhere_falls_back_to_the_feature_colour() -> void:
 	assert_eq(Styling.normalize_style("by_plate_id"), Styling.BY_FEATURE, "an unknown style")
 	assert_eq(Styling.normalize_style(""), Styling.BY_FEATURE, "and none at all")
@@ -426,6 +465,9 @@ func test_a_style_edit_is_one_step_of_the_undo_stack() -> void:
 	assert_eq(document.root.children[0].style.mode, Styling.INHERIT, "undo takes it back")
 	var leaf := Feature.create_feature("Leaf")
 	assert_true(not document.set_style(leaf, style).is_empty(), "a leaf is refused")
+	assert_true(not document.set_style(document.root, style).is_empty(), "and so is the root")
+	assert_eq(document.root.style.to_json(), GroupStyle.for_root().to_json(),
+		"which keeps its pinned style")
 
 
 ### Helpers
