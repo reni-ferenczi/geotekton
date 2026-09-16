@@ -477,6 +477,37 @@ is: a vertex is a pair of 32-bit floats and the centre comes out of differences
 between three of them, so a circle a degree across lands its centre to about a
 thousandth of a degree, and a larger one to much less.
 
+## Polar circles
+
+**Polar circles** are two circles of one radius, one around each pole of an
+axis the user sets. The first use is the auroral zones, so a new feature of the
+type starts on the north pole with a radius of 23 degrees, where the auroral
+ovals lie, 20 to 25 degrees from the geomagnetic poles. Earth's geomagnetic north
+pole is near 80.7 N, 72.7 W, which can be typed in instead. GPlates has no
+paired feature: its small circle tool makes one circle per radius around a
+clicked or typed centre. Here the second circle is always at the antipode.
+
+Picking Polar circles in the Type selector of an empty feature builds both
+circles at once. The feature keeps its axis, radius and segment count, and
+`Feature.rebuild_polar_circles()` turns them into two closed polylines with
+`Circle.vertices()`. The [Properties panel](Properties.md#the-polar-circle-rows)
+edits the three values, and each edit rebuilds the circles as one undo
+version. The vertices themselves are not edited: the Vertex tool is greyed out,
+and pasting a shape into the feature is refused.
+
+**Pick axis** in the panel arms the [Pole tool](#turning-a-feature) for one
+click, with its cross on the current axis. The click, snapped to a vertex while
+Snap is on, becomes the new axis, and the tool goes back to Move. Escape or
+another tool gives the pick up, and so does selecting another feature. The axis
+is kept in the feature's own frame, so a click on a feature that keyframes have
+turned is mapped back first, and the circle lands around the point clicked.
+
+Keyframes and couplings move the feature like any other, both circles
+together; the Rotate and Pole tools turn it. The file keeps the rings as well as
+the three values, so an older reader and the Python side see two polylines.
+When the file is loaded, the values win; see
+[Persistence](Persistence.md#polar-circles).
+
 ## Line topologies
 
 A **line topology** is a feature whose geometry is borrowed rather than drawn: a

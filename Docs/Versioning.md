@@ -39,7 +39,9 @@ a 0.14.0 file as it stands too; and 0.16.0 renamed five keys of the view block,
 calling the backdrop image a raster and the graticule a grid, which has a step
 that renames them; and 0.17.0 gave the planet a color of its own and made the
 built in Earth a raster, which has a step that gives a file naming no raster the
-Earth, so it looks as it did.
+Earth, so it looks as it did; and 0.18.0 gave a leaf the axis, radius and segment
+count of polar circles, and a leaf without them is some other type, so it reads a
+0.17.0 file as it stands.
 
 The first public release will have major version 1.
 
