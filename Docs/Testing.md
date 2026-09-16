@@ -67,6 +67,12 @@ GDScript tests live in two directories and are discovered by file name:
   `TestCase` and adds helpers for loading a sample file, turning the globe, reading
   pixels and injecting clicks.
 
+`Tests/Rendered/test_feature_tree.gd` drags tree rows with the mouse. While a
+drag is on, Godot finds the control under it from the real pointer rather than
+from injected motion, so that test moves the system pointer with
+`Input.warp_mouse`. Moving the mouse during a rendered run can break those
+tests.
+
 `Tests/Python/test_*.py` is the `python` mode: plain pytest over
 `src/middle_earth`, with no engine involved. `pythonpath` and `testpaths` are set
 in `pyproject.toml`, so `uv run pytest` from the project root finds them.
