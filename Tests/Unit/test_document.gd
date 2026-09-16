@@ -252,3 +252,60 @@ func test_an_import_that_cannot_be_read_says_so_and_changes_nothing() -> void:
 	assert_true(not document.load_imported("user://no_such_import.middle-earth").is_empty(),
 		"a missing file is reported")
 	assert_eq(document.root.child_count(), before, "and the open document is untouched")
+
+
+### The crust a split leaves
+
+
+func _crust_area(document: Document, time: float) -> Array[float]:
+	var areas: Array[float] = []
+	for index in [3, 4]:
+		var crust: Feature = document.root.children[index]
+		Topology.rebuild(document.root, crust, time)
+		areas.append(Measure.geometry_area(crust))
+	return areas
+
+
+func test_a_split_with_ridge_and_crust_opens_two_crusts_as_the_halves_drift() -> void:
+	var document := Document.new()
+	var square := Feature.create_feature("Square")
+	square.add_ring(PackedVector2Array([Vector2(-10, -10), Vector2(-10, 10),
+		Vector2(10, 10), Vector2(10, -10)]), Feature.GeometryKind.POLYGON)
+	document.root.children.append(square)
+	document.current_time = 100.0
+	document.record()
+	assert_eq(document.split_feature_along(square, 0,
+		PackedVector2Array([Vector2(-11, 0), Vector2(0, 2), Vector2(11, 0)]), true, true), "")
+	assert_eq(document.root.children.map(func(n: Feature) -> String: return n.title),
+		["Square", "Square 2", "Square ridge", "Square crust", "Square 2 crust"],
+		"the halves, the ridge and a crust for each half, in that order")
+	var crust: Feature = document.root.children[3]
+	assert_true(crust.closed and crust.geometry_kind == Feature.GeometryKind.TOPOLOGY,
+		"a crust is a closed topology")
+	assert_eq(crust.feature_type, "topology", "typed as one")
+	assert_eq(crust.color, FeatureType.color(FeatureType.CRUST), "in the crust colour")
+	assert_eq(crust.time_range, Vector2i(0, 100), "over the ridge's time range")
+	assert_eq(crust.sections.size(), 2, "along the half and back along the ridge")
+
+	for area in _crust_area(document, 100.0):
+		assert_close(area, 0.0, 1.0, "at the split both crusts enclose nothing")
+
+	# The halves drift apart, the western one west.
+	for index in [0, 1]:
+		var half: Feature = document.root.children[index]
+		var west := _mean_longitude(half.rings[0]) < 0.0
+		assert_eq(document.set_keyframe(half, 100.0, Vector3.ZERO), "")
+		assert_eq(document.set_keyframe(half, 0.0, Vector3(20.0 if west else -20.0, 0, 0)), "")
+	var at_50 := _crust_area(document, 50.0)
+	var at_0 := _crust_area(document, 0.0)
+	for area in at_0:
+		assert_true(area > 0.0, "at the present both crusts have an area: %s" % area)
+	assert_true(at_0[0] + at_0[1] > at_50[0] + at_50[1],
+		"and more of it than at 50 Ma: %s, %s" % [at_50, at_0])
+
+
+func _mean_longitude(ring: PackedVector2Array) -> float:
+	var total := 0.0
+	for vertex in ring:
+		total += vertex.y
+	return total / ring.size()

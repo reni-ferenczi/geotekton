@@ -345,8 +345,9 @@ func remove_vertex(feature: Feature, part: int, index: int) -> String:
 # dictionary when there is nothing to take. This is what Copy Shape holds on to.
 #
 # A topology has no vertices of its own, so what comes out of one is what its
-# sections resolve to, one run per section, which is a polyline. That is the one
-# way to turn a topology into a line someone can edit.
+# sections resolve to, one run per section, which is a polyline, or for a closed
+# one the single ring, which is a polygon. That is the one way to turn a
+# topology into a shape someone can edit.
 func shape_of(feature: Feature) -> Dictionary:
 	if feature == null or feature.is_group or not feature.has_geometry():
 		return {}
@@ -359,7 +360,10 @@ func shape_of(feature: Feature) -> Dictionary:
 				rings.append(run)
 		if rings.is_empty():
 			return {}
-		return {"kind": Feature.GeometryKind.POLYLINE, "rings": rings}
+		# A closed one is copied as the one ring it is drawn as.
+		if feature.closed:
+			rings.assign([Topology.join(rings)])
+		return {"kind": feature.drawn_as(), "rings": rings}
 
 	var to_world := Feature.world_basis(root, feature, current_time)
 	for ring in feature.rings:
@@ -439,9 +443,11 @@ func split_feature(feature: Feature, part: int, first: int, second: int = -1) ->
 # split_feature(): both halves carry what the feature was, and one version.
 #
 # With `ridge` on, a Line feature is left along the cut as well, riding on both
-# halves at one half; see _add_ridge() and Docs/Editing.md#the-ridge.
+# halves at one half; see _add_ridge() and Docs/Editing.md#the-ridge. With
+# `crust` on as well, two closed topologies fill the sea floor between the ridge
+# and each half; see _add_crust().
 func split_feature_along(feature: Feature, part: int, path: PackedVector2Array,
-		ridge: bool = false) -> String:
+		ridge: bool = false, crust: bool = false) -> String:
 	if feature == null or feature.is_group \
 			or feature.geometry_kind != Feature.GeometryKind.POLYGON:
 		return "Only a polygon is split along a cut."
@@ -452,14 +458,16 @@ func split_feature_along(feature: Feature, part: int, path: PackedVector2Array,
 		return problem
 	var edge := GeometryEdit.shared_edge(feature.rings[part], path) if ridge \
 		else PackedVector2Array()
-	return _split_into(feature, part, GeometryEdit.split_along(feature.rings[part], path), edge)
+	return _split_into(feature, part, GeometryEdit.split_along(feature.rings[part], path),
+		edge, crust)
 
 
 # Put the first half in place of the part and the second in a new feature beside
 # the original, named after it. `edge` is the cut both halves share, in the
 # feature's own frame, and is what the ridge is drawn along when there is one.
+# Each half starts with that edge; see GeometryEdit.split_polygon().
 func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array],
-		edge := PackedVector2Array()) -> String:
+		edge := PackedVector2Array(), crust := false) -> String:
 	var parent := root.find_parent(feature)
 	if parent == null:
 		return "%s is not in the tree." % feature.title
@@ -475,7 +483,9 @@ func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array],
 	feature.rebuild_triangles()
 	parent.children.insert(parent.find_child(feature) + 1, other)
 	if not edge.is_empty():
-		_add_ridge(parent, feature, other, Feature.apply_basis(edge, into_world))
+		var ridge := _add_ridge(parent, feature, other, Feature.apply_basis(edge, into_world))
+		if crust:
+			_add_crust(parent, ridge, [feature, other], [part, 0], edge.size())
 	record()
 	return ""
 
@@ -486,7 +496,7 @@ func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array],
 # the polygon's pose at the split time, so the one keyframe written there puts
 # the ridge exactly on the cut. Part of the split's own undo version.
 func _add_ridge(parent: Feature, first: Feature, second: Feature,
-		world_edge: PackedVector2Array) -> void:
+		world_edge: PackedVector2Array) -> Feature:
 	var ridge := Feature.create_feature(Feature.clamp_title("%s ridge" % first.title),
 		FeatureType.color(FeatureType.LINE), Vector2i(0, int(round(current_time))))
 	ridge.feature_type = FeatureType.LINE
@@ -495,14 +505,60 @@ func _add_ridge(parent: Feature, first: Feature, second: Feature,
 	parent.children.insert(parent.find_child(second) + 1, ridge)
 	Keyframe.upsert(ridge.keyframes, current_time,
 		Coupling.rotation_for(ridge, current_time, Basis(), Coupling.index(root)))
+	return ridge
 
 
-### Line topologies
+# The sea floor a ridge opens: for each half, a closed topology running along
+# the half's side of the cut and back along the ridge, inserted after the ridge
+# with the same time range. At the split time the two runs lie on each other
+# and the ring encloses nothing; as the halves drift the ridge stays midway and
+# each ring opens between it and its half. Part of the split's own undo version.
+#
+# `parts` names the part each half holds its side of the cut in, and `edge_size`
+# how many vertices the cut has; each half starts with it.
+func _add_crust(parent: Feature, ridge: Feature, halves: Array, parts: Array,
+		edge_size: int) -> void:
+	var ridge_world := Feature.apply_basis(ridge.rings[0],
+		Feature.world_basis(root, ridge, current_time))
+	var at := parent.find_child(ridge)
+	for k in halves.size():
+		var half: Feature = halves[k]
+		var part: int = parts[k]
+		var cut_end: Vector2 = Feature.apply_basis(
+			PackedVector2Array([half.rings[part][edge_size - 1]]),
+			Feature.world_basis(root, half, current_time))[0]
+		# The ridge is walked from the end the cut run stops at.
+		var reversed := cut_end.distance_to(ridge_world[-1]) < cut_end.distance_to(ridge_world[0])
+		var crust := Feature.create_feature(Feature.clamp_title("%s crust" % half.title),
+			FeatureType.color(FeatureType.CRUST), ridge.time_range)
+		crust.feature_type = "topology"
+		crust.geometry_kind = Feature.GeometryKind.TOPOLOGY
+		crust.closed = true
+		crust.sections.assign([
+			TopologySection.create(half.uuid, part, 0, edge_size - 1),
+			TopologySection.create(ridge.uuid, 0, 0, ridge.rings[0].size() - 1, reversed),
+		])
+		at += 1
+		parent.children.insert(at, crust)
+		Topology.rebuild(root, crust, current_time)
+
+
+### Topologies
 
 # A topology's geometry is the list of sections it names; the vertices it draws
 # are resolved from them whenever the tree or the current time moves. These four
 # are the only things that change the list, and each records one undo version
-# like every other edit. See Logic/topology.gd.
+# like every other edit, as does closing or opening it. See Logic/topology.gd.
+
+
+# Join the sections into one filled ring, or leave them separate lines.
+func set_topology_closed(feature: Feature, closed: bool) -> String:
+	if feature == null or feature.geometry_kind != Feature.GeometryKind.TOPOLOGY:
+		return "Only a topology can be closed."
+	feature.closed = closed
+	Topology.rebuild(root, feature, current_time)
+	record()
+	return ""
 
 
 # Add a section running along the whole of one part of another feature. The
@@ -915,7 +971,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.19.0"):
+	if not _is_older_than(version, "0.20.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -952,7 +1008,9 @@ static func migrate(data: Dictionary) -> Dictionary:
 	# but the version.
 	# 0.19.0 gave a leaf the place, plate and track step of a hotspot. A leaf
 	# without them is not a hotspot, so again only the version moves.
-	data["version"] = "0.19.0"
+	# 0.20.0 let a topology be closed. A topology without the key is open, which
+	# is what every topology was before, so once more only the version moves.
+	data["version"] = "0.20.0"
 	return data
 
 

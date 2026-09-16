@@ -28,6 +28,11 @@ const POLAR_CIRCLES := "polar_circles"
 # A plume fixed in the world frame and the track it leaves on a plate, rebuilt
 # at every time change; see Logic/hotspot.gd.
 const HOTSPOT := "hotspot"
+# The oceanic crust the Split tool leaves beside a ridge is a closed Topology,
+# not a type of its own, but it has a colour of its own. color() takes this id,
+# so a crust colour kept in the preferences would be used the same way.
+const CRUST := "crust"
+const CRUST_COLOR := Color.STEEL_BLUE
 
 const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]
 
@@ -77,6 +82,8 @@ static func label(type_id: String) -> String:
 # preferences hold for it, else the catalog's. A type the catalog does not know
 # takes the Polygon colour, which is also what a new feature starts in.
 static func color(type_id: String) -> Color:
+	if type_id == CRUST:
+		return Config.get_feature_colors().get(CRUST, CRUST_COLOR)
 	if not CATALOG.has(type_id):
 		type_id = POLYGON
 	return Config.get_feature_colors().get(type_id, CATALOG[type_id]["color"])
