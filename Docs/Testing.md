@@ -227,9 +227,10 @@ projection puts them, no pixel of the four edges is the colour the window's own
 panels are drawn in, and the corners are the polar ice the map has there, since
 a rectangular sheet reaches all four of them. Each of the five projections is
 exported in turn and comes out at the size its own extent asks for. The
-Mollweide picture says the sheet is not letterboxed: its corners are the
-background the ellipse leaves showing, while the ends of both axes touch the
-four edges. The Export width preference is read at its default of 3600, set to
+rectangular picture has no transparent pixel. The
+Mollweide picture says the sheet is not letterboxed: its corners are
+transparent, with neither the background nor a star in them, while the ends of
+both axes and the middle are opaque sheet. The Export width preference is read at its default of 3600, set to
 400, and an export that names no width comes out 400 by 200. Afterwards the
 zoom, the field of view, the camera, the projection and the window are all where
 they were before.
@@ -240,9 +241,16 @@ show the difference. The ffmpeg preference is pointed at a file that is not
 there, which is how a machine says it has no encoder: an export of 2000 to 1900
 Ma at 100 My a second and ten frames a second then leaves eleven 240 by 120
 PNGs in a folder named after the video and no video, the first frame is not the
-last, and the craton is missing from the first and drawn in the last. The time
-and the view are where the export found them afterwards. A video of the globe
-comes out square. An export started with `wait: false` is watched through
+last, the craton is missing from the first and drawn in the last, and every
+frame is opaque. The time and the view are where the export found them
+afterwards. A video of the globe comes out square and opaque, the background
+around the globe included. The globe itself cannot be exported as a picture, so
+the rendered test `test_scene.gd` checks transparency there: it calls
+`PlanetView.render_export()` on the globe and on all five projections with the
+star field on, and checks that a corner outside the planet has alpha 0, that the
+middle has alpha 255, and that a rectangular or Mercator sheet has no clear
+pixel. It also checks that an opaque export keeps the background and that the
+view draws opaque again, with its stars, afterwards. An export started with `wait: false` is watched through
 `get_export` and stopped with `cancel_export`, which leaves neither frames nor
 file. Last the preference is cleared so the application looks for an ffmpeg of
 its own: where it finds one the video is on disk and not empty and the frames

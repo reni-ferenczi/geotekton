@@ -131,7 +131,15 @@ line above makes exactly `extent`. Half the width follows from the aspect,
 `extent * width / (width * extent)`, which is 1: the half width the sheet has.
 The view angle and the camera offset are zero for the frame and the zoom does not
 come into it, since the field of view is worked out from the sheet rather than
-from the window. See [Shell](Shell.md#exporting-a-picture-of-the-map).
+from the window.
+
+A picture is transparent around the sheet. For that frame the viewport gets
+`transparent_bg`, the star field quad is hidden and the environment's
+background mode is `BG_CLEAR_COLOR`, so the fragments the shader discards
+outside the sheet or around the globe leave alpha 0. The sheet writes
+`ALPHA = 1.0`, so the planet stays opaque. All three are put back with the
+viewport size. A video frame skips this step and keeps the background. See
+[Shell](Shell.md#exporting-a-picture-of-the-map).
 
 ### Off the map
 
