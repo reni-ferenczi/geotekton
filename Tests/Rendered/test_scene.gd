@@ -1,13 +1,13 @@
 extends RenderedCase
 
 # The scene around the features against the real window: the background, the
-# star field, the graticule, the light and the image the planet wears.
+# star field, the grid, the light and the image the planet wears.
 #
 # Every claim is a pixel, and the pixels are read out of one capture per frame
 # rather than one per probe, since a capture copies the whole window back off
 # the graphics card.
 
-const BACKDROP := "res://Tests/Data/Backdrops/quarters.png"
+const RASTER := "res://Tests/Data/Rasters/quarters.png"
 
 # A patch in the corner of the view, well clear of the planet in every view, and
 # how far into the view it starts.
@@ -59,17 +59,17 @@ func test_the_stars_show_on_a_coloured_background() -> void:
 	await use_settings({"background_color": ViewSettings.DEFAULT_BACKGROUND})
 
 
-# The graticule is drawn in the colour the document asks for, on multiples of
+# The grid is drawn in the color the document asks for, on multiples of
 # the spacing. At ninety degrees apart the lines are wide enough to probe
 # without hunting for them: the equator is one, and (20, 20) is clear of both
 # the parallels and the meridians, which at that spacing are the equator and the
 # prime meridian.
-func test_the_graticule_is_drawn_where_and_how_the_document_says() -> void:
+func test_the_grid_is_drawn_where_and_how_the_document_says() -> void:
 	await load_sample("empty.middle-earth")
 	await look_at_latlon(0.0, 0.0)
 	await use_settings({
-		"graticule_spacing": 90.0,
-		"graticule_color": Color(1.0, 0.0, 0.0, 1.0),
+		"grid_spacing": 90.0,
+		"grid_color": Color(1.0, 0.0, 0.0, 1.0),
 	})
 	var image := await capture()
 	var on_line: Vector2 = view().latlon_to_screen(0.0, 0.0)
@@ -79,25 +79,25 @@ func test_the_graticule_is_drawn_where_and_how_the_document_says() -> void:
 	assert_true(dominant_channel(image.get_pixel(int(off_line.x), int(off_line.y))) != "red",
 		"and (20, 20) is clear of every line")
 	await use_settings({
-		"graticule_spacing": ViewSettings.DEFAULT_GRATICULE_SPACING,
-		"graticule_color": ViewSettings.DEFAULT_GRATICULE_COLOR,
+		"grid_spacing": ViewSettings.DEFAULT_GRID_SPACING,
+		"grid_color": ViewSettings.DEFAULT_GRID_COLOR,
 	})
 
 
 # Changing the spacing redraws the lines somewhere else. Where each one lands is
-# ViewSettings.graticule_split()'s to say and is checked there; what is checked
+# ViewSettings.grid_split()'s to say and is checked there; what is checked
 # here is that the number reaches the shader at all.
-func test_the_graticule_spacing_moves_the_lines() -> void:
+func test_the_grid_spacing_moves_the_lines() -> void:
 	await load_sample("empty.middle-earth")
 	await look_at_latlon(0.0, 0.0)
-	await use_settings({"graticule_spacing": 15.0})
+	await use_settings({"grid_spacing": 15.0})
 	var fifteen := await capture()
-	await use_settings({"graticule_spacing": 10.0})
+	await use_settings({"grid_spacing": 10.0})
 	var ten := await capture()
 	var moved := count_differing(fifteen, ten)
 	assert_true(moved > 1000,
 		"ten degrees apart draws the globe differently from fifteen: %d pixels" % moved)
-	await use_settings({"graticule_spacing": ViewSettings.DEFAULT_GRATICULE_SPACING})
+	await use_settings({"grid_spacing": ViewSettings.DEFAULT_GRID_SPACING})
 
 
 # With the light off to one side, the other side of what is in view is in
@@ -161,7 +161,7 @@ func test_the_light_tool_gives_way_to_a_map() -> void:
 	assert_true(not app.light_button.disabled, "and is offered again on the globe")
 
 
-### The backdrop image
+### The raster
 
 
 func test_an_image_is_drawn_on_the_planet_and_blended_at_half_opacity() -> void:
@@ -170,19 +170,19 @@ func test_an_image_is_drawn_on_the_planet_and_blended_at_half_opacity() -> void:
 	var here: Vector2 = view().latlon_to_screen(30.0, -30.0)
 	var earth := await probe(here)
 
-	await use_settings({"backdrop_path": backdrop_path()})
-	assert_eq(app.backdrop.error, "", "the image loaded")
+	await use_settings({"raster_path": raster_path()})
+	assert_eq(app.raster.error, "", "the image loaded")
 	var full := await probe(here)
 	assert_eq(dominant_channel(full), "red", "the quarter of the image that lands there: %s" % full)
 
-	await use_settings({"backdrop_opacity": 0.5})
+	await use_settings({"raster_opacity": 0.5})
 	var half := await probe(here)
 	assert_true(half.r < full.r and half.r > earth.r,
 		"half opacity is between the image and the Earth: %s" % half)
 
-	await use_settings({"backdrop_visible": false})
+	await use_settings({"raster_visible": false})
 	assert_close(await probe(here), earth, 0.02, "hiding it brings the Earth back")
-	await clear_backdrop()
+	await clear_raster()
 
 
 # A document naming an image that is not there still opens: the planet keeps the
@@ -193,11 +193,11 @@ func test_an_image_that_is_not_there_falls_back_to_the_earth() -> void:
 	var here: Vector2 = view().latlon_to_screen(30.0, -30.0)
 	var earth := await probe(here)
 
-	await use_settings({"backdrop_path": "C:/nowhere/missing.png"})
-	assert_true(app.backdrop.error.contains("not there"),
-		"the reason is recorded: %s" % app.backdrop.error)
+	await use_settings({"raster_path": "C:/nowhere/missing.png"})
+	assert_true(app.raster.error.contains("not there"),
+		"the reason is recorded: %s" % app.raster.error)
 	assert_close(await probe(here), earth, 0.02, "and the Earth is still what is drawn")
-	await clear_backdrop()
+	await clear_raster()
 
 
 ### Helpers
@@ -213,16 +213,16 @@ func use_settings(changes: Dictionary) -> void:
 	await frames(2)
 
 
-func clear_backdrop() -> void:
+func clear_raster() -> void:
 	await use_settings({
-		"backdrop_path": "",
-		"backdrop_opacity": ViewSettings.DEFAULT_BACKDROP_OPACITY,
-		"backdrop_visible": true,
+		"raster_path": "",
+		"raster_opacity": ViewSettings.DEFAULT_RASTER_OPACITY,
+		"raster_visible": true,
 	})
 
 
-func backdrop_path() -> String:
-	return ProjectSettings.globalize_path(BACKDROP)
+func raster_path() -> String:
+	return ProjectSettings.globalize_path(RASTER)
 
 
 func corner() -> Vector2:

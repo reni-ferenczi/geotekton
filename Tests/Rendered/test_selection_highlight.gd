@@ -5,7 +5,7 @@ extends RenderedCase
 # line is drawn thicker and yellow, and a multipoint keeps its markers, drawn
 # larger. The dots come back in the Vertex tool alone.
 #
-# The planet wears a flat red backdrop throughout, since the Earth's detail does
+# The planet wears a flat red raster throughout, since the Earth's detail does
 # not come out the same from one frame to the next. Every probe reads a small
 # square rather than one pixel: the globe is a tessellated mesh, so a place can
 # land a pixel or two off where it is computed to be.
@@ -24,7 +24,7 @@ const LINE_WIDTH := 0.012
 
 
 func test_a_selected_polygon_has_a_yellow_outline_along_its_edges() -> void:
-	var feature := await _load_with_backdrop("craton.middle-earth", "Old Shield")
+	var feature := await _load_with_raster("craton.middle-earth", "Old Shield")
 	if feature == null:
 		return
 	var ring := _world_ring(feature)
@@ -32,7 +32,7 @@ func test_a_selected_polygon_has_a_yellow_outline_along_its_edges() -> void:
 	var probed := 0
 	for i in ring.size():
 		var middle := Measure.along(ring[i], ring[(i + 1) % ring.size()], 0.5)
-		if _near_graticule(middle):
+		if _near_grid(middle):
 			continue
 		await look_at_latlon(middle.x, middle.y)
 		var centre: Variant = view().latlon_to_screen(middle.x, middle.y)
@@ -45,21 +45,21 @@ func test_a_selected_polygon_has_a_yellow_outline_along_its_edges() -> void:
 		await frames(2)
 		var selected := _count(await capture(), centre, EDGE_REACH)
 		assert_true(plain["yellow"] == 0 and plain["blue"] > 0 and plain["red"] > 0,
-			"unselected, the edge %d is the fill against the backdrop: %s" % [i, plain])
+			"unselected, the edge %d is the fill against the raster: %s" % [i, plain])
 		assert_true(selected["yellow"] > 0,
 			"selected, the edge %d is traced in yellow: %s" % [i, selected])
 		probed += 1
 		if probed >= 4:
 			break
 	await _restore()
-	assert_true(probed >= 4, "there were edges away from the graticule, found %d" % probed)
+	assert_true(probed >= 4, "there were edges away from the grid, found %d" % probed)
 
 
 # Just outside a convex vertex, along the bisector of the corner, half a dot
 # radius off: a dot covers it and the outline does not reach it, since the
 # nearest point of either edge is the vertex itself.
 func test_a_selected_polygon_has_no_dots_except_in_the_vertex_tool() -> void:
-	var feature := await _load_with_backdrop("craton.middle-earth", "Old Shield")
+	var feature := await _load_with_raster("craton.middle-earth", "Old Shield")
 	if feature == null:
 		return
 	var ring := _world_ring(feature)
@@ -69,7 +69,7 @@ func test_a_selected_polygon_has_no_dots_except_in_the_vertex_tool() -> void:
 	var probed := 0
 	for i in ring.size():
 		var at: Variant = _outside_corner(ring, i, clockwise, offset)
-		if at == null or _near_graticule(at):
+		if at == null or _near_grid(at):
 			continue
 		await look_at_latlon(at.x, at.y)
 		var screen: Variant = view().latlon_to_screen(at.x, at.y)
@@ -90,11 +90,11 @@ func test_a_selected_polygon_has_no_dots_except_in_the_vertex_tool() -> void:
 		if probed >= 3:
 			break
 	await _restore()
-	assert_true(probed >= 3, "there were convex vertices away from the graticule, found %d" % probed)
+	assert_true(probed >= 3, "there were convex vertices away from the grid, found %d" % probed)
 
 
 func test_a_selected_line_is_drawn_thicker_and_yellow() -> void:
-	var feature := await _load_with_backdrop("mixed_geometry.middle-earth", "Blue Ridge")
+	var feature := await _load_with_raster("mixed_geometry.middle-earth", "Blue Ridge")
 	if feature == null:
 		return
 	# Blue Ridge runs along the meridian at 40 degrees east. At latitude 5 the
@@ -127,7 +127,7 @@ func test_a_selected_line_is_drawn_thicker_and_yellow() -> void:
 	assert_true(_count(plain, on, 1)["blue"] == 9,
 		"unselected, the line is its own blue: %s" % _count(plain, on, 1))
 	assert_true(_count(plain, off, 1)["red"] == 9,
-		"unselected, the backdrop shows just outside it: %s" % _count(plain, off, 1))
+		"unselected, the raster shows just outside it: %s" % _count(plain, off, 1))
 	assert_true(_count(selected, on, 1)["yellow"] == 9,
 		"selected, the line is yellow: %s" % _count(selected, on, 1))
 	assert_true(_count(selected, off, 1)["yellow"] == 9,
@@ -137,7 +137,7 @@ func test_a_selected_line_is_drawn_thicker_and_yellow() -> void:
 
 
 func test_a_selected_multipoint_keeps_its_markers_drawn_larger() -> void:
-	var feature := await _load_with_backdrop(
+	var feature := await _load_with_raster(
 		"mixed_geometry.middle-earth", "Green Stations", Color.BLUE)
 	if feature == null:
 		return
@@ -170,14 +170,14 @@ func test_a_selected_multipoint_keeps_its_markers_drawn_larger() -> void:
 
 ### Helpers
 
-# Load a sample over a flat backdrop. Red by default; a green feature needs
+# Load a sample over a flat raster. Red by default; a green feature needs
 # another, since the blend of green into red along its edge reads as yellow.
-func _load_with_backdrop(sample: String, title: String, backdrop := Color.RED) -> Feature:
+func _load_with_raster(sample: String, title: String, raster := Color.RED) -> Feature:
 	await load_sample(sample)
 	app.set_active_tool(Application.Tool.MOVE)
 	var flat := Image.create(4, 2, false, Image.FORMAT_RGBA8)
-	flat.fill(backdrop)
-	view().planet.set_backdrop(ImageTexture.create_from_image(flat), 1.0)
+	flat.fill(raster)
+	view().planet.set_raster(ImageTexture.create_from_image(flat), 1.0)
 	var feature := _find(title)
 	assert_true(feature != null, "the sample holds %s" % title)
 	return feature
@@ -186,7 +186,7 @@ func _load_with_backdrop(sample: String, title: String, backdrop := Color.RED) -
 func _restore() -> void:
 	app.set_active_tool(Application.Tool.MOVE)
 	view().set_zoom(PlanetView.DEFAULT_ZOOM)
-	view().planet.set_backdrop(null, 0.0)
+	view().planet.set_raster(null, 0.0)
 	await frames(2)
 
 
@@ -234,8 +234,8 @@ func _outside_corner(ring: PackedVector2Array, i: int, clockwise: bool, offset: 
 	return v + outwards.normalized() * offset
 
 
-# The graticule runs along every fifteenth degree of latitude and longitude.
-func _near_graticule(point: Vector2) -> bool:
+# The grid runs along every fifteenth degree of latitude and longitude.
+func _near_grid(point: Vector2) -> bool:
 	for value in [point.x, point.y]:
 		if absf(value - roundf(value / 15.0) * 15.0) < 1.5:
 			return true

@@ -13,7 +13,7 @@ const BOUNDARY_ZOOM := 20.0
 # boundary anyway.
 const BOUNDARY_REACH := 10
 
-# How much green a pixel may carry beside a blue polygon on a red backdrop.
+# How much green a pixel may carry beside a blue polygon on a red raster.
 const GREEN_TOLERANCE := 0.1
 
 
@@ -44,7 +44,7 @@ func test_a_polyline_and_a_multipoint_are_drawn_in_their_own_colours() -> void:
 func test_the_earth_shows_beside_a_line_and_a_marker() -> void:
 	await load_sample("mixed_geometry.middle-earth")
 	# Both points are a few degrees off, well beyond the width they are drawn
-	# with, and off the graticule, which is on multiples of 15 degrees.
+	# with, and off the grid, which is on multiples of 15 degrees.
 	await _check_probe(3.0, 33.0, "")
 	await _check_probe(-27.0, -33.0, "")
 
@@ -55,7 +55,7 @@ func test_an_empty_file_draws_no_craton() -> void:
 
 
 # GP-0033: a filled polygon is one flat color right up to its boundary. It used
-# to carry a pale rim there. The planet wears a flat red backdrop for the test,
+# to carry a pale rim there. The planet wears a flat red raster for the test,
 # so around the middle of every edge of the ring every pixel is either the blue
 # fill or the red beneath it, and both are there: a rim would be neither. The
 # Earth itself is no use as the background, since its detail does not come out
@@ -70,16 +70,16 @@ func test_a_polygon_is_one_flat_color_up_to_its_boundary() -> void:
 
 	var red := Image.create(4, 2, false, Image.FORMAT_RGBA8)
 	red.fill(Color.RED)
-	view().planet.set_backdrop(ImageTexture.create_from_image(red), 1.0)
+	view().planet.set_raster(ImageTexture.create_from_image(red), 1.0)
 	view().set_zoom(BOUNDARY_ZOOM)
 	var probed := 0
 	for i in ring.size():
 		var a := ring[i]
 		var b := ring[(i + 1) % ring.size()]
 		var middle := Measure.along(a, b, 0.5)
-		# The graticule is drawn on multiples of 15 degrees and is pale too, so
+		# The grid is drawn on multiples of 15 degrees and is pale too, so
 		# an edge crossing one says nothing about the fill.
-		if _near_graticule(middle):
+		if _near_grid(middle):
 			continue
 		await look_at_latlon(middle.x, middle.y)
 		var centre: Variant = view().latlon_to_screen(middle.x, middle.y)
@@ -95,7 +95,7 @@ func test_a_polygon_is_one_flat_color_up_to_its_boundary() -> void:
 				var channel := dominant_channel(color)
 				if counts.has(channel):
 					counts[channel] += 1
-				# Neither the fill nor the backdrop has any green, and a pixel on
+				# Neither the fill nor the raster has any green, and a pixel on
 				# the boundary itself is a blend of the two, which has none
 				# either. White, which the rim was, is all green.
 				if color.g > GREEN_TOLERANCE:
@@ -103,18 +103,18 @@ func test_a_polygon_is_one_flat_color_up_to_its_boundary() -> void:
 		assert_true(counts["blue"] > 0 and counts["red"] > 0,
 			"the edge %s-%s is in the square: %s" % [a, b, counts])
 		assert_true(pale.is_empty(),
-			"beside the edge %s-%s no pixel is paler than the fill and the backdrop, %d are: %s"
+			"beside the edge %s-%s no pixel is paler than the fill and the raster, %d are: %s"
 				% [a, b, pale.size(), pale.slice(0, 4)])
 	view().set_zoom(PlanetView.DEFAULT_ZOOM)
-	view().planet.set_backdrop(null, 0.0)
+	view().planet.set_raster(null, 0.0)
 	await frames(2)
 
 	assert_true(probed >= 10,
-		"there were ring edges away from the graticule to probe, found %d" % probed)
+		"there were ring edges away from the grid to probe, found %d" % probed)
 
 
-# The graticule runs along every fifteenth degree of latitude and longitude.
-func _near_graticule(point: Vector2) -> bool:
+# The grid runs along every fifteenth degree of latitude and longitude.
+func _near_grid(point: Vector2) -> bool:
 	for value in [point.x, point.y]:
 		if absf(value - roundf(value / 15.0) * 15.0) < 1.5:
 			return true

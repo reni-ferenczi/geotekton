@@ -83,7 +83,7 @@ func _apply_projection() -> void:
 
 
 # How the scene around the features is drawn: the star field behind the planet,
-# the graticule over it and where the light comes from. The rest of the block —
+# the grid over it and where the light comes from. The rest of the block —
 # the background colour and the ambient level — belongs to the environment,
 # which PlanetView owns; see PlanetView.apply_view_settings().
 func apply_view_settings(settings: ViewSettings) -> void:
@@ -94,18 +94,18 @@ func apply_view_settings(settings: ViewSettings) -> void:
 	for material in [
 		globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
 		# Linearized for the same reason the feature colours are; see set_geometry().
-		material.set_shader_parameter("color", settings.graticule_color.srgb_to_linear())
-		material.set_shader_parameter("split", settings.graticule_split())
+		material.set_shader_parameter("color", settings.grid_color.srgb_to_linear())
+		material.set_shader_parameter("split", settings.grid_split())
 
 
 # Put an image on the planet in place of the built in Earth, at the opacity the
 # document asks for. A null texture or an opacity of zero leaves the Earth as it
 # is, which is what a document naming no image comes to.
-func set_backdrop(texture: Texture2D, opacity: float) -> void:
+func set_raster(texture: Texture2D, opacity: float) -> void:
 	for material in [
 		globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
-		material.set_shader_parameter("backdrop_tex", texture)
-		material.set_shader_parameter("backdrop_opacity", 0.0 if texture == null else opacity)
+		material.set_shader_parameter("raster_tex", texture)
+		material.set_shader_parameter("raster_opacity", 0.0 if texture == null else opacity)
 
 
 # The map sheet lies in the x-y plane through the middle of the scene, x across

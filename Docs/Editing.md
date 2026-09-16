@@ -576,12 +576,12 @@ shows what is being chosen.
 |---------|--------------|
 | Background | The colour behind the planet |
 | Star field | Whether the stars are drawn; they add their light to the background colour, so the colour shows between them |
-| Graticule | The colour of the grid |
-| Graticule spacing | How far apart its lines are, from 1 to 90 degrees |
+| Grid | The color of the longitude and latitude lines |
+| Grid spacing | How far apart its lines are, from 1 to 90 degrees |
 | Light elevation, light azimuth | Where the light comes from, away from the line of sight; `(0, 0)` shines from the camera |
 | Ambient light | How much light reaches the night side; 0 is a black night, 1 no night at all |
-| Backdrop image shown, backdrop opacity | Whether the image is drawn and how much of the Earth it covers |
-| Backdrop image | The image the planet wears, in PNG, JPEG, WebP or SVG |
+| Raster shown, Raster opacity | Whether the image is drawn and how much of the Earth it covers |
+| Raster | The image the planet wears, in PNG, JPEG, WebP or SVG |
 
 The dialog does not set what color the features come out. That is set per
 group, with the Style, Colour, Palette and Ramp rows of the

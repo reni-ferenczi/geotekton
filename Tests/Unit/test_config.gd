@@ -44,6 +44,21 @@ func test_values_survive_a_reload() -> void:
 	_restore_the_real_config()
 
 
+# Preferences saved before 0.16.0 name the raster and the grid by their old
+# keys; the values carry over and the file is written with the new ones.
+func test_view_defaults_saved_before_0_16_0_keep_their_values() -> void:
+	_use_a_scratch_config()
+	Config.set_value("view_defaults", {"backdrop_opacity": 0.3, "graticule_spacing": 45.0})
+	Config.forget()
+	var settings := Config.get_view_defaults()
+	assert_close(settings.raster_opacity, 0.3, 1e-6, "the raster opacity")
+	assert_eq(settings.grid_spacing, 45.0, "the grid spacing")
+	Config.forget()
+	assert_eq(Config.get_value("view_defaults"), {"raster_opacity": 0.3, "grid_spacing": 45.0},
+		"and the file holds the new keys")
+	_restore_the_real_config()
+
+
 func test_a_missing_key_falls_back_to_the_default() -> void:
 	_use_a_scratch_config()
 	assert_eq(Config.get_value("never_written", "fallback"), "fallback")

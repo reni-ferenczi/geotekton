@@ -5,11 +5,11 @@ uniform bool is_globe = false;
 uniform sampler2D earth_tex : source_color;
 
 // The image a document wears in place of the built in Earth, blended over it by
-// backdrop_opacity. Zero is no backdrop at all, which is what a document
+// raster_opacity. Zero is no raster at all, which is what a document
 // naming no image, hiding the one it names or failing to read it comes to, and
 // the fragment then never samples the texture.
-uniform sampler2D backdrop_tex : source_color, repeat_disable;
-uniform float backdrop_opacity = 0.0;
+uniform sampler2D raster_tex : source_color, repeat_disable;
+uniform float raster_opacity = 0.0;
 
 uniform vec4 color = vec4(1.0, 1.0, 1.0, 0.3333);
 uniform vec2 width = vec2(0.015, 0.015);
@@ -235,8 +235,8 @@ void fragment() {
 
 	// Fetch base Earth color, under whatever image the document wears
 	vec4 earth = texture(earth_tex, surface_uv);
-	if (backdrop_opacity > 0.0) {
-		earth = mix(earth, texture(backdrop_tex, surface_uv), backdrop_opacity);
+	if (raster_opacity > 0.0) {
+		earth = mix(earth, texture(raster_tex, surface_uv), raster_opacity);
 	}
 
 	// Longitude and latitude grids

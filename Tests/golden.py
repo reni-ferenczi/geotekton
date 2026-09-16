@@ -48,7 +48,7 @@ DEFAULT_VIEW = {
 # The scene settings a document carries. A scene names only what it wants: a
 # view block is read key by key, so everything it leaves out is the default,
 # which is the scene as it was drawn before any of it was settable.
-BACKDROP = str(ROOT / "Tests" / "Data" / "Backdrops" / "quarters.png")
+RASTER = str(ROOT / "Tests" / "Data" / "Rasters" / "quarters.png")
 
 SCENES = [
     ("triangle", "triangle.middle-earth", {}, {}, {}),
@@ -62,7 +62,7 @@ SCENES = [
     # that its bay, its neck and its northern lobe are all in the reference and
     # none of it runs off the limb. See GP-0026.
     ("craton", "craton.middle-earth", {}, {}, {}),
-    # The graticule and the features in each projection, which is what says the
+    # The grid and the features in each projection, which is what says the
     # inverse in the shader agrees with the one in MapProjection. The sample is
     # the one with features north, south and either side of the middle, so the
     # whole sheet has something on it.
@@ -80,9 +80,9 @@ SCENES = [
     ("scene_light_east", "empty.middle-earth", {}, {"light_direction": [0.0, 45.0]}, {}),
     ("scene_light_high", "empty.middle-earth", {},
         {"light_direction": [55.0, -35.0], "ambient": 0.25}, {}),
-    ("scene_backdrop", "empty.middle-earth", {}, {"backdrop_path": BACKDROP}, {}),
-    ("scene_backdrop_half", "empty.middle-earth", {},
-        {"backdrop_path": BACKDROP, "backdrop_opacity": 0.5}, {}),
+    ("scene_raster", "empty.middle-earth", {}, {"raster_path": RASTER}, {}),
+    ("scene_raster_half", "empty.middle-earth", {},
+        {"raster_path": RASTER, "raster_opacity": 0.5}, {}),
     # The kinematics panel, drawn for a feature that moves. The only scene that
     # shows that panel and the only one that selects anything: the graphs are
     # drawn for whatever the feature tree has selected, with the cursor on the

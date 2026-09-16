@@ -14,10 +14,10 @@ const ISOLATED_SETTINGS_DIR := "isolated-settings"
 # The Earth texture credited in the About dialog, as listed in README.md.
 const EARTH_TEXTURE_URL := "https://wall.alphacoders.com/big.php?i=11433"
 static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Document.EXTENSION])
-# What a backdrop image may be, taken from the formats Backdrop reads rather
+# What a raster may be, taken from the formats Raster reads rather
 # than listed a second time here.
 static var IMAGE_FILTERS := PackedStringArray(
-	["*.%s ; Images" % ", *.".join(Backdrop.EXTENSIONS)])
+	["*.%s ; Images" % ", *.".join(Raster.EXTENSIONS)])
 static var PALETTE_FILTERS := PackedStringArray(["*.cpt ; Colour Palette Tables"])
 # What File > Export Image writes. One format, since the picture is what the
 # planet was drawn into and PNG keeps it exactly.
@@ -225,8 +225,8 @@ var ffmpeg_edit: LineEdit
 var interpreter_edit: LineEdit
 var script_directories_edit: TextEdit
 var view_dialog: AcceptDialog
-# Why the backdrop image is not on the planet, shown under the path field.
-var backdrop_warning: Label
+# Why the raster is not on the planet, shown under the path field.
+var raster_warning: Label
 # The fields of the View settings dialog, by the name of the setting each edits.
 var view_fields: Dictionary = {}
 var animation_dialog: AcceptDialog
@@ -251,10 +251,10 @@ var video_cancelled: bool = false
 var video_result: Dictionary = {}
 
 # The image on the planet, and the path it was read from, so that changing the
-# opacity or the visibility does not read the file again. `backdrop.error` says
+# opacity or the visibility does not read the file again. `raster.error` says
 # why there is no image when there is none.
-var backdrop := Backdrop.new()
-var _backdrop_path: String = ""
+var raster := Raster.new()
+var _raster_path: String = ""
 
 # Every palette read so far, by source, kept for the same reason: rebuilding
 # the geometry must not read a file. Styling reads a palette it has not seen
@@ -736,7 +736,7 @@ func save_document_as(after: Callable = Callable()) -> void:
 #
 # The map at the age the timeline shows, on its own: the whole sheet, nothing
 # but the sheet, and the same size every time a projection is exported. The
-# graticule, the background, the star field and the backdrop are whatever the
+# grid, the background, the star field and the raster are whatever the
 # view settings have them as; the panels, the measurement label, the selection
 # and the tool marks are not in it.
 
@@ -1096,11 +1096,11 @@ func _on_root_replaced(same_document: bool) -> void:
 # Draw the scene the way the open document asks for. Called when a document
 # arrives and after every change to its view settings.
 func apply_view_settings() -> void:
-	_load_backdrop()
+	_load_raster()
 	planet_view.apply_view_settings(document.view)
 	_update_view_menu_checks()
 	if view_dialog.visible:
-		backdrop_warning.text = backdrop.error
+		raster_warning.text = raster.error
 
 
 # Put the image the document names on the planet. The file is read only when the
@@ -1109,15 +1109,15 @@ func apply_view_settings() -> void:
 # An image that cannot be read is not a failure of the document: the planet
 # keeps the built in Earth, the reason is pushed as a warning and the View
 # settings dialog shows it beside the path.
-func _load_backdrop() -> void:
-	var path := document.resolve_backdrop()
-	if path != _backdrop_path:
-		_backdrop_path = path
-		backdrop = Backdrop.load_from(path)
-		if not backdrop.error.is_empty():
-			push_warning(backdrop.error)
-	planet_view.planet.set_backdrop(backdrop.texture,
-		document.view.backdrop_opacity if document.view.backdrop_visible else 0.0)
+func _load_raster() -> void:
+	var path := document.resolve_raster()
+	if path != _raster_path:
+		_raster_path = path
+		raster = Raster.load_from(path)
+		if not raster.error.is_empty():
+			push_warning(raster.error)
+	planet_view.planet.set_raster(raster.texture,
+		document.view.raster_opacity if document.view.raster_visible else 0.0)
 
 
 func _update_document_labels() -> void:
@@ -1353,37 +1353,37 @@ func _build_view_content() -> Control:
 
 	_view_color(form, "background_color", "Background")
 	_view_check(form, "star_field", "Star field")
-	_view_color(form, "graticule_color", "Graticule")
-	_view_spin(form, "graticule_spacing", "Graticule spacing (°)",
+	_view_color(form, "grid_color", "Grid")
+	_view_spin(form, "grid_spacing", "Grid spacing (°)",
 		ViewSettings.MIN_SPACING, ViewSettings.MAX_SPACING, 1.0)
 	_view_spin(form, "light_elevation", "Light elevation (°)",
 		-ViewSettings.MAX_ELEVATION, ViewSettings.MAX_ELEVATION, 1.0)
 	_view_spin(form, "light_azimuth", "Light azimuth (°)", -180.0, 180.0, 1.0)
 	_view_spin(form, "ambient", "Ambient light",
 		ViewSettings.MIN_AMBIENT, ViewSettings.MAX_AMBIENT, 0.05)
-	_view_check(form, "backdrop_visible", "Backdrop image shown")
-	_view_spin(form, "backdrop_opacity", "Backdrop opacity", 0.0, 1.0, 0.05)
+	_view_check(form, "raster_visible", "Raster shown")
+	_view_spin(form, "raster_opacity", "Raster opacity", 0.0, 1.0, 0.05)
 
-	box.add_child(_view_section("Backdrop image"))
+	box.add_child(_view_section("Raster"))
 	var row := HBoxContainer.new()
 	box.add_child(row)
 	var edit := LineEdit.new()
-	edit.name = "BackdropPath"
+	edit.name = "RasterPath"
 	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	edit.placeholder_text = "The built in Earth"
 	edit.text_submitted.connect(func(_text: String) -> void: _on_view_field_changed())
 	edit.focus_exited.connect(_on_view_field_changed)
 	row.add_child(edit)
-	view_fields["backdrop_path"] = edit
+	view_fields["raster_path"] = edit
 
 	var browse := Button.new()
-	browse.name = "BrowseBackdrop"
+	browse.name = "BrowseRaster"
 	browse.text = "Browse..."
-	browse.pressed.connect(choose_backdrop)
+	browse.pressed.connect(choose_raster)
 	row.add_child(browse)
 
 	var clear := Button.new()
-	clear.name = "ClearBackdrop"
+	clear.name = "ClearRaster"
 	clear.text = "Clear"
 	clear.pressed.connect(func() -> void:
 		edit.text = ""
@@ -1414,11 +1414,11 @@ func _build_view_content() -> Control:
 		refresh_geometry())
 	defaults.add_child(restore)
 
-	backdrop_warning = Label.new()
-	backdrop_warning.name = "BackdropWarning"
-	backdrop_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	backdrop_warning.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
-	box.add_child(backdrop_warning)
+	raster_warning = Label.new()
+	raster_warning.name = "RasterWarning"
+	raster_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	raster_warning.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
+	box.add_child(raster_warning)
 
 	return box
 
@@ -1466,10 +1466,10 @@ func _view_color(form: GridContainer, key: String, text: String) -> void:
 
 # Pick the image the planet wears. It is stored relative to the project file
 # when it sits beside it, so a project and its images can be moved together.
-func choose_backdrop() -> void:
-	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Backdrop image",
+func choose_raster() -> void:
+	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Raster",
 		func(path: String) -> void:
-			view_fields["backdrop_path"].text = Document.relative_backdrop(path, document.path)
+			view_fields["raster_path"].text = Document.relative_raster(path, document.path)
 			_on_view_field_changed(),
 		IMAGE_FILTERS)
 
@@ -1492,7 +1492,7 @@ func choose_palette() -> void:
 
 func show_view_settings() -> void:
 	_fill_view_fields()
-	backdrop_warning.text = backdrop.error
+	raster_warning.text = raster.error
 	view_dialog.popup_centered()
 
 
@@ -1502,14 +1502,14 @@ func _fill_view_fields() -> void:
 	var settings := document.view
 	view_fields["background_color"].color = settings.background_color
 	view_fields["star_field"].set_pressed_no_signal(settings.star_field)
-	view_fields["graticule_color"].color = settings.graticule_color
-	view_fields["graticule_spacing"].set_value_no_signal(settings.graticule_spacing)
+	view_fields["grid_color"].color = settings.grid_color
+	view_fields["grid_spacing"].set_value_no_signal(settings.grid_spacing)
 	view_fields["light_elevation"].set_value_no_signal(settings.light_direction.x)
 	view_fields["light_azimuth"].set_value_no_signal(settings.light_direction.y)
 	view_fields["ambient"].set_value_no_signal(settings.ambient)
-	view_fields["backdrop_visible"].set_pressed_no_signal(settings.backdrop_visible)
-	view_fields["backdrop_opacity"].set_value_no_signal(settings.backdrop_opacity)
-	view_fields["backdrop_path"].text = settings.backdrop_path
+	view_fields["raster_visible"].set_pressed_no_signal(settings.raster_visible)
+	view_fields["raster_opacity"].set_value_no_signal(settings.raster_opacity)
+	view_fields["raster_path"].text = settings.raster_path
 
 
 # One field moved: take the whole block off the dialog and hand it to the
@@ -1520,14 +1520,14 @@ func _on_view_field_changed(commit: bool = true) -> void:
 	var settings := document.view
 	settings.background_color = view_fields["background_color"].color
 	settings.star_field = view_fields["star_field"].button_pressed
-	settings.graticule_color = view_fields["graticule_color"].color
-	settings.graticule_spacing = view_fields["graticule_spacing"].value
+	settings.grid_color = view_fields["grid_color"].color
+	settings.grid_spacing = view_fields["grid_spacing"].value
 	settings.light_direction = ViewSettings.clamp_light(Vector2(
 		view_fields["light_elevation"].value, view_fields["light_azimuth"].value))
 	settings.ambient = view_fields["ambient"].value
-	settings.backdrop_visible = view_fields["backdrop_visible"].button_pressed
-	settings.backdrop_opacity = view_fields["backdrop_opacity"].value
-	settings.backdrop_path = view_fields["backdrop_path"].text
+	settings.raster_visible = view_fields["raster_visible"].button_pressed
+	settings.raster_opacity = view_fields["raster_opacity"].value
+	settings.raster_path = view_fields["raster_path"].text
 	if commit:
 		document.view_edited()
 	apply_view_settings()

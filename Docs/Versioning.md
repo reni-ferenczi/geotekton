@@ -35,7 +35,9 @@ which has a step for the two ends and the palettes that went; and 0.14.0 gave a
 leaf feature the icon of its tree row, and a leaf without one carries none, so
 it reads a 0.13.0 file as it stands; and 0.15.0 let a coupling span name a
 second parent, and a span without one rides on the parent it names, so it reads
-a 0.14.0 file as it stands too.
+a 0.14.0 file as it stands too; and 0.16.0 renamed five keys of the view block,
+calling the backdrop image a raster and the graticule a grid, which has a step
+that renames them.
 
 The first public release will have major version 1.
 
