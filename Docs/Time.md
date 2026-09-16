@@ -267,8 +267,9 @@ The skip is for moving about while editing. Someone laying out an animation
 in 50 My steps and then working on one feature's movement in 10 My steps
 types 10 into the box, and nothing about the document or the animation
 changes with it. **Page Up** and **Page Down** make the same two skips from
-the keyboard, wherever the focus is; they are the Time menu's items, which is
-what gives a shortcut that reach. A skip never leaves the animation range.
+the keyboard, wherever the focus is except a text field, where they stay the
+text field's. The application reads them before the GUI pass, so a focused
+tree does not scroll on them instead. A skip never leaves the animation range.
 
 **Space** starts the animation and stops it again, the one shortcut that is a
 key on its own. A key without a modifier is also a character, so Space belongs

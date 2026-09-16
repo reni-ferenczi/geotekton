@@ -644,8 +644,7 @@ camera stands. Everything on it works on both views.
 |---------|--------------|
 | Projection | The globe, or the map in one of five projections |
 | Zoom out, zoom in | One step of the zoom, which is a factor of 1.2 |
-| Zoom | The zoom as a percentage, 100% being the whole planet in view |
-| Zoom reset | Back to 100% |
+| Zoom | The zoom as a percentage, 100% being the whole planet in view, which is also as far out as zooming goes |
 | Latitude, longitude | The place the view is centred on |
 | Turn anticlockwise, turn clockwise | Fifteen degrees of the view's own rotation |
 | Camera reset | The middle of the planet, the right way up |
