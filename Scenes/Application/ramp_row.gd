@@ -1,5 +1,5 @@
 class_name RampRow
-extends HBoxContainer
+extends HFlowContainer
 
 # The custom palette's colours and the span between two of them: one picker per
 # colour, a + that adds another and a − on every colour past the second, with
@@ -52,6 +52,8 @@ func _init(max_span: float, span_suffix: String = "") -> void:
 	span_spin.step = 1
 	span_spin.suffix = span_suffix
 	# The box keeps its own height beside the first line when the stops wrap.
+	# The row is a flow as well, so a panel too narrow for the stops and the box
+	# side by side puts the box on a line of its own.
 	span_spin.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	span_spin.tooltip_text = SPAN_TOOLTIP % ("" if not span_suffix.is_empty() else ", in My,")
 	span_spin.value_changed.connect(func(_value: float) -> void: committed.emit())
