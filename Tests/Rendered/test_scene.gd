@@ -14,16 +14,23 @@ const BACKDROP := "res://Tests/Data/Backdrops/quarters.png"
 const CORNER := Vector2(3.0, 3.0)
 const CORNER_PATCH := 120
 
+# A saturated blue and a mid grey, the backgrounds the stars are checked on.
+const BACKGROUNDS: Array[Color] = [Color(0.1, 0.2, 0.8), Color(0.5, 0.5, 0.5)]
 
+
+# The star field is added onto the background, so the colour shows between the
+# stars. The corner is read as the median of a patch rather than one pixel, so
+# a star landing on the probe does not decide the answer.
 func test_the_background_colour_reaches_the_corner_of_the_view() -> void:
 	await load_sample("triangle.middle-earth")
-	await use_settings({"star_field": false})
-	assert_close(await probe(corner()), Color.BLACK, 0.02, "the default background")
+	await use_settings({"star_field": true})
+	assert_close(await corner_colour(), Color.BLACK, 0.02, "the default background")
 
-	await use_settings({"background_color": Color(0.2, 0.0, 0.4)})
-	assert_close(await probe(corner()), Color(0.2, 0.0, 0.4), 0.02,
-		"the colour the document asks for")
-	await use_settings({"background_color": ViewSettings.DEFAULT_BACKGROUND, "star_field": true})
+	for colour: Color in BACKGROUNDS:
+		await use_settings({"background_color": colour})
+		assert_close(await corner_colour(), colour, 0.02,
+			"the colour the document asks for, behind the stars")
+	await use_settings({"background_color": ViewSettings.DEFAULT_BACKGROUND})
 
 
 # A star is one bright pixel on a dark ground, so what is counted is how many of
@@ -37,6 +44,19 @@ func test_the_star_field_can_be_turned_off() -> void:
 	assert_true(with_stars > 20, "the star field puts stars in the corner: %d" % with_stars)
 	assert_eq(without, 0, "and turning it off takes every one away")
 	await use_settings({"star_field": true})
+
+
+# The stars add their light to the background rather than replacing it, so they
+# still stand out on a colour. On a light one the same star is a smaller step
+# up, so the margin it has to clear is smaller too.
+func test_the_stars_show_on_a_coloured_background() -> void:
+	await load_sample("triangle.middle-earth")
+	await use_settings({"star_field": true})
+	for colour: Color in BACKGROUNDS:
+		await use_settings({"background_color": colour})
+		var stars := await count_bright_pixels(colour, 0.05)
+		assert_true(stars > 20, "stars show on %s: %d" % [colour, stars])
+	await use_settings({"background_color": ViewSettings.DEFAULT_BACKGROUND})
 
 
 # The graticule is drawn in the colour the document asks for, on multiples of
@@ -224,17 +244,36 @@ func count_differing(a: Image, b: Image) -> int:
 	return count
 
 
-# How many pixels of a patch of background are brighter than the empty sky, in
-# the corner of the view where no part of the planet reaches.
-func count_bright_pixels() -> int:
+# How many pixels of a patch of background are brighter than the empty sky by
+# more than a margin, in the corner of the view where no part of the planet
+# reaches.
+func count_bright_pixels(sky := Color.BLACK, margin := 0.1) -> int:
 	var image := await capture()
 	var origin := corner()
 	var count := 0
 	for x in range(int(origin.x), int(origin.x) + CORNER_PATCH):
 		for y in range(int(origin.y), int(origin.y) + CORNER_PATCH):
-			if image.get_pixel(x, y).get_luminance() > 0.1:
+			if image.get_pixel(x, y).get_luminance() > sky.get_luminance() + margin:
 				count += 1
 	return count
+
+
+# The colour most of the corner patch has: the median of each channel.
+func corner_colour() -> Color:
+	var image := await capture()
+	var origin := corner()
+	var channels: Array[PackedFloat32Array] = [
+		PackedFloat32Array(), PackedFloat32Array(), PackedFloat32Array()]
+	for x in range(int(origin.x), int(origin.x) + CORNER_PATCH):
+		for y in range(int(origin.y), int(origin.y) + CORNER_PATCH):
+			var pixel := image.get_pixel(x, y)
+			channels[0].append(pixel.r)
+			channels[1].append(pixel.g)
+			channels[2].append(pixel.b)
+	for channel in channels:
+		channel.sort()
+	var middle := channels[0].size() / 2
+	return Color(channels[0][middle], channels[1][middle], channels[2][middle])
 
 
 # Press at one window pixel, move to another and release, which is what the
