@@ -106,6 +106,15 @@ var axis: Vector2 = DEFAULT_AXIS
 var radius: float = DEFAULT_RADIUS
 var circle_segments: int = Circle.DEFAULT_SEGMENTS
 
+# What a Hotspot feature is built from: where the hotspot is, as (latitude,
+# longitude) in degrees in the world frame, the uuid of the feature it burns
+# through, empty for none, and how many million years apart the track is
+# sampled. No other type reads them; Hotspot.rebuild() makes the rings.
+const DEFAULT_TRACK_STEP := 5.0
+var hotspot := Vector2.ZERO
+var plate_uuid := ""
+var track_step: float = DEFAULT_TRACK_STEP
+
 # Triangles covering the polygon rings, 3 vertices each, wound so that they face
 # outwards. Derived from rings by rebuild_triangles(), never read from a file.
 var triangles := PackedVector2Array()
@@ -213,8 +222,9 @@ func has_geometry() -> bool:
 # Whether the feature holds vertices someone can take hold of. A topology holds
 # geometry but borrows every vertex of it from the features its sections run
 # along, so there is nothing there to drag, insert, delete or split.
+# A hotspot's rings are rebuilt from its parameters, so it has none either.
 func has_own_vertices() -> bool:
-	return has_geometry() and geometry_kind != GeometryKind.TOPOLOGY
+	return has_geometry() and geometry_kind != GeometryKind.TOPOLOGY and not is_hotspot()
 
 
 # Whether anything under this node can be drawn, the node itself included. A
@@ -294,6 +304,10 @@ func rebuild_polar_circles() -> void:
 	rebuild_triangles()
 
 
+func is_hotspot() -> bool:
+	return not is_group and feature_type == FeatureType.HOTSPOT
+
+
 ### Clone (preserves pnid) and Duplicate (new pnid)
 
 
@@ -322,6 +336,9 @@ func clone() -> Feature:
 	node.axis = axis
 	node.radius = radius
 	node.circle_segments = circle_segments
+	node.hotspot = hotspot
+	node.plate_uuid = plate_uuid
+	node.track_step = track_step
 	for child in children:
 		node.children.append(child.clone())
 	return node
@@ -448,6 +465,10 @@ func to_json() -> Variant:
 			data["axis"] = [axis.x, axis.y]
 			data["radius"] = radius
 			data["circle_segments"] = circle_segments
+		if is_hotspot():
+			data["hotspot"] = [hotspot.x, hotspot.y]
+			data["plate"] = plate_uuid
+			data["track_step"] = track_step
 	return data
 
 
@@ -488,7 +509,13 @@ static func from_json(data: Variant) -> Feature:
 		node.axis = Vector2(a[0], a[1])
 		node.radius = float(data.get("radius", DEFAULT_RADIUS))
 		node.circle_segments = int(data.get("circle_segments", Circle.DEFAULT_SEGMENTS))
-		# The parameters win over the rings the file holds.
+		var h: Array = data.get("hotspot", [0.0, 0.0])
+		node.hotspot = Vector2(h[0], h[1])
+		node.plate_uuid = str(data.get("plate", ""))
+		node.track_step = float(data.get("track_step", DEFAULT_TRACK_STEP))
+		# The parameters win over the rings the file holds. A hotspot's track
+		# needs the whole tree, so Hotspot.rebuild_all() redoes it before the
+		# geometry is collected.
 		if node.is_polar_circles():
 			node.rebuild_polar_circles()
 	return node

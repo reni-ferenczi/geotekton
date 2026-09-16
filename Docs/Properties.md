@@ -14,6 +14,7 @@ catalog lists only what the program treats differently:
 | `circle`        | Circle        | polyline, polygon | dark turquoise |
 | `topology`      | Topology      | topology          | medium purple  |
 | `polar_circles` | Polar circles | polyline          | spring green   |
+| `hotspot`       | Hotspot       | polyline          | orange red     |
 
 The colors in the table are the ones the catalog comes with. The Feature colors
 section of the [Preferences](Shell.md#preferences) dialog can put another color
@@ -31,18 +32,19 @@ does.
 
 A new feature is a Polygon. The Type selector of the Properties panel is the one
 place the type is picked, and on a feature holding nothing it takes any of the
-six, because the type is what the tools then draw: Polygon a polygon, Line a
+seven, because the type is what the tools then draw: Polygon a polygon, Line a
 polyline, Points a multipoint, Circle a closed polyline through the
 [Circle tool](Editing.md#the-circle-tool) and Topology a boundary built with the
-[Topology tool](Editing.md#line-topologies). Polar circles need no tool:
-picking the type builds their two circles at once, so the feature is never
-empty; see [Polar circles](Editing.md#polar-circles).
+[Topology tool](Editing.md#line-topologies). Polar circles and Hotspot need
+no tool: picking the type builds their rings at once, so the feature is never
+empty; see [Polar circles](Editing.md#polar-circles) and
+[Hotspots](Editing.md#hotspots).
 
 Once a feature holds a shape, its type has to hold that shape's kind. A polygon
 is a Polygon or a Circle, a polyline a Line or a Circle, a multipoint Points and
-a line topology a Topology; anything else is refused. Polar circles are
-picked on an empty feature only, since they replace whatever rings the feature
-holds. A type the feature carries
+a line topology a Topology; anything else is refused. Polar circles and
+Hotspot are picked on an empty feature only, since they replace whatever rings
+the feature holds, and Hotspot only on one without keyframes or couplings. A type the feature carries
 that does not hold its kind, or that the catalog does not know, gives way to the
 kind's own, so a hand-written file cannot make a polyline a Polygon.
 
@@ -53,12 +55,14 @@ does through an undo that takes the geometry off again.
 
 ### What the type restricts
 
-- **Which type can be picked.** Any of the six on a feature holding nothing;
+- **Which type can be picked.** Any of the seven on a feature holding nothing;
   once it holds a shape, only one that holds that kind, and never Polar
-  circles.
+  circles or Hotspot.
 - **Which tool draws the feature.** Draw for a Polygon, a Line and Points,
-  Circle for a Circle and Topology for a Topology. Polar circles are drawn by
-  none of them, and the Vertex tool is greyed out on them. The other buttons are
+  Circle for a Circle and Topology for a Topology. Polar circles and Hotspot are
+  drawn by none of them, and the Vertex tool is greyed out on them. A hotspot
+  greys out the Rotate and Pole tools as well, and the Move tool does not drag
+  it. The other buttons are
   greyed out, and picking a type arms the tool it calls for; see
   [Tools](Editing.md#tools).
 - **The color.** A new feature starts in the Polygon color, chocolate unless
@@ -141,6 +145,10 @@ follows the feature tree selection, through
 | Radius (°) | Number             | no, Polar circles only |
 | Segments   | Number             | no, Polar circles only |
 | Pick axis  | Button             | no, Polar circles only |
+| Latitude, Longitude | Number        | no, Hotspot only |
+| Pick       | Button             | no, Hotspot only |
+| Plate      | Selector           | no, Hotspot only |
+| Step (My)  | Number             | no, Hotspot only |
 | Keyframes  | Count, Key, Delete | no         |
 | Coupled to | Parent, Decouple   | no         |
 | Ride on    | Picker, Couple, pointer | no    |
@@ -248,6 +256,21 @@ is cut into, 3 to 720. **Pick axis** arms a one click pick on the planet; see
 is one undo version. The automation port's `set_property` drives the rows as
 `axis` (a latitude and longitude pair), `radius` and `circle_segments`, and
 `get_properties` reports them under `polar_circles`.
+
+### The hotspot rows
+
+A hotspot shows five more rows under Geometry instead of the keyframe and
+coupling rows: the latitude and longitude of the hotspot in the world frame,
+**Pick**, which arms a one click pick on the planet (see
+[Hotspots](Editing.md#hotspots)), the Plate selector and the track step in
+millions of years, 0.1 to 100. The Plate selector lists None first and then,
+in tree order, every leaf feature holding vertices of its own. Each edit
+rebuilds the rings and is one undo version, and the Geometry row follows the
+track's vertex count as the time moves. The automation port's `set_property`
+drives the rows as `hotspot` (a latitude and longitude pair), `plate` (a title
+the selector shows, or `None`) and `track_step`, and `get_properties` reports
+them under `hotspot` with the `plates` offered and the number of track
+`samples` at the current time.
 
 ### The keyframe row
 

@@ -26,7 +26,7 @@ The View menu carries one check item per class of geometry:
 | Class | What is in it |
 | ----- | ------------- |
 | Polygons | A feature holding polygon rings |
-| Polylines | A feature holding polyline rings |
+| Polylines | A feature holding polyline rings, hotspots included |
 | Points | A multipoint |
 | Circles | A feature whose type is `circle`, whatever geometry it holds |
 | Topologies | A [line topology](Editing.md#line-topologies) |
@@ -60,7 +60,7 @@ show again.
 | Feature colour | The colour the feature itself carries, which is what the Properties panel edits |
 | Single colour | One colour for everything under the group, the `color` of its style |
 | Feature age | The palette, read at the feature's age |
-| Feature type | The color of the feature's [type](Properties.md#the-type-catalog): one each for polygons, lines, points, circles, topologies and polar circles, as the catalog has them or as the Preferences dialog changed them. A change made there repaints these features as soon as the dialog is confirmed |
+| Feature type | The color of the feature's [type](Properties.md#the-type-catalog): one each for polygons, lines, points, circles, topologies, polar circles and hotspots, as the catalog has them or as the Preferences dialog changed them. A change made there repaints these features as soon as the dialog is confirmed |
 
 **Feature colour** is what every document is drawn in until someone picks
 another, and it is what every version before 0.7.0 drew. It stands in for the

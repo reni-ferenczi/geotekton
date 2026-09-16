@@ -308,9 +308,9 @@ def worst_offset(ring: list[list[float]], points: list[tuple[float, float]]) -> 
     )
 
 
-# The five feature types in the order the selector offers them, and the one
+# The seven feature types in the order the selector offers them, and the one
 # each drawn kind gives, as Logic/feature_type.gd has them.
-FEATURE_TYPES = ["polygon", "line", "points", "circle", "topology", "polar_circles"]
+FEATURE_TYPES = ["polygon", "line", "points", "circle", "topology", "polar_circles", "hotspot"]
 KIND_TYPES = {"polygon": "polygon", "polyline": "line", "multipoint": "points"}
 
 
@@ -566,7 +566,7 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["showing"] == "feature", f"selecting a feature fills the panel: {panel['showing']}")
     check(panel["name"] == "Red Triangle", f"with its name: {panel['name']}")
     check(panel["feature_type"] == "polygon", f"its type: {panel['feature_type']}")
-    check(panel["types"] == FEATURE_TYPES, f"the type selector offers the six: {panel['types']}")
+    check(panel["types"] == FEATURE_TYPES, f"the type selector offers the seven: {panel['types']}")
     check(panel["color"][:3] == [1.0, 0.0, 0.0], f"its colour: {panel['color']}")
     check(panel["enabled"] is True, "its enabled flag")
     check(panel["time_range"] == [0, 2000], f"its time range: {panel['time_range']}")
@@ -1095,9 +1095,8 @@ def run_colour_session(client: AutomationClient) -> None:
 
 
 # The default colour of each feature type, in the order Logic/feature_type.gd
-# lists them: chocolate, crimson, gold, dark turquoise, medium purple and spring
-# green. Every
-# picker starts with these as its presets.
+# lists them: chocolate, crimson, gold, dark turquoise, medium purple, spring
+# green and orange red. Every picker starts with these as its presets.
 TYPE_COLORS = [
     (0.824, 0.412, 0.118),
     (0.863, 0.078, 0.235),
@@ -1105,6 +1104,7 @@ TYPE_COLORS = [
     (0.0, 0.808, 0.820),
     (0.576, 0.439, 0.859),
     (0.0, 1.0, 0.498),
+    (1.0, 0.271, 0.0),
 ]
 
 
@@ -1130,7 +1130,7 @@ def run_color_picker_checks(client: AutomationClient) -> None:
     panel = client.call("get_properties")["properties"]
     check(panel["color_picker_open"], "and opens the picker of the Colour row")
     offered = presets(client)
-    check(offered[:6] == TYPE_COLORS, f"which offers the six type colours: {offered}")
+    check(offered[:7] == TYPE_COLORS, f"which offers the seven type colours: {offered}")
 
     client.call("key", key="Escape")
     check(not client.call("get_properties")["properties"]["color_picker_open"],
@@ -1911,6 +1911,174 @@ def run_polar_circles_session(client: AutomationClient) -> None:
     check(feature["feature_type"] == "line", f"a drawn line stays a line: {feature['feature_type']}")
     check("polar_circles" not in client.call("get_properties")["properties"],
           "and shows no polar circle rows")
+
+
+### The Hotspot scenario
+
+# The plate: a polygon around the middle of the default view, which a drag at
+# the present moves HOTSPOT_SHIFT degrees east of where it was at HOTSPOT_AGE.
+HOTSPOT_PLATE = [(-20.0, -25.0), (-20.0, 25.0), (20.0, 25.0), (20.0, -25.0)]
+HOTSPOT_AGE = 30.0
+HOTSPOT_SHIFT = 15.0
+# Where the new hotspot is put first, off the plate and off the grid lines, and
+# where the Pick click lands, on the moved plate.
+HOTSPOT_FIRST = (-32.0, 37.0)
+HOTSPOT_PICK = (4.0, 21.0)
+
+
+def hotspot_rows(client: AutomationClient) -> dict:
+    return client.call("get_properties")["properties"]["hotspot"]
+
+
+def run_hotspot_session(client: AutomationClient) -> None:
+    """A hotspot: typed on an empty feature, picked onto a plate, stepped in time."""
+    start_new_document(client)
+    client.call("set_tool", tool="move", snap=False)
+    # A feature added now exists from the age the timeline shows.
+    client.call("set_time", time=HOTSPOT_AGE)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Plate")
+    client.call("set_property", field="feature_type", value="polygon")
+    client.call("set_tool", tool="draw")
+    if not draw(client, HOTSPOT_PLATE):
+        return
+    client.call("key", key="Enter")
+    # Held where it is at HOTSPOT_AGE, then dragged east at the present.
+    client.call("set_tool", tool="move")
+    client.call("keyframes", button="Key")
+    client.call("set_time", time=0.0)
+    if not drag(client, 0.0, HOTSPOT_SHIFT):
+        return
+    plate = client.call("get_selected")["feature"]
+    check(len(plate["keyframes"]) == 2, f"the plate moves: {plate['keyframes']}")
+
+    client.call("select", title=None)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Hotspot")
+    depth = undo_depth(client)
+    client.call("set_property", field="feature_type", value="hotspot")
+    check(undo_depth(client) == depth + 1, "picking the type is one version")
+    feature = client.call("get_selected")["feature"]
+    check(feature["feature_type"] == "hotspot" and feature["geometry_kind"] == "polyline",
+          f"the feature is a hotspot drawn as polylines: {feature['feature_type']}")
+    check(len(feature["rings"]) == 1, f"with no plate it holds the mark alone: {len(feature['rings'])}")
+    panel = client.call("get_properties")["properties"]
+    rows = panel.get("hotspot")
+    if not check(rows is not None, f"the panel shows the hotspot rows: {sorted(panel)}"):
+        return
+    check(rows["plate"] == "None" and rows["plates"] == ["None", "Plate"] and rows["samples"] == 0,
+          f"on no plate, offering the drawn one: {rows}")
+    check("keyframes" not in panel and "coupling" not in panel,
+          "and no keyframe or coupling rows")
+
+    # The mark is drawn in the type's colour, around where the hotspot is.
+    client.call("set_property", field="hotspot", value=list(HOTSPOT_FIRST))
+    feature = client.call("get_selected")["feature"]
+    mark = feature["rings"][0]
+    worst = max(abs(angular_distance(tuple(v), HOTSPOT_FIRST) - 1.0) for v in mark)
+    check(mark[0] == mark[-1] and worst < CIRCLE_TOLERANCE,
+          f"the mark is a closed ring a degree around the hotspot, within {worst:.4f}")
+    client.call("select", title=None)
+    pixel = probe_at(client, *mark[3])
+    check(is_colour(pixel, list(TYPE_COLORS[6])), f"the mark is drawn in orange red: {pixel}")
+    client.call("select", title="Hotspot")
+    client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+
+    run_hotspot_refusals(client)
+
+    # Pick arms the Pole tool with its cross on the hotspot; Escape gives it up.
+    client.call("set_property", field="time_from", value=HOTSPOT_AGE)
+    client.call("properties", button="PickHotspot")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "pole" and tool["picking_hotspot"],
+          f"Pick arms the Pole tool: {tool['tool']}")
+    check(tool["pole"] is not None and angular_distance(tuple(tool["pole"]), HOTSPOT_FIRST) < 0.01,
+          f"with the cross on the hotspot: {tool['pole']}")
+    client.call("key", key="Escape")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "move" and not tool["picking_hotspot"], "Escape gives the pick up")
+
+    # A click on the plate puts the hotspot there and makes it the plate.
+    client.call("properties", button="PickHotspot")
+    depth = undo_depth(client)
+    if not click_at(client, HOTSPOT_PICK):
+        return
+    tool = client.call("get_tool")
+    check(tool["tool"] == "move" and not tool["picking_hotspot"],
+          f"the click ends the pick: {tool['tool']}")
+    check(undo_depth(client) == depth + 1, "the pick is one version")
+    rows = hotspot_rows(client)
+    check(angular_distance(tuple(rows["position"]), HOTSPOT_PICK) < CIRCLE_TOLERANCE,
+          f"the hotspot is where the click landed: {rows['position']}")
+    check(rows["plate"] == "Plate", f"on the plate under the click: {rows['plate']}")
+    check(rows["samples"] == 7, f"30 My in steps of 5 are 7 samples: {rows['samples']}")
+    feature = client.call("get_selected")["feature"]
+    if check(len(feature["world_rings"]) == 2, "the track is drawn beside the mark"):
+        track = feature["world_rings"][1]
+        check(len(track) == 7, f"with a vertex per sample: {len(track)}")
+        shift = angular_distance(tuple(track[0]), HOTSPOT_PICK)
+        check(abs(shift - HOTSPOT_SHIFT) < 0.5,
+              f"the oldest {shift:.2f} degrees away, as far as the plate moved")
+
+    # Stepping the time changes how many vertices the track has.
+    client.call("set_time", time=10.0)
+    feature = client.call("get_selected")["feature"]
+    counts = [len(ring) for ring in feature["world_rings"]]
+    check(counts[1:] == [5], f"at 10 Ma the track has 5 vertices: {counts}")
+    check(hotspot_rows(client)["samples"] == 5, "and the panel counts 5 samples")
+    client.call("set_time", time=HOTSPOT_AGE)
+    feature = client.call("get_selected")["feature"]
+    check(len(feature["world_rings"]) == 1, "at the oldest age there is only the mark")
+    client.call("set_time", time=0.0)
+
+    depth = undo_depth(client)
+    client.call("set_property", field="track_step", value=10.0)
+    check(undo_depth(client) == depth + 1, "a new step is one version")
+    check(hotspot_rows(client)["samples"] == 4, "and samples every 10 My")
+    client.call("set_property", field="plate", value="None")
+    rows = hotspot_rows(client)
+    check(rows["plate"] == "None" and rows["samples"] == 0, f"with no plate no track: {rows}")
+    client.call("menu", item="undo")
+    check(hotspot_rows(client)["plate"] == "Plate", "undo puts the plate back")
+
+    # A feature holding a shape does not become a hotspot.
+    client.call("select", title="Plate")
+    client.call("set_property", field="feature_type", value="hotspot")
+    dialog = client.call("get_dialog")["dialog"]
+    if check(dialog is not None and "empty feature" in dialog["text"],
+             f"the refusal says why: {dialog}"):
+        client.call("dialog", button="OK")
+    check(client.call("get_selected")["feature"]["feature_type"] == "polygon",
+          "the plate stays a polygon")
+
+
+def run_hotspot_refusals(client: AutomationClient) -> None:
+    """The tools that would move or edit the selected hotspot are refused."""
+    tool = client.call("get_tool")
+    check(tool["tool"] == "move" and not tool["move_enabled"],
+          f"Move stays armed but drags nothing: {tool['tool']}")
+    check(not tool["vertex_enabled"], "the Vertex tool is not offered")
+    for name in ("vertex", "rotate", "pole"):
+        check(refusal(client, "set_tool", tool=name) != "", f"the {name} tool is refused")
+    before = client.call("get_selected")["feature"]
+    grab = client.call("latlon_to_screen", lat=HOTSPOT_FIRST[0] + 1.0, lon=HOTSPOT_FIRST[1])["screen"]
+    if check(grab is not None, "the mark is on screen"):
+        client.call("press", x=grab[0], y=grab[1])
+        client.call("mouse_move", x=grab[0] + 40, y=grab[1] + 40)
+        client.call("release", x=grab[0] + 40, y=grab[1] + 40)
+    after = client.call("get_selected")["feature"]
+    check(after["keyframes"] == [] and after["world_rings"] == before["world_rings"],
+          "a drag leaves the hotspot where it is")
+
+    client.call("select", title="Plate")
+    client.call("menu", item="copy_shape")
+    client.call("select", title="Hotspot")
+    depth = undo_depth(client)
+    client.call("menu", item="paste_shape")
+    status = client.call("get_status")["status"]["measure"]
+    check("hotspot" in status and undo_depth(client) == depth,
+          f"Paste Shape is refused: {status!r}")
+    client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
 
 ### The Topology scenario
@@ -4535,6 +4703,7 @@ def main(argv: list[str]) -> int:
         run_rotate_session(client)
         run_circle_session(client)
         run_polar_circles_session(client)
+        run_hotspot_session(client)
         run_topology_session(client)
         run_kinematics_session(client)
         run_python_session(client)

@@ -352,7 +352,8 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 # tested straight away; resolve() again to move it to another time.
 #
 # A topology borrows its vertices from other features, so it is resolved for the
-# time first and then flattened like the polyline it is drawn as.
+# time first and then flattened like the polyline it is drawn as. A hotspot's
+# track follows its plate, so it is rebuilt for the time the same way.
 #
 # The styling says which classes of geometry are drawn at all and what colour a
 # feature comes out; without one every feature is drawn in the colour it carries,
@@ -361,6 +362,7 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 static func collect_geometry(root: Feature, time: float = 0.0,
 		styling: Styling = null) -> Geometry:
 	Topology.rebuild_all(root, time)
+	Hotspot.rebuild_all(root, time)
 	var geometry := Geometry.new()
 	geometry.nodes = Coupling.index(root)
 	var stack: Array[Feature] = [root]
