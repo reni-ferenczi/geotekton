@@ -2,7 +2,7 @@
 
 [ext_resource type="Shader" uid="uid://diyn5fhv3xlpq" path="res://Scenes/Planet/planet.gdshader" id="1_4ilve"]
 [ext_resource type="Script" uid="uid://dvlkwdhf7so0a" path="res://Scenes/Planet/planet.gd" id="1_wwls2"]
-[ext_resource type="Shader" path="res://Scenes/Planet/starfield.gdshader" id="3_4ilve"]
+[ext_resource type="Shader" uid="uid://dgeo0ufvx2fpe" path="res://Scenes/Planet/starfield.gdshader" id="3_4ilve"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_510pn"]
 radial_segments = 128
