@@ -52,12 +52,18 @@ selected feature.
 
 | Input | Action |
 |-------|--------|
-| **LMB** | Place the next vertex on the globe surface |
+| **LMB** | Place the next vertex on the globe surface, on a nearby vertex of a shown feature when Snap is on |
+| **Shift+LMB** | With Snap on, when the last point sits on a vertex of the same ring: add the vertices along the ring up to the clicked one |
+| **Ctrl+Shift+V** | Paste Shape: add the vertices of the copied shape to the drawing |
 | **RMB** or **Ctrl+Z** | Take the last placed vertex back |
 | **Ctrl+Y** | Put the last vertex taken back down again |
 | **Enter** | Commit the vertices to the feature |
 | **Escape** | Cancel the current outline, discard all placed vertices |
 | **MMB** | Planet rotation (always available, unchanged) |
+
+Snapping, tracing along a ring and pasting a shape are described in
+[Snapping](Editing.md#snapping) and [Copying a shape](Editing.md#copying-a-shape).
+Each of them only adds held points, so Enter still decides what is committed.
 
 ### Visual Feedback
 

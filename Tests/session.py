@@ -2862,6 +2862,107 @@ def run_snap_session(client: AutomationClient) -> None:
           f"with snapping off it stays where it was dropped: {landed}")
 
 
+# Two shapes for the Draw tool to take vertices from, apart from each other
+# and from the free points, so a click near one vertex snaps to that one only.
+DRAW_TRIANGLE = [(-8.0, -30.0), (8.0, -30.0), (0.0, -16.0)]
+DRAW_HEXAGON = [(0.0, 26.0), (7.0, 22.0), (7.0, 14.0), (0.0, 10.0), (-7.0, 14.0), (-7.0, 22.0)]
+DRAW_FREE = [(20.0, -5.0), (24.0, 5.0)]
+
+
+def screen_of(client: AutomationClient, at) -> list[float] | None:
+    """The window pixel of a latitude and longitude, None round the back."""
+    return client.call("latlon_to_screen", lat=at[0], lon=at[1])["screen"]
+
+
+def click_near(client: AutomationClient, at, pixels: float = 0.0, shift: bool = False) -> None:
+    """Click the given number of pixels to the right of a point of the globe."""
+    screen = screen_of(client, at)
+    client.call("click", x=screen[0] + pixels, y=screen[1], shift=shift)
+
+
+def add_drawn(client: AutomationClient, name: str, points) -> list[list[float]]:
+    """Add a feature, draw a polygon with Snap off and return its world ring."""
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value=name)
+    client.call("set_tool", tool="draw", snap=False)
+    draw(client, points)
+    client.call("key", key="Enter")
+    return client.call("get_selected")["feature"]["world_rings"][0]
+
+
+def commit_drawing(client: AutomationClient) -> list[list[float]]:
+    """Enter, and the world ring the drawing became."""
+    client.call("key", key="Enter")
+    return client.call("get_selected")["feature"]["world_rings"][0]
+
+
+def run_draw_from_geometry_session(client: AutomationClient) -> None:
+    """The Draw tool snaps, takes a pasted shape and traces along a ring."""
+    start_new_document(client)
+    if not all(screen_of(client, at) is not None
+               for at in DRAW_TRIANGLE + DRAW_HEXAGON + DRAW_FREE):
+        check(False, "every point of the drawing session is on the visible hemisphere")
+        return
+    triangle = add_drawn(client, "Triangle", DRAW_TRIANGLE)
+    hexagon = add_drawn(client, "Hexagon", DRAW_HEXAGON)
+
+    # A click 5 px off a vertex lands on it.
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", snap=True)
+    click_near(client, triangle[0], 5.0)
+    draw(client, DRAW_FREE)
+    ring = commit_drawing(client)
+    check(worst_offset([ring[0]], [tuple(triangle[0])]) < 1e-9,
+          f"a snapped point commits on the vertex: {ring[0]} wanted {triangle[0]}")
+    check(worst_offset(ring[1:], DRAW_FREE) < CLICK_TOLERANCE,
+          f"and the free points where they were clicked: {ring[1:]}")
+
+    # Paste Shape while drawing gives held points, not an edit.
+    client.call("select", title="Triangle")
+    client.call("menu", item="copy_shape")
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw")
+    reply = client.call("menu", item="paste_shape")
+    check(reply["ok"], f"Paste Shape is offered while drawing: {reply}")
+    check(client.call("get_tool")["drawing_vertices"] == 3,
+          "the pasted triangle is three held points")
+    check(client.call("get_selected")["feature"]["rings"] == [],
+          "and nothing is in the feature before Enter")
+    ring = commit_drawing(client)
+    feature = client.call("get_selected")["feature"]
+    check(feature["geometry_kind"] == "polygon" and worst_offset(ring, triangle) < 1e-9,
+          f"Enter commits a polygon equal to the triangle: {ring}")
+
+    # Shift+click traces the shorter way along the hexagon.
+    client.call("toolbar", button="AddFeature")
+    client.call("set_tool", tool="draw", snap=True)
+    for last, wanted in ((2, [0, 1, 2]), (4, [0, 5, 4])):
+        click_near(client, hexagon[0])
+        click_near(client, hexagon[last], shift=True)
+        tool = client.call("get_tool")
+        check(tool["drawing_vertices"] == 3,
+              f"Shift+click on vertex {last} holds three points: {tool['drawing_vertices']}")
+        if last == 2:
+            ring = commit_drawing(client)
+            check(worst_offset(ring, [tuple(hexagon[i]) for i in wanted]) < 1e-9,
+                  f"the traced points are vertices {wanted}: {ring}")
+            client.call("toolbar", button="AddFeature")
+            client.call("set_tool", tool="draw")
+        else:
+            client.call("key", key="Escape")
+
+    # With Snap off Shift+click is a plain click.
+    client.call("set_tool", tool="draw", snap=False)
+    click_near(client, hexagon[0], 5.0)
+    click_near(client, hexagon[2], 5.0, shift=True)
+    check(client.call("get_tool")["drawing_vertices"] == 2,
+          "with Snap off Shift+click places one point")
+    click_near(client, DRAW_FREE[0])
+    ring = commit_drawing(client)
+    check(all(worst_offset([ring[i]], [tuple(hexagon[v])]) > 1e-3 for i, v in ((0, 0), (1, 2))),
+          f"and neither point moved onto a vertex: {ring[:2]}")
+
+
 def run_measure_session(client: AutomationClient) -> None:
     """The Measure tool reports a distance in the status bar."""
     start_new_document(client)
@@ -3228,6 +3329,9 @@ def run_copy_shape_session(client: AutomationClient) -> None:
     client.call("toolbar", button="AddFeature")
     client.call("set_property", field="name", value="Traced Quad")
     client.call("set_property", field="color", value=TRACE_COLOUR)
+    # The empty feature armed the Draw tool, which would take the shape as
+    # points to draw; the paste into the feature itself is made from Move.
+    client.call("set_tool", tool="move")
     depth = undo_depth(client)
 
     client.call("menu", item="paste_shape")
@@ -4295,6 +4399,7 @@ def main(argv: list[str]) -> int:
         run_vertex_session(client)
         run_vertex_delete_checks(client)
         run_snap_session(client)
+        run_draw_from_geometry_session(client)
         run_measure_session(client)
         run_split_session(client)
         run_split_tool_session(client)

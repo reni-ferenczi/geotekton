@@ -1295,30 +1295,36 @@ func _click(request: Dictionary) -> Dictionary:
 		return {"ok": false, "error": "unknown button: %s" % button_name}
 	var button: int = BUTTONS[button_name]
 	var ctrl := bool(request.get("ctrl", false))
+	var shift := bool(request.get("shift", false))
 
 	await _move_mouse(_point(request))
 	if ctrl:
 		_send_key(KEY_CTRL, true, false, true)
+	if shift:
+		_send_key(KEY_SHIFT, ctrl, true, true)
 
-	_send_button(button, ctrl, true)
+	_send_button(button, ctrl, true, shift)
 	await _physics_frames(2)
-	_send_button(button, ctrl, false)
+	_send_button(button, ctrl, false, shift)
 	await _physics_frames(2)
 	# Selection on click is deferred, so give it process frames to land.
 	await _frames(2)
 
+	if shift:
+		_send_key(KEY_SHIFT, ctrl, false, false)
 	if ctrl:
 		_send_key(KEY_CTRL, false, false, false)
 	return {"ok": true}
 
 
-func _send_button(button: int, ctrl: bool, pressed: bool) -> void:
+func _send_button(button: int, ctrl: bool, pressed: bool, shift := false) -> void:
 	var event := InputEventMouseButton.new()
 	event.position = mouse_position
 	event.global_position = mouse_position
 	event.button_index = button
 	event.button_mask = (1 << (button - 1)) if pressed else 0
 	event.ctrl_pressed = ctrl
+	event.shift_pressed = shift
 	event.pressed = pressed
 	Input.parse_input_event(event)
 
