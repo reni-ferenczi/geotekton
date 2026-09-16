@@ -213,9 +213,15 @@ func set_style(group: Feature, style: GroupStyle) -> String:
 # polyline a Circle or taking that back. The colour follows the type as long as
 # it is still the one the old type gave it, so a colour someone picked is never
 # overwritten.
+#
+# Polar circles build their own rings, so they are picked on a feature holding
+# nothing, and the two circles are there as soon as the type is.
 func set_feature_type(feature: Feature, type_id: String) -> String:
 	if not FeatureType.CATALOG.has(type_id):
 		return "There is no feature type called %s." % type_id
+	var to_polar := type_id == FeatureType.POLAR_CIRCLES and not feature.is_polar_circles()
+	if to_polar and feature.has_geometry():
+		return "Polar circles build their own geometry, so they are picked on an empty feature."
 	if feature.has_geometry() and not FeatureType.allows(type_id, feature.kind_name()):
 		return "A %s cannot be a %s, which is %s." % [
 			feature.kind_name(), FeatureType.label(type_id),
@@ -223,6 +229,35 @@ func set_feature_type(feature: Feature, type_id: String) -> String:
 	if feature.color == FeatureType.color(feature.feature_type):
 		feature.color = FeatureType.color(type_id)
 	feature.feature_type = type_id
+	if to_polar:
+		feature.rebuild_polar_circles()
+	record()
+	return ""
+
+
+# The largest radius polar circles take. At 90 degrees the two circles meet on
+# the great circle between the poles; past it each would reach round the other.
+const MAX_POLAR_RADIUS := 90.0
+
+
+# Give polar circles another axis, radius or segment count and rebuild both
+# circles from them, in one undo version. The axis is in the feature's own
+# frame, as its rings are.
+func set_polar_circles(feature: Feature, axis: Vector2, radius: float, segments: int) -> String:
+	if feature == null or not feature.is_polar_circles():
+		return "Only polar circles have an axis and a radius."
+	var problem := check_coordinates(axis)
+	if not problem.is_empty():
+		return problem
+	if radius <= 0.0 or radius > MAX_POLAR_RADIUS:
+		return "The radius is %s°, outside 0° to %s°." % [radius, MAX_POLAR_RADIUS]
+	if segments < Circle.MIN_SEGMENTS or segments > Circle.MAX_SEGMENTS:
+		return "A circle takes %d to %d segments, not %d." % [
+			Circle.MIN_SEGMENTS, Circle.MAX_SEGMENTS, segments]
+	feature.axis = axis
+	feature.radius = radius
+	feature.circle_segments = segments
+	feature.rebuild_polar_circles()
 	record()
 	return ""
 
@@ -315,6 +350,8 @@ func paste_shape(feature: Feature, shape: Dictionary) -> String:
 	if shape.is_empty():
 		return "There is no shape to paste."
 
+	if feature.is_polar_circles():
+		return "Polar circles are built from their axis and radius, so a shape cannot be added to them."
 	var kind: Feature.GeometryKind = shape["kind"]
 	if feature.has_geometry():
 		if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
@@ -846,7 +883,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.17.0"):
+	if not _is_older_than(version, "0.18.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -878,7 +915,10 @@ static func migrate(data: Dictionary) -> Dictionary:
 		rename_view_keys(view)
 	if _is_older_than(version, "0.17.0"):
 		data["view"] = _to_0_17_0(view)
-	data["version"] = "0.17.0"
+	# 0.18.0 gave a leaf the axis, radius and segment count of polar circles.
+	# A leaf without them is not polar circles, so there is nothing to change
+	# but the version.
+	data["version"] = "0.18.0"
 	return data
 
 

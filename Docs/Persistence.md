@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "features": { ... },
   "view": { ... }
 }
@@ -235,6 +235,31 @@ holds one array of `[latitude, longitude]` vertices per part. A ring is closed
 only for a polygon, and several rings on one polygon are separate outlines
 rather than holes. The vertices are in the frame of the feature itself, before
 the rotation its keyframes give it at the current time is applied.
+
+#### Polar circles
+
+A leaf of type `polar_circles` also carries the three values its two circles
+are built from:
+
+```json
+"feature_type": "polar_circles",
+"axis": [90.0, 0.0],
+"radius": 23.0,
+"circle_segments": 36,
+"geometry_kind": "polyline",
+"rings": [[...], [...]]
+```
+
+`axis` is the latitude and longitude of the first pole, in the feature's own
+frame; the second pole is its antipode. `radius` is the radius of both circles
+in degrees and `circle_segments` how many segments each is cut into. The keys
+are optional and written only for this type, so a leaf without them is some
+other type. `rings` holds the two closed polylines as usual, for a reader that
+knows nothing about the type. On load the three values win:
+`Feature.from_json()` rebuilds the rings from them, and a missing value takes
+its default, `[90, 0]`, 23 and 36. See [Editing](Editing.md#polar-circles).
+
+#### Line topologies
 
 A **line topology** carries `sections` instead of `rings`, because its vertices
 are resolved from the features it runs along every time the tree or the current
@@ -491,6 +516,12 @@ planet color rather than over the Earth. The step is `Document._to_0_17_0()`.
 The preferences' `view_defaults` have no step. A block without `planet_color`
 takes the default, and one with an empty `raster_path` keeps it, so a new
 document has no raster.
+
+#### 0.17.0 to 0.18.0
+
+0.18.0 added `axis`, `radius` and `circle_segments` to a leaf feature, for
+[polar circles](#polar-circles). The step changes nothing but the version: a
+leaf without the keys is not polar circles, and no file before 0.18.0 holds one.
 
 ## The config file
 

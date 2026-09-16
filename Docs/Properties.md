@@ -6,13 +6,14 @@
 Middle Earth is a world building tool and does not carry the GPGIM over. The
 catalog lists only what the program treats differently:
 
-| Id         | Name     | Geometry kinds    | Default color  |
-| ---------- | -------- | ----------------- | -------------- |
-| `polygon`  | Polygon  | polygon           | chocolate      |
-| `line`     | Line     | polyline          | crimson        |
-| `points`   | Points   | multipoint        | gold           |
-| `circle`   | Circle   | polyline, polygon | dark turquoise |
-| `topology` | Topology | topology          | medium purple  |
+| Id              | Name          | Geometry kinds    | Default color  |
+| --------------- | ------------- | ----------------- | -------------- |
+| `polygon`       | Polygon       | polygon           | chocolate      |
+| `line`          | Line          | polyline          | crimson        |
+| `points`        | Points        | multipoint        | gold           |
+| `circle`        | Circle        | polyline, polygon | dark turquoise |
+| `topology`      | Topology      | topology          | medium purple  |
+| `polar_circles` | Polar circles | polyline          | spring green   |
 
 The first kind listed is the one the tools draw into an empty feature of the
 type. The kinds are written as the names the file uses, so the catalog needs nothing
@@ -23,14 +24,18 @@ does.
 
 A new feature is a Polygon. The Type selector of the Properties panel is the one
 place the type is picked, and on a feature holding nothing it takes any of the
-five, because the type is what the tools then draw: Polygon a polygon, Line a
+six, because the type is what the tools then draw: Polygon a polygon, Line a
 polyline, Points a multipoint, Circle a closed polyline through the
 [Circle tool](Editing.md#the-circle-tool) and Topology a boundary built with the
-[Topology tool](Editing.md#line-topologies).
+[Topology tool](Editing.md#line-topologies). Polar circles need no tool:
+picking the type builds their two circles at once, so the feature is never
+empty; see [Polar circles](Editing.md#polar-circles).
 
 Once a feature holds a shape, its type has to hold that shape's kind. A polygon
 is a Polygon or a Circle, a polyline a Line or a Circle, a multipoint Points and
-a line topology a Topology; anything else is refused. A type the feature carries
+a line topology a Topology; anything else is refused. Polar circles are
+picked on an empty feature only, since they replace whatever rings the feature
+holds. A type the feature carries
 that does not hold its kind, or that the catalog does not know, gives way to the
 kind's own, so a hand-written file cannot make a polyline a Polygon.
 
@@ -41,17 +46,19 @@ does through an undo that takes the geometry off again.
 
 ### What the type restricts
 
-- **Which type can be picked.** Any of the five on a feature holding nothing;
-  once it holds a shape, only one that holds that kind.
+- **Which type can be picked.** Any of the six on a feature holding nothing;
+  once it holds a shape, only one that holds that kind, and never Polar
+  circles.
 - **Which tool draws the feature.** Draw for a Polygon, a Line and Points,
-  Circle for a Circle and Topology for a Topology. The other two buttons are
+  Circle for a Circle and Topology for a Topology. Polar circles are drawn by
+  none of them, and the Vertex tool is greyed out on them. The other buttons are
   greyed out, and picking a type arms the tool it calls for; see
   [Tools](Editing.md#tools).
 - **The color.** A new feature starts in chocolate. Changing the type changes
   the color to the new type's default, but only while the color is still the
   one the old type gave. A color someone picked is never overwritten. Drawing
   the first shape leaves the color alone.
-- **The class.** A Circle is switched on and off with the circles in the View
+- **The class.** A Circle and Polar circles are switched on and off with the circles in the View
   menu rather than with the polygons or the polylines; see
   [Styling](Styling.md#the-visibility-switches).
 
@@ -122,6 +129,10 @@ follows the feature tree selection, through
 | From (Ma)  | Number             | no         |
 | To (Ma)    | Number             | no         |
 | Geometry   | Label              | no         |
+| Axis latitude, Axis longitude | Number | no, Polar circles only |
+| Radius (°) | Number             | no, Polar circles only |
+| Segments   | Number             | no, Polar circles only |
+| Pick axis  | Button             | no, Polar circles only |
 | Keyframes  | Count, Key, Delete | no         |
 | Coupled to | Parent, Decouple   | no         |
 | Ride on    | Picker, Couple, pointer | no    |
@@ -211,6 +222,17 @@ Every row is shown whatever the mode, since the opacity applies in all of them
 and a color or a palette picked ahead is kept for when the mode is switched.
 Each change is one edit and one undo version, and dragging the picker previews
 the color on the globe the way it does on a feature.
+
+### The polar circle rows
+
+Polar circles show four more rows under Geometry: the latitude and longitude of
+the first pole of the axis, in the feature's own frame, the radius of both
+circles in degrees, from just above 0 to 90, and how many segments each circle
+is cut into, 3 to 720. **Pick axis** arms a one click pick on the planet; see
+[Polar circles](Editing.md#polar-circles). Each edit rebuilds both circles and
+is one undo version. The automation port's `set_property` drives the rows as
+`axis` (a latitude and longitude pair), `radius` and `circle_segments`, and
+`get_properties` reports them under `polar_circles`.
 
 ### The keyframe row
 

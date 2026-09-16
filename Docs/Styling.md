@@ -60,7 +60,7 @@ show again.
 | Feature colour | The colour the feature itself carries, which is what the Properties panel edits |
 | Single colour | One colour for everything under the group, the `color` of its style |
 | Feature age | The palette, read at the feature's age |
-| Feature type | The color the [feature type](Properties.md) catalog gives its type: one each for polygons, lines, points, circles and topologies |
+| Feature type | The color the [feature type](Properties.md) catalog gives its type: one each for polygons, lines, points, circles, topologies and polar circles |
 
 **Feature colour** is what every document is drawn in until someone picks
 another, and it is what every version before 0.7.0 drew. It stands in for the
