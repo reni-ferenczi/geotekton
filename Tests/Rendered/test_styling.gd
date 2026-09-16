@@ -9,10 +9,14 @@ extends RenderedCase
 # polyline through (0, 40) and green markers at (-30, -30) and (30, -30), one
 # feature of each class the switches cover, all three in the Shapes group. The
 # styles are set on that group, since the root's style is pinned.
+#
+# The grid is drawn over the features, so the probes stay clear of its lines at
+# the default 15 degrees: inside the polygon, along the polyline and within the
+# western marker, half a degree off its vertex.
 
-const POLYGON := Vector2(-3.0, 0.0)
-const POLYLINE := Vector2(0.0, 40.0)
-const POINT := Vector2(-30.0, -30.0)
+const POLYGON := Vector2(-3.0, 3.0)
+const POLYLINE := Vector2(5.0, 40.0)
+const POINT := Vector2(-29.5, -29.5)
 
 # How far a probed pixel may be from the colour asked for, per channel, in the
 # sRGB values both are in. The probe is aimed straight at the place with the
@@ -98,7 +102,7 @@ func test_the_age_ramp_colors_one_feature_differently_at_two_times() -> void:
 
 
 # Each switch takes its own class off the screen and leaves the others where
-# they were, with the Earth showing through where it was drawn.
+# they were, with the planet color showing where it was drawn.
 func test_a_switch_leaves_the_earth_where_its_class_was_drawn() -> void:
 	var probes := {
 		Styling.POLYGONS: POLYGON,
@@ -110,11 +114,12 @@ func test_a_switch_leaves_the_earth_where_its_class_was_drawn() -> void:
 		for class_id in probes:
 			var at: Vector2 = probes[class_id]
 			var color := await _probe(at)
+			var planet := _difference(color, ViewSettings.DEFAULT_PLANET_COLOR)
 			if class_id == hidden:
-				assert_eq(dominant_channel(color), "",
+				assert_true(planet <= COLOR_TOLERANCE,
 					"%s is gone from %s: %s" % [class_id, at, color])
 			else:
-				assert_true(not dominant_channel(color).is_empty(),
+				assert_true(planet > COLOR_TOLERANCE,
 					"%s is still drawn at %s: %s" % [class_id, at, color])
 
 
