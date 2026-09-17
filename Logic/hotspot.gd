@@ -53,7 +53,7 @@ static func sample_ages(skip: float, oldest: float, time: float) -> PackedFloat6
 # fallback when it carries none. The fallback is the timeline's Skip, which is
 # a setting of the machine, so a feature with a step of its own draws the same
 # wherever the file is opened. sample_ages() floors whichever it gets at
-# MIN_SKIP. See Docs/Time.md#the-skip.
+# MIN_SKIP. See Docs/Time.md#the-time-control.
 static func step_of(node: Feature, skip: float) -> float:
 	return node.time_step if node.time_step > 0.0 else skip
 

@@ -445,7 +445,7 @@ func _build_hotspot(form: GridContainer) -> void:
 
 # How far apart in time the feature is sampled. A hotspot and a crust are the
 # two that sample, and both take it here; 0 leaves them on the timeline's Skip.
-# One undo version per edit, through the document. See Docs/Time.md#the-skip.
+# One undo version per edit, through the document. See Docs/Time.md#the-time-control.
 func _build_step(form: GridContainer) -> void:
 	step_spin = _param_spin("TimeStep", 0.0, Hotspot.MAX_STEP, 1.0, "",
 		func(_value: float) -> void: _commit_step())

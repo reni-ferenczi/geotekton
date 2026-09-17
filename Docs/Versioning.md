@@ -54,7 +54,9 @@ and 0.23.0 made the ridge a midway topology and the crust bands between
 isochrons, which has a step that turns a 0.22.0 ridge and its crusts into the
 new ones and adds the lines feature beside each crust; and 0.24.0 gave the
 crust its own isochrons and flowlines, which has a step that drops the leaf
-that used to hold them.
+that used to hold them; and 0.25.0 gave a hotspot and a crust a time step of
+their own, and a leaf without one reads as 0, which is the timeline's Skip, so
+a 0.24.0 file is read as it stands.
 
 The first public release will have major version 1.
 
