@@ -1107,7 +1107,7 @@ func _on_type_selected(index: int) -> void:
 		_filling = false
 		rejected.emit(error)
 		return
-	# Polar circles show rows no other type has, so the whole panel is filled
+	# Circles and hotspots show rows no other type has, so the whole panel is filled
 	# again rather than the color alone.
 	show_node(node)
 	edited.emit()
