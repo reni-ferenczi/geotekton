@@ -257,8 +257,8 @@ func test_an_import_that_cannot_be_read_says_so_and_changes_nothing() -> void:
 ### The ridge and crust a split leaves
 
 
-const CRUST_TITLES := ["Square", "Square 2", "Square ridge", "Square crust lines",
-	"Square crust", "Square 2 crust lines", "Square 2 crust"]
+const CRUST_TITLES := ["Square", "Square 2", "Square ridge", "Square crust",
+	"Square 2 crust"]
 
 
 # A square split at 100 Ma with Ridge and Crust on, the halves drifting apart
@@ -297,10 +297,10 @@ func _assert_same_ring(actual: PackedVector2Array, expected: PackedVector2Array,
 			"%s: vertex %d is %s, not %s" % [message, i, actual[i], expected[i]])
 
 
-func test_a_split_with_ridge_and_crust_leaves_seven_features_in_order() -> void:
+func test_a_split_with_ridge_and_crust_leaves_five_features_in_order() -> void:
 	var document := _split_square(false)
 	assert_eq(document.root.children.map(func(n: Feature) -> String: return n.title),
-		CRUST_TITLES, "the halves, the ridge, and the lines and a crust for each half")
+		CRUST_TITLES, "the halves, the ridge and one crust for each half")
 	var ridge: Feature = document.root.children[2]
 	assert_true(ridge.midway and ridge.geometry_kind == Feature.GeometryKind.TOPOLOGY,
 		"the ridge is a midway topology")
@@ -308,23 +308,21 @@ func test_a_split_with_ridge_and_crust_leaves_seven_features_in_order() -> void:
 	assert_eq(ridge.keyframes.size() + ridge.couplings.size(), 0, "with no motion of its own")
 	assert_eq(ridge.sections.size(), 2, "between two sections")
 	assert_eq(ridge.time_range, Vector2i(0, 100), "from the split to the present")
-	for index in [4, 6]:
+	for index in [3, 4]:
 		var crust: Feature = document.root.children[index]
-		assert_true(crust.is_crust() and crust.closed and not crust.crust_lines, "a crust")
+		assert_true(crust.is_crust() and crust.closed, "a crust")
 		assert_eq(crust.color, FeatureType.color(FeatureType.CRUST), "in the crust colour")
+		assert_eq(crust.line_color(crust.color),
+			FeatureType.color(FeatureType.CRUST_LINES), "with its lines in theirs")
+		assert_eq(crust.line_scale(), Feature.CRUST_LINE_SCALE, "and drawn thin")
 		assert_eq(crust.time_range, Vector2i(0, 100), "over the ridge's time range")
 		assert_eq(crust.crust_ridge, ridge.uuid, "opened by the ridge")
-		assert_eq(crust.crust_half, document.root.children[(index - 4) / 2].uuid,
-			"beside its half")
+		assert_eq(crust.crust_half, document.root.children[index - 3].uuid, "beside its half")
 		assert_eq(crust.crust_edge, 3, "along a cut of three vertices")
-		var lines: Feature = document.root.children[index - 1]
-		assert_true(lines.is_crust() and lines.crust_lines and not lines.closed, "its lines")
-		assert_eq(lines.color, FeatureType.color(FeatureType.CRUST_LINES), "in their colour")
-		assert_eq(lines.line_scale(), Feature.CRUST_LINES_LINE_SCALE, "and drawn thin")
 	var data: Dictionary = document.root.children[3].to_json()
 	assert_eq(data.get("crust"), {"half": document.root.children[0].uuid, "ridge": ridge.uuid,
-		"edge": 3, "lines": true}, "the lines write what they are built from")
-	assert_true(Feature.from_json(data).crust_lines, "and read it back")
+		"edge": 3}, "a crust writes what it is built from")
+	assert_eq(Feature.from_json(data).crust_ridge, ridge.uuid, "and reads it back")
 	document.undo()
 	assert_eq(document.root.children.size(), 1, "one undo puts the square back")
 
@@ -347,22 +345,19 @@ func test_the_ridge_is_the_half_stage_line() -> void:
 func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
 	var document := _split_square(true)
 	var root := document.root
-	for index in [4, 6]:
+	for index in [3, 4]:
 		var crust: Feature = root.children[index]
-		var lines: Feature = root.children[index - 1]
 		var half: Feature = root.get_node_by_uuid(crust.crust_half)
 		Crust.rebuild(root, crust, 0.0, 25.0)
-		Crust.rebuild(root, lines, 0.0, 25.0)
+		var lines := crust.crust_line_rings
 		assert_eq(crust.rings.size(), 4, "%s: four bands from 100 Ma at 25 My" % crust.title)
 		assert_eq(Crust.chunks(crust), 4, "counted as four chunks")
 		assert_eq(crust.drawn_as(), Feature.GeometryKind.POLYGON, "drawn as a polygon")
-		assert_eq(lines.rings.size(), 5 + 3, "five isochrons and three flowlines")
-		assert_eq(Crust.chunks(lines), 4, "the lines count the same chunks")
-		assert_eq(lines.drawn_as(), Feature.GeometryKind.POLYLINE, "drawn as lines")
+		assert_eq(lines.size(), 5 + 3, "with five isochrons and three flowlines over them")
 
 		# The oldest band is against the continent: its outer isochron is the cut.
 		var cut := _world(document, half, half.rings[0].slice(0, 3), 0.0)
-		var outer := lines.rings[0]
+		var outer := lines[0]
 		var matches := outer.duplicate()
 		if outer[0].distance_to(cut[0]) > outer[0].distance_to(cut[2]):
 			matches.reverse()
@@ -370,21 +365,21 @@ func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
 		_assert_same_ring(crust.rings[0].slice(0, 3), outer, 1e-9,
 			"%s: the first band starts on it" % crust.title)
 		var ridge := Ridge.ring_at(root, root.children[2], 0.0)
-		_assert_same_ring(lines.rings[4], ridge, 1e-3, "%s: the youngest is the ridge" % crust.title)
+		_assert_same_ring(lines[4], ridge, 1e-3, "%s: the youngest is the ridge" % crust.title)
 		for i in 3:
-			assert_eq(lines.rings[5 + i].size(), 5, "a flowline crosses every isochron")
-			assert_eq(lines.rings[5 + i][0], outer[i], "from the continent")
-			assert_eq(lines.rings[5 + i][4], lines.rings[4][i], "to the ridge")
+			assert_eq(lines[5 + i].size(), 5, "a flowline crosses every isochron")
+			assert_eq(lines[5 + i][0], outer[i], "from the continent")
+			assert_eq(lines[5 + i][4], lines[4][i], "to the ridge")
 
 		# The bands tile the sea floor between the cut and the ridge, which is
 		# bounded by the flowlines of the cut's two ends.
 		var whole := Feature.create_feature("Whole")
 		var ring := outer.duplicate()
-		ring.append_array(lines.rings[7].slice(1, 4))
-		var back := lines.rings[4].duplicate()
+		ring.append_array(lines[7].slice(1, 4))
+		var back := lines[4].duplicate()
 		back.reverse()
 		ring.append_array(back)
-		var first_flowline := lines.rings[5].slice(1, 4)
+		var first_flowline := lines[5].slice(1, 4)
 		first_flowline.reverse()
 		ring.append_array(first_flowline)
 		whole.add_ring(ring, Feature.GeometryKind.POLYGON)
@@ -397,6 +392,7 @@ func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
 		for band in crust.rings:
 			assert_close(Measure.ring_area(band), 0.0, 1e-3, "no band has an area at the split")
 		assert_eq(Crust.chunks(crust), 0, "and there are none")
+		assert_eq(crust.crust_line_rings.size(), 1, "with the one isochron and no flowline")
 		Crust.rebuild(root, crust, 0.0, 50.0)
 		assert_eq(Crust.chunks(crust), 2, "a longer skip gives fewer chunks")
 
@@ -404,11 +400,24 @@ func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
 func test_the_crust_shape_is_its_bands() -> void:
 	var document := _split_square(true)
 	document.current_time = 0.0
-	Planet.collect_geometry(document.root, 0.0)
-	var crust: Feature = document.root.children[4]
+	var geometry := Planet.collect_geometry(document.root, 0.0)
+	var crust: Feature = document.root.children[3]
 	var shape := document.shape_of(crust)
 	assert_eq(shape["kind"], Feature.GeometryKind.POLYGON, "Copy Shape takes a polygon")
 	assert_eq(shape["rings"].size(), crust.rings.size(), "of the bands")
+
+	# The bands are triangles and the isochrons and flowlines segments, all of
+	# the one feature, with the lines in a color of their own.
+	var at := geometry.index_for(crust)
+	var kinds := {}
+	for i in range(geometry.starts[at], geometry.ends[at]):
+		kinds[geometry.primitives[i]["kind"]] = true
+	assert_eq(kinds.keys().size(), 2, "the crust draws two kinds of primitive")
+	assert_true(kinds.has(Planet.Primitive.TRIANGLE) and kinds.has(Planet.Primitive.SEGMENT),
+		"filled bands and drawn lines")
+	assert_eq(geometry.colors[at], FeatureType.color(FeatureType.CRUST), "the bands' colour")
+	assert_eq(geometry.line_colors[at], FeatureType.color(FeatureType.CRUST_LINES),
+		"and the lines' own")
 	shape = document.shape_of(document.root.children[2])
 	assert_eq(shape["kind"], Feature.GeometryKind.POLYLINE, "and a line from the ridge")
 	assert_eq(shape["rings"].size(), 1, "of one ring")
