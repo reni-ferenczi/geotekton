@@ -46,9 +46,8 @@ ambient level, and `Planet.apply_view_settings()` and
 - **Direction** turns the light. It is stored as an elevation above the line of
   sight and an azimuth around it, both in degrees, and `(0, 0)` shines straight
   from the camera, which is where the scene has always put it.
-  `ViewSettings.light_vector()` turns that into a direction in the scene and
-  `light_from_vector()` takes it back, which is how the Light tool stores a
-  drag on the globe.
+  `ViewSettings.light_vector()` turns that into a direction in the scene. The
+  two angles are typed in the View settings dialog.
 - **Ambient** is the environment's `ambient_light_energy`, with the source set
   to a plain colour. Zero is the black night side the scene has always had; one
   is a planet with no night at all.
@@ -551,8 +550,8 @@ the feature under the point, or null.
 ## Outline Overlay
 
 The shader draws a second, yellow layer over the geometry. It shows the shape
-being drawn while the Draw tool places vertices, the points of the Circle,
-Measure and Light tools, and otherwise the outline of a selected polygon or
+being drawn while the Draw tool places vertices, the points of the Circle and
+Measure tools, and otherwise the outline of a selected polygon or
 the markers of a selected multipoint. A selected line is drawn by the segment
 pass instead; see [The selected feature](#the-selected-feature).
 

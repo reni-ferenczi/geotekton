@@ -119,9 +119,8 @@ buffer over every document change, and the current time and the animation
 settings, which are not document changes, are what remain off it.
 
 A colour picker in the View settings dialog applies every colour the cursor
-is dragged over and records only the one left when the picker closes; a drag
-with the Light tool records once, on release. Every other field is one version
-per change.
+is dragged over and records only the one left when the picker closes. Every
+other field is one version per change.
 
 #### The raster path
 
@@ -582,7 +581,7 @@ more than the last change.
 | `skip_increment`                   | How far the timeline's `<` and `>` buttons jump, in millions of years |
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |
 | `vertex_marker_scale`, `line_width_scale` | How large the outline overlay is drawn, as multiples of the shader defaults |
-| `snap_to_vertices`                 | Whether a dragged vertex snaps onto a nearby one |
+| `snap_to_vertices`                 | Edit > Snap to vertices: whether a dragged vertex, a pole or a drawn point snaps onto a nearby vertex. On when the file says nothing |
 | `split_ridge`, `split_crust`       | Whether the Split tool leaves a ridge, and crust beside it. Both on when the file says nothing |
 | `export_width`                     | How wide an exported picture or video is; the height follows from what is being shown |
 | `ffmpeg`                           | Which ffmpeg encodes the frames of a video; the path is searched when unset |

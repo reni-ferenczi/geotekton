@@ -20,7 +20,7 @@ selecting one deselects the others.
 The Draw button is **disabled** when no leaf feature is selected, that is when a
 group or nothing is selected, and when the selected feature's type is drawn with
 another tool: a Circle with the [Circle tool](Editing.md#the-circle-tool) and a
-Topology with the [Topology tool](Editing.md#topologies).
+Topology with the section table's [Pick toggle](Editing.md#building-one).
 
 If a newly selected feature has **no geometry** yet, the tool its type is drawn
 with is activated to streamline the workflow.
@@ -52,8 +52,8 @@ selected feature.
 
 | Input | Action |
 |-------|--------|
-| **LMB** | Place the next vertex on the globe surface, on a nearby vertex of a shown feature when Snap is on |
-| **Shift+LMB** | With Snap on, when the last point sits on a vertex of the same ring: add the vertices along the ring up to the clicked one |
+| **LMB** | Place the next vertex on the globe surface, on a nearby vertex of a shown feature while Edit > Snap to vertices is on |
+| **Shift+LMB** | With snapping on, when the last point sits on a vertex of the same ring: add the vertices along the ring up to the clicked one |
 | **Ctrl+Shift+V** | Paste Shape: add the vertices of the copied shape to the drawing |
 | **RMB** or **Ctrl+Z** | Take the last placed vertex back |
 | **Ctrl+Y** | Put the last vertex taken back down again |

@@ -26,7 +26,7 @@ each panel has a floor:
 | Feature tree | 200 px | the tree itself; the toolbar above it is an `HFlowContainer`, so its buttons wrap onto more lines instead of widening the panel |
 | Properties | 220 px | `CONTENT_WIDTH` in `properties.gd`; see [Properties](Properties.md) |
 
-The toolbar's twelve buttons and four separators take 526 px on one line. The
+The toolbar's nine buttons and four separators take 400 px on one line. The
 starting 576 px is left over from when the toolbar was wider, and keeping it
 keeps the layout the golden references show.
 
@@ -64,6 +64,9 @@ adding an item means adding an enum value and one `add_item` line.
 | Paste     | Ctrl+V   | Put what is on the clipboard beside the selection   |
 | Duplicate | Ctrl+D   | A copy of the selected node, with its own identity  |
 | Delete    | Delete   | Remove the selected node                            |
+| Copy Shape | Ctrl+Shift+C | Put the selected feature's geometry on the shape clipboard; see [Editing](Editing.md#copying-a-shape) |
+| Paste Shape | Ctrl+Shift+V | Add that geometry to the selected feature |
+| Snap to vertices |   | A check item: whether a dragged vertex, a pole or a drawn point lands on a nearby vertex, in every tool; on by default. See [Editing](Editing.md#snapping) |
 
 | View        | Shortcut | What it does                              |
 | ----------- | -------- | ----------------------------------------- |
@@ -90,11 +93,13 @@ adding an item means adding an enum value and one `add_item` line.
 
 The shortcuts are menu accelerators, so they work whatever has the keyboard
 focus, except where a focused control takes the key first: Ctrl+C and Ctrl+V in
-a text field are still the text field's. The Edit commands are on the feature
-tree toolbar as well, and Duplicate and Delete are also on a right click on the
-globe; see [Properties](Properties.md#edit-commands). The toolbar also has Save
-and Load buttons, which run the File > Save and File > Open commands. Help is
-only in the Help menu.
+a text field are still the text field's, and anywhere else they copy and paste
+the selected node. The feature tree toolbar has Undo, Redo and Duplicate
+buttons, Duplicate and Delete are also on a right click on the globe, and Cut,
+Copy and Paste are in the Edit menu alone; see
+[Properties](Properties.md#edit-commands). The toolbar also has Save and Load
+buttons, which run the File > Save and File > Open commands. Help is only in
+the Help menu.
 
 The time keys, **Space** and the tool letters are the shortcuts that are not
 menu items. **Page Up** and **Page Down** do what the timeline's `<` and `>`
@@ -173,9 +178,9 @@ In the dialog under File > Preferences:
   `.venv`; see [Scripting](Scripting.md#preferences).
 
 All of them are written to the config file described in
-[Persistence](Persistence.md#the-config-file). So is the state of the Snap
-switch in the toolbar, which is not in the dialog because it is toggled while
-editing rather than set once.
+[Persistence](Persistence.md#the-config-file). So is Edit > Snap to vertices,
+which is not in the dialog because it is toggled while editing rather than set
+once.
 
 ## Exporting a picture of the map
 

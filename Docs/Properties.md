@@ -34,8 +34,8 @@ A new feature is a Polygon. The Type selector of the Properties panel is the one
 place the type is picked, and on a feature holding nothing it takes any of the
 seven, because the type is what the tools then draw: Polygon a polygon, Line a
 polyline, Points a multipoint, Circle a closed polyline through the
-[Circle tool](Editing.md#the-circle-tool) and Topology a boundary built with the
-[Topology tool](Editing.md#topologies). Polar circles and Hotspot need
+[Circle tool](Editing.md#the-circle-tool) and Topology a boundary picked
+together with the [section table](#the-section-table)'s Pick toggle. Polar circles and Hotspot need
 no tool: picking the type builds their rings at once, so the feature is never
 empty; see [Polar circles](Editing.md#polar-circles) and
 [Hotspots](Editing.md#hotspots).
@@ -153,7 +153,7 @@ follows the feature tree selection, through
 | Coupled to | Parent, Decouple   | no         |
 | Follow     | Picker, Couple, pointer | no    |
 | Couplings  | List, Remove       | no         |
-| Sections   | Table, Reverse, Remove | no     |
+| Sections   | Table, Reverse, Remove, Pick | no |
 
 The panel lists no coordinates. Middle Earth is for building worlds, and a
 vertex is placed, moved, inserted and deleted on the globe with the
@@ -342,7 +342,8 @@ time, since the parent in effect changes with it.
 
 ### The section table
 
-Only a [topology](Editing.md#topologies) has one. Above it, the **Closed**
+Only a [topology](Editing.md#topologies) has one, and a feature typed Topology
+that holds no section yet shows it empty. Above it, the **Closed**
 switch joins the sections into one filled ring; see
 [Closed topologies](Editing.md#closed-topologies). Switching it is one undo
 version, and on a closed topology the Geometry row reads "topology, 2 sections,
@@ -355,6 +356,13 @@ way round it is walked.
 be trimmed to the stretch that belongs to the boundary. This table is the only
 place that can be done. `Reverse` turns the selected section round and `Remove`
 takes it out; with no row picked both work on the last section.
+
+**Pick**, the pointer beside them, is a toggle that arms the Topology tool for
+the topology shown: each click on a feature on the planet adds the part of it
+that was clicked as the next section, and a right click takes the last one back;
+see [Building one](Editing.md#building-one). The toolbar has no button for that
+tool, so the toggle is how it is reached. It stays pressed while the tool is
+armed, and Escape, selecting another feature or picking another tool lets it go.
 
 A section whose feature cannot be followed — deleted, or not there at the
 current time — is shown in a warning colour with the reason as its tooltip,
@@ -402,12 +410,12 @@ closes reaches the undo stack.
 
 ## Edit commands
 
-The commands that were on the feature tree toolbar are also on an **Edit** menu
-in the menu bar — Undo, Redo, Cut, Copy, Paste, Duplicate and Delete — with the
-shortcuts the feature tree used to handle by itself. The menu owns them now, so
-they work wherever the focus is, and a text field still keeps Ctrl+C and Ctrl+V
-for its own text, because a focused control is offered a key before a menu
-accelerator is.
+The **Edit** menu in the menu bar holds Undo, Redo, Cut, Copy, Paste,
+Duplicate and Delete with their shortcuts, so they work wherever the focus is.
+A text field still keeps Ctrl+C and Ctrl+V for its own text, because a focused
+control is offered a key before a menu accelerator is. The feature tree toolbar
+repeats Undo, Redo and Duplicate as buttons; Cut, Copy and Paste are in the
+menu alone.
 
 **Copy Shape** (`Ctrl+Shift+C`) and **Paste Shape** (`Ctrl+Shift+V`) are on the
 same menu, under a separator of their own. They carry the vertices of one
