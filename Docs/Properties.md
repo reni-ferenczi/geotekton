@@ -140,7 +140,7 @@ follows the feature tree selection, through
 | Enabled    | Switch             | yes        |
 | From (Ma)  | Number             | no         |
 | To (Ma)    | Number             | no         |
-| Geometry   | Label              | no         |
+| Area       | Label              | no, polygons only |
 | Axis latitude, Axis longitude | Number | no, Polar circles only |
 | Radius (°) | Number             | no, Polar circles only |
 | Segments   | Number             | no, Polar circles only |
@@ -157,14 +157,23 @@ follows the feature tree selection, through
 
 The panel lists no coordinates. Middle Earth is for building worlds, and a
 vertex is placed, moved, inserted and deleted on the globe with the
-[Draw](Draw.md) and [Vertex](Editing.md#the-vertex-tool) tools. The Geometry row
-still says what the feature holds: its kind, vertices and parts, and for a
-polygon its area and the share of the planet it covers, as in "polygon, 12
-vertices in 1 part, 1.23 million km², 0.2 % of the planet". The share has one
-decimal, a no-break space before the percent sign so the line never
-breaks there, and is left out below 0.05 %. The area is read against the
-[planet radius](Editing.md#the-planet-radius) preference, so the row changes
-when the Preferences dialog is closed with another radius.
+[Draw](Draw.md) and [Vertex](Editing.md#the-vertex-tool) tools. Nor does it
+count vertices or parts.
+
+The Area row is there only for a feature drawn as a polygon: a polygon, a
+closed topology and a filled crust. Lines, markers, open topologies, groups and
+features with no geometry yet do not have it. It has two lines, the area on the
+first and the share of the planet it covers on the second:
+
+```
+1.23 million km²
+0.2 % of planet
+```
+
+The share has one decimal and a no-break space before the percent sign, so the
+line never breaks there. Below 0.05 % the second line is left out. The area is
+read against the [planet radius](Editing.md#the-planet-radius) preference, so
+the row changes when the Preferences dialog is closed with another radius.
 
 A feature shows either the keyframe and coupling rows or the section table,
 never both: a [topology](Editing.md#topologies) borrows its vertices
@@ -248,7 +257,7 @@ the color on the globe the way it does on a feature.
 
 ### The polar circle rows
 
-Polar circles show four more rows under Geometry: the latitude and longitude of
+Polar circles show four more rows under To (Ma): the latitude and longitude of
 the first pole of the axis, in the feature's own frame, the radius of both
 circles in degrees, from just above 0 to 90, and how many segments each circle
 is cut into, 3 to 720. **Pick axis** arms a one click pick on the planet; see
@@ -259,14 +268,13 @@ is one undo version. The automation port's `set_property` drives the rows as
 
 ### The hotspot rows
 
-A hotspot shows five more rows under Geometry instead of the keyframe and
+A hotspot shows five more rows under To (Ma) instead of the keyframe and
 coupling rows: the latitude and longitude of the hotspot in the world frame,
 **Pick**, which arms a one click pick on the planet (see
 [Hotspots](Editing.md#hotspots)), the Plate selector and the track step in
 millions of years, 0.1 to 100. The Plate selector lists None first and then,
 in tree order, every leaf feature holding vertices of its own. Each edit
-rebuilds the rings and is one undo version, and the Geometry row follows the
-track's vertex count as the time moves. The automation port's `set_property`
+rebuilds the rings and is one undo version. The automation port's `set_property`
 drives the rows as `hotspot` (a latitude and longitude pair), `plate` (a title
 the selector shows, or `None`) and `track_step`, and `get_properties` reports
 them under `hotspot` with the `plates` offered and the number of track
@@ -346,9 +354,8 @@ Only a [topology](Editing.md#topologies) has one, and a feature typed Topology
 that holds no section yet shows it empty. Above it, the **Closed**
 switch joins the sections into one filled ring; see
 [Closed topologies](Editing.md#closed-topologies). Switching it is one undo
-version, and on a closed topology the Geometry row reads "topology, 2 sections,
-closed" followed by the ring's area and share of the planet, which follow the
-current time. Below the switch, one row per section: the feature it runs along,
+version, and a closed topology shows the Area row with the ring's area and
+share of the planet, which follow the current time. Below the switch, one row per section: the feature it runs along,
 the two vertices it runs between, counted from one, and `on` or `back` for which
 way round it is walked.
 
