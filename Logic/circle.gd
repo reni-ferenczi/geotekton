@@ -5,9 +5,9 @@ class_name Circle
 # distance is 90 degrees; a smaller one is the path a point follows while a
 # plate turns about a fixed pole.
 #
-# Nothing here touches a Feature or a Document. The Circle tool works out the
-# circle here, previews it, and hands the vertices to the feature; see
-# Docs/Editing.md#the-circle-tool.
+# Nothing here touches a Feature or a Document. The Draw tool works out the
+# circle here and previews it, and a Circle feature rebuilds its rings from the
+# center and radius it was given; see Docs/Editing.md#drawing-a-circle.
 #
 # Angles are degrees and points are (latitude, longitude), as everywhere else in
 # the application.
@@ -87,6 +87,30 @@ static func through(a: Vector2, b: Vector2, c: Vector2) -> Array:
 		normal = -normal
 	var centre := _to_latlon(normal)
 	return [centre, radius_to(centre, a)]
+
+
+# The circle a ring made by vertices() was cut from, as [centre, angular radius
+# in degrees, segment count], or an empty array for a ring too short to be one.
+# The center is the direction of the mean of the vertices, the radius their mean
+# distance from it, and an open ring's repeated last vertex is not a segment.
+# The circle a file written before 0.21.0 held is read back this way; see
+# Docs/Persistence.md.
+static func fit(ring: PackedVector2Array) -> Array:
+	var count := ring.size()
+	if count > 1 and ring[count - 1] == ring[0]:
+		count -= 1
+	if count < MIN_SEGMENTS:
+		return []
+	var sum := Vector3.ZERO
+	for i in range(count):
+		sum += _to_unit(ring[i])
+	if sum.length_squared() < EPSILON:
+		return []
+	var centre := _to_latlon(sum)
+	var radius := 0.0
+	for i in range(count):
+		radius += radius_to(centre, ring[i])
+	return [centre, radius / count, mini(count, MAX_SEGMENTS)]
 
 
 # The angular radius of the circle around a centre that passes through a point:

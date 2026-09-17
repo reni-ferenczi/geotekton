@@ -2266,10 +2266,10 @@ func _can_spin(node: Feature) -> bool:
 	return node != null and not node.is_group and node.has_own_vertices()
 
 
-# Polar circles are rebuilt from their axis and radius, so a vertex moved by
-# hand would not last; they are turned, not edited.
+# A circle is rebuilt from its center and radius, so a vertex moved by hand
+# would not last; it is turned, not edited.
 func _can_edit_vertices(node: Feature) -> bool:
-	return _can_spin(node) and not node.is_polar_circles()
+	return _can_spin(node) and not node.is_circle()
 
 
 # The tool the feature's type calls for, or Move when nothing draws it: a
@@ -2512,12 +2512,12 @@ func _place_pole(at: Vector2) -> void:
 	_show_measurement()
 
 
-### Picking the axis of polar circles
+### Picking the axis of a circle
 #
 # The Pick axis button of the Properties panel arms the Pole tool for one click,
 # with its cross on the current axis. The click, snapped like any pole, becomes
 # the new axis in the feature's own frame, and the tool goes back to Move.
-# Escape or another tool gives the pick up. See Docs/Editing.md#polar-circles.
+# Escape or another tool gives the pick up. See Docs/Editing.md#axis-circles.
 
 var picking_axis: bool = false
 var pick_pnid: int = -1
@@ -2525,7 +2525,7 @@ var pick_pnid: int = -1
 
 func start_axis_pick() -> void:
 	var feature := features.feature_tree.get_selected_node()
-	if feature == null or not feature.is_polar_circles():
+	if feature == null or not feature.is_circle():
 		return
 	set_active_tool(Tool.POLE)
 	picking_axis = true
@@ -2539,11 +2539,12 @@ func start_axis_pick() -> void:
 func _finish_axis_pick(world: Vector2) -> void:
 	var feature := features.feature_tree.get_selected_node()
 	set_active_tool(Tool.MOVE)
-	if feature == null or not feature.is_polar_circles():
+	if feature == null or not feature.is_circle():
 		return
 	var to_local := Feature.world_basis(features.root, feature, document.current_time).transposed()
 	var axis := Feature.apply_basis(PackedVector2Array([world]), to_local)[0]
-	var error := document.set_polar_circles(feature, axis, feature.radius, feature.circle_segments)
+	var error := document.set_circle(feature, axis, feature.radius, feature.circle_segments,
+		feature.polar)
 	if not error.is_empty():
 		_report(error)
 		return
@@ -3425,7 +3426,7 @@ var split_points := PackedVector2Array()
 # The Split tool needs a leaf polygon holding vertices of its own.
 func _can_split_along(node: Feature) -> bool:
 	return node != null and not node.is_group and node.has_own_vertices() \
-		and node.geometry_kind == Feature.GeometryKind.POLYGON
+		and node.geometry_kind == Feature.GeometryKind.POLYGON and not node.is_circle()
 
 
 func _on_split_input(lat: float, lon: float, event: InputEvent) -> void:
@@ -3556,21 +3557,21 @@ func _circle_commit() -> String:
 	var circle := circle_from_points()
 	if circle.is_empty():
 		return "Click a centre and a point on the rim, or three points on the rim."
-	# The feature is typed Circle already, since that is what made Draw draw a
-	# circle. A circle is always an outline. A filled one from a file written before
-	# that is left as it is rather than given a part of another kind.
-	if selected.has_geometry() and selected.geometry_kind != Feature.GeometryKind.POLYLINE:
-		return "A circle is drawn as an outline, not into a %s." 			% Feature.KIND_NAMES[selected.geometry_kind]
 
 	# The circle was worked out in world space; a feature keeps its own frame,
-	# which at the current time is where its keyframes put it.
+	# which at the current time is where its keyframes put it. The feature is
+	# typed Circle already, since that is what made Draw draw a circle, and the
+	# new circle takes the place of the one it had, drawn at both ends of the
+	# axis if that one was.
 	var into_local := Feature.world_basis(
 		features.root, selected, document.current_time).transposed()
-	selected.add_ring(Feature.apply_basis(circle_ring(), into_local),
-		Feature.GeometryKind.POLYLINE)
+	var center := Feature.apply_basis(PackedVector2Array([circle[0]]), into_local)[0]
+	var error := document.set_circle(selected, center, circle[1], circle_segments(),
+		selected.polar)
+	if not error.is_empty():
+		return error
 
 	outline_vertices = PackedVector2Array()
-	document.record()
 	features.reload()
 	refresh_geometry()
 	set_active_tool(Tool.MOVE)
@@ -3712,13 +3713,14 @@ func _show_measurement(error: String = "") -> void:
 
 	if _drawing_circle():
 		var circle := circle_from_points()
-		status_measure.text = "click a centre and the rim, or three points on the rim" 			if circle.is_empty() else "centre %.2f° %.2f°   radius %s   %d segments" % [
+		status_measure.text = "click a centre and the rim, or three points on the rim" \
+			if circle.is_empty() else "centre %.2f° %.2f°   radius %s   %d segments" % [
 				(circle[0] as Vector2).x, (circle[0] as Vector2).y,
 				Circle.format_radius(circle[1]), circle_segments()]
 		return
 
 	if picking_axis:
-		status_measure.text = "click the planet to put the axis of the polar circles there"
+		status_measure.text = "click the planet to put the axis of the circle there"
 		return
 
 	if picking_hotspot:
@@ -4031,7 +4033,8 @@ func _refresh_selection_outline() -> void:
 	# children itself.
 	for child in _drawn_children():
 		var index: int = geometry.index_of.get(child, -1)
-		if index < 0 or not geometry.shown[index] 				or child.drawn_as() != Feature.GeometryKind.POLYGON:
+		if index < 0 or not geometry.shown[index] \
+				or child.drawn_as() != Feature.GeometryKind.POLYGON:
 			continue
 		for ring in child.rings:
 			parts.append({"vertices": Feature.apply_basis(ring, geometry.bases[index]),

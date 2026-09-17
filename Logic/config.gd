@@ -218,12 +218,16 @@ static func set_ffmpeg(path: String) -> void:
 # The colour of each feature type where the Preferences dialog changed it, type
 # id to colour. A type missing here keeps its catalog colour, which is what
 # FeatureType.color() falls back to. The file holds [r, g, b, a] per type.
+# Polar circles stopped being a type in 0.21.0, so a color kept for them is
+# skipped.
 static func get_feature_colors() -> Dictionary:
 	var colors := {}
 	var stored: Variant = get_value("feature_colors")
 	if stored is not Dictionary:
 		return colors
 	for type_id in stored:
+		if type_id == "polar_circles":
+			continue
 		var rgba: Variant = stored[type_id]
 		if rgba is Array and rgba.size() == 4:
 			colors[str(type_id)] = Color(float(rgba[0]), float(rgba[1]), float(rgba[2]), float(rgba[3]))

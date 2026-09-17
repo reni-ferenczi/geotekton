@@ -98,17 +98,18 @@ var sections: Array[TopologySection] = []
 # polygon. See Topology.rebuild().
 var closed := false
 
-# What a Polar circles feature is built from: the first pole of the axis as
-# (latitude, longitude) in degrees, in the feature's own frame, the radius of
-# both circles in degrees and how many segments each is cut into. The second
-# pole is the antipode of the first. No other type reads them; the rings are
-# rebuilt from them by rebuild_polar_circles(). The defaults are the auroral
-# ovals, which lie about 23 degrees from the geomagnetic poles.
+# What a Circle is built from: its center, the point its axis comes out of, as
+# (latitude, longitude) in degrees in the feature's own frame, its radius in
+# degrees, how many segments it is cut into, and whether the circle around the
+# antipode is drawn as well. No other type reads them; rebuild_circle() makes
+# the rings. The defaults are the auroral ovals, which lie about 23 degrees
+# from the geomagnetic poles.
 const DEFAULT_AXIS := Vector2(90.0, 0.0)
 const DEFAULT_RADIUS := 23.0
 var axis: Vector2 = DEFAULT_AXIS
 var radius: float = DEFAULT_RADIUS
 var circle_segments: int = Circle.DEFAULT_SEGMENTS
+var polar := false
 
 # What a Hotspot feature is built from: where the hotspot is, as (latitude,
 # longitude) in degrees in the world frame, the uuid of the feature it burns
@@ -293,20 +294,21 @@ func add_ring(ring: PackedVector2Array, kind: GeometryKind) -> void:
 	rebuild_triangles()
 
 
-func is_polar_circles() -> bool:
-	return not is_group and feature_type == FeatureType.POLAR_CIRCLES
+func is_circle() -> bool:
+	return not is_group and feature_type == FeatureType.CIRCLE
 
 
-# Replace the rings with the two circles the axis, the radius and the segment
-# count describe: one closed polyline around the axis and one around its
-# antipode.
-func rebuild_polar_circles() -> void:
-	var antipode := Vector2(-axis.x, wrapf(axis.y + 180.0, -180.0, 180.0))
-	geometry_kind = GeometryKind.POLYLINE
-	rings.assign([
-		Circle.vertices(axis, radius, circle_segments, false),
-		Circle.vertices(antipode, radius, circle_segments, false),
-	])
+# Replace the rings with the circle the parameters describe, and with the one
+# around the antipode too when the circle is polar. A circle is an outline; one
+# filled in a file written before outlines were the rule stays filled.
+func rebuild_circle() -> void:
+	var filled := has_geometry() and geometry_kind == GeometryKind.POLYGON
+	geometry_kind = GeometryKind.POLYGON if filled else GeometryKind.POLYLINE
+	var centers := [axis]
+	if polar:
+		centers.append(Vector2(-axis.x, wrapf(axis.y + 180.0, -180.0, 180.0)))
+	rings.assign(centers.map(func(center: Vector2) -> PackedVector2Array:
+		return Circle.vertices(center, radius, circle_segments, filled)))
 	rebuild_triangles()
 
 
@@ -343,6 +345,7 @@ func clone() -> Feature:
 	node.axis = axis
 	node.radius = radius
 	node.circle_segments = circle_segments
+	node.polar = polar
 	node.hotspot = hotspot
 	node.plate_uuid = plate_uuid
 	node.track_step = track_step
@@ -469,13 +472,15 @@ func to_json() -> Variant:
 		else:
 			data["rings"] = rings_to_json(rings)
 		data["time_range"] = [time_range.x, time_range.y]
-		# Only Polar circles write their parameters, so a missing key means the
-		# feature is some other type. The rings above are written anyway, for a
-		# reader that knows nothing about them.
-		if is_polar_circles():
+		# Only a circle writes its parameters, and only a drawn one, so a missing
+		# key means some other type or a circle not drawn yet. The rings above are
+		# written anyway, for a reader that knows nothing about them.
+		if is_circle() and has_geometry():
 			data["axis"] = [axis.x, axis.y]
 			data["radius"] = radius
 			data["circle_segments"] = circle_segments
+			if polar:
+				data["polar"] = true
 		if is_hotspot():
 			data["hotspot"] = [hotspot.x, hotspot.y]
 			data["plate"] = plate_uuid
@@ -506,6 +511,9 @@ static func from_json(data: Variant) -> Feature:
 		for child_data in data.get("children", []):
 			node.children.append(Feature.from_json(child_data))
 	else:
+		if str(data.get("feature_type", "")) == FeatureType.CIRCLE and not data.has("axis"):
+			data = data.duplicate()
+			fit_circle_json(data)
 		node.feature_type = str(data.get("feature_type", FeatureType.NONE))
 		var c: Array = data.get("color", [0.82, 0.41, 0.12, 1.0])
 		node.color = Color(c[0], c[1], c[2], c[3])
@@ -521,6 +529,7 @@ static func from_json(data: Variant) -> Feature:
 		node.axis = Vector2(a[0], a[1])
 		node.radius = float(data.get("radius", DEFAULT_RADIUS))
 		node.circle_segments = int(data.get("circle_segments", Circle.DEFAULT_SEGMENTS))
+		node.polar = bool(data.get("polar", false))
 		var h: Array = data.get("hotspot", [0.0, 0.0])
 		node.hotspot = Vector2(h[0], h[1])
 		node.plate_uuid = str(data.get("plate", ""))
@@ -528,9 +537,30 @@ static func from_json(data: Variant) -> Feature:
 		# The parameters win over the rings the file holds. A hotspot's track
 		# needs the whole tree, so Hotspot.rebuild_all() redoes it before the
 		# geometry is collected.
-		if node.is_polar_circles():
-			node.rebuild_polar_circles()
+		if node.is_circle() and data.has("axis"):
+			node.rebuild_circle()
 	return node
+
+
+# Give a circle leaf of a file the parameters it lacks, in place. A circle with
+# one ring and no center, which is what a file written before 0.21.0 or by a
+# script holds, takes the circle Circle.fit() finds in that ring. One holding
+# several rings was drawn more than once and is no single circle, so it keeps
+# its rings under the type its kind gives. See Docs/Persistence.md.
+static func fit_circle_json(data: Dictionary) -> void:
+	var rings: Array = data.get("rings", [])
+	if data.has("axis") or rings.is_empty():
+		return
+	if rings.size() > 1:
+		data["feature_type"] = FeatureType.OF_KIND.get(str(data.get("geometry_kind", "polygon")),
+			FeatureType.NONE)
+		return
+	var circle := Circle.fit(rings_from_json(rings)[0])
+	if circle.is_empty():
+		return
+	data["axis"] = [circle[0].x, circle[0].y]
+	data["radius"] = circle[1]
+	data["circle_segments"] = circle[2]
 
 
 static func rings_to_json(value: Array[PackedVector2Array]) -> Array:
