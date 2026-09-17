@@ -317,12 +317,28 @@ func is_circle() -> bool:
 func rebuild_circle() -> void:
 	var filled := has_geometry() and geometry_kind == GeometryKind.POLYGON
 	geometry_kind = GeometryKind.POLYGON if filled else GeometryKind.POLYLINE
-	var centers := [axis]
-	if polar:
-		centers.append(Vector2(-axis.x, wrapf(axis.y + 180.0, -180.0, 180.0)))
-	rings.assign(centers.map(func(center: Vector2) -> PackedVector2Array:
+	rings.assign(circle_centers().map(func(center: Vector2) -> PackedVector2Array:
 		return Circle.vertices(center, radius, circle_segments, filled)))
 	rebuild_triangles()
+
+
+# The center of each ring rebuild_circle() makes: the axis, and its antipode
+# when the circle is polar.
+func circle_centers() -> Array[Vector2]:
+	var centers: Array[Vector2] = [axis]
+	if polar:
+		centers.append(Vector2(-axis.x, wrapf(axis.y + 180.0, -180.0, 180.0)))
+	return centers
+
+
+# Whether the planet draws this feature as the curves its parameters describe
+# rather than from its rings. Only an outline qualifies, and only while its
+# rings are the ones rebuild_circle() made: a circle read from a file whose ring
+# was too short to fit keeps the ring it came with. See
+# Docs/Shader.md#circles.
+func draws_true_circles() -> bool:
+	return is_circle() and geometry_kind == GeometryKind.POLYLINE 		and rings.size() == circle_centers().size() 		and rings.all(func(ring: PackedVector2Array) -> bool:
+			return ring.size() == circle_segments + 1)
 
 
 func is_hotspot() -> bool:
