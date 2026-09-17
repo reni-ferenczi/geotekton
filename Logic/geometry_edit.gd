@@ -209,6 +209,32 @@ static func shared_edge(ring: PackedVector2Array, path: PackedVector2Array) -> P
 	return edge
 
 
+# The stretch of a path inside a ring, from where it first crosses the boundary
+# to where it last does, with the path's points in between. What the Split tool
+# cuts a child along; empty when the path crosses the boundary fewer than twice.
+static func clip_path(ring: PackedVector2Array, path: PackedVector2Array) -> PackedVector2Array:
+	# Each crossing as [how far along the path, where], the distance being the
+	# segment's index plus the fraction of it covered.
+	var crossings := []
+	for k in path.size() - 1:
+		for i in ring.size():
+			var at: Variant = Geometry2D.segment_intersects_segment(
+				path[k], path[k + 1], ring[i], ring[(i + 1) % ring.size()])
+			if at != null:
+				crossings.append([k + path[k].distance_to(at) / path[k].distance_to(path[k + 1]), at])
+	if crossings.size() < 2:
+		return PackedVector2Array()
+	crossings.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	var start: float = crossings[0][0]
+	var end: float = crossings[-1][0]
+	var result := PackedVector2Array([crossings[0][1]])
+	for k in range(ceili(start), floori(end) + 1):
+		if k > start + 1e-6 and k < end - 1e-6:
+			result.append(path[k])
+	result.append(crossings[-1][1])
+	return result
+
+
 # A cut drawn across the polygon, its first and last points put on the ring.
 # Each end goes to the nearest point of the boundary and becomes a vertex there,
 # unless that point is a vertex already. Returns the ring with the ends in it and

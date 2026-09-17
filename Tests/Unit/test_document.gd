@@ -304,6 +304,138 @@ func test_a_split_with_ridge_and_crust_opens_two_crusts_as_the_halves_drift() ->
 		"and more of it than at 50 Ma: %s, %s" % [at_50, at_0])
 
 
+### The children a split takes along
+
+
+func _square(title: String, half_size: float, center := Vector2.ZERO) -> Feature:
+	var square := Feature.create_feature(title)
+	square.add_ring(PackedVector2Array([center + Vector2(-half_size, -half_size),
+		center + Vector2(-half_size, half_size), center + Vector2(half_size, half_size),
+		center + Vector2(half_size, -half_size)]), Feature.GeometryKind.POLYGON)
+	return square
+
+
+func _titled(document: Document, title: String) -> Feature:
+	for node in document.root.children:
+		if node.title == title:
+			return node
+	return null
+
+
+# A craton split north to south at 100 Ma, with whatever follows it from 200 Ma.
+func _split_with(children: Array[Feature], on: bool) -> Document:
+	var document := Document.new()
+	var craton := _square("Craton", 10.0)
+	document.root.children.append(craton)
+	for child in children:
+		document.root.children.append(child)
+		assert_eq(document.couple(child, craton, 200.0), "")
+	document.current_time = 100.0
+	document.record()
+	assert_eq(document.split_feature_along(craton, 0,
+		PackedVector2Array([Vector2(-11, 0), Vector2(11, 0)]), false, false, on), "")
+	return document
+
+
+func _follows(node: Feature, time: float) -> String:
+	return Coupling.span_at(node, time).parent
+
+
+func _west(node: Feature) -> bool:
+	return _mean_longitude(node.rings[0]) < 0.0
+
+
+func _world_ring(document: Document, node: Feature, time: float) -> PackedVector2Array:
+	return Feature.apply_basis(node.rings[0], Feature.world_basis(document.root, node, time))
+
+
+# Whether the middle of the node falls inside the half, both where they stand.
+func _sits_on(document: Document, node: Feature, half: Feature, time: float) -> bool:
+	var middle := Feature.world_basis(document.root, node, time) * Kinematics.centroid(node)
+	return Geometry2D.is_point_in_polygon(Feature._xyz_to_latlon_s(middle),
+		_world_ring(document, half, time))
+
+
+func test_a_split_with_children_splits_a_child_the_cut_crosses() -> void:
+	var document := _split_with([_square("Range", 5.0)] as Array[Feature], true)
+	assert_eq(document.root.children.map(func(n: Feature) -> String: return n.title),
+		["Craton", "Craton 2", "Range", "Range 2"], "the child is split beside itself")
+	assert_eq(document.split_children.map(func(n: Feature) -> String: return n.title),
+		["Range", "Range 2"], "and named for the status bar")
+	document.undo()
+	assert_eq(document.root.children.size(), 2, "one undo takes the whole split back")
+	document.redo()
+	var craton := _titled(document, "Craton")
+	var second := _titled(document, "Craton 2")
+	for title in ["Range", "Range 2"]:
+		var piece := _titled(document, title)
+		if _west(piece) == _west(second):
+			assert_eq(piece.couplings.size(), 2, "%s follows over two spans" % title)
+		var far := _west(piece) == _west(second)
+		assert_eq(_follows(piece, 0.0), second.uuid if far else craton.uuid,
+			"%s follows the half on its side" % title)
+		assert_eq(_follows(piece, 150.0), craton.uuid,
+			"%s follows the original before the split" % title)
+		assert_eq(_follows(piece, 100.0), second.uuid if far else craton.uuid,
+			"%s from the split age" % title)
+
+	# The halves drift apart and each piece of the range goes with its own half.
+	for half in [craton, second]:
+		assert_eq(document.set_keyframe(half, 100.0, Vector3.ZERO), "")
+		assert_eq(document.set_keyframe(half, 0.0, Vector3(20.0 if _west(half) else -20.0, 0, 0)), "")
+	for title in ["Range", "Range 2"]:
+		var piece := _titled(document, title)
+		var own := second if _follows(piece, 0.0) == second.uuid else craton
+		var other := craton if own == second else second
+		assert_true(_sits_on(document, piece, own, 0.0), "%s sits on its half at 0 Ma" % title)
+		assert_true(not _sits_on(document, piece, other, 0.0), "and not on the other one")
+		assert_true(_sits_on(document, piece, own, 100.0), "%s sat there at 100 Ma" % title)
+
+
+func test_a_split_with_children_moves_a_child_whole_by_its_middle() -> void:
+	var line := Feature.create_feature("Fault")
+	line.add_ring(PackedVector2Array([Vector2(0, -3), Vector2(0, 8)]),
+		Feature.GeometryKind.POLYLINE)
+	var document := _split_with(
+		[_square("East", 2.0, Vector2(0, 5)), _square("West", 2.0, Vector2(0, -5)), line] 			as Array[Feature], true)
+	assert_eq(document.root.children.size(), 5, "nothing but the craton is split")
+	assert_true(document.split_children.is_empty(), "so the status bar names no piece")
+	var craton := _titled(document, "Craton")
+	var second := _titled(document, "Craton 2")
+	var east := second if not _west(second) else craton
+	for title in ["East", "Fault"]:
+		assert_eq(_follows(_titled(document, title), 0.0), east.uuid,
+			"%s, east of the cut, follows the eastern half" % title)
+	var west := craton if east == second else second
+	assert_eq(_follows(_titled(document, "West"), 0.0), west.uuid,
+		"West follows the western half")
+
+
+func test_a_split_without_children_leaves_them_following_the_original() -> void:
+	var document := _split_with(
+		[_square("Range", 5.0), _square("East", 2.0, Vector2(0, 5))] as Array[Feature], false)
+	assert_eq(document.root.children.map(func(n: Feature) -> String: return n.title),
+		["Craton", "Craton 2", "Range", "East"], "no child is split")
+	var craton := _titled(document, "Craton")
+	for title in ["Range", "East"]:
+		var child := _titled(document, title)
+		assert_eq(child.couplings.size(), 1, "%s keeps its one span" % title)
+		assert_eq(_follows(child, 0.0), craton.uuid, "%s follows the original" % title)
+
+
+func test_a_cut_is_clipped_to_the_ring_it_crosses() -> void:
+	var ring := _square("Ring", 5.0).rings[0]
+	var cut := GeometryEdit.clip_path(ring,
+		PackedVector2Array([Vector2(-11, 0), Vector2(0, 1), Vector2(11, 0)]))
+	var wanted := [Vector2(-5, 6.0 / 11.0), Vector2(0, 1), Vector2(5, 6.0 / 11.0)]
+	assert_eq(cut.size(), wanted.size(), "from where the path goes in to where it comes out")
+	for i in mini(cut.size(), wanted.size()):
+		assert_true(cut[i].is_equal_approx(wanted[i]), "point %d: %s" % [i, cut[i]])
+	assert_true(GeometryEdit.clip_path(ring,
+		PackedVector2Array([Vector2(-11, 7), Vector2(11, 7)])).is_empty(),
+		"a path that misses the ring cuts nothing")
+
+
 func _mean_longitude(ring: PackedVector2Array) -> float:
 	var total := 0.0
 	for vertex in ring:

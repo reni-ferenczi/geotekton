@@ -43,6 +43,10 @@ var view := ViewSettings.new()
 # always opens at the present.
 var current_time: float = 0.0
 
+# The children a split along a cut just cut as well, each followed by the piece
+# split off it, for the status bar to name. Not part of the document's content.
+var split_children: Array[Feature] = []
+
 # One recorded version: the tree and the view settings as they were.
 class Version:
 	var root: Feature
@@ -445,9 +449,11 @@ func split_feature(feature: Feature, part: int, first: int, second: int = -1) ->
 # With `ridge` on, a Line feature is left along the cut as well, following both
 # halves at one half; see _add_ridge() and Docs/Editing.md#the-ridge. With
 # `crust` on as well, two closed topologies fill the sea floor between the ridge
-# and each half; see _add_crust().
+# and each half; see _add_crust(). With `children` on, the features following
+# the polygon at the current time are cut along the same path and the pieces on
+# the far side follow the second half; see _split_children().
 func split_feature_along(feature: Feature, part: int, path: PackedVector2Array,
-		ridge: bool = false, crust: bool = false) -> String:
+		ridge: bool = false, crust: bool = false, children: bool = false) -> String:
 	if feature == null or feature.is_group \
 			or feature.geometry_kind != Feature.GeometryKind.POLYGON:
 		return "Only a polygon is split along a cut."
@@ -458,36 +464,114 @@ func split_feature_along(feature: Feature, part: int, path: PackedVector2Array,
 		return problem
 	var edge := GeometryEdit.shared_edge(feature.rings[part], path) if ridge \
 		else PackedVector2Array()
+	var world_cut := Feature.apply_basis(GeometryEdit.shared_edge(feature.rings[part], path),
+		Feature.world_basis(root, feature, current_time)) if children 		else PackedVector2Array()
 	return _split_into(feature, part, GeometryEdit.split_along(feature.rings[part], path),
-		edge, crust)
+		edge, crust, world_cut)
 
 
 # Put the first half in place of the part and the second in a new feature beside
 # the original, named after it. `edge` is the cut both halves share, in the
 # feature's own frame, and is what the ridge is drawn along when there is one.
-# Each half starts with that edge; see GeometryEdit.split_polygon().
+# Each half starts with that edge; see GeometryEdit.split_polygon(). A
+# `world_cut`, the same edge in world space, takes the children along; see
+# _split_children().
 func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array],
-		edge := PackedVector2Array(), crust := false) -> String:
+		edge := PackedVector2Array(), crust := false,
+		world_cut := PackedVector2Array()) -> String:
 	var parent := root.find_parent(feature)
 	if parent == null:
 		return "%s is not in the tree." % feature.title
-
-	var other := feature.duplicate()
-	other.title = Feature.clamp_title("%s 2" % feature.title)
-	var only: Array[PackedVector2Array] = [halves[1]]
-	other.rings = only
-	other.rebuild_triangles()
-
+	var children: Array[Feature] = []
+	if not world_cut.is_empty():
+		children = Coupling.children_of(root, feature.uuid, current_time)
 	var into_world := Feature.world_basis(root, feature, current_time)
-	feature.rings[part] = halves[0]
-	feature.rebuild_triangles()
-	parent.children.insert(parent.find_child(feature) + 1, other)
+	var other := _split_off(parent, feature, part, halves)
+	split_children.clear()
+	_split_children(feature, other, children, world_cut)
 	if not edge.is_empty():
 		var ridge := _add_ridge(parent, feature, other, Feature.apply_basis(edge, into_world))
 		if crust:
 			_add_crust(parent, ridge, [feature, other], [part, 0], edge.size())
 	record()
 	return ""
+
+
+# Give the part the first half and a copy of the feature, "<title> 2" inserted
+# after it, the second. Returns the copy.
+func _split_off(parent: Feature, feature: Feature, part: int,
+		halves: Array[PackedVector2Array]) -> Feature:
+	var other := feature.duplicate()
+	other.title = Feature.clamp_title("%s 2" % feature.title)
+	var only: Array[PackedVector2Array] = [halves[1]]
+	other.rings = only
+	other.rebuild_triangles()
+	feature.rings[part] = halves[0]
+	feature.rebuild_triangles()
+	parent.children.insert(parent.find_child(feature) + 1, other)
+	return other
+
+
+# Take the direct children of a polygon just split into `first` and `second`
+# along with it. A polygon child the cut crosses is split along the stretch of
+# the cut inside it; every piece, and every child left whole, whose middle
+# lies in `second` follows `second` from the current time. `second` carries the
+# keyframes and couplings `first` had, so the pieces do not move. Grandchildren
+# follow their own parent and circles follow nothing, so both are left alone.
+func _split_children(first: Feature, second: Feature, children: Array[Feature],
+		world_cut: PackedVector2Array) -> void:
+	for child in children:
+		var span := Coupling.span_at(child, current_time)
+		if child.feature_type == FeatureType.CIRCLE or not span.parents().has(first.uuid):
+			continue
+		var pieces: Array[Feature] = [child]
+		if child.geometry_kind == Feature.GeometryKind.POLYGON:
+			var local := Feature.apply_basis(world_cut,
+				Feature.world_basis(root, child, current_time).transposed())
+			for part in child.rings.size():
+				var cut := GeometryEdit.clip_path(child.rings[part], local)
+				if cut.is_empty() or not GeometryEdit.split_along_problem(
+						child.rings[part], cut).is_empty():
+					continue
+				pieces.append(_split_off(root.find_parent(child), child, part,
+					GeometryEdit.split_along(child.rings[part], cut)))
+				split_children.append_array(pieces)
+				break
+		for piece in pieces:
+			if _lies_in(piece, second):
+				_follow_instead(piece, first.uuid, second)
+
+
+# Whether the middle of a feature's vertices falls inside a polygon's first ring,
+# both where they stand at the current time.
+func _lies_in(feature: Feature, polygon: Feature) -> bool:
+	var world := Feature.world_basis(root, feature, current_time) * Kinematics.centroid(feature)
+	var local := Feature._xyz_to_latlon_s(
+		Feature.world_basis(root, polygon, current_time).transposed() * world)
+	return Geometry2D.is_point_in_polygon(local, polygon.rings[0])
+
+
+# Cut the span in effect at the current time there, the younger part following
+# `instead` where the older one followed `uuid`, and keep every keyframe where it
+# stands, the way couple() does.
+func _follow_instead(child: Feature, uuid: String, instead: Feature) -> void:
+	var nodes := Coupling.index(root)
+	var here := Coupling.world_basis(child, current_time, nodes)
+	var worlds := _keyframe_worlds(child, nodes)
+	var span := Coupling.span_at(child, current_time)
+	if not is_equal_approx(span.from, current_time):
+		var older := span.clone()
+		older.to = current_time
+		span.from = current_time
+		child.couplings.append(older)
+		Coupling.sort(child.couplings)
+	if span.parent == uuid:
+		span.parent = instead.uuid
+	else:
+		span.parent_b = instead.uuid
+	_rebase(child, worlds, nodes)
+	Keyframe.upsert(child.keyframes, current_time,
+		Coupling.rotation_for(child, current_time, here, nodes))
 
 
 # The rift the cut leaves behind: a Line along the shared edge, following both
