@@ -154,7 +154,7 @@ func _outline_reach(marker: bool) -> Array[int]:
 			Config.set_line_width_scale(scale)
 		app._apply_outline_scale()
 		await frames(2)
-		measured.append(_yellow_reach(await capture(), from as Vector2, outwards))
+		measured.append(_outline_reach_in(await capture(), from as Vector2, outwards))
 	Config.set_vertex_marker_scale(1.0)
 	Config.set_line_width_scale(1.0)
 	app._apply_outline_scale()
@@ -166,13 +166,13 @@ func _outline_reach(marker: bool) -> Array[int]:
 # The furthest whole pixel along a direction that is still drawn in the outline
 # colour, starting from a point that is on the outline itself. One captured
 # frame is read sixty times rather than sixty frames captured once each.
-func _yellow_reach(image: Image, from: Vector2, direction: Vector2) -> int:
+func _outline_reach_in(image: Image, from: Vector2, direction: Vector2) -> int:
 	var reach := 0
 	for step in range(1, 60):
 		var at := from + direction * float(step)
 		if at.x < 0.0 or at.y < 0.0 or at.x >= image.get_width() or at.y >= image.get_height():
 			break
-		if not _is_yellow(image.get_pixel(int(at.x), int(at.y))):
+		if not _is_outline(image.get_pixel(int(at.x), int(at.y))):
 			break
 		reach = step
 	return reach
@@ -244,7 +244,9 @@ func _find(title: String) -> Feature:
 	return null
 
 
-# The outline overlay is drawn in pure yellow, which no part of the Earth
-# texture or a feature colour in these samples comes near.
-func _is_yellow(color: Color) -> bool:
-	return color.r > 0.5 and color.g > 0.5 and color.b < color.r * 0.5
+# The outline overlay is white: opaque on the vertex markers, and laid over the
+# polygon's edges at 60 percent in linear light, which lifts every channel to
+# 0.8 or more. No part of the Earth texture near the triangle comes that close
+# to white.
+func _is_outline(color: Color) -> bool:
+	return minf(color.r, minf(color.g, color.b)) > 0.75

@@ -1,9 +1,10 @@
 extends RenderedCase
 
 # GP-0034: the feature selected in the tree is highlighted on the planet. A
-# polygon gets a yellow outline along its rings with no dot on its vertices, a
-# line is drawn thicker and yellow, and a multipoint keeps its markers, drawn
-# larger. The dots come back in the Vertex tool alone.
+# polygon gets a translucent white outline along its rings with no dot on its
+# vertices, a line keeps its color over a white halo a quarter wider than itself
+# (GP-0095), and a multipoint keeps its markers, drawn larger and white. The dots
+# come back in the Vertex tool alone. No part of a highlight is yellow.
 #
 # The planet wears a flat red raster throughout, since the Earth's detail does
 # not come out the same from one frame to the next. Every probe reads a small
@@ -21,9 +22,18 @@ const EDGE_REACH := 10
 # lengths on the unit sphere. test_shader_defaults.gd holds both to the shader.
 const DOT_RADIUS := Planet.DEFAULT_DOT_RADIUS
 const LINE_WIDTH := 0.012
+# OUTLINE_OPACITY and SELECTED_LINE_SCALE in planet.gdshader.
+const OUTLINE_OPACITY := 0.6
+const HALO_SCALE := 1.25
+# How far a channel may be from the color worked out for it.
+const TOLERANCE := 0.03
 
 
-func test_a_selected_polygon_has_a_yellow_outline_along_its_edges() -> void:
+# The edge is white laid over whatever is beneath it at OUTLINE_OPACITY, in
+# linear light, so a pixel on it is the unselected one lifted that far towards
+# white, and none of them is white itself. At POLYGON_ZOOM the outline is solid
+# out to about five pixels from the edge.
+func test_a_selected_polygon_has_a_translucent_white_outline_along_its_edges() -> void:
 	var feature := await _load_with_raster("craton.middle-earth", "Old Shield")
 	if feature == null:
 		return
@@ -40,14 +50,23 @@ func test_a_selected_polygon_has_a_yellow_outline_along_its_edges() -> void:
 			continue
 		_select(null)
 		await frames(2)
-		var plain := _count(await capture(), centre, EDGE_REACH)
+		var plain_image := await capture()
+		var plain := _count(plain_image, centre, EDGE_REACH)
 		_select(feature)
 		await frames(2)
-		var selected := _count(await capture(), centre, EDGE_REACH)
-		assert_true(plain["yellow"] == 0 and plain["blue"] > 0 and plain["red"] > 0,
+		var selected_image := await capture()
+		var selected := _count(selected_image, centre, EDGE_REACH)
+		assert_true(plain["white"] == 0 and plain["blue"] > 0 and plain["red"] > 0,
 			"unselected, the edge %d is the fill against the raster: %s" % [i, plain])
-		assert_true(selected["yellow"] > 0,
-			"selected, the edge %d is traced in yellow: %s" % [i, selected])
+		assert_eq(selected["white"], 0, "selected, the edge %d is not opaque: %s" % [i, selected])
+		# The fill meets the raster in the middle of the square, where a pixel
+		# is already a blend and lifting it in linear light comes out a little
+		# off; the rest of the square is lifted exactly.
+		var lifted := _lifted_count(plain_image, selected_image, centre, 2)
+		assert_true(lifted >= 15,
+			"selected, the edge %d is the fill lifted towards white, %d of 25 pixels"
+				% [i, lifted])
+		assert_eq(_yellow_in(selected_image), 0, "selected, no pixel is yellow")
 		probed += 1
 		if probed >= 4:
 			break
@@ -82,9 +101,9 @@ func test_a_selected_polygon_has_no_dots_except_in_the_vertex_tool() -> void:
 		app.set_active_tool(Application.Tool.VERTEX)
 		await frames(2)
 		var editing := _count(await capture(), screen, 1)
-		assert_eq(moving["yellow"], 0,
+		assert_eq(moving["white"], 0,
 			"in the Move tool no dot sits on the vertex %d: %s" % [i, moving])
-		assert_true(editing["yellow"] >= 7,
+		assert_true(editing["white"] >= 7,
 			"in the Vertex tool the dot on the vertex %d is back: %s" % [i, editing])
 		probed += 1
 		if probed >= 3:
@@ -93,23 +112,27 @@ func test_a_selected_polygon_has_no_dots_except_in_the_vertex_tool() -> void:
 	assert_true(probed >= 3, "there were convex vertices away from the grid, found %d" % probed)
 
 
-func test_a_selected_line_is_drawn_thicker_and_yellow() -> void:
+# At LINE_ZOOM a line width is about 21 pixels: the line is solid out to 0.8 of
+# it and gone at one width, where the halo is at its whitest; the halo is gone
+# at HALO_SCALE widths.
+func test_a_selected_line_keeps_its_color_over_a_narrow_white_halo() -> void:
 	var feature := await _load_with_raster("mixed_geometry.middle-earth", "Blue Ridge")
 	if feature == null:
 		return
 	# Blue Ridge runs along the meridian at 40 degrees east. At latitude 5 the
-	# distance from it to a point further east is sin(dlon) cos(lat), so this
-	# point is half a width past where the unselected line ends and well inside
-	# the selected one, which is twice as wide.
+	# distance from it to a point further east is sin(dlon) cos(lat), so `edge`
+	# is one width out, where the line ends, and `off` is past the halo.
 	var lat := 5.0
+	var edge_lon := 40.0 + rad_to_deg(asin(LINE_WIDTH / cos(deg_to_rad(lat))))
 	var beside := 40.0 + rad_to_deg(asin(LINE_WIDTH * 1.375 / cos(deg_to_rad(lat))))
 	await look_at_latlon(lat, 40.0)
 	view().set_zoom(LINE_ZOOM)
 	await frames(2)
 	var on: Variant = view().latlon_to_screen(lat, 40.0)
+	var edge: Variant = view().latlon_to_screen(lat, edge_lon)
 	var off: Variant = view().latlon_to_screen(lat, beside)
-	assert_true(on != null and off != null, "both probe points are in view")
-	if on == null or off == null:
+	assert_true(on != null and edge != null and off != null, "the probe points are in view")
+	if on == null or edge == null or off == null:
 		await _restore()
 		return
 
@@ -128,12 +151,17 @@ func test_a_selected_line_is_drawn_thicker_and_yellow() -> void:
 		"unselected, the line is its own blue: %s" % _count(plain, on, 1))
 	assert_true(_count(plain, off, 1)["red"] == 9,
 		"unselected, the raster shows just outside it: %s" % _count(plain, off, 1))
-	assert_true(_count(selected, on, 1)["yellow"] == 9,
-		"selected, the line is yellow: %s" % _count(selected, on, 1))
-	assert_true(_count(selected, off, 1)["yellow"] == 9,
-		"selected, it is yellow past the unselected width: %s" % _count(selected, off, 1))
-	assert_true(_count(editing, off, 1)["red"] == 9,
-		"in the Vertex tool the line is not thickened: %s" % _count(editing, off, 1))
+	assert_eq(_count(plain, edge, 1)["white"], 0,
+		"unselected, nothing is white where the line ends: %s" % _count(plain, edge, 1))
+	assert_true(_count(selected, on, 1)["blue"] == 9,
+		"selected, the line is still its own blue: %s" % _count(selected, on, 1))
+	assert_true(_count(selected, edge, 1)["white"] >= 3,
+		"selected, the halo is white where the line ends: %s" % _count(selected, edge, 1))
+	assert_true(_count(selected, off, 1)["red"] == 9,
+		"selected, the halo does not reach 1.375 widths: %s" % _count(selected, off, 1))
+	assert_eq(_yellow_in(selected), 0, "selected, no pixel is yellow")
+	assert_eq(_count(editing, edge, 1)["white"], 0,
+		"in the Vertex tool the line has no halo: %s" % _count(editing, edge, 1))
 
 
 func test_a_selected_multipoint_keeps_its_markers_drawn_larger() -> void:
@@ -161,15 +189,15 @@ func test_a_selected_multipoint_keeps_its_markers_drawn_larger() -> void:
 	var editing := _count(await capture(), marker, 25)
 	await _restore()
 
-	assert_eq(plain["yellow"], 0, "unselected, the marker carries no yellow: %s" % plain)
-	assert_true(editing["yellow"] > 0, "in the Vertex tool the marker has its dot: %s" % editing)
-	assert_true(selected["yellow"] > 2 * editing["yellow"],
+	assert_eq(plain["white"], 0, "unselected, the marker carries no white: %s" % plain)
+	assert_true(editing["white"] > 0, "in the Vertex tool the marker has its dot: %s" % editing)
+	assert_true(selected["white"] > 2 * editing["white"],
 		"selected, the marker is drawn larger than the Vertex tool's dot: %d against %d"
-			% [selected["yellow"], editing["yellow"]])
+			% [selected["white"], editing["white"]])
 
 
 # GP-0075: with View > Highlight children on, selecting a feature traces its
-# children in orange, next to its own yellow, and tints their rows.
+# children in orange, next to its own white, and tints their rows.
 func test_a_polygon_following_the_selection_is_traced_orange() -> void:
 	var parent := await _load_with_raster("two_cratons.middle-earth", "Red Triangle", Color.BLACK)
 	var child := _find("Blue Quad")
@@ -197,10 +225,10 @@ func test_a_polygon_following_the_selection_is_traced_orange() -> void:
 
 	assert_true(off_child["orange"] == 0 and off_child["blue"] > 0,
 		"switched off, the child's edge is its own blue: %s" % off_child)
-	assert_true(on_child["orange"] > 0 and on_child["yellow"] == 0,
+	assert_true(on_child["orange"] > 0 and on_child["white"] == 0 and on_child["pale"] == 0,
 		"switched on, the child's edge is orange: %s" % on_child)
-	assert_true(on_parent["yellow"] > 0,
-		"and the selected parent's edge is yellow: %s" % on_parent)
+	assert_true(on_parent["pale"] > 0,
+		"and the selected parent's edge is translucent white: %s" % on_parent)
 	assert_eq(tint, FeatureTree.CHILD_TINT, "the child's row is tinted")
 	assert_true(tint_after != FeatureTree.CHILD_TINT, "and loses the tint when switched off")
 
@@ -213,7 +241,8 @@ func test_a_line_following_the_selection_is_drawn_orange_at_its_width() -> void:
 	assert_eq(app.document.couple(child, parent, app.document.current_time), "")
 	app.refresh_geometry()
 	# Blue Ridge runs along the meridian at 40 degrees east; see
-	# test_a_selected_line_is_drawn_thicker_and_yellow for the point beside it.
+	# test_a_selected_line_keeps_its_color_over_a_narrow_white_halo for the
+	# point beside it.
 	var lat := 5.0
 	var beside := 40.0 + rad_to_deg(asin(LINE_WIDTH * 1.375 / cos(deg_to_rad(lat))))
 	await look_at_latlon(lat, 40.0)
@@ -303,7 +332,7 @@ func _count_at(edge: Array) -> Dictionary:
 	await frames(2)
 	var centre: Variant = view().latlon_to_screen(middle.x, middle.y)
 	if centre == null:
-		return {"yellow": 0, "orange": 0, "red": 0, "green": 0, "blue": 0}
+		return {"white": 0, "pale": 0, "orange": 0, "red": 0, "green": 0, "blue": 0}
 	return _count(await capture(), centre, EDGE_REACH)
 
 
@@ -366,15 +395,20 @@ func _near_grid(point: Vector2) -> bool:
 	return false
 
 
-# How many pixels of a square around a point are yellow, how many are the child
-# orange, and how many each channel dominates.
+# How many pixels of a square around a point are white, how many are pale (white
+# laid over them at OUTLINE_OPACITY lifts every channel to 0.8 or more), how many
+# are the child orange, and how many each channel dominates.
 func _count(image: Image, centre: Vector2, reach: int) -> Dictionary:
-	var counts := {"yellow": 0, "orange": 0, "red": 0, "green": 0, "blue": 0}
+	var counts := {"white": 0, "pale": 0, "orange": 0, "red": 0, "green": 0, "blue": 0}
 	for dy in range(-reach, reach + 1):
 		for dx in range(-reach, reach + 1):
 			var color := image.get_pixel(int(centre.x) + dx, int(centre.y) + dy)
-			if color.r > 0.5 and color.g > 0.5 and color.b < color.r * 0.5:
-				counts["yellow"] += 1
+			var lowest := minf(color.r, minf(color.g, color.b))
+			if lowest > 0.85:
+				counts["white"] += 1
+				continue
+			if lowest > 0.75:
+				counts["pale"] += 1
 				continue
 			if color.r > 0.6 and color.g > color.r * 0.3 and color.g < color.r * 0.7 					and color.b < color.r * 0.25:
 				counts["orange"] += 1
@@ -383,6 +417,41 @@ func _count(image: Image, centre: Vector2, reach: int) -> Dictionary:
 			if counts.has(channel):
 				counts[channel] += 1
 	return counts
+
+
+# What a pixel becomes under the translucent outline: white laid over it at
+# OUTLINE_OPACITY in linear light.
+func _lifted(color: Color) -> Color:
+	return color.srgb_to_linear().lerp(Color.WHITE, OUTLINE_OPACITY).linear_to_srgb()
+
+
+func _close(a: Color, b: Color) -> bool:
+	return absf(a.r - b.r) < TOLERANCE and absf(a.g - b.g) < TOLERANCE \
+		and absf(a.b - b.b) < TOLERANCE
+
+
+# How many pixels of a square are, in `after`, the pixel of `before` lifted.
+func _lifted_count(before: Image, after: Image, centre: Vector2, reach: int) -> int:
+	var count := 0
+	for dy in range(-reach, reach + 1):
+		for dx in range(-reach, reach + 1):
+			var at := Vector2i(int(centre.x) + dx, int(centre.y) + dy)
+			if _close(after.get_pixelv(at), _lifted(before.get_pixelv(at))):
+				count += 1
+	return count
+
+
+# How many pixels of the planet view are yellow. The rest of the window is left
+# out: the timeline marks the selected feature's keyframes in a yellow of its own.
+func _yellow_in(image: Image) -> int:
+	var rect := Rect2i(view().get_global_rect())
+	var count := 0
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			var color := image.get_pixel(x, y)
+			if color.r > 0.5 and color.g > 0.5 and color.b < color.r * 0.5:
+				count += 1
+	return count
 
 
 func _find(title: String) -> Feature:
