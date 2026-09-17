@@ -351,13 +351,15 @@ func remove_vertex(feature: Feature, part: int, index: int) -> String:
 # A topology has no vertices of its own, so what comes out of one is what its
 # sections resolve to, one run per section, which is a polyline, or for a closed
 # one the single ring, which is a polygon. That is the one way to turn a
-# topology into a shape someone can edit.
+# topology into a shape someone can edit. A ridge and a crust are copied as the
+# rings they were last rebuilt into: the ridge's one line and the crust's bands.
 func shape_of(feature: Feature) -> Dictionary:
 	if feature == null or feature.is_group or not feature.has_geometry():
 		return {}
 
 	var rings: Array[PackedVector2Array] = []
-	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY \
+			and not feature.midway and not feature.is_crust():
 		for entry in Topology.resolve(root, feature, current_time):
 			var run: PackedVector2Array = entry["vertices"]
 			if not run.is_empty():
@@ -372,7 +374,9 @@ func shape_of(feature: Feature) -> Dictionary:
 	var to_world := Feature.world_basis(root, feature, current_time)
 	for ring in feature.rings:
 		rings.append(Feature.apply_basis(ring, to_world))
-	return {"kind": feature.geometry_kind, "rings": rings}
+	if rings.is_empty():
+		return {}
+	return {"kind": feature.drawn_as(), "rings": rings}
 
 
 # Append a shape taken with shape_of() to a feature, in the frame that feature
@@ -446,10 +450,10 @@ func split_feature(feature: Feature, part: int, first: int, second: int = -1) ->
 # them go to both halves; see GeometryEdit.split_along(). Otherwise the same as
 # split_feature(): both halves carry what the feature was, and one version.
 #
-# With `ridge` on, a Line feature is left along the cut as well, following both
-# halves at one half; see _add_ridge() and Docs/Editing.md#the-ridge. With
-# `crust` on as well, two closed topologies fill the sea floor between the ridge
-# and each half; see _add_crust(). With `children` on, the features following
+# With `ridge` on, a midway topology is left along the cut as well, between the
+# two halves; see _add_ridge() and Docs/Editing.md#the-ridge. With `crust` on as
+# well, each half gets a crust of bands between isochrons and a feature holding
+# the isochrons and flowlines; see _add_crust(). With `children` on, the features following
 # the polygon at the current time are cut along the same path and the pieces on
 # the far side follow the second half; see _split_children().
 func split_feature_along(feature: Feature, part: int, path: PackedVector2Array,
@@ -462,22 +466,21 @@ func split_feature_along(feature: Feature, part: int, path: PackedVector2Array,
 	var problem := GeometryEdit.split_along_problem(feature.rings[part], path)
 	if not problem.is_empty():
 		return problem
-	var edge := GeometryEdit.shared_edge(feature.rings[part], path) if ridge \
-		else PackedVector2Array()
+	var edge_size := GeometryEdit.shared_edge(feature.rings[part], path).size() if ridge else 0
 	var world_cut := Feature.apply_basis(GeometryEdit.shared_edge(feature.rings[part], path),
 		Feature.world_basis(root, feature, current_time)) if children 		else PackedVector2Array()
 	return _split_into(feature, part, GeometryEdit.split_along(feature.rings[part], path),
-		edge, crust, world_cut)
+		edge_size, crust, world_cut)
 
 
 # Put the first half in place of the part and the second in a new feature beside
-# the original, named after it. `edge` is the cut both halves share, in the
-# feature's own frame, and is what the ridge is drawn along when there is one.
-# Each half starts with that edge; see GeometryEdit.split_polygon(). A
+# the original, named after it. `edge_size` is how many vertices the cut both
+# halves share has, and a ridge is left along it when that is not zero. Each
+# half starts with that edge; see GeometryEdit.split_polygon(). A
 # `world_cut`, the same edge in world space, takes the children along; see
 # _split_children().
 func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array],
-		edge := PackedVector2Array(), crust := false,
+		edge_size := 0, crust := false,
 		world_cut := PackedVector2Array()) -> String:
 	var parent := root.find_parent(feature)
 	if parent == null:
@@ -485,14 +488,13 @@ func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array],
 	var children: Array[Feature] = []
 	if not world_cut.is_empty():
 		children = Coupling.children_of(root, feature.uuid, current_time)
-	var into_world := Feature.world_basis(root, feature, current_time)
 	var other := _split_off(parent, feature, part, halves)
 	split_children.clear()
 	_split_children(feature, other, children, world_cut)
-	if not edge.is_empty():
-		var ridge := _add_ridge(parent, feature, other, Feature.apply_basis(edge, into_world))
+	if edge_size > 0:
+		var ridge := _add_ridge(parent, feature, other, part, edge_size)
 		if crust:
-			_add_crust(parent, ridge, [feature, other], [part, 0], edge.size())
+			_add_crust(parent, ridge, [feature, other], edge_size)
 	record()
 	return ""
 
@@ -574,57 +576,49 @@ func _follow_instead(child: Feature, uuid: String, instead: Feature) -> void:
 		Coupling.rotation_for(child, current_time, here, nodes))
 
 
-# The rift the cut leaves behind: a Line along the shared edge, following both
-# halves from the current time to the present. Its frame is theirs at one half,
-# so it stays midway between them however far they drift apart. Both halves have
-# the polygon's pose at the split time, so the one keyframe written there puts
-# the ridge exactly on the cut. Part of the split's own undo version.
-func _add_ridge(parent: Feature, first: Feature, second: Feature,
-		world_edge: PackedVector2Array) -> Feature:
+# The rift the cut leaves behind: a midway topology between the two halves'
+# sides of the cut, from the current time to the present. The first half runs
+# its side of the cut one way and the second the other, so the second section
+# is walked back to pair the vertices up. The ridge has no motion of its own;
+# see Logic/ridge.gd. Part of the split's own undo version.
+func _add_ridge(parent: Feature, first: Feature, second: Feature, part: int,
+		edge_size: int) -> Feature:
 	var ridge := Feature.create_feature(Feature.clamp_title("%s ridge" % first.title),
 		FeatureType.color(FeatureType.LINE), Vector2i(0, int(round(current_time))))
-	ridge.feature_type = FeatureType.LINE
-	ridge.add_ring(world_edge, Feature.GeometryKind.POLYLINE)
-	ridge.couplings.append(Coupling.create(current_time, 0.0, first.uuid, second.uuid))
+	ridge.feature_type = "topology"
+	ridge.geometry_kind = Feature.GeometryKind.TOPOLOGY
+	ridge.midway = true
+	ridge.sections.assign([
+		TopologySection.create(first.uuid, part, 0, edge_size - 1),
+		TopologySection.create(second.uuid, 0, 0, edge_size - 1, true),
+	])
 	parent.children.insert(parent.find_child(second) + 1, ridge)
-	Keyframe.upsert(ridge.keyframes, current_time,
-		Coupling.rotation_for(ridge, current_time, Basis(), Coupling.index(root)))
+	Topology.rebuild(root, ridge, current_time)
 	return ridge
 
 
-# The sea floor a ridge opens: for each half, a closed topology running along
-# the half's side of the cut and back along the ridge, inserted after the ridge
-# with the same time range. At the split time the two runs lie on each other
-# and the ring encloses nothing; as the halves drift the ridge stays midway and
-# each ring opens between it and its half. Part of the split's own undo version.
-#
-# `parts` names the part each half holds its side of the cut in, and `edge_size`
-# how many vertices the cut has; each half starts with it.
-func _add_crust(parent: Feature, ridge: Feature, halves: Array, parts: Array,
-		edge_size: int) -> void:
-	var ridge_world := Feature.apply_basis(ridge.rings[0],
-		Feature.world_basis(root, ridge, current_time))
+# The sea floor a ridge opens: for each half, a crust of bands between isochrons
+# and a feature holding the isochrons and flowlines, inserted after the ridge
+# with its time range, the crust first. Their rings follow the time and the
+# timeline's Skip, so Crust.rebuild_all() gives them their rings. Part of the
+# split's own undo version.
+func _add_crust(parent: Feature, ridge: Feature, halves: Array, edge_size: int) -> void:
 	var at := parent.find_child(ridge)
-	for k in halves.size():
-		var half: Feature = halves[k]
-		var part: int = parts[k]
-		var cut_end: Vector2 = Feature.apply_basis(
-			PackedVector2Array([half.rings[part][edge_size - 1]]),
-			Feature.world_basis(root, half, current_time))[0]
-		# The ridge is walked from the end the cut run stops at.
-		var reversed := cut_end.distance_to(ridge_world[-1]) < cut_end.distance_to(ridge_world[0])
-		var crust := Feature.create_feature(Feature.clamp_title("%s crust" % half.title),
-			FeatureType.color(FeatureType.CRUST), ridge.time_range)
-		crust.feature_type = "topology"
-		crust.geometry_kind = Feature.GeometryKind.TOPOLOGY
-		crust.closed = true
-		crust.sections.assign([
-			TopologySection.create(half.uuid, part, 0, edge_size - 1),
-			TopologySection.create(ridge.uuid, 0, 0, ridge.rings[0].size() - 1, reversed),
-		])
-		at += 1
-		parent.children.insert(at, crust)
-		Topology.rebuild(root, crust, current_time)
+	for half: Feature in halves:
+		for lines in [false, true]:
+			var title := "%s crust%s" % [half.title, " lines" if lines else ""]
+			var crust := Feature.create_feature(Feature.clamp_title(title),
+				FeatureType.color(FeatureType.CRUST_LINES if lines else FeatureType.CRUST),
+				ridge.time_range)
+			crust.feature_type = "topology"
+			crust.geometry_kind = Feature.GeometryKind.TOPOLOGY
+			crust.closed = not lines
+			crust.crust_half = half.uuid
+			crust.crust_ridge = ridge.uuid
+			crust.crust_edge = edge_size
+			crust.crust_lines = lines
+			at += 1
+			parent.children.insert(at, crust)
 
 
 ### Topologies
@@ -639,6 +633,9 @@ func _add_crust(parent: Feature, ridge: Feature, halves: Array, parts: Array,
 func set_topology_closed(feature: Feature, closed: bool) -> String:
 	if feature == null or feature.geometry_kind != Feature.GeometryKind.TOPOLOGY:
 		return "Only a topology can be closed."
+	if feature.midway or feature.is_crust():
+		return "%s is built from what it lies between, so it cannot be closed or opened." \
+			% feature.title
 	feature.closed = closed
 	Topology.rebuild(root, feature, current_time)
 	record()
@@ -1060,7 +1057,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.22.0"):
+	if not _is_older_than(version, "0.23.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -1103,8 +1100,108 @@ static func migrate(data: Dictionary) -> Dictionary:
 		_to_0_21_0(data.get("features", {}))
 	if _is_older_than(version, "0.22.0"):
 		_to_0_22_0(data.get("features", {}))
-	data["version"] = "0.22.0"
+	if _is_older_than(version, "0.23.0"):
+		_to_0_23_0(data.get("features", {}))
+	data["version"] = "0.23.0"
 	return data
+
+
+# 0.23.0 made the ridge a midway topology and the crust bands between isochrons.
+# A ridge the Split tool left, a Line with one ring, one keyframe and one span
+# following two parents, becomes a midway topology between the two halves' sides
+# of the cut, the second walked back; the side of the first half is in the part
+# its crust names, else in part 0. A closed topology whose second section runs
+# along such a ridge was its crust, and becomes one, with the lines feature
+# inserted after it. See Docs/Persistence.md.
+static func _to_0_23_0(features: Variant) -> void:
+	var leaves: Array = []
+	_leaves_of(features, leaves)
+	var ridges := {}
+	for leaf: Dictionary in leaves:
+		if _is_ridge_before_0_23_0(leaf):
+			ridges[str(leaf.get("uuid", ""))] = leaf
+	var parts := {}
+	for leaf: Dictionary in leaves:
+		var sections: Variant = _crust_sections(leaf, ridges)
+		if sections != null:
+			parts[str(sections[0].get("feature", ""))] = int(sections[0].get("part", 0))
+	for leaf: Dictionary in ridges.values():
+		var span: Dictionary = leaf["couplings"][0]
+		var last: int = (leaf["rings"][0] as Array).size() - 1
+		var first := str(span.get("parent", ""))
+		leaf["feature_type"] = "topology"
+		leaf["geometry_kind"] = "topology"
+		leaf["midway"] = true
+		leaf["sections"] = [
+			{"feature": first, "part": parts.get(first, 0), "from": 0, "to": last,
+				"reversed": false},
+			{"feature": str(span["parent_b"]), "part": 0, "from": 0, "to": last,
+				"reversed": true},
+		]
+		leaf.erase("rings")
+		leaf["keyframes"] = []
+		leaf["couplings"] = []
+	_crusts_to_0_23_0(features, ridges)
+
+
+static func _leaves_of(node: Variant, leaves: Array) -> void:
+	if node is not Dictionary:
+		return
+	if node.has("children"):
+		for child in node["children"]:
+			_leaves_of(child, leaves)
+	elif not bool(node.get("is_group", false)):
+		leaves.append(node)
+
+
+static func _is_ridge_before_0_23_0(leaf: Dictionary) -> bool:
+	var couplings: Variant = leaf.get("couplings")
+	var keyframes: Variant = leaf.get("keyframes")
+	var rings: Variant = leaf.get("rings")
+	return str(leaf.get("geometry_kind", "")) == "polyline" \
+		and couplings is Array and couplings.size() == 1 and couplings[0] is Dictionary \
+		and not str(couplings[0].get("parent_b", "")).is_empty() \
+		and keyframes is Array and keyframes.size() == 1 \
+		and rings is Array and rings.size() == 1 and rings[0] is Array
+
+
+# The two sections of a 0.22.0 crust, one along its half and one along one of
+# the ridges, or null when the leaf is not one.
+static func _crust_sections(leaf: Variant, ridges: Dictionary) -> Variant:
+	if leaf is not Dictionary or not bool(leaf.get("closed", false)):
+		return null
+	var sections: Variant = leaf.get("sections")
+	if sections is not Array or sections.size() != 2 or sections[0] is not Dictionary \
+			or sections[1] is not Dictionary \
+			or not ridges.has(str(sections[1].get("feature", ""))):
+		return null
+	return sections
+
+
+static func _crusts_to_0_23_0(node: Variant, ridges: Dictionary) -> void:
+	if node is not Dictionary or not node.has("children"):
+		return
+	var children: Array = node["children"]
+	var index := 0
+	while index < children.size():
+		var child: Variant = children[index]
+		index += 1
+		_crusts_to_0_23_0(child, ridges)
+		var sections: Variant = _crust_sections(child, ridges)
+		if sections == null:
+			continue
+		child["crust"] = {"half": str(sections[0].get("feature", "")),
+			"ridge": str(sections[1]["feature"]), "edge": int(sections[0].get("to", 0)) + 1}
+		child["sections"] = []
+		var lines: Dictionary = child.duplicate(true)
+		lines["uuid"] = Helpers.generate_uuid_v4()
+		lines["title"] = Feature.clamp_title("%s lines" % child.get("title", ""))
+		var color := FeatureType.color(FeatureType.CRUST_LINES)
+		lines["color"] = [color.r, color.g, color.b, color.a]
+		lines.erase("closed")
+		lines["crust"]["lines"] = true
+		children.insert(index, lines)
+		index += 1
 
 
 # 0.22.0 samples a hotspot's track at the timeline's Skip, so a hotspot leaf
