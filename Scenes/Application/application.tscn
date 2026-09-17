@@ -10,7 +10,6 @@
 [ext_resource type="Texture2D" uid="uid://cek62f1d17y64" path="res://Assets/GodotIcons/CurveEdit.svg" id="8_toolvertex"]
 [ext_resource type="Texture2D" uid="uid://ceybndew6vt08" path="res://Assets/GodotIcons/Ruler.svg" id="9_toolmeasure"]
 [ext_resource type="Texture2D" uid="uid://bbx5oicbbars8" path="res://Assets/GodotIcons/CurveClose.svg" id="11_toolsplit"]
-[ext_resource type="Texture2D" uid="uid://dlgtg7jn7dvnj" path="res://Assets/GodotIcons/CircleShape2D.svg" id="12_toolcircle"]
 [ext_resource type="Texture2D" uid="uid://366sx70lun28" path="res://Assets/GodotIcons/ZoomLess.svg" id="14_zoomless"]
 [ext_resource type="Texture2D" uid="uid://bher4w8tsqu8o" path="res://Assets/GodotIcons/ZoomMore.svg" id="15_zoommore"]
 [ext_resource type="Texture2D" uid="uid://c57mfqi8mb5ve" path="res://Assets/GodotIcons/RotateLeft.svg" id="17_rotateleft"]
@@ -132,16 +131,6 @@ toggle_mode = true
 icon = ExtResource("9_toolmeasure")
 expand_icon = true
 
-[node name="Circle" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(40, 40)
-layout_mode = 2
-tooltip_text = "Circle [C]"
-disabled = true
-toggle_mode = true
-icon = ExtResource("12_toolcircle")
-expand_icon = true
-
 [node name="Split" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
@@ -156,7 +145,7 @@ expand_icon = true
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
-tooltip_text = "Segments of a circle: how many the Circle tool cuts it into when it commits"
+tooltip_text = "Segments of a circle: how many the Draw tool cuts a circle into when it commits"
 mouse_filter = 1
 text = "Circle segments"
 vertical_alignment = 1
@@ -166,7 +155,7 @@ unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
-tooltip_text = "Segments of a circle: how many the Circle tool cuts it into when it commits"
+tooltip_text = "Segments of a circle: how many the Draw tool cuts a circle into when it commits"
 
 [node name="Ridge" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
