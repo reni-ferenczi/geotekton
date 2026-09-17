@@ -355,8 +355,9 @@ shows while it is selected. The fill of a polygon and the markers of a
 multipoint ignore the flag.
 
 `Application._highlighted_feature()` decides which feature carries the flag.
-It is the selected leaf feature in every tool but Vertex, Circle, Light and
-Measure. The last three draw overlays of their own. The Vertex tool traces the
+It is the selected leaf feature in every tool but Vertex and Measure, and in
+the Draw tool unless it is drawing a circle. Measure and a circle being drawn
+show overlays of their own. The Vertex tool traces the
 rings with a dot on every vertex instead, styles 3, 0 and 2, since picking
 vertices is what it is for, and a thick line would cover those dots.
 

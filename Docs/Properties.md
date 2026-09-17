@@ -447,7 +447,7 @@ offers Duplicate and Delete on it. Only in the Move tool: in the Draw tool a
 right click takes the last placed vertex back, and in the Measure tool it takes
 back the last point measured to.
 
-Undo and Redo have the same exception. While the Draw, Circle or Measure tool
+Undo and Redo have the same exception. While the Draw or Measure tool
 holds points it has not committed, Ctrl+Z takes the last of them back and
 Ctrl+Y puts it down again, and the document's stack is reached only once no
 point is held; see [Draw](Draw.md#visual-feedback). The feature tree toolbar's

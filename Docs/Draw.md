@@ -92,8 +92,8 @@ while any are held: Ctrl+Z takes the last one back and Ctrl+Y puts it down
 again, and the document's own undo stack is reached only once the outline is
 empty. Without this, Ctrl+Z halfway through a shape would undo the creation of
 the very feature being drawn on. The vertices taken back are forgotten by the
-next click, a commit, Escape or a change of tool. The Circle and Measure tools
-hold their points the same way.
+next click, a commit, Escape or a change of tool. The points of a circle and
+those of the Measure tool are held the same way.
 
 Outside drawing, the selected feature is highlighted instead: an outline along
 the rings of a polygon, a thicker line, larger markers on a multipoint, and no

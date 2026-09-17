@@ -117,8 +117,8 @@ The feature selected in the tree is highlighted on the planet in yellow:
 
 A dot on every vertex appears only in the [Vertex tool](#the-vertex-tool),
 where the vertices are there to be picked; there a line is traced at its own
-width instead of thickened. The Circle and Measure tools show their own
-points in place of the highlight, and the Draw tool's preview of the shape
+width instead of thickened. A circle being drawn and the Measure tool show
+their own points in place of the highlight, and the Draw tool's preview of the shape
 being drawn is drawn over it as before. See
 [Shader](Shader.md#the-selected-feature).
 
@@ -139,7 +139,8 @@ children of those in turn:
 
 The marks follow the current time, since a coupling holds over a span of it.
 They show in the tools that highlight the selection, which leaves out Vertex,
-Circle, Light and Measure; the tree keeps its tint in every tool. A selected
+Measure and the Draw tool while it draws a circle; the tree keeps its tint in
+every tool. A selected
 group has no children.
 
 Up to 0.1.0 the rows also had invert, single, wrap, resize and repeat, five
