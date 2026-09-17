@@ -46,7 +46,7 @@ func test_leaf_without_optional_keys_gets_defaults() -> void:
 	assert_eq(leaf.title, "Bare")
 	assert_eq(leaf.is_group, false)
 	assert_eq(leaf.enabled, true)
-	assert_close(leaf.color, Color(0.82, 0.41, 0.12, 1.0), 1e-6, "default chocolate color")
+	assert_close(leaf.color, Color(0.36, 0.60, 0.33, 1.0), 1e-6, "default green color")
 	assert_eq(leaf.geometry_kind, Feature.GeometryKind.POLYGON)
 	assert_eq(leaf.rings.size(), 0)
 	assert_eq(leaf.triangles.size(), 0)

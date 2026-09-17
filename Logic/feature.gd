@@ -515,7 +515,8 @@ static func from_json(data: Variant) -> Feature:
 			data = data.duplicate()
 			fit_circle_json(data)
 		node.feature_type = str(data.get("feature_type", FeatureType.NONE))
-		var c: Array = data.get("color", [0.82, 0.41, 0.12, 1.0])
+		var fallback: Color = FeatureType.CATALOG[FeatureType.POLYGON]["color"]
+		var c: Array = data.get("color", [fallback.r, fallback.g, fallback.b, fallback.a])
 		node.color = Color(c[0], c[1], c[2], c[3])
 		node.icon = str(data.get("icon", FeatureIcon.NONE))
 		node.geometry_kind = KIND_VALUES.get(data.get("geometry_kind", "polygon"), GeometryKind.POLYGON)

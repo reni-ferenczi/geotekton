@@ -200,7 +200,7 @@ number stays the same.
   "is_group": false,
   "type": "Feature",
   "feature_type": "polygon",
-  "color": [0.82, 0.41, 0.12, 1.0],
+  "color": [0.36, 0.6, 0.33, 1.0],
   "icon": "craton",
   "geometry_kind": "polygon",
   "rings": [[[45.0, 30.0], [46.0, 31.0], [45.0, 32.0]]],
