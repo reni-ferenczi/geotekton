@@ -504,7 +504,7 @@ func set_outline_scale(marker: float, line: float) -> void:
 		material.set_shader_parameter("outline_line_width", DEFAULT_LINE_WIDTH * line)
 
 
-# Upload the outline overlay, drawn over the geometry in yellow.
+# Upload the outline overlay, drawn over the geometry in white.
 # Each part: { "vertices": PackedVector2Array of (lat_deg, lon_deg),
 #              "style": OutlineStyle }. Pass an empty array to clear it.
 func set_outline(parts: Array) -> void:

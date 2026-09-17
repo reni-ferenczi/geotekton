@@ -55,10 +55,12 @@ uniform int geometry_count = 0;
 uniform float geometry_line_width = 0.012;
 uniform float geometry_point_radius = 0.02;
 
-// How much wider the segments of the selected feature are drawn, in the
-// highlight color.
-const float SELECTED_LINE_SCALE = 2.0;
-const vec3 HIGHLIGHT_COLOR = vec3(1.0, 1.0, 0.0);
+// How much wider the halo under the segments of the selected feature is than
+// the segments themselves, and its color, which is also the outline overlay's.
+const float SELECTED_LINE_SCALE = 1.25;
+const vec3 HIGHLIGHT_COLOR = vec3(1.0);
+// How much of a line's width the antialiasing feather takes, from the outside.
+const float LINE_FEATHER = 0.2;
 // What the segments of a child of the selected feature are drawn in, at the
 // normal width: Planet.CHILD_COLOR, an sRGB orange, in linear light.
 const vec3 CHILD_COLOR = vec3(1.0, 0.214041, 0.0);
@@ -75,7 +77,7 @@ const vec3 CHILD_COLOR = vec3(1.0, 0.214041, 0.0);
 // five texels per feature are re-uploaded, whatever the triangle count is.
 // `visible` is 0 while the feature is outside its time range, `hovered` is 1
 // while the pointer rests on it, `selected` is 1 on the feature whose
-// segments are drawn thicker and yellow, and `related` is 1 on a child of the
+// segments get a white halo, and `related` is 1 on a child of the
 // selected feature, whose lines and markers are drawn orange. A related
 // polygon keeps its fill; the outline overlay traces it instead.
 uniform sampler2D feature_data : filter_nearest, repeat_disable;
@@ -97,6 +99,9 @@ uniform int outline_vertex_count = 0;
 uniform float outline_line_width = 0.002;
 uniform float outline_dot_radius = 0.006;
 uniform float outline_closing_opacity = 0.25;
+// The opacity of a closed outline, style 3 and 4, so the fill and the grid
+// show through the white edge of a selected polygon.
+const float OUTLINE_OPACITY = 0.6;
 
 // How much larger style 5 draws its markers than outline_dot_radius.
 const float SELECTED_MARKER_SCALE = 2.0;
@@ -209,6 +214,12 @@ vec3 latlon_to_unit(vec2 ll) {
 	return vec3(cos_lat * cos(ll.y), sin(ll.x), cos_lat * sin(ll.y));
 }
 
+// How much of a fragment at `d` from a line `width` wide the line covers:
+// all of it inside, fading over the outer LINE_FEATHER of the width.
+float line_coverage(float width, float d) {
+	return 1.0 - smoothstep(width * (1.0 - LINE_FEATHER), width, d);
+}
+
 // Chord length between two points on the unit sphere.
 float chord(vec3 a, vec3 b) {
 	return sqrt(2.0 * max(0.0, 1.0 - dot(a, b)));
@@ -280,6 +291,13 @@ void fragment() {
 	bool feature_selected = false;
 	bool feature_related = false;
 	vec4 feature_color = vec4(1.0);
+	// The selected feature's segments are laid down after the loop, halo first
+	// and the line over it, from the distance to the nearest of them. Drawing
+	// each segment's halo in turn would paint over the line of the one before
+	// where the two meet.
+	float selected_line_dist = 1e10;
+	vec4 selected_paint = vec4(1.0);
+	float selected_hovered = 0.0;
 
 	for (int i = 0; i < geometry_count; i++) {
 		vec4 row0 = texelFetch(geometry_data, ivec2(i, 0), 0);
@@ -320,17 +338,17 @@ void fragment() {
 			}
 		} else if (kind == 1) {
 			float d = arc_distance(a, rotation * latlon_to_unit(row0.zw), p);
-			// A selected line is drawn thicker and yellow, and opaque, so it
-			// shows even at an opacity of zero. A related line keeps its width
-			// and is drawn opaque orange.
-			float line_width = geometry_line_width;
 			if (feature_selected) {
-				line_width *= SELECTED_LINE_SCALE;
-				paint = vec4(HIGHLIGHT_COLOR, 1.0);
-			} else if (feature_related) {
+				selected_line_dist = min(selected_line_dist, d);
+				selected_paint = feature_color;
+				selected_hovered = hovered;
+				continue;
+			}
+			// A related line is drawn opaque orange.
+			if (feature_related) {
 				paint = vec4(CHILD_COLOR, 1.0);
 			}
-			coverage = 1.0 - smoothstep(line_width * 0.5, line_width, d);
+			coverage = line_coverage(geometry_line_width, d);
 		} else {
 			float d = chord(a, p);
 			coverage = 1.0 - smoothstep(geometry_point_radius * 0.7, geometry_point_radius, d);
@@ -350,6 +368,18 @@ void fragment() {
 		}
 	}
 
+	// The selected line: an opaque white halo, so it shows even at an opacity
+	// of zero, and the line in its own color on top.
+	if (selected_line_dist < 1e9) {
+		float halo = line_coverage(geometry_line_width * SELECTED_LINE_SCALE, selected_line_dist);
+		base = mix(base, HIGHLIGHT_COLOR, halo);
+		vec3 fill = mix(base, selected_paint.rgb, selected_paint.a);
+		if (selected_hovered > 0.5) {
+			fill = mix(fill, vec3(1.0), 0.15);
+		}
+		base = mix(base, fill, line_coverage(geometry_line_width, selected_line_dist));
+	}
+
 	// The grid goes over the feature fills, the way GPlates draws its
 	// graticule, so a polygon never hides it. The outline stays on top.
 	base = mix(base, color.rgb, g * color.a);
@@ -359,6 +389,7 @@ void fragment() {
 		float min_dot_dist = 1e10;
 		float min_line_dist = 1e10;
 		float closing_line_dist = 1e10;
+		float closed_line_dist = 1e10;
 		float child_line_dist = 1e10;
 		float bold_line_dist = 1e10;
 
@@ -396,6 +427,8 @@ void fragment() {
 				child_line_dist = min(child_line_dist, d);
 			} else if (style == 7) {
 				bold_line_dist = min(bold_line_dist, d);
+			} else if (style == 3 || style == 4) {
+				closed_line_dist = min(closed_line_dist, d);
 			} else {
 				min_line_dist = min(min_line_dist, d);
 			}
@@ -403,13 +436,14 @@ void fragment() {
 
 		// Composite: dots are larger circles at vertices, lines between them
 		float dot_alpha = 1.0 - smoothstep(outline_dot_radius * 0.7, outline_dot_radius, min_dot_dist);
-		float line_alpha = 1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, min_line_dist);
-		float closing_alpha = (1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, closing_line_dist)) * outline_closing_opacity;
-		float bold_alpha = 1.0 - smoothstep(geometry_line_width * 0.5, geometry_line_width, bold_line_dist);
-		float outline_alpha = max(max(dot_alpha, bold_alpha), max(line_alpha, closing_alpha));
-		float child_alpha = 1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, child_line_dist);
+		float line_alpha = line_coverage(outline_line_width, min_line_dist);
+		float closed_alpha = line_coverage(outline_line_width, closed_line_dist) * OUTLINE_OPACITY;
+		float closing_alpha = line_coverage(outline_line_width, closing_line_dist) * outline_closing_opacity;
+		float bold_alpha = line_coverage(geometry_line_width, bold_line_dist);
+		float outline_alpha = max(max(dot_alpha, bold_alpha), max(max(line_alpha, closed_alpha), closing_alpha));
+		float child_alpha = line_coverage(outline_line_width, child_line_dist);
 		base = mix(base, CHILD_COLOR, child_alpha);
-		base = mix(base, vec3(1.0, 1.0, 0.0), outline_alpha);
+		base = mix(base, HIGHLIGHT_COLOR, outline_alpha);
 	}
 
 	ALBEDO = base;

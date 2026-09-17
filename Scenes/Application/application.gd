@@ -3989,10 +3989,10 @@ func _drawn_children() -> Array[Feature]:
 	return coupled_children if _highlighted_feature() != null else none
 
 
-# The feature whose lines the shader draws thicker and yellow: the selected one,
+# The feature whose lines the shader draws over a white halo: the selected one,
 # in the tools that trace the selection. A circle being drawn and the Measure
 # tool draw their own overlay instead, and the Vertex tool traces the rings with a dot on every
-# vertex, which a thick line would cover.
+# vertex, which the halo would cover.
 func _highlighted_feature() -> Feature:
 	if active_tool in [Tool.VERTEX, Tool.MEASURE] or _drawing_circle():
 		return null
@@ -4002,10 +4002,10 @@ func _highlighted_feature() -> Feature:
 	return selected
 
 
-# Trace the selected feature over the geometry in the same yellow the shape
+# Trace the selected feature over the geometry in the same white the shape
 # being drawn is shown in. A polygon gets an outline along its rings and a
 # multipoint larger markers; a line needs nothing here, since the shader draws
-# it thicker. Only the Vertex tool puts a dot on every vertex, since picking
+# it over a halo. Only the Vertex tool puts a dot on every vertex, since picking
 # vertices is what it is for.
 func _refresh_selection_outline() -> void:
 	# A circle being drawn shows the circle its clicks describe, so what
