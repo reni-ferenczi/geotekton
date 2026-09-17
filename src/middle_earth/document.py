@@ -171,6 +171,21 @@ class Feature:
         return self.data.get("sections", [])
 
     @property
+    def midway(self) -> bool:
+        """Whether a topology is the line midway between its two sections, since 0.23.0."""
+        return bool(self.data.get("midway", False))
+
+    @property
+    def crust(self) -> dict | None:
+        """What a crust is built from since 0.23.0, or None for anything else.
+
+        That is the `half` and `ridge` uuids, the `edge` vertex count of the
+        cut, and `lines` when the feature holds the isochrons and flowlines
+        rather than the bands between them.
+        """
+        return self.data.get("crust")
+
+    @property
     def keyframes(self) -> list[Keyframe]:
         return [Keyframe(entry) for entry in self.data.get("keyframes", [])]
 
@@ -182,9 +197,9 @@ class Feature:
         uuid. Inside a span the keyframes are relative to the parent, so a
         keyframe written there by `set_keyframe` is too. A group has none.
 
-        Since 0.15.0 a span may also carry `parent_b`, a second uuid, which a
-        ridge left by the Split tool follows. Its frame is then midway
-        between the two.
+        Since 0.15.0 a span may also carry `parent_b`, a second uuid. Its
+        frame is then midway between the two. Before 0.23.0 that is what a
+        ridge left by the Split tool followed.
         """
         return self.data.get("couplings", []) if not self.is_group else []
 
