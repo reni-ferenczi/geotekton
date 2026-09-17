@@ -428,10 +428,18 @@ func _add_feature(request_: Dictionary) -> Dictionary:
 			if not problem.is_empty():
 				return {"ok": false, "error": problem}
 	feature.rebuild_triangles()
-	# Polar circles and hotspots are built from their parameters, whatever rings
-	# came along.
-	if feature.is_polar_circles():
-		feature.rebuild_polar_circles()
+	# Circles and hotspots are built from their parameters. A circle takes them
+	# from the one ring it came with, the way a file without them is read.
+	if feature.is_circle() and feature.has_geometry():
+		if feature.rings.size() > 1:
+			return {"ok": false, "error": "a circle is one ring"}
+		var circle := Circle.fit(feature.rings[0])
+		if circle.is_empty():
+			return {"ok": false, "error": "the ring is too short to be a circle"}
+		feature.axis = circle[0]
+		feature.radius = circle[1]
+		feature.circle_segments = circle[2]
+		feature.rebuild_circle()
 	if feature.is_hotspot():
 		Hotspot.rebuild(app.document.root, feature, app.document.current_time)
 
@@ -468,9 +476,9 @@ func _edit_feature(request_: Dictionary) -> Dictionary:
 			"rings":
 				if feature.is_group:
 					return {"ok": false, "error": "a group has no geometry"}
-				if feature.is_polar_circles():
+				if feature.is_circle():
 					return {"ok": false, "error":
-						"polar circles are built from their axis and radius"}
+						"a circle is built from its center and radius"}
 				if feature.is_hotspot():
 					return {"ok": false, "error":
 						"a hotspot is built from its place and its plate"}

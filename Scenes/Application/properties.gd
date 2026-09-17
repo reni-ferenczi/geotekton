@@ -117,6 +117,7 @@ var couple_button: Button
 var pick_parent_button: Button
 var spans: Tree
 var remove_span_button: Button
+var axis_circles_check: CheckBox
 var axis_lat_spin: SpinBox
 var axis_lon_spin: SpinBox
 var radius_spin: SpinBox
@@ -143,8 +144,9 @@ var _motion_boxes: Array[Control] = []
 # button. Only a feature with motion has them, and a circle does not either:
 # it follows nothing and carries nothing.
 var _coupling_boxes: Array[Control] = []
-# The axis, radius and segment rows, which only polar circles have.
-var _polar_boxes: Array[Control] = []
+# The Axis circles switch and the axis, radius and segment rows, which only a
+# circle has.
+var _circle_boxes: Array[Control] = []
 # The place, plate and step rows, which only a hotspot has.
 var _hotspot_boxes: Array[Control] = []
 
@@ -295,7 +297,7 @@ func _build() -> void:
 	_row(form, "Area", area_label)
 	_area_caption = _rows.back()["label"]
 
-	_build_polar_circles(form)
+	_build_circle(form)
 	_build_hotspot(form)
 	_build_keyframes(form)
 	_build_coupling(form, box)
@@ -368,21 +370,31 @@ func _build_sections(box: VBoxContainer) -> void:
 	buttons.add_child(pick_section_button)
 
 
-# The rows polar circles are built from: the first pole of the axis, the radius
-# of both circles, how many segments each has, and the button that picks the
-# axis off the planet. Each edit is one undo version.
-func _build_polar_circles(form: GridContainer) -> void:
-	var commit := func(_value: float) -> void: _commit_polar_circles()
+# The rows a circle is built from, under the Area row, which a circle outline
+# does not show: the switch that draws it at both ends of its axis, the axis,
+# which is the circle's center, the radius, how many segments it has, and the
+# button that picks the axis off the planet. Each edit is one undo version.
+func _build_circle(form: GridContainer) -> void:
+	axis_circles_check = CheckBox.new()
+	axis_circles_check.name = "AxisCircles"
+	axis_circles_check.text = "Axis circles"
+	axis_circles_check.tooltip_text = "Draw the circle at both poles of an axis"
+	axis_circles_check.toggled.connect(func(_on: bool) -> void: _commit_circle())
+	_row(form, "", axis_circles_check)
+	_circle_boxes.append(_rows.back()["label"])
+	_circle_boxes.append(axis_circles_check)
+
+	var commit := func(_value: float) -> void: _commit_circle()
 	axis_lat_spin = _param_spin("AxisLatitude", -90.0, 90.0, 0.01, "°", commit)
 	axis_lon_spin = _param_spin("AxisLongitude", -180.0, 180.0, 0.01, "°", commit)
-	radius_spin = _param_spin("Radius", 0.01, Document.MAX_POLAR_RADIUS, 0.01, "", commit)
+	radius_spin = _param_spin("Radius", 0.01, Document.MAX_CIRCLE_RADIUS, 0.01, "", commit)
 	circle_segments_spin = _param_spin("Segments", Circle.MIN_SEGMENTS, Circle.MAX_SEGMENTS, 1, "",
 		commit)
 	for entry: Array in [["Axis latitude", axis_lat_spin], ["Axis longitude", axis_lon_spin],
 			["Radius (°)", radius_spin], ["Segments", circle_segments_spin]]:
 		_row(form, entry[0], entry[1])
-		_polar_boxes.append(_rows.back()["label"])
-		_polar_boxes.append(entry[1])
+		_circle_boxes.append(_rows.back()["label"])
+		_circle_boxes.append(entry[1])
 
 	pick_axis_button = Button.new()
 	pick_axis_button.name = "PickAxis"
@@ -390,8 +402,8 @@ func _build_polar_circles(form: GridContainer) -> void:
 	pick_axis_button.tooltip_text = "Click the planet to put the axis there"
 	pick_axis_button.pressed.connect(pick_axis_requested.emit)
 	_row(form, "", pick_axis_button)
-	_polar_boxes.append(_rows.back()["label"])
-	_polar_boxes.append(pick_axis_button)
+	_circle_boxes.append(_rows.back()["label"])
+	_circle_boxes.append(pick_axis_button)
 
 
 # The rows a hotspot is built from: where it is, the button that picks that off
@@ -627,9 +639,9 @@ func show_node(node_: Feature) -> void:
 		control.visible = has_motion
 	for control in _coupling_boxes:
 		control.visible = has_motion and node.feature_type != FeatureType.CIRCLE
-	var is_polar := is_feature and node.is_polar_circles()
-	for control in _polar_boxes:
-		control.visible = is_polar
+	var is_circle := is_feature and node.is_circle()
+	for control in _circle_boxes:
+		control.visible = is_circle
 	for control in _hotspot_boxes:
 		control.visible = is_hotspot
 
@@ -646,8 +658,8 @@ func show_node(node_: Feature) -> void:
 		from_spin.value = node.time_range.y
 		to_spin.value = node.time_range.x
 		_show_area()
-		if is_polar:
-			_show_polar_circles()
+		if is_circle:
+			_show_circle()
 		if is_hotspot:
 			_show_hotspot()
 		closed_check.button_pressed = node.closed
@@ -1095,7 +1107,7 @@ func _on_type_selected(index: int) -> void:
 		_filling = false
 		rejected.emit(error)
 		return
-	# Polar circles show rows no other type has, so the whole panel is filled
+	# Circles and hotspots show rows no other type has, so the whole panel is filled
 	# again rather than the color alone.
 	show_node(node)
 	edited.emit()
@@ -1115,26 +1127,30 @@ func _on_icon_selected(index: int) -> void:
 
 
 # Call while _filling.
-func _show_polar_circles() -> void:
+func _show_circle() -> void:
+	axis_circles_check.button_pressed = node.polar
 	axis_lat_spin.value = node.axis.x
 	axis_lon_spin.value = node.axis.y
 	radius_spin.value = node.radius
 	circle_segments_spin.value = node.circle_segments
 
 
-func _commit_polar_circles() -> void:
-	if _filling or node == null or not node.is_polar_circles():
+func _commit_circle() -> void:
+	if _filling or node == null or not node.is_circle():
 		return
 	var axis := Vector2(_unrounded(axis_lat_spin, node.axis.x),
 		_unrounded(axis_lon_spin, node.axis.y))
 	var radius := _unrounded(radius_spin, node.radius)
 	var segments := int(circle_segments_spin.value)
-	if axis == node.axis and radius == node.radius and segments == node.circle_segments:
+	var polar := axis_circles_check.button_pressed
+	var same := axis == node.axis and radius == node.radius \
+		and segments == node.circle_segments and polar == node.polar
+	if same and node.has_geometry():
 		return
-	var error := document.set_polar_circles(node, axis, radius, segments)
+	var error := document.set_circle(node, axis, radius, segments, polar)
 	if not error.is_empty():
 		_filling = true
-		_show_polar_circles()
+		_show_circle()
 		_filling = false
 		rejected.emit(error)
 		return
@@ -1404,7 +1420,8 @@ func to_json() -> Dictionary:
 		data["closed"] = closed_check.button_pressed
 		data["picking_sections"] = pick_section_button.button_pressed
 	if pick_axis_button.visible:
-		data["polar_circles"] = {
+		data["circle"] = {
+			"polar": axis_circles_check.button_pressed,
 			"axis": [axis_lat_spin.value, axis_lon_spin.value],
 			"radius": radius_spin.value,
 			"circle_segments": int(circle_segments_spin.value),
@@ -1537,11 +1554,13 @@ func set_field(field: String, value: Variant) -> String:
 			from_spin.value = float(value)
 		"time_to":
 			to_spin.value = float(value)
-		"axis", "radius", "circle_segments":
+		"axis", "radius", "circle_segments", "polar":
 			if not pick_axis_button.visible:
-				return "only polar circles have %s" % field
+				return "only a circle has %s" % field
 			_filling = true
-			if field == "axis":
+			if field == "polar":
+				axis_circles_check.button_pressed = bool(value)
+			elif field == "axis":
 				axis_lat_spin.value = float(value[0])
 				axis_lon_spin.value = float(value[1])
 			elif field == "radius":
@@ -1549,7 +1568,7 @@ func set_field(field: String, value: Variant) -> String:
 			else:
 				circle_segments_spin.value = float(value)
 			_filling = false
-			_commit_polar_circles()
+			_commit_circle()
 		"closed":
 			if not closed_check.visible:
 				return "only a topology can be closed"

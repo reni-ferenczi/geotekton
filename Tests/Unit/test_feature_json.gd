@@ -175,7 +175,6 @@ func _build_tree() -> Feature:
 	var laurentia := Feature.create_feature("Laurentia", Color(0.25, 0.5, 0.75, 1.0))
 	laurentia.add_ring(PackedVector2Array([
 		Vector2(-10, -10), Vector2(10, 0), Vector2(-10, 10)]), Feature.GeometryKind.POLYGON)
-	laurentia.feature_type = FeatureType.CIRCLE
 	laurentia.icon = "craton"
 	Keyframe.upsert(laurentia.keyframes, 0.0, Vector3(30, -20, 10))
 	Keyframe.upsert(laurentia.keyframes, 750.5, Vector3(75, -20, 10))

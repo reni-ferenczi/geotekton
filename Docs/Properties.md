@@ -13,7 +13,6 @@ catalog lists only what the program treats differently:
 | `points`        | Points        | multipoint        | gold           |
 | `circle`        | Circle        | polyline, polygon | dark turquoise |
 | `topology`      | Topology      | topology          | medium purple  |
-| `polar_circles` | Polar circles | polyline          | spring green   |
 | `hotspot`       | Hotspot       | polyline          | orange red     |
 
 The colors in the table are the ones the catalog comes with. The Feature colors
@@ -32,19 +31,20 @@ does.
 
 A new feature is a Polygon. The Type selector of the Properties panel is the one
 place the type is picked, and on a feature holding nothing it takes any of the
-seven, because the type is what the tools then draw: Polygon a polygon, Line a
-polyline, Points a multipoint, Circle a closed polyline, which
-[Draw draws as a circle](Editing.md#drawing-a-circle), and Topology a boundary picked
-together with the [section table](#the-section-table)'s Pick toggle. Polar circles and Hotspot need
-no tool: picking the type builds their rings at once, so the feature is never
-empty; see [Polar circles](Editing.md#polar-circles) and
-[Hotspots](Editing.md#hotspots).
+six, because the type is what the tools then draw: Polygon a polygon, Line a
+polyline, Points a multipoint, Circle a closed polyline built from a center and
+a radius, which [Draw draws as a circle](Editing.md#drawing-a-circle) and the
+[circle rows](#the-circle-rows) set, and Topology a boundary picked
+together with the [section table](#the-section-table)'s Pick toggle. Hotspot needs
+no tool: picking the type builds its rings at once, so the feature is never
+empty; see [Hotspots](Editing.md#hotspots).
 
 Once a feature holds a shape, its type has to hold that shape's kind. A polygon
 is a Polygon or a Circle, a polyline a Line or a Circle, a multipoint Points and
-a topology a Topology; anything else is refused. Polar circles and
+a topology a Topology; anything else is refused. Circle and
 Hotspot are picked on an empty feature only, since they replace whatever rings
-the feature holds, and Hotspot only on one without keyframes or couplings. A type the feature carries
+the feature holds, and Hotspot only on one without keyframes or couplings. A
+Circle can still become a Line or a Polygon, and keeps its rings. A type the feature carries
 that does not hold its kind, or that the catalog does not know, gives way to the
 kind's own, so a hand-written file cannot make a polyline a Polygon.
 
@@ -55,12 +55,12 @@ does through an undo that takes the geometry off again.
 
 ### What the type restricts
 
-- **Which type can be picked.** Any of the seven on a feature holding nothing;
-  once it holds a shape, only one that holds that kind, and never Polar
-  circles or Hotspot.
-- **Which tool draws the feature.** Draw for a Polygon, a Line and Points,
-  Circle for a Circle and Topology for a Topology. Polar circles and Hotspot are
-  drawn by none of them, and the Vertex tool is greyed out on them. A hotspot
+- **Which type can be picked.** Any of the six on a feature holding nothing;
+  once it holds a shape, only one that holds that kind, and never Circle or
+  Hotspot.
+- **Which tool draws the feature.** Draw for a Polygon, a Line, Points and a
+  Circle, and Topology for a Topology. Hotspot is drawn by none of them. The
+  Vertex tool is greyed out on a Circle and a Hotspot. A hotspot
   greys out the Rotate and Pole tools as well, and the Move tool does not drag
   it. The other buttons are
   greyed out, and picking a type arms the tool it calls for; see
@@ -70,7 +70,7 @@ does through an undo that takes the geometry off again.
   type's color, but only while the color is still the one the old type gives.
   A feature keeps the color it holds when the preferences change. A color someone picked is never overwritten. Drawing
   the first shape leaves the color alone.
-- **The class.** A Circle and Polar circles are switched on and off with the circles in the View
+- **The class.** A Circle, axis circles included, is switched on and off with the circles in the View
   menu rather than with the polygons or the polylines; see
   [Styling](Styling.md#the-visibility-switches).
 
@@ -141,10 +141,11 @@ follows the feature tree selection, through
 | From (Ma)  | Number             | no         |
 | To (Ma)    | Number             | no         |
 | Area       | Label              | no, polygons only |
-| Axis latitude, Axis longitude | Number | no, Polar circles only |
-| Radius (°) | Number             | no, Polar circles only |
-| Segments   | Number             | no, Polar circles only |
-| Pick axis  | Button             | no, Polar circles only |
+| Axis circles | Checkbox         | no, Circle only |
+| Axis latitude, Axis longitude | Number | no, Circle only |
+| Radius (°) | Number             | no, Circle only |
+| Segments   | Number             | no, Circle only |
+| Pick axis  | Button             | no, Circle only |
 | Latitude, Longitude | Number        | no, Hotspot only |
 | Pick       | Button             | no, Hotspot only |
 | Plate      | Selector           | no, Hotspot only |
@@ -255,16 +256,24 @@ and a color or a palette picked ahead is kept for when the mode is switched.
 Each change is one edit and one undo version, and dragging the picker previews
 the color on the globe the way it does on a feature.
 
-### The polar circle rows
+### The circle rows
 
-Polar circles show four more rows under To (Ma): the latitude and longitude of
-the first pole of the axis, in the feature's own frame, the radius of both
-circles in degrees, from just above 0 to 90, and how many segments each circle
-is cut into, 3 to 720. **Pick axis** arms a one click pick on the planet; see
-[Polar circles](Editing.md#polar-circles). Each edit rebuilds both circles and
-is one undo version. The automation port's `set_property` drives the rows as
-`axis` (a latitude and longitude pair), `radius` and `circle_segments`, and
-`get_properties` reports them under `polar_circles`.
+A Circle shows no Area row, since it is an outline. In its place is the **Axis
+circles** checkbox ("Draw the circle at both poles of an axis"), and under it
+four rows and a button: the latitude and longitude of the axis, which is the
+circle's center, in the feature's own frame; the radius in degrees, from just
+above 0 to just under 180, or to 90 with the box ticked; and how many segments
+the circle is cut into, 3 to 720. **Pick axis** arms a one click pick on the
+planet. The rows keep the "Axis" captions whether the box is on or off: the
+center of a circle is the point its axis comes out of. See
+[Axis circles](Editing.md#axis-circles).
+
+Every edit, the checkbox included, goes through `Document.set_circle()`,
+rebuilds the rings and is one undo version. The automation port's
+`set_property` drives the rows as `polar` (true or false), `axis` (a latitude
+and longitude pair), `radius` and `circle_segments`, and `get_properties`
+reports them under `circle`, with `pick_axis` saying whether the button can be
+pressed.
 
 ### The hotspot rows
 

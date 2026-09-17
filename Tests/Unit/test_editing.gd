@@ -229,16 +229,15 @@ func test_a_colour_change_is_one_undo_version() -> void:
 ### Types
 
 
-func test_a_polygon_may_be_made_a_circle_and_back() -> void:
+# A circle is built from its center and radius, so a drawn polygon is not one.
+func test_a_polygon_cannot_be_made_a_circle() -> void:
 	var document := _document()
-	var before := _feature(document).rings.duplicate(true)
+	var versions := document.applied
 	assert_eq(_feature(document).feature_type, "polygon", "the geometry gives the type")
-	assert_eq(document.set_feature_type(_feature(document), FeatureType.CIRCLE), "",
-		"a polygon may be a circle")
-	assert_eq(_feature(document).feature_type, FeatureType.CIRCLE)
-	assert_eq(_feature(document).rings, before, "the geometry is untouched")
-	assert_eq(document.set_feature_type(_feature(document), "polygon"), "", "and a polygon again")
-	assert_eq(_feature(document).feature_type, "polygon")
+	assert_true(not document.set_feature_type(_feature(document), FeatureType.CIRCLE).is_empty(),
+		"a polygon is refused as a circle")
+	assert_eq(_feature(document).feature_type, "polygon", "and stays a polygon")
+	assert_eq(document.applied, versions, "with nothing recorded")
 
 
 func test_a_type_that_forbids_the_kind_is_refused() -> void:
@@ -252,8 +251,8 @@ func test_a_type_that_forbids_the_kind_is_refused() -> void:
 
 func test_a_feature_holding_nothing_takes_any_type() -> void:
 	var document := Document.new()
-	# A fresh feature for each type, since polar circles and hotspots build
-	# their rings as soon as they are picked.
+	# A fresh feature for each type, since a hotspot builds its rings as soon as
+	# it is picked.
 	for type_id in FeatureType.CATALOG:
 		var feature := Feature.create_feature("Empty")
 		document.root.children.append(feature)
@@ -270,14 +269,16 @@ func test_an_unknown_type_is_refused() -> void:
 
 
 func test_the_colour_follows_the_type_until_someone_picks_one() -> void:
-	var document := _document()
-	document.set_feature_type(_feature(document), FeatureType.CIRCLE)
-	assert_eq(_feature(document).color, FeatureType.color(FeatureType.CIRCLE),
+	var document := Document.new()
+	var feature := Feature.create_feature("Empty")
+	document.root.children.append(feature)
+	document.set_feature_type(feature, FeatureType.CIRCLE)
+	assert_eq(feature.color, FeatureType.color(FeatureType.CIRCLE),
 		"the default colour follows the type")
 
-	document.set_color(_feature(document), Color.MAGENTA)
-	document.set_feature_type(_feature(document), "polygon")
-	assert_eq(_feature(document).color, Color.MAGENTA,
+	document.set_color(feature, Color.MAGENTA)
+	document.set_feature_type(feature, "polygon")
+	assert_eq(feature.color, Color.MAGENTA,
 		"a colour someone picked is not overwritten by the next type")
 
 

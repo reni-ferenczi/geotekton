@@ -515,21 +515,60 @@ stays put when the box appears.
 
 ### What it commits
 
-The circle becomes an outline: a **polyline** cut into the number of segments
-the box holds, with one vertex per segment plus the first one repeated at the
-end, so the line goes all the way around. It is drawn at the feature line width,
-the same as the [Pole tool](#turning-a-feature)'s cross, and the inside stays
-uncovered.
+A Circle keeps its **center**, its **radius** in degrees and its **segment
+count**, and its ring is always rebuilt from those three by
+`Feature.rebuild_circle()` with `Circle.vertices()`. Committing stores the
+center and radius the clicks describe and the number the box holds. The ring is
+an outline: a **polyline** with one vertex per segment plus the first one
+repeated at the end, so the line goes all the way around. It is drawn at the
+feature line width, the same as the [Pole tool](#turning-a-feature)'s cross, and
+the inside stays uncovered.
 
-A filled circle, a polygon, still reads back as a Circle from a file that holds
-one, but Draw does not add a circle to it: committing on such a feature is refused
-with a message in the status bar. Draw the outline on a new Circle instead.
+A Circle holds one circle. Drawing on a Circle that already has one replaces it,
+and keeps the [Axis circles](#axis-circles) switch as it was. A filled circle
+from a file written before circles were outlines stays filled when it is
+redrawn.
 
-The vertices are worked out in world coordinates and then mapped into the
-feature's own frame, the same way the Draw tool does it, so a circle drawn while
-the current time has moved the feature lands where it was clicked. Committing
-records one undo version and goes back to the Move tool. The feature is a
-Circle before the first click and stays one.
+The center is worked out in world coordinates and then mapped into the
+feature's own frame, the same way the Draw tool maps vertices, so a circle drawn
+while the current time has moved the feature lands where it was clicked.
+Committing records one undo version and goes back to the Move tool. The feature
+is a Circle before the first click and stays one.
+
+Since the ring is derived, the Vertex tool is greyed out on a circle, Split is
+not offered, and pasting a shape into one is refused. Move, Rotate and Pole
+still turn it. Only an empty feature can be made a Circle; a Circle can be made
+a Line (or a Polygon, if filled) again, and then keeps its ring as ordinary
+vertices.
+
+### Axis circles
+
+The **Axis circles** checkbox in the [Properties panel](Properties.md#the-circle-rows)
+draws the circle a second time around the antipode of its center, so the pair
+sits at both ends of one axis. The first use is the auroral zones: the rows
+start on the north pole with a radius of 23 degrees, where the auroral ovals
+lie, 20 to 25 degrees from the geomagnetic poles. Earth's geomagnetic north pole
+is near 80.7 N, 72.7 W, which can be typed in instead. GPlates has no paired
+feature: its small circle tool makes one circle per radius around a clicked or
+typed center.
+
+The panel shows the checkbox and the rows under it for every circle, drawn or
+not. Editing a row, or ticking the box, on a Circle with nothing drawn yet draws
+the circle from the rows. Each edit rebuilds the rings as one undo version.
+Axis circles take a radius of at most 90 degrees, where the two meet on the
+great circle between the poles; a plain circle takes up to just under 180.
+
+**Pick axis** in the panel arms the [Pole tool](#turning-a-feature) for one
+click, with its cross on the current axis. The click, snapped to a vertex while
+[snapping](#snapping) is on, becomes the new axis, and the tool goes back to Move. Escape or
+another tool gives the pick up, and so does selecting another feature. The axis
+is kept in the feature's own frame, so a click on a feature that keyframes have
+turned is mapped back first, and the circle lands around the point clicked.
+
+Keyframes move the feature like any other, both circles together. The file
+keeps the rings as well as the parameters, so an older reader and the Python
+side see polylines. When the file is loaded, the parameters win; see
+[Persistence](Persistence.md#circles).
 
 ### A circle follows nothing
 
@@ -544,37 +583,6 @@ window. How well three points settle a centre depends on how large the circle
 is: a vertex is a pair of 32-bit floats and the centre comes out of differences
 between three of them, so a circle a degree across lands its centre to about a
 thousandth of a degree, and a larger one to much less.
-
-## Polar circles
-
-**Polar circles** are two circles of one radius, one around each pole of an
-axis the user sets. The first use is the auroral zones, so a new feature of the
-type starts on the north pole with a radius of 23 degrees, where the auroral
-ovals lie, 20 to 25 degrees from the geomagnetic poles. Earth's geomagnetic north
-pole is near 80.7 N, 72.7 W, which can be typed in instead. GPlates has no
-paired feature: its small circle tool makes one circle per radius around a
-clicked or typed centre. Here the second circle is always at the antipode.
-
-Picking Polar circles in the Type selector of an empty feature builds both
-circles at once. The feature keeps its axis, radius and segment count, and
-`Feature.rebuild_polar_circles()` turns them into two closed polylines with
-`Circle.vertices()`. The [Properties panel](Properties.md#the-polar-circle-rows)
-edits the three values, and each edit rebuilds the circles as one undo
-version. The vertices themselves are not edited: the Vertex tool is greyed out,
-and pasting a shape into the feature is refused.
-
-**Pick axis** in the panel arms the [Pole tool](#turning-a-feature) for one
-click, with its cross on the current axis. The click, snapped to a vertex while
-[snapping](#snapping) is on, becomes the new axis, and the tool goes back to Move. Escape or
-another tool gives the pick up, and so does selecting another feature. The axis
-is kept in the feature's own frame, so a click on a feature that keyframes have
-turned is mapped back first, and the circle lands around the point clicked.
-
-Keyframes and couplings move the feature like any other, both circles
-together; the Rotate and Pole tools turn it. The file keeps the rings as well as
-the three values, so an older reader and the Python side see two polylines.
-When the file is loaded, the values win; see
-[Persistence](Persistence.md#polar-circles).
 
 ## Hotspots
 

@@ -209,21 +209,20 @@ func set_style(group: Feature, style: GroupStyle) -> String:
 
 # Give the feature another type. On a feature holding nothing any type goes,
 # since the type is what the tools then draw into it; once it holds a shape only
-# a type that holds that kind, which comes down to making a polygon or a
-# polyline a Circle or taking that back. The colour follows the type as long as
+# a type that holds that kind, which comes down to making a circle a polygon or
+# a line again. The colour follows the type as long as
 # it is still the one the old type gave it, so a colour someone picked is never
 # overwritten.
 #
-# Polar circles and hotspots build their own rings, so they are picked on a
-# feature holding nothing, and the rings are there as soon as the type is. A
-# hotspot is fixed in the world frame, so it is not picked on a feature that
+# Circles and hotspots build their own rings, so they are picked on a feature
+# holding nothing. A circle's rings come when it is drawn or given a center and
+# radius; a hotspot's are there as soon as the type is. A hotspot is fixed in the world frame, so it is not picked on a feature that
 # moves either.
 func set_feature_type(feature: Feature, type_id: String) -> String:
 	if not FeatureType.CATALOG.has(type_id):
 		return "There is no feature type called %s." % type_id
-	var to_polar := type_id == FeatureType.POLAR_CIRCLES and not feature.is_polar_circles()
-	if to_polar and feature.has_geometry():
-		return "Polar circles build their own geometry, so they are picked on an empty feature."
+	if type_id == FeatureType.CIRCLE and not feature.is_circle() and feature.has_geometry():
+		return "A circle is built from its center and radius, so it is picked on an empty feature."
 	var to_hotspot := type_id == FeatureType.HOTSPOT and not feature.is_hotspot()
 	if to_hotspot and (feature.has_geometry() or not feature.keyframes.is_empty()
 			or not feature.couplings.is_empty()):
@@ -235,37 +234,41 @@ func set_feature_type(feature: Feature, type_id: String) -> String:
 	if feature.color == FeatureType.color(feature.feature_type):
 		feature.color = FeatureType.color(type_id)
 	feature.feature_type = type_id
-	if to_polar:
-		feature.rebuild_polar_circles()
 	if to_hotspot:
 		Hotspot.rebuild(root, feature, current_time)
 	record()
 	return ""
 
 
-# The largest radius polar circles take. At 90 degrees the two circles meet on
-# the great circle between the poles; past it each would reach round the other.
+# The largest radius a circle takes, and the largest one drawn at both ends of
+# its axis. At 90 degrees the two circles meet on the great circle between the
+# poles; past it each would reach round the other.
+const MAX_CIRCLE_RADIUS := 179.99
 const MAX_POLAR_RADIUS := 90.0
 
 
-# Give polar circles another axis, radius or segment count and rebuild both
-# circles from them, in one undo version. The axis is in the feature's own
-# frame, as its rings are.
-func set_polar_circles(feature: Feature, axis: Vector2, radius: float, segments: int) -> String:
-	if feature == null or not feature.is_polar_circles():
-		return "Only polar circles have an axis and a radius."
+# Give a circle another center, radius, segment count or antipode switch and
+# rebuild its rings from them, in one undo version. The center is in the
+# feature's own frame, as its rings are. A circle not drawn yet is drawn by it.
+func set_circle(feature: Feature, axis: Vector2, radius: float, segments: int,
+		polar: bool) -> String:
+	if feature == null or not feature.is_circle():
+		return "Only a circle has a center and a radius."
 	var problem := check_coordinates(axis)
 	if not problem.is_empty():
 		return problem
-	if radius <= 0.0 or radius > MAX_POLAR_RADIUS:
-		return "The radius is %s°, outside 0° to %s°." % [radius, MAX_POLAR_RADIUS]
+	var most := MAX_POLAR_RADIUS if polar else MAX_CIRCLE_RADIUS
+	if radius <= 0.0 or radius > most:
+		return "The radius is %s°, outside 0° to %s°%s." % [
+			radius, most, " for axis circles" if polar else ""]
 	if segments < Circle.MIN_SEGMENTS or segments > Circle.MAX_SEGMENTS:
 		return "A circle takes %d to %d segments, not %d." % [
 			Circle.MIN_SEGMENTS, Circle.MAX_SEGMENTS, segments]
 	feature.axis = axis
 	feature.radius = radius
 	feature.circle_segments = segments
-	feature.rebuild_polar_circles()
+	feature.polar = polar
+	feature.rebuild_circle()
 	record()
 	return ""
 
@@ -384,8 +387,8 @@ func paste_shape(feature: Feature, shape: Dictionary) -> String:
 	if shape.is_empty():
 		return "There is no shape to paste."
 
-	if feature.is_polar_circles():
-		return "Polar circles are built from their axis and radius, so a shape cannot be added to them."
+	if feature.is_circle():
+		return "A circle is built from its center and radius, so a shape cannot be added to it."
 	if feature.is_hotspot():
 		return "A hotspot is built from its place and its plate, so a shape cannot be added to it."
 	var kind: Feature.GeometryKind = shape["kind"]
@@ -950,7 +953,8 @@ func save_to_file(file_path: String) -> String:
 
 # The path to write for an image the user picked, given where the file is going.
 static func relative_raster(image_path: String, project_path: String) -> String:
-	if image_path.is_empty() or project_path.is_empty() or image_path.is_relative_path() 			or image_path.begins_with("res://"):
+	if image_path.is_empty() or project_path.is_empty() or image_path.is_relative_path() \
+			or image_path.begins_with("res://"):
 		return image_path
 	var folder := project_path.get_base_dir().replace("\\", "/").rstrip("/")
 	var image := image_path.replace("\\", "/")
@@ -975,7 +979,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.20.0"):
+	if not _is_older_than(version, "0.21.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -1014,8 +1018,27 @@ static func migrate(data: Dictionary) -> Dictionary:
 	# without them is not a hotspot, so again only the version moves.
 	# 0.20.0 let a topology be closed. A topology without the key is open, which
 	# is what every topology was before, so once more only the version moves.
-	data["version"] = "0.20.0"
+	if _is_older_than(version, "0.21.0"):
+		_to_0_21_0(data.get("features", {}))
+	data["version"] = "0.21.0"
 	return data
+
+
+# 0.21.0 folded Polar circles into Circle. A polar circles leaf becomes a circle
+# drawn at both ends of its axis, keeping its parameters. A drawn circle, which
+# kept only its ring, is given the center, radius and segment count that ring
+# was cut from; see Feature.fit_circle_json().
+static func _to_0_21_0(node: Variant) -> void:
+	if node is not Dictionary:
+		return
+	for child in node.get("children", []):
+		_to_0_21_0(child)
+	match str(node.get("feature_type", "")):
+		"polar_circles":
+			node["feature_type"] = FeatureType.CIRCLE
+			node["polar"] = true
+		FeatureType.CIRCLE:
+			Feature.fit_circle_json(node)
 
 
 # 0.17.0 gave the planet a color of its own and made the built in Earth, which
