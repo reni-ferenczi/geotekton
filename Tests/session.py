@@ -575,7 +575,8 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["tooltips"]["time_from"].startswith("The age the feature appears at")
           and panel["tooltips"]["time_to"].startswith("The age it disappears at"),
           f"and a hover description on each: {panel['tooltips']}")
-    check("3 vertices in 1 part" in panel["geometry"], f"its geometry summarized: {panel['geometry']}")
+    check(panel.get("area", "").startswith(format_area(panel["area_km2"])),
+          f"its area shown: {panel.get('area')!r}")
     check("coordinates" not in panel, f"and no coordinate rows: {sorted(panel)}")
     # The sample holds one keyframe at the present and the document opened at the
     # oldest age, so Delete is greyed out until the time is on that keyframe.
@@ -3341,6 +3342,7 @@ def run_measure_session(client: AutomationClient) -> None:
 
 # A square of ten degrees on the equator, in the middle of the default view.
 AREA_SQUARE = [(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0)]
+AREA_LINE = [(-15.0, 0.0), (-15.0, 10.0)]
 
 
 def ring_area(ring: list[list[float]], radius: float) -> float:
@@ -3381,8 +3383,8 @@ def run_area_session(client: AutomationClient) -> None:
         check(math.isclose(panel["area_km2"], wanted, rel_tol=1e-4),
               f"the panel reports the square's area at {radius} km: {panel['area_km2']}, {wanted}")
         shown = format_area(panel["area_km2"])
-        check(panel["geometry"].endswith(f"in 1 part, {shown}, 0.2\u00a0% of the planet"),
-              f"and the Geometry row shows it: {panel['geometry']!r}")
+        check(panel.get("area", "").split("\n") == [shown, "0.2\u00a0% of planet"],
+              f"and the Area row shows it on two lines: {panel.get('area')!r}")
         status = client.call("get_status")["status"]["measure"]
         check(status.endswith(f" km around Square, {shown}"),
               f"and so does the status bar: {status!r}")
@@ -3399,6 +3401,10 @@ def run_area_session(client: AutomationClient) -> None:
               and math.isclose(panel["planet_area_km2"], 4.0 * math.pi * radius * radius),
               f"and so does the root group: {panel['placeholder']!r}")
         client.call("select", title="Square")
+
+    if add_polyline(client, "Line", AREA_LINE):
+        panel = client.call("get_properties")["properties"]
+        check("area" not in panel, f"a line has no Area row: {panel.get('area')!r}")
     client.call("set_preferences", preferences={"planet_radius_km": EARTH_RADIUS_KM})
     client.call("select", title=None)
     placeholder = client.call("get_properties")["properties"]["placeholder"]
@@ -3781,6 +3787,7 @@ def run_closed_topology_checks(client: AutomationClient) -> None:
     panel = client.call("get_properties")["properties"]
     check(panel["closed"] is False and len(panel["sections"]) == 2,
           f"a new topology is open: {panel.get('closed')}, {panel['sections']}")
+    check("area" not in panel, f"with no Area row: {panel.get('area')!r}")
     client.call("select", title=None)
     topology = list(TYPE_COLORS[4])
     check(not is_colour(probe_unhovered(client, *CLOSED_INSIDE), topology),
@@ -3791,8 +3798,8 @@ def run_closed_topology_checks(client: AutomationClient) -> None:
     client.call("set_property", field="closed", value=True)
     check(undo_depth(client) == depth + 1, "closing it is one version")
     panel = client.call("get_properties")["properties"]
-    check(panel["closed"] and ", closed, " in panel["geometry"] and panel["area_km2"] > 1e5,
-          f"the panel says so and gives the area: {panel['geometry']!r}")
+    check(panel["closed"] and "area" in panel and panel["area_km2"] > 1e5,
+          f"the panel says so and shows the Area row: {panel.get('area')!r}")
     rings = client.call("get_selected")["feature"]["rings"]
     check(len(rings) == 1 and len(rings[0]) == 4, f"one ring of four: {rings}")
     client.call("select", title=None)
@@ -4525,8 +4532,8 @@ def run_python_session(client: AutomationClient) -> None:
     if check(len(scripted) == 1, f"the port sees the feature the console added: {features}"):
         client.call("select", title="Scripted")
         panel = client.call("get_properties")["properties"]
-        check(panel["geometry"].startswith("polygon"),
-              f"drawn as the kind the console asked for: {panel['geometry']!r}")
+        check("area" in panel,
+              f"drawn as the polygon the console asked for, so it has an area: {panel.get('area')!r}")
         check(panel["keyframes"]["count"] == 2,
               f"the panel counts both keyframes: {panel['keyframes']}")
         keyframes = client.call("get_selected")["feature"]["keyframes"]
@@ -4808,7 +4815,7 @@ def run_import_session(client: AutomationClient, folder: Path) -> None:
     check(len(keyframes) >= 2,
           f"the feature carries its plate's sampled rotation: {len(keyframes)}")
     panel = client.call("get_properties")["properties"]
-    check(panel["geometry"].startswith("polygon"), f"drawn as a polygon: {panel['geometry']!r}")
+    check("area" in panel, f"drawn as a polygon, so it has an area: {panel.get('area')!r}")
     check(panel["feature_type"] == "polygon",
           f"typed by its geometry: {panel['feature_type']!r}")
 

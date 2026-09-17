@@ -179,7 +179,7 @@ func test_an_area_is_written_the_way_the_panels_show_it() -> void:
 
 func test_the_share_of_the_planet() -> void:
 	var planet := Measure.planet_area(1000.0)
-	assert_eq(Measure.format_share(planet * 0.002, 1000.0), "0.2\u00a0% of the planet")
+	assert_eq(Measure.format_share(planet * 0.002, 1000.0), "0.2\u00a0% of planet")
 	assert_eq(Measure.format_share(planet * 0.0004, 1000.0), "", "too little to write")
 
 

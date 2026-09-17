@@ -688,7 +688,7 @@ stretches it names, and a segment across the gap is one no feature ever drew.
 
 The **Closed** switch in the [Properties](Properties.md#the-section-table)
 panel joins the sections into one ring, which is drawn, filled, hit tested and
-measured as a polygon, with its area in the Geometry row. Turning it on or off
+measured as a polygon, with its area in the Area row. Turning it on or off
 is one undo version.
 
 The runs go in section order, each one walked the way its section says. Where
@@ -727,7 +727,7 @@ Measure tool the same field shows the length along the selected feature's
 geometry: around the outline of a polygon, along a polyline, and nothing for a
 multipoint, whose vertices are separate markers rather than a path. A polygon
 also gets its area, as in "4430.9 km around Laurentia, 1.23 million km²". The
-Geometry row of the [Properties panel](Properties.md) shows the same area.
+Area row of the [Properties panel](Properties.md) shows the same area.
 
 The two points and the line between them are drawn in the same yellow outline
 overlay the Draw tool uses.

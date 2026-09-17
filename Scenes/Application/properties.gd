@@ -101,7 +101,7 @@ var opacity_spin: SpinBox
 var enabled_check: CheckBox
 var from_spin: SpinBox
 var to_spin: SpinBox
-var geometry_label: Label
+var area_label: Label
 var keyframe_count: Label
 var key_button: Button
 var delete_key_button: Button
@@ -131,6 +131,8 @@ var track_step_spin: SpinBox
 # Every row of the form, each a label and the control beside it, and whether a
 # group and a feature have it.
 var _rows: Array[Dictionary] = []
+# The caption of the Area row, which shows only for what is drawn as a polygon.
+var _area_caption: Label
 # The Closed switch, the section table and its buttons, which only a topology
 # has.
 var _topology_boxes: Array[Control] = []
@@ -282,10 +284,12 @@ func _build() -> void:
 	to_spin = _time_spin("To", TO_TOOLTIP)
 	_row(form, "To (Ma)", to_spin, false, true, TO_TOOLTIP)
 
-	geometry_label = Label.new()
-	geometry_label.name = "Geometry"
-	geometry_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_row(form, "Geometry", geometry_label)
+	area_label = Label.new()
+	area_label.name = "Area"
+	# Without wrapping, the longer line would set the width of the panel.
+	area_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_row(form, "Area", area_label)
+	_area_caption = _rows.back()["label"]
 
 	_build_polar_circles(form)
 	_build_hotspot(form)
@@ -634,7 +638,7 @@ func show_node(node_: Feature) -> void:
 		_show_color()
 		from_spin.value = node.time_range.y
 		to_spin.value = node.time_range.x
-		geometry_label.text = _geometry_summary(node)
+		_show_area()
 		if is_polar:
 			_show_polar_circles()
 		if is_hotspot:
@@ -658,10 +662,6 @@ func show_time() -> void:
 		return
 	if node.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		_refill_sections()
-	# A hotspot's track has as many vertices as the time leaves samples, and a
-	# closed topology's area follows the features it runs along.
-	if node.is_hotspot() or node.geometry_kind == Feature.GeometryKind.TOPOLOGY:
-		geometry_label.text = _geometry_summary(node)
 	_update_keyframes()
 	_update_coupling()
 
@@ -674,7 +674,7 @@ func show_radius() -> void:
 	if node.is_root:
 		placeholder.text = _root_sentence()
 	elif not node.is_group:
-		geometry_label.text = _geometry_summary(node)
+		_show_area()
 
 
 func _root_sentence() -> String:
@@ -691,37 +691,19 @@ func _type_index(type_id: String) -> int:
 	return -1
 
 
-func _geometry_summary(feature: Feature) -> String:
-	if not feature.has_geometry():
-		return "none yet"
-	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
-		var count := feature.sections.size()
-		var broken := 0
-		for entry in _resolved_sections():
-			if not str(entry["problem"]).is_empty():
-				broken += 1
-		var sections_text := "topology, %d section%s%s" % [count, "" if count == 1 else "s",
-			"" if broken == 0 else ", %d broken" % broken]
-		if not feature.closed:
-			return sections_text
-		return _with_area(sections_text + ", closed", feature)
-	var vertices := feature.vertex_count()
-	var parts := feature.rings.size()
-	var summary := "%s, %d %s in %d %s" % [
-		feature.kind_name(),
-		vertices, "vertex" if vertices == 1 else "vertices",
-		parts, "part" if parts == 1 else "parts"]
-	if feature.drawn_as() != Feature.GeometryKind.POLYGON:
-		return summary
-	return _with_area(summary, feature)
-
-
-func _with_area(summary: String, feature: Feature) -> String:
+# The Area row, shown only while the feature is drawn as a polygon: the area on
+# one line and its share of the planet on the next, when the share is not too
+# small to write.
+func _show_area() -> void:
+	var shown := node.has_geometry() and node.drawn_as() == Feature.GeometryKind.POLYGON
+	area_label.visible = shown
+	_area_caption.visible = shown
+	if not shown:
+		return
 	var radius := Config.get_planet_radius()
-	var area := Measure.geometry_area(feature, radius)
-	summary += ", " + Measure.format_area(area)
+	var area := Measure.geometry_area(node, radius)
 	var share := Measure.format_share(area, radius)
-	return summary if share.is_empty() else summary + ", " + share
+	area_label.text = Measure.format_area(area) + ("" if share.is_empty() else "\n" + share)
 
 
 ### The section table
@@ -798,7 +780,7 @@ func _on_closed_toggled(on: bool) -> void:
 		closed_check.set_pressed_no_signal(node.closed)
 		rejected.emit(error)
 		return
-	geometry_label.text = _geometry_summary(node)
+	_show_area()
 	edited.emit()
 
 
@@ -856,7 +838,7 @@ func _refill_sections() -> void:
 	_filling = true
 	_fill_sections()
 	if not node.is_group:
-		geometry_label.text = _geometry_summary(node)
+		_show_area()
 	_filling = false
 	_update_section_buttons()
 
@@ -1145,7 +1127,6 @@ func _commit_polar_circles() -> void:
 		_filling = false
 		rejected.emit(error)
 		return
-	geometry_label.text = _geometry_summary(node)
 	edited.emit()
 
 
@@ -1184,7 +1165,6 @@ func _commit_hotspot() -> void:
 		_filling = false
 		rejected.emit(error)
 		return
-	geometry_label.text = _geometry_summary(node)
 	edited.emit()
 
 
@@ -1391,7 +1371,8 @@ func to_json() -> Dictionary:
 	data["time_from"] = int(from_spin.value)
 	data["time_to"] = int(to_spin.value)
 	data["tooltips"] = {"time_from": from_spin.tooltip_text, "time_to": to_spin.tooltip_text}
-	data["geometry"] = geometry_label.text
+	if area_label.visible:
+		data["area"] = area_label.text
 	data["area_km2"] = Measure.geometry_area(node, Config.get_planet_radius())
 	if keyframe_count.get_parent().visible:
 		data["keyframes"] = {
