@@ -22,6 +22,8 @@ const MINIMUM_VERTICES := 2
 #   vertices: the run in world coordinates, empty when the section is broken
 #   problem:  why it contributes nothing, an empty string when it does
 #   title:    the title of the feature it names, or an empty string
+#   local:    the run in that feature's own frame
+#   basis:    the rotation carrying it into the world at that time
 #
 # A section is never dropped: one whose feature has been deleted comes back with
 # the reason, so the panel can show it as broken and the file can keep it. That
@@ -31,7 +33,29 @@ static func resolve(root: Feature, node: Feature, time: float) -> Array:
 	var resolved: Array = []
 	for section in node.sections:
 		resolved.append(_resolve_section(root, node, section, time))
+	if node.midway:
+		_check_midway(resolved)
 	return resolved
+
+
+# A midway topology pairs the vertices of two sections, so it needs exactly two
+# of the same length. What does not fit is reported on the section at fault.
+static func _check_midway(resolved: Array) -> void:
+	var empty := PackedVector2Array()
+	for index in range(2, resolved.size()):
+		resolved[index]["problem"] = "a midway topology takes two sections"
+		resolved[index]["vertices"] = empty
+	if resolved.size() == 1 and str(resolved[0]["problem"]).is_empty():
+		resolved[0]["problem"] = "a midway topology needs a second section"
+		resolved[0]["vertices"] = empty
+	if resolved.size() < 2 or not str(resolved[0]["problem"]).is_empty() \
+			or not str(resolved[1]["problem"]).is_empty():
+		return
+	var first: int = (resolved[0]["vertices"] as PackedVector2Array).size()
+	var second: int = (resolved[1]["vertices"] as PackedVector2Array).size()
+	if first != second:
+		resolved[1]["problem"] = "it has %d vertices and the first section %d" % [second, first]
+		resolved[1]["vertices"] = empty
 
 
 static func _resolve_section(root: Feature, node: Feature, section: TopologySection,
@@ -46,7 +70,10 @@ static func _resolve_section(root: Feature, node: Feature, section: TopologySect
 	if target.is_group:
 		return {"vertices": empty, "problem": "a group has no vertices of its own",
 			"title": target.title}
-	if target.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+	# A ridge is the one topology a section may run along, and only in a
+	# topology that is not midway itself; see rebuild_all().
+	if target.geometry_kind == Feature.GeometryKind.TOPOLOGY \
+			and (not target.midway or node.midway):
 		return {"vertices": empty, "problem": "a topology cannot run along another one",
 			"title": target.title}
 	if not target.exists_at(time):
@@ -67,10 +94,13 @@ static func _resolve_section(root: Feature, node: Feature, section: TopologySect
 	if section.reversed:
 		run.reverse()
 
+	var basis := Feature.world_basis(root, target, time)
 	return {
-		"vertices": Feature.apply_basis(run, Feature.world_basis(root, target, time)),
+		"vertices": Feature.apply_basis(run, basis),
 		"problem": "",
 		"title": target.title,
+		"local": run,
+		"basis": basis,
 	}
 
 
@@ -79,7 +109,8 @@ static func _resolve_section(root: Feature, node: Feature, section: TopologySect
 # An open topology gets one ring per section that resolved, so the two ends of
 # neighbouring sections are not joined by a segment that no feature drew: a line
 # topology is the sections it names, not a shape closed around them. A closed
-# one gets all of them joined into one ring; see join().
+# one gets all of them joined into one ring; see join(). A midway one gets the
+# one ring between its two sections; see Ridge.ring_at().
 #
 # The runs come back in world coordinates and are put into the topology's own
 # frame, because that is the frame everything else reads a feature's rings in.
@@ -88,11 +119,16 @@ static func _resolve_section(root: Feature, node: Feature, section: TopologySect
 static func rebuild(root: Feature, node: Feature, time: float) -> void:
 	var into_local := Feature.world_basis(root, node, time).transposed()
 	var rings: Array[PackedVector2Array] = []
-	for entry in resolve(root, node, time):
-		var vertices: PackedVector2Array = entry["vertices"]
-		if not vertices.is_empty():
-			rings.append(Feature.apply_basis(vertices, into_local))
-	if node.closed and not rings.is_empty():
+	if node.midway:
+		var ring := Ridge.ring_at(root, node, time)
+		if not ring.is_empty():
+			rings.append(Feature.apply_basis(ring, into_local))
+	else:
+		for entry in resolve(root, node, time):
+			var vertices: PackedVector2Array = entry["vertices"]
+			if not vertices.is_empty():
+				rings.append(Feature.apply_basis(vertices, into_local))
+	if node.closed and not node.midway and not rings.is_empty():
 		rings.assign([join(rings)])
 	node.rings = rings
 	node.rebuild_triangles()
@@ -116,16 +152,26 @@ static func join(runs: Array[PackedVector2Array]) -> PackedVector2Array:
 
 # Resolve every topology in the tree at that time. Called before the geometry is
 # collected and whenever the current time moves, since both change where the
-# features a topology runs along are.
+# features a topology runs along are. The midway ones go first, since a section
+# of another topology may run along one; wherever each sits in the tree. A
+# crust has no sections and is left to Crust.rebuild_all().
 static func rebuild_all(root: Feature, time: float) -> void:
 	if root == null:
 		return
+	var later: Array[Feature] = []
 	var stack: Array[Feature] = [root]
 	while not stack.is_empty():
 		var node: Feature = stack.pop_back()
 		stack.append_array(node.children)
-		if not node.is_group and node.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		if node.is_group or node.geometry_kind != Feature.GeometryKind.TOPOLOGY \
+				or node.is_crust():
+			continue
+		if node.midway:
 			rebuild(root, node, time)
+		else:
+			later.append(node)
+	for node in later:
+		rebuild(root, node, time)
 
 
 # Whether anything in the tree is a topology. Moving the current time is a cheap
@@ -151,7 +197,12 @@ static func section_problem(node: Feature, target: Feature) -> String:
 		return "A topology cannot run along itself."
 	if target.is_group:
 		return "%s is a group, which has no vertices of its own." % target.title
-	if target.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+	if node.midway and node.sections.size() >= 2:
+		return "%s is midway between the two sections it has." % node.title
+	if node.is_crust():
+		return "%s is built from its half and its ridge." % node.title
+	if target.geometry_kind == Feature.GeometryKind.TOPOLOGY \
+			and (not target.midway or node.midway):
 		return "%s is a topology, and one cannot run along another." % target.title
 	if not target.has_geometry():
 		return "%s has no vertices to run along." % target.title
