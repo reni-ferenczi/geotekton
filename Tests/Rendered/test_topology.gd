@@ -68,6 +68,44 @@ func test_the_topology_follows_a_section_feature_that_moves() -> void:
 	await frames(2)
 
 
+# The Topology tool has no toolbar button. The Pick toggle of the section table
+# arms it, a click on a feature adds a section, and Escape puts it away and lets
+# the toggle go.
+func test_the_section_pick_toggle_arms_the_topology_tool() -> void:
+	await load_sample(SAMPLE)
+	await look_at_latlon(0.0, 0.0)
+	var boundary := _feature("Boundary")
+	if boundary == null:
+		return
+	app.features.feature_tree.select_node(boundary)
+	await frames(2)
+	assert_eq(app.active_tool, Application.Tool.MOVE, "selecting the topology leaves Move armed")
+	assert_true(not app.tool_buttons.has(Application.Tool.TOPOLOGY), "the tool has no button")
+
+	var toggle: Button = app.properties.pick_section_button
+	assert_true(toggle.is_visible_in_tree(), "the section table shows the Pick toggle")
+	toggle.button_pressed = true
+	await frames(2)
+	assert_eq(app.active_tool, Application.Tool.TOPOLOGY, "the toggle arms the Topology tool")
+
+	var count: int = _feature("Boundary").sections.size()
+	await click(view().latlon_to_screen(0.0, -40.0))
+	assert_eq(_feature("Boundary").sections.size(), count + 1, "a click adds a section")
+	assert_eq(app.active_tool, Application.Tool.TOPOLOGY, "and the tool stays armed")
+	assert_true(toggle.button_pressed, "with the toggle still pressed")
+
+	var escape := InputEventKey.new()
+	escape.keycode = KEY_ESCAPE
+	escape.pressed = true
+	Input.parse_input_event(escape)
+	var released: InputEventKey = escape.duplicate()
+	released.pressed = false
+	Input.parse_input_event(released)
+	await frames(2)
+	assert_eq(app.active_tool, Application.Tool.MOVE, "Escape ends the pick")
+	assert_true(not toggle.button_pressed, "and lets the toggle go")
+
+
 func _feature(title: String) -> Feature:
 	var stack: Array[Feature] = [app.document.root]
 	while not stack.is_empty():

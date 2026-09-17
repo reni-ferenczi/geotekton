@@ -270,50 +270,6 @@ func test_the_ambient_level_lifts_the_night_side() -> void:
 	await use_settings({"ambient": 0.0, "light_direction": ViewSettings.DEFAULT_LIGHT})
 
 
-# Dragging with the Light tool puts the light where the drag ended, and the
-# planet is brightest there.
-func test_the_light_tool_drags_the_light_round_the_globe() -> void:
-	await load_sample("empty.middle-earth")
-	await look_at_latlon(0.0, 0.0)
-	await use_settings({"light_direction": ViewSettings.DEFAULT_LIGHT, "ambient": 0.0})
-	app.set_active_tool(Application.Tool.LIGHT)
-	await frames(1)
-
-	var target := Vector2(20.0, -40.0)
-	await drag(view().latlon_to_screen(0.0, 0.0), view().latlon_to_screen(target.x, target.y))
-	assert_close(app.document.view.light_direction, target, 0.01,
-		"the light is where the drag ended")
-
-	var image := await capture()
-	var here: Vector2 = view().latlon_to_screen(target.x, target.y)
-	var away: Vector2 = view().latlon_to_screen(-20.0, 40.0)
-	assert_true(
-		image.get_pixel(int(here.x), int(here.y)).get_luminance()
-			> image.get_pixel(int(away.x), int(away.y)).get_luminance() + 0.1,
-		"and the planet is brightest under it")
-
-	app.set_active_tool(Application.Tool.MOVE)
-	await use_settings({"light_direction": ViewSettings.DEFAULT_LIGHT})
-
-
-# The light is dragged on the globe, so the tool is not offered on a map and
-# gives way rather than staying armed over a sheet it cannot work on.
-func test_the_light_tool_gives_way_to_a_map() -> void:
-	await load_sample("empty.middle-earth")
-	app.set_active_tool(Application.Tool.LIGHT)
-	await frames(1)
-	assert_eq(app.active_tool, Application.Tool.LIGHT, "the tool is armed on the globe")
-
-	view().planet.show_map = true
-	await frames(2)
-	assert_eq(app.active_tool, Application.Tool.MOVE, "and gives way when a map takes over")
-	assert_true(app.light_button.disabled, "the button is not offered either")
-
-	view().planet.show_map = false
-	await frames(2)
-	assert_true(not app.light_button.disabled, "and is offered again on the globe")
-
-
 ### The planet color and the raster
 
 

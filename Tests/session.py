@@ -677,6 +677,8 @@ def run_properties_session(client: AutomationClient) -> None:
     tool = client.call("get_tool")
     check(tool["topology_enabled"] and not tool["draw_enabled"],
           "a Topology is built with the Topology tool instead")
+    check(client.call("get_properties")["properties"].get("picking_sections") is False,
+          "and the empty topology shows the section table's Pick toggle, let go")
     client.call("set_property", field="feature_type", value="polygon")
 
 
@@ -1313,7 +1315,7 @@ def run_globe_menu_session(client: AutomationClient) -> None:
 
 
 def run_edit_menu_session(client: AutomationClient) -> None:
-    """The Edit menu runs the commands the feature tree toolbar runs.
+    """The Edit menu runs the copy, paste and delete commands.
 
     Copy records no undo version, so the menu has to learn about the clipboard
     some other way; without that, Paste stays disabled right after a Copy.
@@ -1347,6 +1349,36 @@ def run_edit_menu_session(client: AutomationClient) -> None:
     check("Blue Ridge" not in titles_of(client), "the one that was selected")
     client.call("menu", item="undo")
     check("Blue Ridge" in titles_of(client), "and undo brings it back")
+
+    run_clipboard_key_checks(client, before)
+
+
+def run_clipboard_key_checks(client: AutomationClient, before: int) -> None:
+    """Ctrl+C and Ctrl+V copy a feature from the tree, and text from a text field."""
+    client.call("select", title="Red Triangle")
+    focus = client.call("focus", widget="FeatureTree")["focus"]
+    check(focus == "FeatureTree", f"the tree takes the focus: {focus}")
+    client.call("key", key="C", ctrl=True)
+    check('"application"' in client.call("get_clipboard")["text"],
+          "Ctrl+C in the tree puts the feature on the clipboard")
+    client.call("key", key="V", ctrl=True)
+    check(len(client.call("get_features")["features"]) == before + 1,
+          "and Ctrl+V pastes a copy into the tree")
+    client.call("menu", item="undo")
+
+    # A focused text field takes Ctrl+C first, so the name is copied, not the feature.
+    client.call("set_clipboard", text="")
+    client.call("select", title="Red Triangle")
+    focus = client.call("focus", widget="Name")["focus"]
+    if check(focus == "Name", f"the name field takes the focus: {focus}"):
+        client.call("key", key="A", ctrl=True)
+        client.call("key", key="C", ctrl=True)
+        text = client.call("get_clipboard")["text"]
+        check(text == "Red Triangle", f"Ctrl+C in the name field copies the name: {text!r}")
+        client.call("key", key="V", ctrl=True)
+        check(len(client.call("get_features")["features"]) == before,
+              "and Ctrl+V there pastes no feature")
+    client.call("focus", release=True)
 
 
 # A small triangle around lat/lon (0, 0), with its centroid on the equator so
@@ -1811,7 +1843,8 @@ def pick_axis(client: AutomationClient, at: tuple[float, float]) -> bool:
 def run_polar_circles_session(client: AutomationClient) -> None:
     """Polar circles: typed on an empty feature, sized, picked and turned."""
     start_new_document(client)
-    client.call("set_tool", tool="move", snap=False)
+    client.call("set_tool", tool="move")
+    set_snapping(client, False)
     client.call("toolbar", button="AddFeature")
     depth = undo_depth(client)
     client.call("set_property", field="feature_type", value="polar_circles")
@@ -1934,7 +1967,8 @@ def hotspot_rows(client: AutomationClient) -> dict:
 def run_hotspot_session(client: AutomationClient) -> None:
     """A hotspot: typed on an empty feature, picked onto a plate, stepped in time."""
     start_new_document(client)
-    client.call("set_tool", tool="move", snap=False)
+    client.call("set_tool", tool="move")
+    set_snapping(client, False)
     # A feature added now exists from the age the timeline shows.
     client.call("set_time", time=HOTSPOT_AGE)
     client.call("toolbar", button="AddFeature")
@@ -2112,6 +2146,12 @@ def add_polyline(client: AutomationClient, name: str,
     return True
 
 
+def set_snapping(client: AutomationClient, on: bool) -> None:
+    """Switch Snap to vertices with the Edit menu item, unless it is already that way."""
+    if client.call("get_tool")["snapping"] != on:
+        client.call("menu", item="snap_to_vertices")
+
+
 def click_at(client: AutomationClient, at: tuple[float, float], ctrl: bool = False) -> bool:
     """Click a point of the globe named by latitude and longitude, Ctrl held if asked."""
     screen = client.call("latlon_to_screen", lat=at[0], lon=at[1])["screen"]
@@ -2133,11 +2173,32 @@ def run_topology_session(client: AutomationClient) -> None:
     client.call("toolbar", button="AddFeature")
     client.call("set_property", field="name", value="Boundary")
     client.call("set_property", field="feature_type", value="topology")
-    check(client.call("get_tool")["tool"] == "topology",
-          "picking the Topology type arms the Topology tool")
+    check(client.call("get_tool")["tool"] == "move",
+          "picking the Topology type leaves the Move tool armed")
+    check("Topology" not in client.call("get_tool")["tool_strip"],
+          "the tool strip has no Topology button")
 
-    if not click_at(client, WEST_CLICK) or not click_at(client, EAST_CLICK):
+    # The Pick toggle of the section table arms the Topology tool, and Escape
+    # puts it away again and lets the toggle go.
+    client.call("sections", button="Pick")
+    check(client.call("get_tool")["tool"] == "topology", "the section Pick toggle arms the tool")
+    check(client.call("get_properties")["properties"].get("picking_sections"),
+          "and shows itself pressed")
+    if not click_at(client, WEST_CLICK):
         return
+    client.call("key", key="Escape")
+    check(client.call("get_tool")["tool"] == "move", "Escape ends the section pick")
+    check(not client.call("get_properties")["properties"].get("picking_sections"),
+          "and lets the toggle go")
+
+    # Another tool ends it the same way.
+    client.call("set_tool", tool="topology")
+    if not click_at(client, EAST_CLICK):
+        return
+    client.call("set_tool", tool="measure")
+    check(not client.call("get_properties")["properties"].get("picking_sections"),
+          "another tool lets the toggle go too")
+    client.call("set_tool", tool="move")
 
     feature = client.call("get_selected")["feature"]
     check(feature["geometry_kind"] == "topology",
@@ -2674,6 +2735,12 @@ def run_video_encoding_checks(client: AutomationClient, folder: Path) -> None:
               "no ffmpeg was found on this machine, so the frames are what is left")
 
 
+# How high the light is put through the View settings dialog, and the latitude
+# north and south of the middle of the view where the planet is probed for it.
+LIGHT_ELEVATION = 60.0
+LIGHT_PROBE_LATITUDE = 40.0
+
+
 def run_scene_session(client: AutomationClient, folder: Path) -> None:
     """The scene settings: saved with the document, dragged on the globe, defaulted."""
     sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
@@ -2724,7 +2791,7 @@ def run_scene_session(client: AutomationClient, folder: Path) -> None:
             check(back[key] == value, f"{key} survived the round trip: {back[key]}")
 
     run_built_in_earth_checks(client, saved)
-    run_light_tool_checks(client)
+    run_light_settings_checks(client)
     run_view_default_checks(client, sample)
 
 
@@ -2745,42 +2812,39 @@ def run_built_in_earth_checks(client: AutomationClient, saved: Path) -> None:
     check(abs(color[3] - 1.0) < 1e-6, f"a planet color given with an alpha is kept opaque: {color}")
 
 
-def run_light_tool_checks(client: AutomationClient) -> None:
-    """The Light tool drags the light, and the planet is brightest under it."""
+def run_light_settings_checks(client: AutomationClient) -> None:
+    """The light is set in the View settings dialog, and the planet is brightest under it."""
     client.call("load", path=str(ROOT / "Tests" / "Data" / "empty.middle-earth"))
     client.call("set_view", show_map=False, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
     client.call("set_view_settings", view_settings={"light_direction": [0.0, 0.0], "ambient": 0.0})
-    client.call("set_tool", tool="light")
-    check(client.call("get_tool")["tool"] == "light", "the Light tool is armed")
+    strip = client.call("get_tool")["tool_strip"]
+    check("Light" not in strip, f"the tool strip has no Light button: {strip}")
+    client.call("mouse_move", x=10, y=10)
 
-    start = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
-    target = (20.0, -40.0)
-    end = client.call("latlon_to_screen", lat=target[0], lon=target[1])["screen"]
+    def brightness(lat: float) -> float:
+        screen = client.call("latlon_to_screen", lat=lat, lon=0.0)["screen"]
+        return luminance(client.call("get_pixel", x=screen[0], y=screen[1])["color"])
+
+    north, south = brightness(LIGHT_PROBE_LATITUDE), brightness(-LIGHT_PROBE_LATITUDE)
+    check(abs(north - south) < 0.05,
+          f"a light from the camera lights north and south alike: {north:.3f}, {south:.3f}")
+
     versions = undo_depth(client)
-    client.call("press", x=start[0], y=start[1])
-    client.call("mouse_move", x=end[0], y=end[1])
-    client.call("release", x=end[0], y=end[1])
-
+    client.call("set_view_settings", view_settings={"light_elevation": LIGHT_ELEVATION})
     stored = client.call("get_view_settings")["view_settings"]["light_direction"]
-    check(abs(stored[0] - target[0]) < 0.1 and abs(stored[1] - target[1]) < 0.1,
-          f"the drag put the light at {stored}")
-    check(undo_depth(client) == versions + 1, "the whole light drag is one undo step")
+    check(stored == [LIGHT_ELEVATION, 0.0], f"the elevation field moved the light: {stored}")
+    check(undo_depth(client) == versions + 1, "which is one undo step")
+    north, south = brightness(LIGHT_PROBE_LATITUDE), brightness(-LIGHT_PROBE_LATITUDE)
+    check(north > south + 0.1, f"a high light lights the north: {north:.3f} to {south:.3f}")
+
+    client.call("set_view_settings", view_settings={"light_elevation": -LIGHT_ELEVATION})
+    north, south = brightness(LIGHT_PROBE_LATITUDE), brightness(-LIGHT_PROBE_LATITUDE)
+    check(south > north + 0.1, f"and a low one the other side: {south:.3f} to {north:.3f}")
+
+    client.call("menu", item="undo")
     client.call("menu", item="undo")
     back = client.call("get_view_settings")["view_settings"]["light_direction"]
-    check(back == [0.0, 0.0], f"undo puts the light back where it was: {back}")
-    client.call("menu", item="redo")
-
-    client.call("mouse_move", x=10, y=10)
-    lit = luminance(client.call("get_pixel", x=end[0], y=end[1])["color"])
-    away = client.call("latlon_to_screen", lat=-20.0, lon=40.0)["screen"]
-    shaded = luminance(client.call("get_pixel", x=away[0], y=away[1])["color"])
-    check(lit > shaded + 0.1, f"and the planet is brightest under it: {lit:.3f} to {shaded:.3f}")
-    client.call("set_tool", tool="move")
-
-    client.call("set_view", show_map=True)
-    check(client.call("get_tool")["tool"] == "move",
-          "the Light tool gives way when a map takes over")
-    client.call("set_view", show_map=False)
+    check(back == [0.0, 0.0], f"two undos put the light back where it was: {back}")
 
 
 def run_view_default_checks(client: AutomationClient, sample: Path) -> None:
@@ -2863,7 +2927,8 @@ def run_vertex_session(client: AutomationClient) -> None:
     rotation = client.call("get_selected")["feature"]["keyframes"]
     check(len(rotation) == 1, f"the feature has the one keyframe it was moved at: {rotation}")
 
-    client.call("set_tool", tool="vertex", snap=False)
+    client.call("set_tool", tool="vertex")
+    set_snapping(client, False)
     tool = client.call("get_tool")
     check(tool["tool"] == "vertex", f"the Vertex tool is active: {tool['tool']}")
     check(not tool["snapping"], "with snapping off for these checks")
@@ -2969,7 +3034,8 @@ def run_vertex_delete_checks(client: AutomationClient) -> None:
     if not draw(client, VERTEX_SQUARE):
         return
     client.call("key", key="Enter")
-    client.call("set_tool", tool="vertex", snap=False)
+    client.call("set_tool", tool="vertex")
+    set_snapping(client, False)
     square = client.call("get_selected")["feature"]["world_rings"][0]
     check(len(square) == 4, f"a square was drawn: {square}")
 
@@ -3060,8 +3126,11 @@ def run_snap_session(client: AutomationClient) -> None:
     target = client.call("get_selected")["feature"]["world_rings"][0][0]
 
     client.call("select", title="Mover")
-    client.call("set_tool", tool="vertex", snap=True)
-    check(client.call("get_tool")["snapping"], "snapping is on")
+    client.call("set_tool", tool="vertex")
+    set_snapping(client, True)
+    tool = client.call("get_tool")
+    check(tool["snapping"], "snapping is on")
+    check("Snap" not in tool["tool_strip"], f"and the tool strip has no Snap button: {tool['tool_strip']}")
 
     # Drop the vertex a few pixels short of the anchor's, near enough for the
     # snap to take it the rest of the way.
@@ -3081,7 +3150,8 @@ def run_snap_session(client: AutomationClient) -> None:
 
     # The same drop with snapping off stays where it was put.
     client.call("menu", item="undo")
-    client.call("set_tool", tool="vertex", snap=False)
+    client.call("set_tool", tool="vertex")
+    set_snapping(client, False)
     client.call("press", x=grab[0], y=grab[1])
     client.call("mouse_move", x=short[0], y=short[1])
     client.call("release", x=short[0], y=short[1])
@@ -3112,7 +3182,8 @@ def add_drawn(client: AutomationClient, name: str, points) -> list[list[float]]:
     """Add a feature, draw a polygon with Snap off and return its world ring."""
     client.call("toolbar", button="AddFeature")
     client.call("set_property", field="name", value=name)
-    client.call("set_tool", tool="draw", snap=False)
+    client.call("set_tool", tool="draw")
+    set_snapping(client, False)
     draw(client, points)
     client.call("key", key="Enter")
     return client.call("get_selected")["feature"]["world_rings"][0]
@@ -3136,7 +3207,8 @@ def run_draw_from_geometry_session(client: AutomationClient) -> None:
 
     # A click 5 px off a vertex lands on it.
     client.call("toolbar", button="AddFeature")
-    client.call("set_tool", tool="draw", snap=True)
+    client.call("set_tool", tool="draw")
+    set_snapping(client, True)
     click_near(client, triangle[0], 5.0)
     draw(client, DRAW_FREE)
     ring = commit_drawing(client)
@@ -3163,7 +3235,8 @@ def run_draw_from_geometry_session(client: AutomationClient) -> None:
 
     # Shift+click traces the shorter way along the hexagon.
     client.call("toolbar", button="AddFeature")
-    client.call("set_tool", tool="draw", snap=True)
+    client.call("set_tool", tool="draw")
+    set_snapping(client, True)
     for last, wanted in ((2, [0, 1, 2]), (4, [0, 5, 4])):
         click_near(client, hexagon[0])
         click_near(client, hexagon[last], shift=True)
@@ -3179,8 +3252,16 @@ def run_draw_from_geometry_session(client: AutomationClient) -> None:
         else:
             client.call("key", key="Escape")
 
-    # With Snap off Shift+click is a plain click.
-    client.call("set_tool", tool="draw", snap=False)
+    # With Snap off Shift+click is a plain click. The Edit menu item switches
+    # it in the Draw tool.
+    client.call("set_tool", tool="draw")
+    set_snapping(client, True)
+    client.call("menu", item="snap_to_vertices")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "draw" and not tool["snapping"],
+          "Edit > Snap to vertices switches snapping off in the Draw tool")
+    check(not client.call("get_preferences")["preferences"]["snap_to_vertices"],
+          "and the preference with it")
     click_near(client, hexagon[0], 5.0)
     click_near(client, hexagon[2], 5.0, shift=True)
     check(client.call("get_tool")["drawing_vertices"] == 2,
@@ -3341,7 +3422,8 @@ def run_split_session(client: AutomationClient) -> None:
         return
 
     whole = client.call("get_selected")["feature"]
-    client.call("set_tool", tool="vertex", snap=False)
+    client.call("set_tool", tool="vertex")
+    set_snapping(client, False)
 
     # Hold one vertex, pick the one two along, and cut between them.
     if not pick_vertex(client, whole["world_rings"][0][0]):
@@ -3692,6 +3774,7 @@ def run_closed_topology_checks(client: AutomationClient) -> None:
     client.call("toolbar", button="AddFeature")
     client.call("set_property", field="name", value="Loop")
     client.call("set_property", field="feature_type", value="topology")
+    client.call("sections", button="Pick")
     for line in (CLOSED_SOUTH, CLOSED_NORTH):
         if not click_at(client, midpoint(list(line[0]), list(line[1]))):
             return
@@ -3958,16 +4041,18 @@ def run_pole_checks(client: AutomationClient, middle: tuple[float, float]) -> No
 def run_tool_key_checks(client: AutomationClient) -> None:
     """The tool keys, and the text field that swallows them."""
     client.call("set_tool", tool="move")
-    for key, tool in [("V", "vertex"), ("E", "measure"), ("L", "light"), ("X", "split"),
+    for key, tool in [("V", "vertex"), ("E", "measure"), ("X", "split"),
                       ("R", "rotate"), ("P", "pole"), ("M", "move")]:
         client.call("key", key=key)
         picked = client.call("get_tool")["tool"]
         check(picked == tool, f"{key} picks the {tool} tool: {picked}")
 
-    # A key of a tool the toolbar greys out for what is selected does nothing.
-    client.call("key", key="T")
-    check(client.call("get_tool")["tool"] == "move",
-          "a key of a tool that is not offered leaves the tool alone")
+    # A key of a tool the toolbar greys out for what is selected does nothing,
+    # and L and T, which picked the Light and Topology tools once, pick nothing.
+    for key in ["C", "L", "T"]:
+        client.call("key", key=key)
+        check(client.call("get_tool")["tool"] == "move",
+              f"{key} leaves the tool alone on the craton")
 
     # A name being typed is a name being typed, whatever the letters are.
     focus = client.call("focus", widget="Name")

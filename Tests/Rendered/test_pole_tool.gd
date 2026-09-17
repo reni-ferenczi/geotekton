@@ -24,7 +24,7 @@ func test_a_placed_pole_is_marked_by_a_bold_cross() -> void:
 	var flat := Image.create(4, 2, false, Image.FORMAT_RGBA8)
 	flat.fill(Color.RED)
 	view().planet.set_raster(ImageTexture.create_from_image(flat), 1.0)
-	app.snap_button.button_pressed = false
+	Config.set_snap_to_vertices(false)
 	app.set_active_tool(Application.Tool.POLE)
 	await look_at_latlon(POLE.x, POLE.y)
 	view().set_zoom(ZOOM)
@@ -98,6 +98,7 @@ func _yellow(image: Image, centre: Vector2) -> int:
 
 
 func _restore() -> void:
+	Config.set_snap_to_vertices(true)
 	app.set_active_tool(Application.Tool.MOVE)
 	view().set_zoom(PlanetView.DEFAULT_ZOOM)
 	view().planet.set_raster(null, 0.0)

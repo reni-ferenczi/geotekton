@@ -56,10 +56,11 @@ const IMPORT_SCRATCH := "user://imported.middle-earth"
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, ROTATE, POLE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, LIGHT, SPLIT }
+enum Tool { MOVE, ROTATE, POLE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, SPLIT }
 
 # The key that picks each tool, single letters without a modifier. GPlates'
-# own letters where it has one for the same tool.
+# own letters where it has one for the same tool. The Topology tool has no key:
+# the Pick toggle of the section table in the Properties panel arms it.
 const TOOL_KEYS := {
 	KEY_M: Tool.MOVE,
 	KEY_R: Tool.ROTATE,
@@ -68,8 +69,6 @@ const TOOL_KEYS := {
 	KEY_V: Tool.VERTEX,
 	KEY_E: Tool.MEASURE,
 	KEY_C: Tool.CIRCLE,
-	KEY_T: Tool.TOPOLOGY,
-	KEY_L: Tool.LIGHT,
 	KEY_X: Tool.SPLIT,
 }
 
@@ -87,7 +86,8 @@ const DRAG_PIXELS := 4.0
 
 enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, EXPORT_VIDEO, RUN_SCRIPT,
 	PREFERENCES, QUIT }
-enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE }
+enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE,
+	SNAP }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, KINEMATICS_PLACE, CONSOLE, STATUS_BAR,
 	SETTINGS, FULL_SCREEN, HIGHLIGHT_CHILDREN }
 enum HelpItem { DOCUMENTATION, ABOUT }
@@ -141,9 +141,6 @@ const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
 @onready var vertex_button: Button = %Vertex
 @onready var measure_button: Button = %Measure
 @onready var circle_button: Button = %Circle
-@onready var topology_button: Button = %Topology
-@onready var light_button: Button = %Light
-@onready var snap_button: Button = %Snap
 @onready var split_button: Button = %Split
 @onready var segments_spin: SpinBox = %Segments
 @onready var segments_label: Label = %SegmentsLabel
@@ -172,7 +169,7 @@ const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
 @onready var leave_full_screen: Button = %LeaveFullScreen
 
 # The toggle button of each tool, which is what says whether a tool is offered,
-# which one is armed and which key picks it.
+# which one is armed and which key picks it. The Topology tool has none.
 @onready var tool_buttons: Dictionary = {
 	Tool.MOVE: move_button,
 	Tool.ROTATE: rotate_button,
@@ -181,8 +178,6 @@ const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
 	Tool.VERTEX: vertex_button,
 	Tool.MEASURE: measure_button,
 	Tool.CIRCLE: circle_button,
-	Tool.TOPOLOGY: topology_button,
-	Tool.LIGHT: light_button,
 	Tool.SPLIT: split_button,
 }
 
@@ -322,15 +317,16 @@ func _ready() -> void:
 	properties.palette_file_requested.connect(choose_palette)
 	properties.pick_axis_requested.connect(start_axis_pick)
 	properties.pick_hotspot_requested.connect(start_hotspot_pick)
+	properties.pick_section_requested.connect(start_section_pick)
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
 	document.time_changed.connect(_on_time_changed)
 	timeline.attach(document)
 	timeline.configure_requested.connect(_show_animation_dialog)
 	kinematics.attach(document, timeline)
-	# The Edit menus offer what the feature tree toolbar offers, so they follow
-	# the same signal: the undo depth, the selection and the clipboard all reach
-	# it, which a copy that records no undo version otherwise would not.
+	# The Edit menus follow the feature tree's own signal: the undo depth, the
+	# selection and the clipboard all reach it, which a copy that records no
+	# undo version otherwise would not.
 	features.commands_changed.connect(_update_edit_menu)
 
 	_build_menus()
@@ -340,8 +336,6 @@ func _ready() -> void:
 	for tool: Tool in tool_buttons:
 		tool_buttons[tool].pressed.connect(func() -> void: set_active_tool(tool))
 	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
-	snap_button.toggled.connect(_on_snap_toggled)
-	snap_button.button_pressed = Config.get_snap_to_vertices()
 	ridge_check.button_pressed = Config.get_split_ridge()
 	ridge_check.toggled.connect(Config.set_split_ridge)
 	crust_check.button_pressed = Config.get_split_crust()
@@ -518,6 +512,9 @@ func _add_edit_items(menu: PopupMenu) -> void:
 	menu.add_separator()
 	menu.add_item("Copy Shape", EditItem.COPY_SHAPE, KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_C)
 	menu.add_item("Paste Shape", EditItem.PASTE_SHAPE, KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_V)
+	menu.add_separator()
+	menu.add_check_item("Snap to vertices", EditItem.SNAP)
+	menu.set_item_checked(menu.get_item_index(EditItem.SNAP), snapping())
 
 
 func _add_menu(title: String) -> PopupMenu:
@@ -560,17 +557,19 @@ func _on_edit_menu_id_pressed(id: int) -> void:
 	match id:
 		EditItem.UNDO: undo()
 		EditItem.REDO: redo()
-		EditItem.CUT: features._on_cut_pressed()
-		EditItem.COPY: features._on_copy_pressed()
-		EditItem.PASTE: features._on_paste_pressed()
+		EditItem.CUT: features.cut_selected()
+		EditItem.COPY: features.copy_selected()
+		EditItem.PASTE: features.paste_at_selected()
 		EditItem.DUPLICATE: features.duplicate_node(selected)
 		EditItem.DELETE: features.delete_node(selected)
 		EditItem.COPY_SHAPE: copy_shape()
 		EditItem.PASTE_SHAPE: paste_shape()
+		EditItem.SNAP: toggle_snapping()
 
 
-# What the Edit menus offer, following the feature tree toolbar. The globe menu
-# holds two of the same items, so it is updated from here as well.
+# What the Edit menus offer for the selection, the undo stack and the
+# clipboard. The globe menu holds two of the same items, so it is updated from
+# here as well.
 func _update_edit_menu() -> void:
 	if edit_menu == null:
 		return
@@ -2007,8 +2006,6 @@ func set_active_tool(tool: Tool) -> void:
 		_measure_clear()
 	if active_tool == Tool.CIRCLE and tool != Tool.CIRCLE:
 		circle_points = PackedVector2Array()
-	if active_tool == Tool.LIGHT and tool != Tool.LIGHT:
-		_light_dragging = false
 	if active_tool == Tool.SPLIT and tool != Tool.SPLIT:
 		split_points = PackedVector2Array()
 	if _spins(active_tool) and tool != active_tool:
@@ -2017,6 +2014,7 @@ func set_active_tool(tool: Tool) -> void:
 	active_tool = tool
 	for entry: Tool in tool_buttons:
 		tool_buttons[entry].button_pressed = entry == tool
+	properties.show_section_picking(tool == Tool.TOPOLOGY)
 	# Only the Circle tool reads the segment count, and only the Split tool the
 	# Ridge and Crust switches, so each shows its own.
 	segments_label.visible = tool == Tool.CIRCLE
@@ -2032,33 +2030,32 @@ func set_active_tool(tool: Tool) -> void:
 	_show_measurement()
 
 
-func _on_snap_toggled(enabled: bool) -> void:
-	Config.set_snap_to_vertices(enabled)
+# Snap to vertices is a setting rather than a tool: a check item of the Edit
+# menu, kept in the config. It applies wherever a click or a drag can land on a
+# vertex, which is the Vertex drag, the Pole placement and the Draw tool.
+func toggle_snapping() -> void:
+	Config.set_snap_to_vertices(not snapping())
+	edit_menu.set_item_checked(edit_menu.get_item_index(EditItem.SNAP), snapping())
 
 
 func snapping() -> bool:
-	return snap_button.button_pressed
+	return Config.get_snap_to_vertices()
 
 
 # The Vertex tool needs a leaf feature holding vertices of its own; there is
 # nothing to take hold of otherwise, and a topology's vertices belong to the
 # features it runs along. Rotate and Pole want the same thing, since they turn
 # those vertices about an axis. Measure needs nothing at all, and Split a
-# polygon. Which of Draw, Circle and Topology is offered follows the feature's
-# type.
+# polygon. Which of Draw and Circle is offered follows the feature's type.
 func _update_tool_buttons() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var editable := _can_spin(selected)
 	vertex_button.disabled = not _can_edit_vertices(selected)
 	rotate_button.disabled = not editable
 	pole_button.disabled = not editable
-	snap_button.disabled = active_tool != Tool.VERTEX and active_tool != Tool.POLE
 	draw_button.disabled = not _can_draw(selected)
 	circle_button.disabled = not _can_draw_circle(selected)
-	topology_button.disabled = not _can_build_topology(selected)
 	split_button.disabled = not _can_split_along(selected)
-	split_button.tooltip_text = "Split the selected polygon along a line drawn across it [X]" \
-		if not split_button.disabled else "Select a polygon to split it [X]"
 
 
 # Whether the armed tool can still work on the selected feature. Only the three
@@ -2114,8 +2111,10 @@ func _on_feature_selected(node: Feature) -> void:
 		set_active_tool(Tool.MOVE)
 	if active_tool == Tool.VERTEX and node != null and not _can_edit_vertices(node):
 		set_active_tool(Tool.MOVE)
-	# The axis or hotspot being picked belongs to the feature that asked for it.
-	if (picking_axis or picking_hotspot) and node != null and node.pnid != pick_pnid:
+	# The axis, hotspot or sections being picked belong to the feature that
+	# asked for them.
+	if (picking_axis or picking_hotspot or active_tool == Tool.TOPOLOGY) \
+			and node != null and node.pnid != pick_pnid:
 		set_active_tool(Tool.MOVE)
 	if active_tool == Tool.SPLIT and node != null and not _can_split_along(node):
 		set_active_tool(Tool.MOVE)
@@ -2208,12 +2207,6 @@ func _turn_view(degrees: float) -> void:
 # would write it straight back is what set_value_no_signal is for.
 func _update_view_toolbar() -> void:
 	var planet := planet_view.planet
-	# The light is dragged on the globe, and a map sheet has nowhere to drag it,
-	# so the tool is offered on the globe alone and gives way to Move when a map
-	# takes over, rather than staying armed and swallowing the clicks.
-	light_button.disabled = planet.show_map
-	if planet.show_map and active_tool == Tool.LIGHT:
-		set_active_tool(Tool.MOVE)
 	# A picture is of a map sheet, so the globe has nothing to export.
 	file_menu.set_item_disabled(
 		file_menu.get_item_index(FileItem.EXPORT_IMAGE), not planet.show_map)
@@ -2247,7 +2240,7 @@ func drawing_kind() -> Feature.GeometryKind:
 
 
 # Which tool draws which type. A Circle is drawn with the Circle tool and a
-# Topology built with the Topology tool out of other features, so the Draw tool
+# Topology picked together out of other features, so the Draw tool
 # is left the three types clicked out vertex by vertex. A feature carrying no
 # type at all, which only a file written before 0.3.0 holds, is drawn like a
 # Polygon.
@@ -2285,7 +2278,8 @@ func _can_edit_vertices(node: Feature) -> bool:
 
 
 # The tool the feature's type calls for, or Move when nothing draws it: a
-# feature that holds a shape already, a group, or nothing selected.
+# feature that holds a shape already, a topology, whose sections are picked from
+# the Properties panel, a group, or nothing selected.
 func _tool_for(node: Feature) -> Tool:
 	if node == null or node.is_group or node.has_geometry():
 		return Tool.MOVE
@@ -2293,8 +2287,6 @@ func _tool_for(node: Feature) -> Tool:
 		return Tool.DRAW
 	if _can_draw_circle(node):
 		return Tool.CIRCLE
-	if _can_build_topology(node):
-		return Tool.TOPOLOGY
 	return Tool.MOVE
 
 
@@ -2657,8 +2649,6 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 			_on_circle_input(lat, lon, event)
 		Tool.TOPOLOGY:
 			_on_topology_input(lat, lon, event)
-		Tool.LIGHT:
-			_on_light_input(lat, lon, event)
 		Tool.SPLIT:
 			_on_split_input(lat, lon, event)
 
@@ -2673,8 +2663,6 @@ func _on_planet_input_outside(event: InputEvent) -> void:
 		return
 	if active_tool == Tool.VERTEX:
 		_vertex_commit_drag()
-	elif active_tool == Tool.LIGHT:
-		_light_dragging = false
 	elif _spins(active_tool):
 		# Off the planet there is no angle to turn to, so the drag is given up
 		# and the keyframes go back the way they were, as a move does.
@@ -2976,6 +2964,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				taken_back = PackedVector2Array()
 				_refresh_selection_outline()
 				_show_measurement()
+			else:
+				return
+		Tool.TOPOLOGY:
+			if event.keycode == KEY_ESCAPE:
+				set_active_tool(Tool.MOVE)
 			else:
 				return
 		Tool.SPLIT:
@@ -3594,14 +3587,27 @@ func _circle_commit() -> String:
 
 ### The Topology tool
 #
-# Building a line topology by clicking the features it runs along, in order. A
-# click adds the whole of one part of whatever is under it as a section; a right
-# click takes the last section back. There is nothing to commit: each click is
-# one edit and one undo version, so the boundary is on the globe as it grows.
+# Building a line topology by clicking the features it runs along, in order. The
+# tool has no toolbar button: the Pick toggle of the section table arms it for
+# the selected topology, and Escape, another selection or another tool ends it.
+# A click adds the whole of one part of whatever is under it as a section; a
+# right click takes the last section back. There is nothing to commit: each
+# click is one edit and one undo version, so the boundary is on the globe as it
+# grows.
 #
 # Which section runs which way, and which vertices of a feature a section
 # covers, are set afterwards in the Properties panel; see
 # Docs/Editing.md#topologies.
+
+
+func start_section_pick(on: bool) -> void:
+	var feature := features.feature_tree.get_selected_node()
+	if on and _can_build_topology(feature):
+		pick_pnid = feature.pnid
+		set_active_tool(Tool.TOPOLOGY)
+	elif active_tool == Tool.TOPOLOGY or on:
+		# Let go, or refused: either way the toggle shows what the tool is.
+		set_active_tool(Tool.MOVE)
 
 
 func _on_topology_input(lat: float, lon: float, event: InputEvent) -> void:
@@ -3662,52 +3668,6 @@ func _after_topology_edit() -> void:
 	_show_selection(features.feature_tree.get_selected_node())
 	refresh_geometry()
 	_update_tool_buttons()
-
-
-### The Light tool
-#
-# Where the light comes from is a direction in the scene rather than a place on
-# the planet, so it is dragged on the globe: the point under the pointer is the
-# point the light shines straight at. A map sheet is flat and has no such point,
-# so the tool waits for the globe.
-
-
-# True while the light is being dragged, so that the whole drag moves it and not
-# only the press that started it.
-var _light_dragging: bool = false
-
-
-# The light follows the pointer for the whole drag and the release records one
-# undo version for all of it, the way a feature drag does.
-func _on_light_input(lat: float, lon: float, event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.is_pressed():
-			_light_dragging = true
-			_point_light_at(lat, lon)
-		elif _light_dragging:
-			_light_dragging = false
-			document.view_edited()
-	elif event is InputEventMouseMotion and _light_dragging:
-		_point_light_at(lat, lon)
-
-
-func _point_light_at(lat: float, lon: float) -> void:
-	var direction = planet_view.globe_direction(lat, lon)
-	if direction == null:
-		return
-	document.view.light_direction = ViewSettings.light_from_vector(direction)
-	apply_view_settings()
-	if view_dialog.visible:
-		_fill_view_fields()
-	_refresh_selection_outline()
-
-
-# Where the light stands on the globe, so the tool can mark it. Null while a map
-# is being shown, where the light has no place to be marked at.
-func _light_marker() -> Variant:
-	if planet_view.planet.show_map:
-		return null
-	return planet_view.direction_to_latlon(document.view.light_vector())
 
 
 ### The Measure tool
@@ -4036,11 +3996,11 @@ func _drawn_children() -> Array[Feature]:
 
 
 # The feature whose lines the shader draws thicker and yellow: the selected one,
-# in the tools that trace the selection. Circle, Light and Measure draw their own
+# in the tools that trace the selection. Circle and Measure draw their own
 # overlay instead, and the Vertex tool traces the rings with a dot on every
 # vertex, which a thick line would cover.
 func _highlighted_feature() -> Feature:
-	if active_tool in [Tool.VERTEX, Tool.CIRCLE, Tool.LIGHT, Tool.MEASURE]:
+	if active_tool in [Tool.VERTEX, Tool.CIRCLE, Tool.MEASURE]:
 		return null
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group:
@@ -4061,15 +4021,6 @@ func _refresh_selection_outline() -> void:
 	# Enter would commit is on the globe before it is committed.
 	if active_tool == Tool.CIRCLE:
 		planet_view.planet.set_outline(_circle_outline())
-		return
-	# The Light tool marks where the light stands, so the direction being dragged
-	# is somewhere rather than only shown by the shading it produces.
-	if active_tool == Tool.LIGHT:
-		var marker = _light_marker()
-		planet_view.planet.set_outline([] if marker == null else [{
-			"vertices": PackedVector2Array([marker]),
-			"style": Planet.OutlineStyle.POINTS,
-		}])
 		return
 	# The Measure tool draws the path it has been given instead, so the points
 	# clicked and the line between them are visible while the distance is read.

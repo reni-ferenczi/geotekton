@@ -2,7 +2,7 @@
 
 ## Tools
 
-The toolbar contains ten mutually exclusive tool buttons, two switches and a
+The toolbar contains eight mutually exclusive tool buttons, two switches and a
 number:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
@@ -19,13 +19,6 @@ number:
   [The Measure tool](#the-measure-tool).
 - **Circle** — Draws a circle from a centre or through three points; see
   [The Circle tool](#the-circle-tool). Offered on a Circle.
-- **Topology** — Builds a topology out of the features it runs along; see
-  [Topologies](#topologies). Offered on a Topology.
-- **Light** — Drags the light around the globe; see
-  [The Light tool](#the-light-tool). Offered on the globe alone.
-- **Snap** — Whether a dragged vertex, a pole being placed or a point being
-  drawn jumps onto a nearby vertex. The Vertex, Pole and Draw tools use it; see
-  [Snapping](#snapping).
 - **Split** — Cuts the selected polygon in two along a line drawn across it;
   see [The Split tool](#the-split-tool). Offered while a polygon is selected.
 - **Circle segments** — Shown only while the Circle tool is active; see
@@ -38,32 +31,37 @@ number:
   while Ridge is off, on to start with, and remembered between sessions; see
   [The crust](#the-crust).
 
-Which of Draw, Circle and Topology is offered follows the selected feature's
+Which of Draw and Circle is offered follows the selected feature's
 [type](Properties.md#what-the-type-restricts), which is picked in the Properties
 panel and is the one place it is picked. Picking a type on a feature holding
 nothing arms the tool that draws it, so a new feature can be drawn straight
-away.
+away. A Topology is not drawn: its sections are picked with the **Pick** toggle
+of the section table in the Properties panel, which arms the Topology tool
+without a toolbar button; see [Topologies](#topologies). Whether a click or a
+drag lands on a nearby vertex is a setting, Edit > Snap to vertices, rather
+than a tool; see [Snapping](#snapping). The light is set in the
+[View settings](#view-settings) dialog.
 
-Only one of Move, Rotate, Pole, Draw, Vertex, Measure, Circle, Topology, Light
-and Split is active at a time. Everything but
+Only one of Move, Rotate, Pole, Draw, Vertex, Measure, Circle, Topology and
+Split is active at a time. Everything but
 Move takes the clicks on the planet for itself, so selecting a feature, moving
 one and the right click menu wait until Move comes back. Rotating the globe with
 the middle button always works.
 
 ### The tool keys
 
-Each tool has a letter of its own, pressed without a modifier, which is what the
-tooltip ends with. The letters are GPlates' where GPlates has one for the same
-tool:
+Each tool button has a letter of its own, pressed without a modifier. A
+button's tooltip is the tool's name and that letter, such as "Rotate [R]". The
+letters are GPlates' where GPlates has one for the same tool:
 
-| Key | Tool     | Key | Tool     |
-| --- | -------- | --- | -------- |
-| M   | Move     | C   | Circle   |
-| R   | Rotate   | T   | Topology |
-| P   | Pole     | L   | Light    |
-| D   | Draw     | X   | Split    |
-| V   | Vertex   |     |          |
-| E   | Measure  |     |          |
+| Key | Tool              | Key | Tool              |
+| --- | ----------------- | --- | ----------------- |
+| M   | Move              | V   | Edit Vertices     |
+| R   | Rotate            | E   | Measure Distances |
+| P   | Pole Rotate       | C   | Circle            |
+| D   | Draw              | X   | Split             |
+
+The Topology tool has no key, since it has no button. L and T pick nothing.
 
 A key of a tool the toolbar greys out for what is selected does nothing. A text
 field with the keyboard takes the letter as the character it is, so typing a
@@ -119,7 +117,7 @@ The feature selected in the tree is highlighted on the planet in yellow:
 
 A dot on every vertex appears only in the [Vertex tool](#the-vertex-tool),
 where the vertices are there to be picked; there a line is traced at its own
-width instead of thickened. The Circle, Measure and Light tools show their own
+width instead of thickened. The Circle and Measure tools show their own
 points in place of the highlight, and the Draw tool's preview of the shape
 being drawn is drawn over it as before. See
 [Shader](Shader.md#the-selected-feature).
@@ -213,7 +211,7 @@ selection is traced in. Each arm reaches six degrees from the pole and is as
 wide as a feature line (`geometry_line_width`), so the cross is easy to spot;
 the Outline line width preference does not change it. The pole stays while the
 Pole tool is armed, so several features can be turned about one pole in turn.
-Picking another tool takes it away. With [Snap](#snapping) on, a pole lands on
+Picking another tool takes it away. With [snapping](#snapping) on, a pole lands on
 the nearest vertex of any feature instead of where it was clicked.
 
 A drag whose pointer comes within about three degrees of the axis, or of the
@@ -334,9 +332,12 @@ See [Draw](Draw.md#input-mapping).
 
 ## Snapping
 
-The **Snap** button in the toolbar decides whether a dragged vertex jumps onto a
-nearby one when it is dropped, and whether the [Pole tool](#turning-a-feature)
-puts its pole on one. Every vertex of every feature the current time
+**Edit > Snap to vertices** is a setting rather than a tool, so it is a check
+item of the Edit menu and applies whichever tool is armed. It decides whether a
+vertex dragged with the [Vertex tool](#the-vertex-tool) jumps onto a nearby one
+when it is dropped, whether the [Pole tool](#turning-a-feature) puts its pole
+on one, and whether the [Draw tool](Draw.md#input-mapping) places a point on
+one. It is on to start with. Every vertex of every feature the current time
 shows is a candidate, not only those of the feature being edited, so two
 features can be made to meet exactly. The vertex being dragged is left out of
 the candidates; it is always nearest to itself.
@@ -351,7 +352,7 @@ vertex of the same ring then adds the vertices between the two, so a new
 feature can follow the edge of an existing one exactly. A closed ring is
 followed the way that passes fewer vertices; an open one has only one way.
 Without a snapped point on that ring before it, Shift+LMB places one snapped
-point, and with Snap off it is a plain click.
+point, and with snapping off it is a plain click.
 
 ## Splitting
 
@@ -550,7 +551,7 @@ and pasting a shape into the feature is refused.
 
 **Pick axis** in the panel arms the [Pole tool](#turning-a-feature) for one
 click, with its cross on the current axis. The click, snapped to a vertex while
-Snap is on, becomes the new axis, and the tool goes back to Move. Escape or
+[snapping](#snapping) is on, becomes the new axis, and the tool goes back to Move. Escape or
 another tool gives the pick up, and so does selecting another feature. The axis
 is kept in the feature's own frame, so a click on a feature that keyframes have
 turned is mapped back first, and the circle lands around the point clicked.
@@ -604,7 +605,7 @@ refused.
 The [Properties panel](Properties.md#the-hotspot-rows) edits the three values,
 one undo version each. **Pick** arms the [Pole tool](#turning-a-feature) for
 one click, with its cross on the hotspot. The click, snapped to a vertex while
-Snap is on, is where the hotspot goes, and when the click lands on a feature
+[snapping](#snapping) is on, is where the hotspot goes, and when the click lands on a feature
 that can be the plate, that feature becomes the plate. Escape, another tool or
 selecting another feature gives the pick up.
 
@@ -633,8 +634,12 @@ under it.
 
 ### Building one
 
-Select a feature holding nothing yet, pick the **Topology** tool, and click the
-features the boundary runs along, in order:
+Select a feature typed Topology that holds nothing yet, press the **Pick**
+toggle (the pointer under the section table in the
+[Properties](Properties.md#the-section-table) panel), and click the features the
+boundary runs along, in order. The toggle arms the Topology tool, which has no
+toolbar button and no key. It stays armed for more clicks; Escape, selecting
+another feature or picking a tool lets it go.
 
 | Input | Action |
 |-------|--------|
@@ -697,22 +702,10 @@ and stays reported in the section table.
 A ring whose vertices all lie on one line, as a [crust](#the-crust) does at the
 age of its split, encloses nothing and draws nothing.
 
-## The Light tool
+## The light
 
-Where the light comes from is a direction in the scene rather than a place on
-the planet, so it is dragged on the globe: press anywhere on it and the light
-shines straight at the point under the pointer, following it until the button is
-let go. A yellow marker sits where the light stands, so the direction is visible
-even where the shading is not.
-
-The direction is fixed to the view, not to the planet, so turning the globe
-carries the terminator across it rather than dragging the light along. A map
-sheet is flat and has no point for the light to shine at, so the tool is offered
-on the globe alone and gives way to Move when a map takes over.
-
-The direction and the ambient level can also be typed on the
-[View settings](#view-settings) dialog, which is what to reach for when the part
-of the globe the light should come from is on the far side.
+The light is set in the [View settings](#view-settings) dialog: its elevation
+and azimuth, and the ambient level. There is no tool for it.
 
 ## The Measure tool
 

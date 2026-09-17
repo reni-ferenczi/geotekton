@@ -203,10 +203,10 @@ button then puts chocolate back in `get_preferences` and on the planet, which
 is also what leaves the preferences as a golden run expects them.
 
 The Edit menu scenario copies a feature, so a run puts a `.middle-earth` feature
-on the clipboard of whoever is running it. A golden run empties it, for the same
-reason: the Paste button of the feature tree toolbar is greyed out by what the
-clipboard holds, and an unknown clipboard is a 40 by 40 difference in every
-scene.
+on the clipboard of whoever is running it. It then presses Ctrl+C and Ctrl+V
+with the feature tree focused and finds the pasted copy in the tree, and presses
+Ctrl+A and Ctrl+C in the focused Name field and reads the name, not the feature,
+back from the clipboard. Nothing in a golden scene depends on the clipboard.
 
 The styling scenario first checks that the View settings dialog refuses the six
 style fields it used to have and that the root has nothing to edit. It then sets
@@ -300,14 +300,19 @@ reads it back and checks each one survived, with the raster beside the
 project so the path in the file is the relative one. Built in Earth then puts
 the shipped image on the planet, which is saved as its `res://` path rather than
 made relative, and a planet color given with an alpha comes back opaque. It then
-drags the light
-with the Light tool and probes that the planet is brightest under where the drag
-ended, and finally stores the block as the default, checks that a new document
+checks that the tool strip has no Light button, raises the light to 60 degrees
+through the View settings elevation field, which is one undo version, and probes
+that the north of the globe is now brighter than the south, and the other way
+round at -60 degrees. Finally it stores the block as the default, checks that a new document
 starts from it and that an opened file wins over it, and puts the preferences
 back, with no raster, so the scenarios after it open the documents they expect.
 
-The topology scenario builds a line topology by clicking two drawn polylines
-with the Topology tool, reverses one section from the panel, moves one of the
+The topology scenario types an empty feature as Topology, which leaves Move
+armed, and checks that the tool strip has no Topology button. It presses the
+section table's Pick toggle, which arms the Topology tool, clicks one drawn
+polyline and ends the pick with Escape, which lets the toggle go; it arms the
+tool again through `set_tool`, clicks the second polyline and picks another
+tool, which lets the toggle go too. It then reverses one section from the panel, moves one of the
 two at a later time and reads back a resolved geometry that has followed it, and
 then deletes that feature to check that the section is reported as broken rather
 than dropped and that an undo mends it.
@@ -331,11 +336,13 @@ which does nothing. It presses the physical Delete key with the pointer on a
 vertex, which takes the vertex out and leaves the feature in the tree. A
 Ctrl+click on the triangle is refused with the reason in the status bar, and
 Delete with no vertex held deletes the feature;
-`run_snap_session` drops a vertex a few pixels from one belonging to another
-feature, with snapping on and then off; `run_draw_from_geometry_session` has
+`run_snap_session` checks that the tool strip has no Snap button and drops a
+vertex a few pixels from one belonging to another feature, with snapping on and
+then off; `run_draw_from_geometry_session` has
 the Draw tool snap a point onto a vertex, take a pasted triangle as held points
-and trace along a hexagon with Shift+click, and checks that Shift+click is a
-plain click with Snap off; `run_measure_session` reads a distance
+and trace along a hexagon with Shift+click, switches snapping off with
+`menu item=snap_to_vertices` while the Draw tool is armed, and checks that
+Shift+click is then a plain click. Both switch snapping through the Edit menu; `run_measure_session` reads a distance
 off the status bar and checks it against the arc it was told to measure, on two
 planet radii; `run_area_session` draws a ten degree square and checks its
 area in the Geometry row and the status bar, and the planet's area in the
@@ -397,7 +404,8 @@ the pixel out towards the rim is not. Undo puts the craton back over that point.
 drag turns the craton about it; where the middle lands is held against the place
 the same turn about the same pole gives it, worked out in the test, and probed
 on the globe. Escape takes the pole away. Last it presses each tool key in turn,
-checks that the key of a tool the toolbar greys out does nothing, and types
+checks that the key of a tool the toolbar greys out does nothing, and neither
+do L and T, and types
 three of those letters into the name field, which takes them as characters and
 leaves the tool alone.
 
@@ -621,13 +629,13 @@ a round trip is also a wait for the screen to catch up.
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` and `row_icon`, the file stem of the picture the row is showing, and for a feature `swatch`, the color its row's swatch shows |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
 | `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `keyframes`, `couplings`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a topology, its `sections` with what each one resolved to |
-| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers, the `icon` the feature carries and the `icons` the selector offers, whether the colour picker is open (`color_picker_open`) and the `color_presets` it offers, the `time_range` in the file's order, the `time_from` and `time_to` the two boxes show with their `tooltips`, the `area_km2` the feature's polygon encloses (0 for anything else), and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed, and `coupling`: the `caption` of the row with the picker, what it is `coupled_to` now, the `parents` the picker offers and the `parent` it shows, whether `couple`, `decouple`, `remove` and the `pick` pointer can be pressed, whether the pointer is `picking`, and the `spans` listed with whether each is `broken`. Polar circles add `polar_circles`: the `axis`, `radius` and `circle_segments` the rows show and whether `pick_axis` can be pressed. A topology adds `closed`, whether its Closed switch is on. A hotspot adds `hotspot`: the `position`, the `plate` and the `plates` offered, the `track_step`, the number of track `samples` at the current time and whether `pick` can be pressed. On the root, the `placeholder` sentence and the `planet_area_km2`. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100, `palette`, `ramp_colors` and `ramp_span`), the `style_label` the Style selector shows and its `tooltips` entry `style`, and the `styles` and `palettes` its selectors offer |
+| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers, the `icon` the feature carries and the `icons` the selector offers, whether the colour picker is open (`color_picker_open`) and the `color_presets` it offers, the `time_range` in the file's order, the `time_from` and `time_to` the two boxes show with their `tooltips`, the `area_km2` the feature's polygon encloses (0 for anything else), and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed, and `coupling`: the `caption` of the row with the picker, what it is `coupled_to` now, the `parents` the picker offers and the `parent` it shows, whether `couple`, `decouple`, `remove` and the `pick` pointer can be pressed, whether the pointer is `picking`, and the `spans` listed with whether each is `broken`. Polar circles add `polar_circles`: the `axis`, `radius` and `circle_segments` the rows show and whether `pick_axis` can be pressed. A topology, or a feature typed Topology, adds `closed`, whether its Closed switch is on, and `picking_sections`, whether its section Pick toggle is pressed. A hotspot adds `hotspot`: the `position`, the `plate` and the `plates` offered, the `track_step`, the number of track `samples` at the current time and whether `pick` can be pressed. On the root, the `placeholder` sentence and the `planet_area_km2`. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100, `palette`, `ramp_colors` and `ramp_span`), the `style_label` the Style selector shows and its `tooltips` entry `style`, and the `styles` and `palettes` its selectors offer |
 | `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `icon` (a glyph id or empty for none), `color`, `opacity` (0 to 100), `enabled`, `time_from` (the older end of the time range) and `time_to` (the younger one), on polar circles `axis` (`[lat, lon]`), `radius` and `circle_segments`, on a hotspot `hotspot` (`[lat, lon]`), `plate` (a title, or `None`) and `track_step`, on a topology `closed`, and on a group `style`, `palette`, `ramp_colors` (a list of two colours or more) and `ramp_span`, where `color` and `opacity` are the style's |
 | `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
 | `coupling {button, parent, index, pick}` | presses `Couple` with the `parent` picked by title, `Decouple`, both at the current time, or `Remove` on the span at `index` in the panel's list. `pick: true` arms the pointer instead, so the next `click` on the planet names the parent, and `pick: false` puts it away |
-| `sections {button, index}`            | selects a section row of a topology and presses `Reverse` or `Remove` in the panel |
-| `get_tool`                           | `tool` (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure` or `circle`), the Pole tool's `pole` as `[lat, lon]` or null, whether that click is picking the axis of polar circles (`picking_axis`) or the place of a hotspot (`picking_hotspot`), whether the Move tool drags the selection (`move_enabled`), how many vertices the shape being drawn holds (`drawing_vertices`), which of the three drawing tools the selected feature's type offers (`draw_enabled`, `circle_enabled`, `topology_enabled`), the Vertex tool's `selected_vertex`, `split_from`, `snapping`, `can_split` (whether its `S` would split now), whether the Split tool is offered (`split_enabled`), its `split_points`, its `ridge` switch and whether that switch is shown (`ridge_visible`), its `crust` switch, whether that one is shown (`crust_visible`) and whether it can be pressed (`crust_enabled`), the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`), its `outline` switch and the `circle` its clicks describe |
-| `set_tool {tool, snap, segments, outline, ridge, crust}` | picks the tool (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `circle`, `topology`, `light` or `split`), the snap switch, the segment count, the Circle tool's Outline switch and the Split tool's Ridge and Crust switches, Crust refused while Ridge is off, refusing what the toolbar itself would not allow. Which kind the Draw and Circle tools produce comes from the feature's type, which `set_property` sets |
+| `sections {button, index}`            | selects a section row of a topology and presses `Reverse` or `Remove` in the panel, or flips the `Pick` toggle, which arms or ends the Topology tool; refused while the panel does not show the button |
+| `get_tool`                           | `tool` (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `circle`, `topology` or `split`), the node names of what the tool strip holds (`tool_strip`), the Pole tool's `pole` as `[lat, lon]` or null, whether that click is picking the axis of polar circles (`picking_axis`) or the place of a hotspot (`picking_hotspot`), whether the Move tool drags the selection (`move_enabled`), how many vertices the shape being drawn holds (`drawing_vertices`), which of the three drawing tools the selected feature's type offers (`draw_enabled`, `circle_enabled`, `topology_enabled`), the Vertex tool's `selected_vertex`, `split_from`, `snapping` (Edit > Snap to vertices), `can_split` (whether its `S` would split now), whether the Split tool is offered (`split_enabled`), its `split_points`, its `ridge` switch and whether that switch is shown (`ridge_visible`), its `crust` switch, whether that one is shown (`crust_visible`) and whether it can be pressed (`crust_enabled`), the Measure tool's `measure_points` and its `measure_label` (text, visibility and window position) and the Circle tool's `circle_points`, `segments`, whether that box is shown (`segments_visible`), its `outline` switch and the `circle` its clicks describe |
+| `set_tool {tool, segments, outline, ridge, crust}` | picks the tool (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `circle`, `topology` or `split`), the segment count, the Circle tool's Outline switch and the Split tool's Ridge and Crust switches, Crust refused while Ridge is off, refusing what the toolbar itself would not allow. `topology` has no button: it is refused unless a feature typed Topology is selected, and arms the tool the way the section Pick toggle does. Snapping is switched with `menu item=snap_to_vertices`. Which kind the Draw and Circle tools produce comes from the feature's type, which `set_property` sets |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |
 | `get_status`                         | `status` with the three status bar fields: `coordinates`, `measure` and `file` |
 | `get_preferences` / `set_preferences {preferences, button}` | the settings the Preferences dialog holds, driven through its own fields, `export_width`, `ffmpeg` and `feature_colors` (type id to `[r, g, b, a]`) among them; only the keys given are changed. `button` names a button of the dialog to press first, such as `CatalogColors`. `get_preferences` also reports the `feature_colors` in effect for every type, the `default_view` and the `view_defaults` a new document starts from, the `planet_area_km2` the radius gives and the `planet_area_label` the dialog shows under the radius box |
@@ -657,7 +665,7 @@ a round trip is also a wait for the screen to catch up.
 | `cancel_export`                      | stops a running export at its next frame                         |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
-| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `export_image`, `export_video`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `features`, `properties`, `timeline`, `kinematics`, `kinematics_place`, `highlight_children`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
+| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `export_image`, `export_video`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `snap_to_vertices` (a check item, which the command flips), `features`, `properties`, `timeline`, `kinematics`, `kinematics_place`, `highlight_children`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
 | `properties {button}`                | presses a button of the Properties panel by node name, such as `LoadPalette` on a group's Palette row, refusing one the panel does not show |
@@ -677,7 +685,7 @@ a round trip is also a wait for the screen to catch up.
 | `expect_file_dialog {path\|paths}`    | answers the next file dialog with a path, or with several for the Import dialog, or cancels it when neither is given |
 | `get_file_dialog`                    | `file_dialog` with `mode` and `title` of the last one asked for, and forgets it |
 | `get_recent` / `open_recent {index}` / `clear_recent` | the recent file list                    |
-| `set_clipboard {text}`               | puts text on the clipboard, so a run can state what Paste is greyed out by |
+| `get_clipboard` / `set_clipboard {text}` | `text`, what the clipboard holds, and a way to put text there, so a run can read what Ctrl+C copied and state what the Edit menu's Paste is greyed out by |
 | `quit`                               | closes the application                                           |
 
 A run with the port open starts from a fixed shell: the window geometry, the
