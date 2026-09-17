@@ -12,8 +12,9 @@ number:
 - **Pole** — Turns the selected feature about a pole placed with a click; see
   [Turning a feature](#turning-a-feature).
 - **Draw** — Enables drawing on the globe surface. See `Docs/Draw.md` for full details.
-  Offered on a Polygon, a Line, Points and a Circle, where it draws a circle; see
-  [Drawing a circle](#drawing-a-circle).
+  Offered on a Polygon, a Line, Points, a Circle, where it draws a circle (see
+  [Drawing a circle](#drawing-a-circle)), and a Hotspot, where one click places
+  it (see [Hotspots](#hotspots)).
 - **Vertex** — Edits the vertices of the selected feature. Needs a leaf feature
   holding vertices of its own; see [The Vertex tool](#the-vertex-tool).
 - **Measure** — Reports great circle distances in the status bar; see
@@ -30,8 +31,8 @@ number:
   while Ridge is off, on to start with, and remembered between sessions; see
   [The crust](#the-crust).
 
-Whether Draw is offered, and whether it draws a circle or a shape clicked out
-vertex by vertex, follows the selected feature's
+Whether Draw is offered, and whether it draws a circle, places a hotspot or
+clicks a shape out vertex by vertex, follows the selected feature's
 [type](Properties.md#what-the-type-restricts), which is picked in the Properties
 panel and is the one place it is picked. Picking a type on a feature holding
 nothing arms the tool that draws it, so a new feature can be drawn straight
@@ -599,19 +600,23 @@ motion path of the plate point that sits over the hotspot today. Here both are
 one feature of type Hotspot.
 
 The hotspot sits still in the world frame, which is the mantle frame; see
-[Time](Time.md#the-world-frame). The feature keeps three values: where the
-hotspot is, as a latitude and longitude, the plate it burns through, which is
-any leaf feature holding vertices of its own, and the track step in millions of
-years, 5 by default, 0.1 to 100. Its own time range says when the hotspot is
-active, from the From age to the To age.
+[Time](Time.md#the-world-frame). The feature keeps two values: where the
+hotspot is, as a latitude and longitude, and the plate it burns through, which
+is any leaf feature holding vertices of its own. Its own time range says when
+the hotspot is active, from the From age to the To age. The track is sampled at
+the timeline's [Skip](Time.md#the-time-control), so it has a vertex for every Skip.
 
 `Hotspot.rebuild()` in `Logic/hotspot.gd` gives the feature up to two
 polylines:
 
 - the **mark**, a closed ring one degree around the hotspot, cut into 24
   segments, so the hotspot shows whatever the plate does;
-- the **track**, one vertex for every step from the From age down to the
-  current time, the current time included. The vertex for age `t` is the plate
+- the **track**, one vertex for every multiple of the Skip that is older than
+  the current time and no older than the From age, oldest first, with the From
+  age in front when it is not a multiple and the current time last. A 100 My
+  range at a Skip of 30 is sampled at 100, 90, 60, 30 and 0 Ma when the current
+  time is 0. A Skip below 0.1 My samples at 0.1 My. `Hotspot.sample_ages()`
+  works the ages out. The vertex for age `t` is the plate
   point that was over the hotspot at `t`, carried with the plate to the current
   time: `B(T) * B(t)^T * H`, with `B` the plate's world rotation, `T` the
   current time and `H` the hotspot. Ages at which the plate does not exist are
@@ -621,27 +626,35 @@ The oldest vertex is the farthest from the hotspot and the youngest is on it.
 Both polylines are drawn at 0.35 of the feature line width, and every vertex
 of the track gets a dot of its own in the feature's color, so the samples show
 along the thin line.
-The track depends on the plate and on the time, so it is rebuilt the way a
-[topology](#topologies) is: before the geometry is collected and at
-every time change.
+The track depends on the plate, the time and the Skip, so it is rebuilt the
+way a [topology](#topologies) is: before the geometry is collected, at every
+time change and whenever the Skip box takes a new value.
 
-Picking Hotspot in the Type selector of an empty feature builds the mark at
-once. A feature that holds a shape, or has keyframes or couplings, cannot
-become a hotspot. A hotspot never moves: the keyframe and coupling rows are
+Picking Hotspot in the Type selector of an empty feature arms the Draw tool
+and draws nothing yet. The status bar says "Click to place <title>; click
+again to move it". One left click puts the hotspot where it lands and, when
+the click is on a feature that can be the plate, makes that feature the plate;
+a click on nothing keeps the plate the hotspot had. Each click is one undo
+version and the Draw tool stays armed, so the next click moves the hotspot.
+Nothing is held, so there is no Enter to press, and the click does not snap to
+vertices. Escape or another tool leaves Draw, and the Draw button arms it
+again on a hotspot that is already placed.
+
+A feature that holds a shape, or has keyframes or couplings, cannot become a
+hotspot. A hotspot never moves on its own: the keyframe and coupling rows are
 hidden, a Move drag does nothing, and the Vertex, Rotate and Pole tools are
 greyed out. Pasting a shape into it and the Python bridge's ring edit are
 refused.
 
-The [Properties panel](Properties.md#the-hotspot-rows) edits the three values,
-one undo version each. **Pick** arms the [Pole tool](#turning-a-feature) for
-one click, with its cross on the hotspot. The click, snapped to a vertex while
-[snapping](#snapping) is on, is where the hotspot goes, and when the click lands on a feature
-that can be the plate, that feature becomes the plate. Escape, another tool or
-selecting another feature gives the pick up.
+The [Properties panel](Properties.md#the-hotspot-rows) picks the plate, one
+undo version each time, from its selector or with its pointer, the way the
+Follow row picks a parent. The plate is not a parent the hotspot follows: the
+hotspot stays where it is in the mantle, and the track is the plate's motion
+over it.
 
-The file keeps the rings as well as the three values, so an older reader and
-the Python side see two polylines. On load the values win and the track is
-rebuilt; see [Persistence](Persistence.md#hotspots).
+The file keeps the rings as well as the place and the plate, so an older
+reader and the Python side see two polylines. On load the values win and the
+track is rebuilt; see [Persistence](Persistence.md#hotspots).
 
 ## Topologies
 

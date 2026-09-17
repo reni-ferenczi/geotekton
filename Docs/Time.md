@@ -286,6 +286,11 @@ the keyboard, wherever the focus is except a text field, where they stay the
 text field's. The application reads them before the GUI pass, so a focused
 tree does not scroll on them instead. A skip never leaves the animation range.
 
+The skip is also how finely a [hotspot](Editing.md#hotspots) track is sampled:
+the track has a vertex at every multiple of the skip between the hotspot's
+From age and the current time, so a new value in the box redraws every track
+at once.
+
 **Space** starts the animation and stops it again, the one shortcut that is a
 key on its own. A key without a modifier is also a character, so Space belongs
 to whichever text field has the keyboard: while a name, a time or a line at the

@@ -47,7 +47,9 @@ as it stands; and 0.20.0 let a topology be closed, and a topology without the
 flag is open, so a 0.19.0 file is read as it stands as well; and 0.21.0 folded
 Polar circles into Circle and gave a circle its center and radius, which has a
 step that retypes a polar circles leaf and works out the center and radius of a
-drawn circle from its ring.
+drawn circle from its ring; and 0.22.0 samples a hotspot track at the
+timeline's Skip, which has a step that removes the track step from a hotspot
+leaf, and lets a hotspot wait for its place, which a 0.21.0 hotspot always has.
 
 The first public release will have major version 1.
 

@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "features": { ... },
   "view": { ... }
 }
@@ -265,25 +265,26 @@ way the 0.21.0 migration reads one; see [below](#0200-to-0210).
 
 #### Hotspots
 
-A leaf of type `hotspot` also carries the three values its rings are built
+A leaf of type `hotspot` also carries the two values its rings are built
 from:
 
 ```json
 "feature_type": "hotspot",
 "hotspot": [19.4, -155.3],
 "plate": "6f1c...",
-"track_step": 5.0,
 "geometry_kind": "polyline",
 "rings": [[...], [...]]
 ```
 
-`hotspot` is the latitude and longitude of the hotspot in the world frame,
-`plate` the uuid of the feature it burns through, empty for none, and
-`track_step` the spacing of the track in millions of years. The keys are
-optional and written only for this type. `rings` holds the mark and, when there
-is one, the track, for a reader that knows nothing about the type. On load the
-values win: the track is rebuilt from them before the geometry is collected.
-A missing value takes its default, `[0, 0]`, no plate and 5. See
+`hotspot` is the latitude and longitude of the hotspot in the world frame and
+`plate` the uuid of the feature it burns through, empty for none. The keys are
+optional and written only for this type. A hotspot the Draw tool has not
+placed yet writes no `hotspot` and holds no rings, and a leaf without the key is read
+as one not placed. `rings` holds the mark and, when there is one, the track,
+for a reader that knows nothing about the type. On load the values win: the
+track is rebuilt from them, at the timeline's Skip, before the geometry is
+collected. The Skip is a setting, not part of the file, so the same file can
+show a track with more or fewer vertices on another machine. See
 [Editing](Editing.md#hotspots).
 
 #### Topologies
@@ -589,6 +590,13 @@ center, radius, segment count and `polar` switch. The step,
 The Preferences' Feature colors drop a color kept for `polar_circles` when they
 are read.
 
+#### 0.21.0 to 0.22.0
+
+0.22.0 samples a [hotspot](#hotspots) track at the timeline's Skip and lets a
+hotspot be not placed yet. The step, `Document._to_0_22_0()`, removes
+`track_step` from every `hotspot` leaf and leaves the rest alone. A 0.21.0
+hotspot always has its `hotspot` key, so it stays placed.
+
 ## The config file
 
 `Logic/config.gd` keeps one JSON file per user, `%APPDATA%\MiddleEarth\config.json`,
@@ -606,7 +614,7 @@ more than the last change.
 | `kinematics_place` | Whether the kinematics panel graphs latitude and longitude above the rate. Off when the file says nothing |
 | `highlight_children` | Whether the children of the selected feature are highlighted. Off when the file says nothing. When the key is absent, `highlight_riders`, the name an older version wrote, is read instead |
 | `animation`                        | The playback range, the speed and the loop switch    |
-| `skip_increment`                   | How far the timeline's `<` and `>` buttons jump, in millions of years |
+| `skip_increment`                   | How far the timeline's `<` and `>` buttons jump, in millions of years, and how finely a hotspot track is sampled |
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |
 | `vertex_marker_scale`, `line_width_scale` | How large the outline overlay is drawn, as multiples of the shader defaults |
 | `snap_to_vertices`                 | Edit > Snap to vertices: whether a dragged vertex, a pole or a drawn point snaps onto a nearby vertex. On when the file says nothing |

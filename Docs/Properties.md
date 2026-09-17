@@ -35,9 +35,9 @@ six, because the type is what the tools then draw: Polygon a polygon, Line a
 polyline, Points a multipoint, Circle a closed polyline built from a center and
 a radius, which [Draw draws as a circle](Editing.md#drawing-a-circle) and the
 [circle rows](#the-circle-rows) set, and Topology a boundary picked
-together with the [section table](#the-section-table)'s Pick toggle. Hotspot needs
-no tool: picking the type builds its rings at once, so the feature is never
-empty; see [Hotspots](Editing.md#hotspots).
+together with the [section table](#the-section-table)'s Pick toggle. A Hotspot is
+placed by one click of Draw, which picking the type arms; see
+[Hotspots](Editing.md#hotspots).
 
 Once a feature holds a shape, its type has to hold that shape's kind. A polygon
 is a Polygon or a Circle, a polyline a Line or a Circle, a multipoint Points and
@@ -59,7 +59,8 @@ does through an undo that takes the geometry off again.
   once it holds a shape, only one that holds that kind, and never Circle or
   Hotspot.
 - **Which tool draws the feature.** Draw for a Polygon, a Line, Points and a
-  Circle, and Topology for a Topology. Hotspot is drawn by none of them. The
+  Circle, which it draws from two or three clicks, and a Hotspot, which it
+  places with one, and Topology for a Topology. The
   Vertex tool is greyed out on a Circle and a Hotspot. A hotspot
   greys out the Rotate and Pole tools as well, and the Move tool does not drag
   it. The other buttons are
@@ -147,10 +148,7 @@ follows the feature tree selection, through
 | Radius (°) | Number             | no, Circle only |
 | Segments   | Number             | no, Circle only |
 | Pick axis  | Button             | no, Circle only |
-| Latitude, Longitude | Number        | no, Hotspot only |
-| Pick       | Button             | no, Hotspot only |
-| Plate      | Selector           | no, Hotspot only |
-| Step (My)  | Number             | no, Hotspot only |
+| Plate      | Selector, pointer  | no, Hotspot only |
 | Keyframes  | Count, Key, Delete | no         |
 | Coupled to | Parent, Decouple   | no         |
 | Follow     | Picker, Couple, pointer | no    |
@@ -278,17 +276,23 @@ pressed.
 
 ### The hotspot rows
 
-A hotspot shows five more rows under To (Ma) instead of the keyframe and
-coupling rows: the latitude and longitude of the hotspot in the world frame,
-**Pick**, which arms a one click pick on the planet (see
-[Hotspots](Editing.md#hotspots)), the Plate selector and the track step in
-millions of years, 0.1 to 100. The Plate selector lists None first and then,
-in tree order, every leaf feature holding vertices of its own. Each edit
-rebuilds the rings and is one undo version. The automation port's `set_property`
-drives the rows as `hotspot` (a latitude and longitude pair), `plate` (a title
-the selector shows, or `None`) and `track_step`, and `get_properties` reports
-them under `hotspot` with the `plates` offered and the number of track
-`samples` at the current time.
+A hotspot shows one more row under To (Ma) instead of the keyframe and
+coupling rows: Plate, a selector and a pointer toggle. The Draw tool places the
+hotspot itself and the track is sampled at the timeline's Skip (see
+[Hotspots](Editing.md#hotspots)), so neither has a row. The selector lists None
+first and then, in tree order, every leaf feature holding vertices of its own.
+The pointer, "Click a feature on the planet to burn through it", arms the same
+one shot pick as the Follow row's pointer: the next click on the planet makes
+the feature under it the plate, a click on something that cannot be the plate
+says why and leaves the pick on, and Escape or selecting another feature ends
+it. The plate can be picked before the hotspot is placed. Each change rebuilds
+the rings and is one undo version. The automation port's `set_property` drives
+the selector as `plate` (a title it shows, or `None`), and `get_properties`
+reports the row under `hotspot`: the `position` (null until placed), the
+`plate` and the `plates` offered, the number of track `samples` at the current
+time and Skip, whether the pointer can be pressed (`pick`) and whether it is on
+(`picking`). The port's `properties` command flips the pointer by its node
+name, `PickPlate`.
 
 ### The keyframe row
 
