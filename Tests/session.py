@@ -2193,8 +2193,10 @@ def run_hotspot_session(client: AutomationClient) -> None:
 
 def run_hotspot_skip_checks(client: AutomationClient) -> None:
     """The track of the placed hotspot has a sample at every Skip of its 100 My."""
+    # The timeline scenario leaves another skip behind.
+    client.call("set_skip", skip=50.0)
     check(hotspot_rows(client)["samples"] == 3,
-          f"at the default skip of 50: 100, 50 and 0 Ma: {hotspot_rows(client)['samples']}")
+          f"at a skip of 50: 100, 50 and 0 Ma: {hotspot_rows(client)['samples']}")
     client.call("set_skip", skip=20.0)
     at_20 = hotspot_rows(client)["samples"]
     check(at_20 == 6, f"a skip of 20 gives 6 samples: {at_20}")

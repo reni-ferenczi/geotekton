@@ -263,8 +263,8 @@ the status bar tells the user to click. It shows the Plate row, offering both
 plates and the pointer, without the keyframe, coupling and Area rows. One click
 on the moved plate is one undo version that places the hotspot there and makes
 that plate its plate, Draw stays armed, and the mark is a ring a degree around
-the click whose pixel is probed for the type's color. At the default Skip of 50
-the 100 My track has three samples; `set_skip` to 20 gives six and to 10 twice
+the click whose pixel is probed for the type's color. At a Skip of 50 the
+100 My track has three samples; `set_skip` to 20 gives six and to 10 twice
 as many steps, eleven samples, the oldest as far from the hotspot as the plate
 moved. A color set through the panel is what a pixel on the track shows while
 the hotspot is still selected. At 10 Ma the track has ten vertices, and at
