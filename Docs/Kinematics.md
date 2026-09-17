@@ -72,7 +72,7 @@ with three keyframes has two spans. A coupled feature's world motion can also
 change where a coupling starts or ends, and wherever its parent's motion
 changes while it follows it, so those times are added: both ends of every
 coupling, and every such time of the parent that falls inside the span,
-followed up the chain (`Kinematics.motion_times()`). A ridge follows two
+followed up the chain (`Kinematics.motion_times()`). A span may follow two
 parents at once, and either of them turning moves the midpoint it sits on, so
 both are counted.
 

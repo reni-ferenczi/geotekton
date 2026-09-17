@@ -3956,7 +3956,7 @@ def run_crust_session(client: AutomationClient) -> None:
         if not drag(client, middle[0], middle[1] + shift):
             return
 
-    # Headless runs share the user's configuration, so the skip is set here
+    # The application reads the user's configuration, so the skip is set here
     # and put back at the end.
     skip = client.call("get_timeline")["timeline"]["skip"]
     client.call("set_skip", skip=CRUST_SKIP)
