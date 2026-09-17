@@ -67,6 +67,16 @@ func test_the_shader_draws_a_sample_as_kind_three() -> void:
 		"and the shader draws kind 3 at SAMPLE_DOT_SCALE")
 
 
+# A circle is kind 4 of the geometry texture and style 8 of the outline, and
+# the shader draws both from a center and a radius.
+func test_the_shader_draws_a_circle_as_kind_four_and_style_eight() -> void:
+	assert_eq(int(Planet.Primitive.CIRCLE), 4, "Planet numbers a circle 4")
+	assert_eq(int(Planet.OutlineStyle.CIRCLE), 8, "and its outline style 8")
+	assert_true(_source().contains("kind == 1 || kind == 4"),
+		"the shader draws kind 4 like a segment")
+	assert_true(_source().contains("style == 8"), "the shader knows style 8")
+
+
 # The two tables are written out in the shader as float[19] literals, in the
 # same order MapProjection lists them: the lengths first, the distances second.
 func test_the_shader_carries_the_same_robinson_tables() -> void:
