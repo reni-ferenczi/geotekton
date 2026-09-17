@@ -2596,12 +2596,12 @@ func _finish_hotspot_pick(world: Vector2, clicked: Vector2) -> void:
 
 
 # How far each arm of the cross marking the pole reaches, in degrees.
-const POLE_CROSS := 6.0
+const POLE_CROSS := 3.0
 
 
 # The pole in the outline overlay: a point with a short cross through it, so it
-# is not taken for a vertex. The arms are as wide as a feature line, so the
-# cross is easy to see. Empty unless the Pole tool holds one.
+# is not taken for a vertex. The arms are half as wide as a feature line
+# (Planet.BOLD_SCALE), wider than an outline line, so the cross is easy to see. Empty unless the Pole tool holds one.
 func _pole_outline() -> Array:
 	if active_tool != Tool.POLE or pole_at == NO_POLE:
 		return []
