@@ -105,7 +105,7 @@ static func parents_label(nodes: Dictionary, span: Coupling) -> String:
 static func _one_parent_problem(nodes: Dictionary, node: Feature, uuid: String) -> String:
 	var parent: Feature = nodes.get(uuid)
 	if parent == null:
-		return "The feature it followed is no longer in the document."
+		return "The feature it follows is no longer in the document."
 	if parent.is_group:
 		return "%s is a group, and a feature follows a feature." % parent.title
 	if parent.geometry_kind == Feature.GeometryKind.TOPOLOGY:
