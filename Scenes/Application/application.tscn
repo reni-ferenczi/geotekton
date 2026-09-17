@@ -173,6 +173,14 @@ layout_mode = 2
 tooltip_text = "Leave oceanic crust between the ridge and each half, two closed topologies that open as the halves drift apart"
 text = "Crust"
 
+[node name="Children" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+tooltip_text = "Cut the features following the polygon along the same line; the pieces beyond it follow the second half"
+text = "Children"
+
 [node name="ViewPanel" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2

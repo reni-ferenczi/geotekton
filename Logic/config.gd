@@ -185,6 +185,16 @@ static func set_split_crust(enabled: bool) -> void:
 	set_value("split_crust", enabled)
 
 
+# Whether the Split tool cuts the features following the polygon along with it.
+# A switch beside Crust while that tool is active, on unless turned off.
+static func get_split_children() -> bool:
+	return bool(get_value("split_children", true))
+
+
+static func set_split_children(enabled: bool) -> void:
+	set_value("split_children", enabled)
+
+
 # How wide a picture File > Export Image writes. The height follows from the
 # projection, so this one number settles the size of every export. The default
 # is large enough to print and the bounds are what a viewport can be asked for.
