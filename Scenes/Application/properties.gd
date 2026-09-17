@@ -286,6 +286,8 @@ func _build() -> void:
 
 	area_label = Label.new()
 	area_label.name = "Area"
+	# Without wrapping, the longer line would set the width of the panel.
+	area_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_row(form, "Area", area_label)
 	_area_caption = _rows.back()["label"]
 
