@@ -441,7 +441,8 @@ func _add_feature(request_: Dictionary) -> Dictionary:
 		feature.circle_segments = circle[2]
 		feature.rebuild_circle()
 	if feature.is_hotspot():
-		Hotspot.rebuild(app.document.root, feature, app.document.current_time)
+		Hotspot.rebuild(app.document.root, feature, app.document.current_time,
+			Config.get_skip_increment())
 
 	parent.children.append(feature)
 	app.document.record()

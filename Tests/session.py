@@ -2045,13 +2045,21 @@ def run_axis_circles_session(client: AutomationClient) -> None:
 
 # The plate: a polygon around the middle of the default view, which a drag at
 # the present moves HOTSPOT_SHIFT degrees east of where it was at HOTSPOT_AGE.
+# It and the hotspot exist from HOTSPOT_OLDEST, so the track spans 100 My.
 HOTSPOT_PLATE = [(-20.0, -25.0), (-20.0, 25.0), (20.0, 25.0), (20.0, -25.0)]
+HOTSPOT_OLDEST = 100.0
 HOTSPOT_AGE = 30.0
 HOTSPOT_SHIFT = 15.0
-# Where the new hotspot is put first, off the plate and off the grid lines, and
-# where the Pick click lands, on the moved plate.
-HOTSPOT_FIRST = (-32.0, 37.0)
-HOTSPOT_PICK = (4.0, 21.0)
+# A second plate, south west of the first and never moved, and where a click
+# lands on it.
+HOTSPOT_OTHER = [(-40.0, -45.0), (-40.0, -30.0), (-25.0, -30.0), (-25.0, -45.0)]
+HOTSPOT_OTHER_CLICK = (-32.0, -37.0)
+# Where the first click of the Draw tool puts the hotspot, on the moved plate,
+# where the second one moves it, off both plates and off the grid lines, and a
+# click that lands on no feature at all.
+HOTSPOT_PLACE = (4.0, 21.0)
+HOTSPOT_MOVED = (-32.0, 37.0)
+HOTSPOT_MISS = (30.0, -30.0)
 # The colour the hotspot is given through the panel once it has a track.
 HOTSPOT_COLOR = [0.2, 0.4, 0.9, 1.0]
 
@@ -2060,123 +2068,117 @@ def hotspot_rows(client: AutomationClient) -> dict:
     return client.call("get_properties")["properties"]["hotspot"]
 
 
+def add_hotspot_plate(client: AutomationClient, name: str,
+                      points: list[tuple[float, float]]) -> bool:
+    """Add a named polygon and draw it."""
+    client.call("select", title=None)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value=name)
+    client.call("set_property", field="feature_type", value="polygon")
+    client.call("set_tool", tool="draw")
+    if not draw(client, points):
+        return False
+    client.call("key", key="Enter")
+    return True
+
+
 def run_hotspot_session(client: AutomationClient) -> None:
-    """A hotspot: typed on an empty feature, picked onto a plate, stepped in time."""
+    """A hotspot: placed by the Draw tool, given a plate by a click, sampled at the Skip."""
     start_new_document(client)
     client.call("set_tool", tool="move")
     set_snapping(client, False)
     # A feature added now exists from the age the timeline shows.
-    client.call("set_time", time=HOTSPOT_AGE)
-    client.call("toolbar", button="AddFeature")
-    client.call("set_property", field="name", value="Plate")
-    client.call("set_property", field="feature_type", value="polygon")
-    client.call("set_tool", tool="draw")
-    if not draw(client, HOTSPOT_PLATE):
+    client.call("set_time", time=HOTSPOT_OLDEST)
+    if not add_hotspot_plate(client, "Plate", HOTSPOT_PLATE):
         return
-    client.call("key", key="Enter")
     # Held where it is at HOTSPOT_AGE, then dragged east at the present.
     client.call("set_tool", tool="move")
+    client.call("set_time", time=HOTSPOT_AGE)
     client.call("keyframes", button="Key")
     client.call("set_time", time=0.0)
     if not drag(client, 0.0, HOTSPOT_SHIFT):
         return
     plate = client.call("get_selected")["feature"]
     check(len(plate["keyframes"]) == 2, f"the plate moves: {plate['keyframes']}")
+    client.call("set_time", time=HOTSPOT_OLDEST)
+    if not add_hotspot_plate(client, "Other", HOTSPOT_OTHER):
+        return
 
     client.call("select", title=None)
     client.call("toolbar", button="AddFeature")
     client.call("set_property", field="name", value="Hotspot")
+    client.call("set_time", time=0.0)
+    client.call("set_tool", tool="move")
     depth = undo_depth(client)
     client.call("set_property", field="feature_type", value="hotspot")
     check(undo_depth(client) == depth + 1, "picking the type is one version")
     feature = client.call("get_selected")["feature"]
-    check(feature["feature_type"] == "hotspot" and feature["geometry_kind"] == "polyline",
-          f"the feature is a hotspot drawn as polylines: {feature['feature_type']}")
-    check(len(feature["rings"]) == 1, f"with no plate it holds the mark alone: {len(feature['rings'])}")
+    check(feature["feature_type"] == "hotspot" and feature["rings"] == [],
+          f"the feature is a hotspot holding nothing yet: {feature['feature_type']}")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "draw" and tool["drawing"] == "hotspot",
+          f"the Draw tool is armed to place it: {tool['tool']} {tool['drawing']}")
+    status = client.call("get_status")["status"]["measure"]
+    check(status == "Click to place Hotspot; click again to move it",
+          f"the status bar says what a click does: {status!r}")
     panel = client.call("get_properties")["properties"]
     rows = panel.get("hotspot")
     if not check(rows is not None, f"the panel shows the hotspot rows: {sorted(panel)}"):
         return
-    check(rows["plate"] == "None" and rows["plates"] == ["None", "Plate"] and rows["samples"] == 0,
-          f"on no plate, offering the drawn one: {rows}")
-    check("keyframes" not in panel and "coupling" not in panel,
-          "and no keyframe or coupling rows")
+    check(rows["position"] is None and rows["plate"] == "None" and rows["samples"] == 0,
+          f"not placed and on no plate: {rows}")
+    check(rows["plates"] == ["None", "Plate", "Other"] and rows["pick"] and not rows["picking"],
+          f"offering both plates and the pointer: {rows}")
+    check("track_step" not in rows, "and no track step")
+    check("keyframes" not in panel and "coupling" not in panel and "area" not in panel,
+          "and no keyframe, coupling or Area rows")
 
-    # The mark is drawn in the type's colour, around where the hotspot is.
-    client.call("set_property", field="hotspot", value=list(HOTSPOT_FIRST))
+    # One click places it and takes the plate under the click.
+    depth = undo_depth(client)
+    if not click_at(client, HOTSPOT_PLACE):
+        return
+    check(undo_depth(client) == depth + 1, "the click is one version")
+    check(client.call("get_tool")["tool"] == "draw", "and the Draw tool stays armed")
+    rows = hotspot_rows(client)
+    check(rows["position"] is not None
+          and angular_distance(tuple(rows["position"]), HOTSPOT_PLACE) < CIRCLE_TOLERANCE,
+          f"the hotspot is where the click landed: {rows['position']}")
+    check(rows["plate"] == "Plate", f"on the plate under the click: {rows['plate']}")
     feature = client.call("get_selected")["feature"]
-    mark = feature["rings"][0]
-    worst = max(abs(angular_distance(tuple(v), HOTSPOT_FIRST) - 1.0) for v in mark)
+    check(feature["geometry_kind"] == "polyline", "drawn as polylines")
+    mark = feature["world_rings"][0]
+    worst = max(abs(angular_distance(tuple(v), HOTSPOT_PLACE) - 1.0) for v in mark)
     check(mark[0] == mark[-1] and worst < CIRCLE_TOLERANCE,
           f"the mark is a closed ring a degree around the hotspot, within {worst:.4f}")
     pixel = probe_at(client, *mark[3])
     check(is_colour(pixel, list(TYPE_COLORS[5])),
           f"the mark is drawn in orange red while selected: {pixel}")
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+    run_hotspot_skip_checks(client)
+
+    # A second click moves it and keeps the plate, since nothing is under it.
+    depth = undo_depth(client)
+    if not click_at(client, HOTSPOT_MOVED):
+        return
+    check(undo_depth(client) == depth + 1, "the move is one version")
+    rows = hotspot_rows(client)
+    check(angular_distance(tuple(rows["position"]), HOTSPOT_MOVED) < CIRCLE_TOLERANCE,
+          f"the second click moves the hotspot: {rows['position']}")
+    check(rows["plate"] == "Plate", f"and keeps its plate: {rows['plate']}")
+    check(client.call("get_tool")["tool"] == "draw", "the Draw tool is still armed")
+    client.call("key", key="Escape")
+    check(client.call("get_tool")["tool"] == "move", "Escape leaves the Draw tool")
 
     run_hotspot_refusals(client)
+    run_hotspot_plate_pick(client)
 
-    # Pick arms the Pole tool with its cross on the hotspot; Escape gives it up.
-    client.call("set_property", field="time_from", value=HOTSPOT_AGE)
-    client.call("properties", button="PickHotspot")
-    tool = client.call("get_tool")
-    check(tool["tool"] == "pole" and tool["picking_hotspot"],
-          f"Pick arms the Pole tool: {tool['tool']}")
-    check(tool["pole"] is not None and angular_distance(tuple(tool["pole"]), HOTSPOT_FIRST) < 0.01,
-          f"with the cross on the hotspot: {tool['pole']}")
-    client.call("key", key="Escape")
-    tool = client.call("get_tool")
-    check(tool["tool"] == "move" and not tool["picking_hotspot"], "Escape gives the pick up")
-
-    # A click on the plate puts the hotspot there and makes it the plate.
-    client.call("properties", button="PickHotspot")
-    depth = undo_depth(client)
-    if not click_at(client, HOTSPOT_PICK):
-        return
-    tool = client.call("get_tool")
-    check(tool["tool"] == "move" and not tool["picking_hotspot"],
-          f"the click ends the pick: {tool['tool']}")
-    check(undo_depth(client) == depth + 1, "the pick is one version")
-    rows = hotspot_rows(client)
-    check(angular_distance(tuple(rows["position"]), HOTSPOT_PICK) < CIRCLE_TOLERANCE,
-          f"the hotspot is where the click landed: {rows['position']}")
-    check(rows["plate"] == "Plate", f"on the plate under the click: {rows['plate']}")
-    check(rows["samples"] == 7, f"30 My in steps of 5 are 7 samples: {rows['samples']}")
-    feature = client.call("get_selected")["feature"]
-    if check(len(feature["world_rings"]) == 2, "the track is drawn beside the mark"):
-        track = feature["world_rings"][1]
-        check(len(track) == 7, f"with a vertex per sample: {len(track)}")
-        shift = angular_distance(tuple(track[0]), HOTSPOT_PICK)
-        check(abs(shift - HOTSPOT_SHIFT) < 0.5,
-              f"the oldest {shift:.2f} degrees away, as far as the plate moved")
-        # The colour picked in the panel is what the track is drawn in, with
-        # the hotspot still selected.
-        client.call("set_property", field="color", value=HOTSPOT_COLOR)
-        pixel = probe_unhovered(client, *track[2])
-        check(is_colour(pixel, HOTSPOT_COLOR),
-              f"the selected track is drawn in the colour picked for it: {pixel}")
-        client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
-
-    # Stepping the time changes how many vertices the track has.
-    client.call("set_time", time=10.0)
-    feature = client.call("get_selected")["feature"]
-    counts = [len(ring) for ring in feature["world_rings"]]
-    check(counts[1:] == [5], f"at 10 Ma the track has 5 vertices: {counts}")
-    check(hotspot_rows(client)["samples"] == 5, "and the panel counts 5 samples")
-    client.call("set_time", time=HOTSPOT_AGE)
-    feature = client.call("get_selected")["feature"]
-    check(len(feature["world_rings"]) == 1, "at the oldest age there is only the mark")
-    client.call("set_time", time=0.0)
-
-    depth = undo_depth(client)
-    client.call("set_property", field="track_step", value=10.0)
-    check(undo_depth(client) == depth + 1, "a new step is one version")
-    check(hotspot_rows(client)["samples"] == 4, "and samples every 10 My")
     client.call("set_property", field="plate", value="None")
     rows = hotspot_rows(client)
     check(rows["plate"] == "None" and rows["samples"] == 0, f"with no plate no track: {rows}")
     client.call("menu", item="undo")
-    check(hotspot_rows(client)["plate"] == "Plate", "undo puts the plate back")
+    check(hotspot_rows(client)["plate"] == "Other", "undo puts the plate back")
+    check(refusal(client, "set_property", field="track_step", value=10.0) != "",
+          "the track step is no property any more")
 
     # A feature holding a shape does not become a hotspot.
     client.call("select", title="Plate")
@@ -2189,6 +2191,72 @@ def run_hotspot_session(client: AutomationClient) -> None:
           "the plate stays a polygon")
 
 
+def run_hotspot_skip_checks(client: AutomationClient) -> None:
+    """The track of the placed hotspot has a sample at every Skip of its 100 My."""
+    # The timeline scenario leaves another skip behind.
+    client.call("set_skip", skip=50.0)
+    check(hotspot_rows(client)["samples"] == 3,
+          f"at a skip of 50: 100, 50 and 0 Ma: {hotspot_rows(client)['samples']}")
+    client.call("set_skip", skip=20.0)
+    at_20 = hotspot_rows(client)["samples"]
+    check(at_20 == 6, f"a skip of 20 gives 6 samples: {at_20}")
+    client.call("set_skip", skip=10.0)
+    at_10 = hotspot_rows(client)["samples"]
+    check(at_10 - 1 == 2 * (at_20 - 1),
+          f"half the skip doubles the steps along the track: {at_20} then {at_10}")
+    feature = client.call("get_selected")["feature"]
+    if check(len(feature["world_rings"]) == 2, "the track is drawn beside the mark"):
+        track = feature["world_rings"][1]
+        check(len(track) == at_10, f"with a vertex per sample: {len(track)}")
+        shift = angular_distance(tuple(track[0]), HOTSPOT_PLACE)
+        check(abs(shift - HOTSPOT_SHIFT) < 0.5,
+              f"the oldest {shift:.2f} degrees away, as far as the plate moved")
+        # The colour picked in the panel is what the track is drawn in, with
+        # the hotspot still selected.
+        client.call("set_property", field="color", value=HOTSPOT_COLOR)
+        pixel = probe_unhovered(client, *track[-2])
+        check(is_colour(pixel, HOTSPOT_COLOR),
+              f"the selected track is drawn in the colour picked for it: {pixel}")
+        client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+
+    # Stepping the time changes how many vertices the track has.
+    client.call("set_time", time=10.0)
+    feature = client.call("get_selected")["feature"]
+    counts = [len(ring) for ring in feature["world_rings"]]
+    check(counts[1:] == [10], f"at 10 Ma the track has 100 to 20 and 10 Ma: {counts}")
+    check(hotspot_rows(client)["samples"] == 10, "and the panel counts 10 samples")
+    client.call("set_time", time=HOTSPOT_OLDEST)
+    feature = client.call("get_selected")["feature"]
+    check(len(feature["world_rings"]) == 1, "at the oldest age there is only the mark")
+    client.call("set_time", time=0.0)
+    client.call("set_skip", skip=50.0)
+
+
+def run_hotspot_plate_pick(client: AutomationClient) -> None:
+    """The Plate row's pointer makes the feature under the next click the plate."""
+    client.call("properties", button="PickPlate")
+    check(hotspot_rows(client)["picking"], "the pointer arms the pick")
+    status = client.call("get_status")["status"]["measure"]
+    check("burns through" in status, f"the status bar asks for the plate: {status!r}")
+    depth = undo_depth(client)
+    if not click_at(client, HOTSPOT_MISS):
+        return
+    check(hotspot_rows(client)["picking"] and undo_depth(client) == depth,
+          "a click on nothing leaves the pick on and changes nothing")
+    if not click_at(client, HOTSPOT_OTHER_CLICK):
+        return
+    rows = hotspot_rows(client)
+    check(rows["plate"] == "Other" and not rows["picking"],
+          f"a click on the other plate makes it the plate and ends the pick: {rows}")
+    check(undo_depth(client) == depth + 1, "as one version")
+    check(angular_distance(tuple(rows["position"]), HOTSPOT_MOVED) < CIRCLE_TOLERANCE,
+          "and leaves the hotspot where it is")
+    check(client.call("get_tool")["tool"] == "move", "the tool stays as it was")
+    client.call("properties", button="PickPlate")
+    client.call("key", key="Escape")
+    check(not hotspot_rows(client)["picking"], "Escape ends the pick")
+
+
 def run_hotspot_refusals(client: AutomationClient) -> None:
     """The tools that would move or edit the selected hotspot are refused."""
     tool = client.call("get_tool")
@@ -2198,7 +2266,7 @@ def run_hotspot_refusals(client: AutomationClient) -> None:
     for name in ("vertex", "rotate", "pole"):
         check(refusal(client, "set_tool", tool=name) != "", f"the {name} tool is refused")
     before = client.call("get_selected")["feature"]
-    grab = client.call("latlon_to_screen", lat=HOTSPOT_FIRST[0] + 1.0, lon=HOTSPOT_FIRST[1])["screen"]
+    grab = client.call("latlon_to_screen", lat=HOTSPOT_MOVED[0] + 1.0, lon=HOTSPOT_MOVED[1])["screen"]
     if check(grab is not None, "the mark is on screen"):
         client.call("press", x=grab[0], y=grab[1])
         client.call("mouse_move", x=grab[0] + 40, y=grab[1] + 40)

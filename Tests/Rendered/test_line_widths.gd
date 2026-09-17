@@ -15,10 +15,11 @@ const ZOOM := 8.0
 
 # A plate turning about the north pole from 30 Ma to 15 Ma and about another
 # axis after that, so the track of a hotspot on it bends at the 15 Ma sample.
+# The timeline's Skip is SKIP while the test runs, a sample every 5 My.
 const HOTSPOT := Vector2(20.0, 60.0)
 const PLATE_KEYS := [[0.0, Vector3(20.0, 20.0, 0.0)], [15.0, Vector3(20.0, 0.0, 0.0)],
 	[30.0, Vector3.ZERO]]
-const STEP := 5.0
+const SKIP := 5.0
 
 # A plain line and a circle, both well away from the track and the grid.
 const LINE := [Vector2(-38.0, -52.0), Vector2(-22.0, -52.0)]
@@ -113,8 +114,9 @@ func _build() -> Array:
 	var circle := Feature.create_feature("Circle")
 	root.children.append_array([plate, hotspot, line, circle])
 	document.set_time(0.0)
+	app.timeline.skip_spin.value = SKIP
 	assert_eq(document.set_feature_type(hotspot, FeatureType.HOTSPOT), "", "a hotspot")
-	assert_eq(document.set_hotspot(hotspot, HOTSPOT, plate.uuid, STEP), "", "on the plate")
+	assert_eq(document.set_hotspot(hotspot, HOTSPOT, plate.uuid), "", "on the plate")
 	assert_eq(document.set_feature_type(circle, FeatureType.CIRCLE), "", "a circle")
 	assert_eq(document.set_circle(circle, CIRCLE_AXIS, CIRCLE_RADIUS, 64, false), "",
 		"with its center and radius")
@@ -183,6 +185,7 @@ func _check_at(point: Vector2, wanted: String, what: String) -> void:
 
 
 func _restore() -> void:
+	app.timeline.skip_spin.value = Config.DEFAULT_SKIP
 	app.features.feature_tree.select_root()
 	view().set_zoom(PlanetView.DEFAULT_ZOOM)
 	view().planet.set_raster(null, 0.0)

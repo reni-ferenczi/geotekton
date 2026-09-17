@@ -14,6 +14,9 @@ class_name Timeline
 # The Configure button was pressed: the application opens the animation dialog.
 signal configure_requested()
 
+# The Skip box took a new value, which a hotspot's track is sampled at.
+signal skip_changed()
+
 # The animation range has changed, so the slider spans something else. The
 # kinematics graphs are drawn over the same span and follow it.
 signal animation_changed()
@@ -292,6 +295,7 @@ func skip() -> float:
 
 func _on_skip_changed(value: float) -> void:
 	Config.set_skip_increment(value)
+	skip_changed.emit()
 
 
 # Move the time on by however long the last frame took. Nothing is accumulated
