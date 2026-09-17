@@ -89,7 +89,7 @@ enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, EXPORT_VIDEO, RU
 	PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, KINEMATICS_PLACE, CONSOLE, STATUS_BAR,
-	SETTINGS, FULL_SCREEN, HIGHLIGHT_RIDERS }
+	SETTINGS, FULL_SCREEN, HIGHLIGHT_CHILDREN }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -125,9 +125,12 @@ const PANEL_SHOWN_BY_DEFAULT := {ViewItem.KINEMATICS: false, ViewItem.CONSOLE: f
 # longitude as well as the rate. Off when the file says nothing.
 const KINEMATICS_PLACE_KEY := "kinematics_place"
 
-# The config key remembering whether the features riding on the selected one are
+# The config key remembering whether the children of the selected feature are
 # highlighted, on the planet and in the tree. Off when the file says nothing.
-const HIGHLIGHT_RIDERS_KEY := "highlight_riders"
+# An older config holds the setting under the second key, which is read when the
+# first is absent and not written again.
+const HIGHLIGHT_CHILDREN_KEY := "highlight_children"
+const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
 
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
@@ -194,10 +197,10 @@ var active_tool: Tool = Tool.MOVE
 var geometry := Planet.Geometry.new()
 var hovered_feature: Feature = null
 
-# Whether the features riding on the selected one are highlighted, and which
-# they are at the current time; see _find_riders().
-var highlight_riders := false
-var riders: Array[Feature] = []
+# Whether the children of the selected feature are highlighted, and which
+# they are at the current time; see _find_children().
+var highlight_children := false
+var coupled_children: Array[Feature] = []
 
 # Where the pointer last was on the globe, NAN when it is off it. Kept so the
 # hover can be worked out again when the features move under a pointer that is
@@ -482,7 +485,7 @@ func _build_menus() -> void:
 	view_menu.add_check_item("Console", ViewItem.CONSOLE)
 	view_menu.add_check_item("Status Bar", ViewItem.STATUS_BAR)
 	view_menu.add_separator()
-	view_menu.add_check_item("Highlight riders", ViewItem.HIGHLIGHT_RIDERS)
+	view_menu.add_check_item("Highlight children", ViewItem.HIGHLIGHT_CHILDREN)
 	view_menu.add_separator()
 	for class_id in Styling.CLASSES:
 		view_menu.add_check_item(Styling.class_label(class_id), class_menu_id(class_id))
@@ -673,8 +676,8 @@ func _on_view_menu_id_pressed(id: int) -> void:
 		return
 	if id == ViewItem.KINEMATICS_PLACE:
 		kinematics.show_place = not kinematics.show_place
-	elif id == ViewItem.HIGHLIGHT_RIDERS:
-		highlight_riders = not highlight_riders
+	elif id == ViewItem.HIGHLIGHT_CHILDREN:
+		highlight_children = not highlight_children
 		_refresh_feature_state()
 	else:
 		var panel := _panel_node(id)
@@ -706,8 +709,8 @@ func _update_view_menu_checks() -> void:
 		view_menu.set_item_checked(view_menu.get_item_index(item), _panel_node(item).visible)
 	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.KINEMATICS_PLACE),
 		kinematics.show_place)
-	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.HIGHLIGHT_RIDERS),
-		highlight_riders)
+	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.HIGHLIGHT_CHILDREN),
+		highlight_children)
 	for class_id in Styling.CLASSES:
 		view_menu.set_item_checked(view_menu.get_item_index(class_menu_id(class_id)),
 			document.view.shows_class(class_id))
@@ -1911,7 +1914,8 @@ func _restore_session() -> void:
 		_panel_node(item).visible = bool(Config.get_value(
 			PANEL_KEYS[item], PANEL_SHOWN_BY_DEFAULT.get(item, true)))
 	kinematics.show_place = bool(Config.get_value(KINEMATICS_PLACE_KEY, false))
-	highlight_riders = bool(Config.get_value(HIGHLIGHT_RIDERS_KEY, false))
+	highlight_children = bool(Config.get_value(HIGHLIGHT_CHILDREN_KEY,
+		Config.get_value(HIGHLIGHT_CHILDREN_OLD_KEY, false)))
 	_update_view_menu_checks()
 
 	if not bool(Config.get_value("restore_session", true)):
@@ -1939,7 +1943,7 @@ func _save_panel_visibility() -> void:
 	for item in PANEL_KEYS:
 		Config.set_value(PANEL_KEYS[item], _panel_node(item).visible)
 	Config.set_value(KINEMATICS_PLACE_KEY, kinematics.show_place)
-	Config.set_value(HIGHLIGHT_RIDERS_KEY, highlight_riders)
+	Config.set_value(HIGHLIGHT_CHILDREN_KEY, highlight_children)
 
 
 ### File dialogs
@@ -2319,7 +2323,7 @@ func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 	if selected == null or selected.is_group:
 		return
 	move_base_keyframes = Keyframe.clone_list(selected.keyframes)
-	# A feature riding on another is dragged in world space like any other, and
+	# A feature that follows another is dragged in world space like any other, and
 	# the keyframe is put into the parent's frame when it is written.
 	move_base_rot = selected.rotation_at(document.current_time) if selected.couplings.is_empty() \
 		else Feature.decompose_rotation_degrees(
@@ -2329,8 +2333,8 @@ func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 
 # Dragging writes the keyframe at the current time as it goes, so what is on the
 # globe is what will be committed. Only the release records an undo version.
-# Whatever rides on the dragged feature goes with it, since refresh_motion()
-# resolves every rider from its parent.
+# The children of the dragged feature go with it, since refresh_motion()
+# resolves every child from its parent.
 func _on_move_to(lat: float, lon: float) -> void:
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group:
@@ -2452,7 +2456,7 @@ func _spin_start(lat: float, lon: float) -> void:
 	spin_axis = axis
 	spin_anchor = anchor
 	spin_base_keyframes = Keyframe.clone_list(feature.keyframes)
-	# A feature riding on another is turned in world space like any other, and
+	# A feature that follows another is turned in world space like any other, and
 	# the keyframe is put into the parent's frame when it is written.
 	spin_base_rot = feature.rotation_at(document.current_time) if feature.couplings.is_empty() \
 		else Feature.decompose_rotation_degrees(
@@ -3743,7 +3747,7 @@ func _show_measurement(error: String = "") -> void:
 		return
 
 	if picking_parent:
-		status_measure.text = "Pick the feature to ride on"
+		status_measure.text = "Pick the feature to follow"
 		return
 
 	if active_tool == Tool.TOPOLOGY:
@@ -3868,7 +3872,7 @@ func _ring_on_screen(feature: Feature, part: int) -> PackedVector2Array:
 
 ### Picking the parent off the planet
 #
-# The pointer button on the Ride on row of the Properties panel arms a one shot
+# The pointer button on the Follow row of the Properties panel arms a one shot
 # pick: the next left click on the planet names the feature under it in the
 # picker, and nothing else about the application changes. The selection stays
 # where it is and so does the tool, so the planet's own clicks are held back
@@ -3905,10 +3909,10 @@ func _on_pick_parent_input(lat: float, lon: float, event: InputEvent) -> void:
 		return
 	var hit := Planet.hit_test(lat, lon, geometry)
 	if hit == null:
-		_report("Click a feature to ride on it.")
+		_report("Click a feature to follow.")
 		return
 	if hit.geometry_kind == Feature.GeometryKind.TOPOLOGY:
-		_report("A topology is not something to ride on.")
+		_report("A topology is not something to follow.")
 		return
 	var problem := properties.pick_parent_uuid(hit.uuid)
 	if not problem.is_empty():
@@ -3951,7 +3955,7 @@ func _on_craton_hovered(lat: float, lon: float) -> void:
 	hovered_lon = lon
 	if _resolve_hover():
 		planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature(),
-			_drawn_riders())
+			_drawn_children())
 
 
 # Work out what the pointer is over from where it last was, and report whether
@@ -4006,29 +4010,29 @@ func _refresh_feature_state() -> void:
 	# all, so the feature it is over is worked out again rather than carried
 	# over. It costs a hit test only while the pointer is on the globe.
 	_resolve_hover()
-	_find_riders()
+	_find_children()
 	planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature(),
-		_drawn_riders())
+		_drawn_children())
 	_refresh_selection_outline()
 
 
-# What rides on the selected feature at the current time, when the View menu
+# The children of the selected feature at the current time, when the View menu
 # asks for it, for the planet to draw orange and the tree to tint. Only a leaf
-# is ridden on; a group or nothing selected has no riders.
-func _find_riders() -> void:
+# is followed; a group or nothing selected has no children.
+func _find_children() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var found: Array[Feature] = []
-	if highlight_riders and selected != null and not selected.is_group:
-		found = Coupling.riders(features.root, selected.uuid, document.current_time)
-	riders = found
-	features.feature_tree.mark_riders(found)
+	if highlight_children and selected != null and not selected.is_group:
+		found = Coupling.children_of(features.root, selected.uuid, document.current_time)
+	coupled_children = found
+	features.feature_tree.mark_children(found)
 
 
-# The riders the planet highlights: none in the tools that do not highlight the
+# The children the planet highlights: none in the tools that do not highlight the
 # selection either.
-func _drawn_riders() -> Array[Feature]:
+func _drawn_children() -> Array[Feature]:
 	var none: Array[Feature] = []
-	return riders if _highlighted_feature() != null else none
+	return coupled_children if _highlighted_feature() != null else none
 
 
 # The feature whose lines the shader draws thicker and yellow: the selected one,
@@ -4078,16 +4082,16 @@ func _refresh_selection_outline() -> void:
 	# The pole the Pole tool turns about is drawn along with the selection, so
 	# it is on the globe whatever else is.
 	var parts: Array = _pole_outline()
-	# A polygon riding on the selection is traced in orange, where the planet
+	# A polygon that follows the selection is traced in orange, where the planet
 	# draws it at all; the shader colors the lines and markers of the other
-	# riders itself.
-	for rider in _drawn_riders():
-		var index: int = geometry.index_of.get(rider, -1)
-		if index < 0 or not geometry.shown[index] 				or rider.drawn_as() != Feature.GeometryKind.POLYGON:
+	# children itself.
+	for child in _drawn_children():
+		var index: int = geometry.index_of.get(child, -1)
+		if index < 0 or not geometry.shown[index] 				or child.drawn_as() != Feature.GeometryKind.POLYGON:
 			continue
-		for ring in rider.rings:
+		for ring in child.rings:
 			parts.append({"vertices": Feature.apply_basis(ring, geometry.bases[index]),
-				"style": Planet.OutlineStyle.RIDER})
+				"style": Planet.OutlineStyle.CHILD})
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group or not selected.has_geometry():
 		planet_view.planet.set_outline(parts)

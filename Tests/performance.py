@@ -74,7 +74,7 @@ def circle(lat: float, lon: float, vertices: int) -> list[list[float]]:
 def build_sample(path: Path, triangles: int, coupled: bool = False) -> int:
     """Write a document of about `triangles` triangles. Returns the real count.
 
-    Coupled, every feature but the first rides on the first over the whole
+    Coupled, every feature but the first follows the first over the whole
     animation, so a frame resolves every rotation through that parent.
     """
     # Ear clipping turns a ring of n vertices into n - 2 triangles.
@@ -181,15 +181,15 @@ def measure(client: AutomationClient, budget_ms: float, coupled: Path) -> bool:
     client.call("timeline", button="Pause")
     print(f"the age ramp costs {aging - playing:+.2f} ms a frame over flat colors")
 
-    # The same playback with every feature riding on the first one, which is
+    # The same playback with every feature following the first one, which is
     # the most a frame has to resolve through a parent. Reported, not held to
     # a limit.
     client.call("load", path=str(coupled))
     client.call("timeline", button="Reset")
     client.call("timeline", button="Play")
-    riding = report("playing, every feature coupled to one parent", sample_frames(client))
+    following = report("playing, every feature coupled to one parent", sample_frames(client))
     client.call("timeline", button="Pause")
-    print(f"coupling costs {riding - playing:+.2f} ms a frame over uncoupled playback")
+    print(f"coupling costs {following - playing:+.2f} ms a frame over uncoupled playback")
 
     within = playing <= budget_ms
     print(f"{'PASS' if within else 'FAIL'} the median frame while playing is within the budget")

@@ -721,8 +721,8 @@ def run_keyframe_row_session(client: AutomationClient) -> None:
 COUPLING_SAMPLE = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
 COUPLED_AT = 500.0
 DECOUPLED_AT = 200.0
-# Inside the span, where the rider is dragged on its own.
-RIDER_MOVED_AT = 350.0
+# Inside the span, where the child is dragged on its own.
+CHILD_MOVED_AT = 350.0
 # How far the parent is dragged each time, in degrees of longitude.
 PARENT_DRAG = 10.0
 
@@ -748,7 +748,8 @@ def run_coupling_session(client: AutomationClient, folder: Path) -> None:
 
     row = coupling_row(client)
     check(row["coupled_to"] == "nothing" and not row["decouple"] and row["spans"] == [],
-          f"an uncoupled feature rides on nothing: {row}")
+          f"an uncoupled feature follows nothing: {row}")
+    check(row["caption"] == "Follow", f"the row with the picker is the Follow row: {row['caption']!r}")
     check("Red Triangle" in row["parents"] and "Blue Quad" not in row["parents"],
           f"and the picker offers every other feature: {row['parents']}")
 
@@ -770,25 +771,25 @@ def run_coupling_session(client: AutomationClient, folder: Path) -> None:
           f"the timeline draws the span as a bar from older to younger: {bars}")
     check(client.call("latlon_to_screen", lat=15.0, lon=20.0)["screen"] == planet,
           "the coupling rows leave the planet where it was")
-    check(not client.call("get_panels")["panels"]["highlight_riders"],
-          "riders are not highlighted until that is asked for")
-    client.call("menu", item="highlight_riders")
-    check(client.call("get_panels")["panels"]["highlight_riders"],
-          "the View menu switches the rider highlight on")
-    client.call("menu", item="highlight_riders")
-    check(not client.call("get_panels")["panels"]["highlight_riders"], "and off again")
+    check(not client.call("get_panels")["panels"]["highlight_children"],
+          "children are not highlighted until that is asked for")
+    client.call("menu", item="highlight_children")
+    check(client.call("get_panels")["panels"]["highlight_children"],
+          "the View menu switches the child highlight on")
+    client.call("menu", item="highlight_children")
+    check(not client.call("get_panels")["panels"]["highlight_children"], "and off again")
 
     # Couple, drag the parent: the child moves with it.
     client.call("set_time", time=DECOUPLED_AT)
-    rider = centroid_of(client, "Blue Quad")
+    child = centroid_of(client, "Blue Quad")
     parent = centroid_of(client, "Red Triangle")
     if not drag(client, parent[0], parent[1] + PARENT_DRAG):
         return
     moved_parent = world_centroid(client)
-    moved_rider = centroid_of(client, "Blue Quad")
-    check(angular_distance(rider, moved_rider) > PARENT_DRAG / 2.0,
-          f"dragging the parent carries the rider: {rider} to {moved_rider}")
-    check(abs(angular_distance(moved_parent, moved_rider) - angular_distance(parent, rider)) < DRAG_TOLERANCE,
+    moved_child = centroid_of(client, "Blue Quad")
+    check(angular_distance(child, moved_child) > PARENT_DRAG / 2.0,
+          f"dragging the parent carries the child: {child} to {moved_child}")
+    check(abs(angular_distance(moved_parent, moved_child) - angular_distance(parent, child)) < DRAG_TOLERANCE,
           "and keeps it as far from the parent as it was")
 
     # Decouple, drag the parent: the child stays.
@@ -801,24 +802,24 @@ def run_coupling_session(client: AutomationClient, folder: Path) -> None:
           f"with a keyframe there: {after['keyframes']}")
     check(worst_offset(after["world_rings"][0], [tuple(v) for v in before["world_rings"][0]]) < 1e-3,
           "and nothing on the globe moves")
-    check(coupling_row(client)["coupled_to"] == "nothing", "the panel says it rides on nothing now")
+    check(coupling_row(client)["coupled_to"] == "nothing", "the panel says it follows nothing now")
     parent = centroid_of(client, "Red Triangle")
     if not drag(client, parent[0], parent[1] + PARENT_DRAG):
         return
     client.call("select", title="Blue Quad")
     stayed = client.call("get_selected")["feature"]
     check(worst_offset(stayed["world_rings"][0], [tuple(v) for v in after["world_rings"][0]]) < 1e-3,
-          "dragging the parent after decoupling leaves the rider where it is")
+          "dragging the parent after decoupling leaves the child where it is")
 
-    # Dragging the rider inside the span writes a keyframe relative to the
+    # Dragging the child inside the span writes a keyframe relative to the
     # parent, which has moved by then, and still lands where it was dropped.
-    client.call("set_time", time=RIDER_MOVED_AT)
+    client.call("set_time", time=CHILD_MOVED_AT)
     lat, lon = world_centroid(client)
     if not drag(client, lat - 5.0, lon):
         return
     got = world_centroid(client)
     check(abs(got[0] - (lat - 5.0)) < DRAG_TOLERANCE and abs(got[1] - lon) < DRAG_TOLERANCE,
-          f"a rider dragged inside the span lands where it was dropped: {got}")
+          f"a child dragged inside the span lands where it was dropped: {got}")
 
     run_coupling_refusal_checks(client)
     run_coupling_round_trip(client, folder)
@@ -834,7 +835,7 @@ PICK_EMPTY = (-40.0, -30.0)
 
 
 def run_pick_parent_checks(client: AutomationClient) -> None:
-    """The pointer on the Ride on row takes its parent from a click on the planet."""
+    """The pointer on the Follow row takes its parent from a click on the planet."""
     client.call("load", path=str(COUPLING_SAMPLE))
     client.call("set_view", lat=PICK_VIEW[0], lon=PICK_VIEW[1], angle=0.0, zoom=1.0,
                 show_map=False)
@@ -850,7 +851,7 @@ def run_pick_parent_checks(client: AutomationClient) -> None:
     client.call("coupling", pick=True)
     check(coupling_row(client)["picking"], "pressing it arms the pick")
     status = client.call("get_status")["status"]["measure"]
-    check(status == "Pick the feature to ride on", f"and the status bar says so: {status!r}")
+    check(status == "Pick the feature to follow", f"and the status bar says so: {status!r}")
 
     # A click on the ocean says why and leaves the pointer armed.
     screen = client.call("latlon_to_screen", lat=PICK_EMPTY[0], lon=PICK_EMPTY[1])["screen"]
@@ -861,17 +862,17 @@ def run_pick_parent_checks(client: AutomationClient) -> None:
         return
     client.call("click", x=screen[0], y=screen[1])
     status = client.call("get_status")["status"]["measure"]
-    check(coupling_row(client)["picking"] and status == "Click a feature to ride on it.",
+    check(coupling_row(client)["picking"] and status == "Click a feature to follow.",
           f"a click on the ocean stays in the mode with the reason: {status!r}")
 
-    # And so does a click on the feature that is doing the riding.
+    # And so does a click on the feature that is to follow.
     own = world_centroid(client)
     screen = client.call("latlon_to_screen", lat=own[0], lon=own[1])["screen"]
     if not check(screen is not None, f"the feature itself is on screen at {own}"):
         return
     client.call("click", x=screen[0], y=screen[1])
     status = client.call("get_status")["status"]["measure"]
-    check(coupling_row(client)["picking"] and status == "A feature cannot ride on itself.",
+    check(coupling_row(client)["picking"] and status == "A feature cannot follow itself.",
           f"a click on the feature itself does too: {status!r}")
 
     # A click on the green craton picks it, and nothing else moves.
@@ -893,7 +894,7 @@ def run_pick_parent_checks(client: AutomationClient) -> None:
     client.call("coupling", button="Couple")
     spans = client.call("get_selected")["feature"]["couplings"]
     check(spans == [{"from": COUPLED_AT, "to": 0.0, "parent": green_uuid}],
-          f"Couple then rides on what was clicked: {spans}")
+          f"Couple then follows what was clicked: {spans}")
 
     # Escape puts the pointer away.
     client.call("coupling", pick=True)
@@ -901,13 +902,13 @@ def run_pick_parent_checks(client: AutomationClient) -> None:
     client.call("key", key="Escape")
     row = coupling_row(client)
     status = client.call("get_status")["status"]["measure"]
-    check(not row["picking"] and status != "Pick the feature to ride on",
+    check(not row["picking"] and status != "Pick the feature to follow",
           f"and Escape ends it: {row['picking']}, {status!r}")
 
 
-# The cut in time, on a parent that turns over the whole timeline: the rider is
+# The cut in time, on a parent that turns over the whole timeline: the child is
 # coupled at RIGID_COUPLED_AT, dragged on its own at RIGID_DRAGGED_AT and then
-# decoupled between the two. A rider that has not been dragged keeps its
+# decoupled between the two. A child that has not been dragged keeps its
 # distance from the parent exactly; the drag is what moves it against the
 # parent, and the decoupling leaves every time older than itself as the drag
 # left it, dropping only the keyframe it wrote.
@@ -919,8 +920,8 @@ RIGID_DRAGGED_AT = 200.0
 RIGID_SAMPLES = (RIGID_COUPLED_AT, 800.0, 700.0, 600.0, RIGID_DECOUPLED_AT)
 
 
-def rider_gaps(client: AutomationClient) -> dict[float, float]:
-    """How far the rider is from its parent at each sampled time, in degrees."""
+def child_gaps(client: AutomationClient) -> dict[float, float]:
+    """How far the child is from its parent at each sampled time, in degrees."""
     gaps = {}
     for time in RIGID_SAMPLES:
         client.call("set_time", time=time)
@@ -941,7 +942,7 @@ def turn_parent(client: AutomationClient) -> bool:
 
 
 def run_rigid_coupling_checks(client: AutomationClient) -> None:
-    """A rider keeps its distance from the parent right down to where it is decoupled."""
+    """A child keeps its distance from the parent right down to where it is decoupled."""
     client.call("load", path=str(COUPLING_SAMPLE))
     client.call("set_view", lat=15.0, lon=20.0, angle=0.0)
     if not turn_parent(client):
@@ -950,21 +951,21 @@ def run_rigid_coupling_checks(client: AutomationClient) -> None:
     client.call("select", title="Blue Quad")
     client.call("set_time", time=RIGID_COUPLED_AT)
     client.call("coupling", button="Couple", parent="Red Triangle")
-    rigid = rider_gaps(client)
+    rigid = child_gaps(client)
     apart = rigid[RIGID_COUPLED_AT]
     for time, gap in rigid.items():
         check(abs(gap - apart) < DRAG_TOLERANCE,
-              f"a rider that is not dragged is {gap:.2f} degrees from the parent at {time} Ma,"
+              f"a child that is not dragged is {gap:.2f} degrees from the parent at {time} Ma,"
               f" as it was at {apart:.2f} when it was coupled")
 
-    # A drag younger than where the rider will be decoupled, which is what moves
+    # A drag younger than where the child will be decoupled, which is what moves
     # it against the parent, from the moment it is coupled to the drag itself.
     client.call("select", title="Blue Quad")
     client.call("set_time", time=RIGID_DRAGGED_AT)
     lat, lon = world_centroid(client)
     if not drag(client, lat - 8.0, lon + 8.0):
         return
-    dragged = rider_gaps(client)
+    dragged = child_gaps(client)
     check(abs(dragged[RIGID_DECOUPLED_AT] - apart) > DRAG_TOLERANCE,
           f"the drag moves it against the parent: {dragged[RIGID_DECOUPLED_AT]:.2f}")
 
@@ -975,9 +976,9 @@ def run_rigid_coupling_checks(client: AutomationClient) -> None:
     check(times == [RIGID_DECOUPLED_AT, RIGID_COUPLED_AT],
           f"decoupling drops the keyframe the span covered younger than it: {times}")
 
-    for time, gap in rider_gaps(client).items():
+    for time, gap in child_gaps(client).items():
         check(abs(gap - dragged[time]) < DRAG_TOLERANCE,
-              f"the rider and the parent keep the distance they had at {time} Ma:"
+              f"the child and the parent keep the distance they had at {time} Ma:"
               f" {gap:.2f} against {dragged[time]:.2f}")
 
     client.call("set_time", time=RIGID_DECOUPLED_AT)
@@ -986,7 +987,7 @@ def run_rigid_coupling_checks(client: AutomationClient) -> None:
         client.call("set_time", time=time)
         stood = centroid_of(client, "Blue Quad")
         check(angular_distance(stood, left) < DRAG_TOLERANCE,
-              f"and the rider holds its world pose at {time} Ma: {stood} against {left}")
+              f"and the child holds its world pose at {time} Ma: {stood} against {left}")
 
     # And the pixels agree with the world rings the distances came from.
     for time in (RIGID_COUPLED_AT, RIGID_DECOUPLED_AT):
@@ -1015,7 +1016,7 @@ def run_coupling_refusal_checks(client: AutomationClient) -> None:
     client.call("coupling", button="Couple", parent="Blue Quad")
     dialog = client.call("get_dialog")["dialog"]
     if check(dialog is not None and "circle" in dialog["text"],
-             f"coupling the parent to its own rider is refused: {dialog}"):
+             f"coupling the parent to its own child is refused: {dialog}"):
         client.call("dialog", button="OK")
     check(undo_depth(client) == versions and client.call("get_selected")["feature"]["couplings"] == [],
           "and changes nothing")
@@ -3538,7 +3539,7 @@ def run_ridge_session(client: AutomationClient) -> None:
     east_uuid = client.call("get_selected")["feature"]["uuid"]
     check(ridge["couplings"] == [{"from": RIDGE_CUT_AT, "to": 0.0,
                                  "parent": west_uuid, "parent_b": east_uuid}],
-          f"riding on both halves from the cut on: {ridge['couplings']}")
+          f"following both halves from the cut on: {ridge['couplings']}")
     client.call("select", title="Old Shield ridge")
     check(coupling_row(client)["coupled_to"] == "Old Shield and Old Shield 2, midway",
           f"which the panel says: {coupling_row(client)['coupled_to']!r}")

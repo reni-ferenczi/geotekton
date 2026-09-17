@@ -205,7 +205,7 @@ unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
-tooltip_text = "Leave a ridge along the cut, a line riding on both halves at one half"
+tooltip_text = "Leave a ridge along the cut, a line following both halves at one half"
 text = "Ridge"
 
 [node name="Crust" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]

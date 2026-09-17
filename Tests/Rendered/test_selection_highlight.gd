@@ -168,49 +168,49 @@ func test_a_selected_multipoint_keeps_its_markers_drawn_larger() -> void:
 			% [selected["yellow"], editing["yellow"]])
 
 
-# GP-0075: with View > Highlight riders on, selecting a feature traces what
-# rides on it in orange, next to its own yellow, and tints the riders' rows.
-func test_a_polygon_riding_on_the_selection_is_traced_orange() -> void:
+# GP-0075: with View > Highlight children on, selecting a feature traces its
+# children in orange, next to its own yellow, and tints their rows.
+func test_a_polygon_following_the_selection_is_traced_orange() -> void:
 	var parent := await _load_with_raster("two_cratons.middle-earth", "Red Triangle", Color.BLACK)
-	var rider := _find("Blue Quad")
-	if parent == null or rider == null:
+	var child := _find("Blue Quad")
+	if parent == null or child == null:
 		return
-	assert_eq(app.document.couple(rider, parent, app.document.current_time), "")
+	assert_eq(app.document.couple(child, parent, app.document.current_time), "")
 	app.refresh_geometry()
 	view().set_zoom(POLYGON_ZOOM)
-	var rider_edge := await _edge_probe(rider)
+	var child_edge := await _edge_probe(child)
 	var parent_edge := await _edge_probe(parent)
-	if rider_edge.is_empty() or parent_edge.is_empty():
+	if child_edge.is_empty() or parent_edge.is_empty():
 		fail("both features have an edge away from the grid")
 		await _restore()
 		return
 
 	_select(parent)
-	var off_rider := await _count_at(rider_edge)
-	_toggle_riders()
-	var on_rider := await _count_at(rider_edge)
+	var off_child := await _count_at(child_edge)
+	_toggle_children()
+	var on_child := await _count_at(child_edge)
 	var on_parent := await _count_at(parent_edge)
-	var tint := _row(rider).get_custom_bg_color(0)
-	_toggle_riders()
-	var tint_after := _row(rider).get_custom_bg_color(0)
+	var tint := _row(child).get_custom_bg_color(0)
+	_toggle_children()
+	var tint_after := _row(child).get_custom_bg_color(0)
 	await _restore()
 
-	assert_true(off_rider["orange"] == 0 and off_rider["blue"] > 0,
-		"switched off, the rider's edge is its own blue: %s" % off_rider)
-	assert_true(on_rider["orange"] > 0 and on_rider["yellow"] == 0,
-		"switched on, the rider's edge is orange: %s" % on_rider)
+	assert_true(off_child["orange"] == 0 and off_child["blue"] > 0,
+		"switched off, the child's edge is its own blue: %s" % off_child)
+	assert_true(on_child["orange"] > 0 and on_child["yellow"] == 0,
+		"switched on, the child's edge is orange: %s" % on_child)
 	assert_true(on_parent["yellow"] > 0,
 		"and the selected parent's edge is yellow: %s" % on_parent)
-	assert_eq(tint, FeatureTree.RIDER_TINT, "the rider's row is tinted")
-	assert_true(tint_after != FeatureTree.RIDER_TINT, "and loses the tint when switched off")
+	assert_eq(tint, FeatureTree.CHILD_TINT, "the child's row is tinted")
+	assert_true(tint_after != FeatureTree.CHILD_TINT, "and loses the tint when switched off")
 
 
-func test_a_line_riding_on_the_selection_is_drawn_orange_at_its_width() -> void:
+func test_a_line_following_the_selection_is_drawn_orange_at_its_width() -> void:
 	var parent := await _load_with_raster("mixed_geometry.middle-earth", "Red Triangle")
-	var rider := _find("Blue Ridge")
-	if parent == null or rider == null:
+	var child := _find("Blue Ridge")
+	if parent == null or child == null:
 		return
-	assert_eq(app.document.couple(rider, parent, app.document.current_time), "")
+	assert_eq(app.document.couple(child, parent, app.document.current_time), "")
 	app.refresh_geometry()
 	# Blue Ridge runs along the meridian at 40 degrees east; see
 	# test_a_selected_line_is_drawn_thicker_and_yellow for the point beside it.
@@ -226,15 +226,37 @@ func test_a_line_riding_on_the_selection_is_drawn_orange_at_its_width() -> void:
 		await _restore()
 		return
 	_select(parent)
-	_toggle_riders()
+	_toggle_children()
 	await frames(2)
 	var image := await capture()
-	_toggle_riders()
+	_toggle_children()
 	await _restore()
 	assert_eq(_count(image, on, 1)["orange"], 9,
-		"the rider's line is orange: %s" % _count(image, on, 1))
+		"the child's line is orange: %s" % _count(image, on, 1))
 	assert_eq(_count(image, off, 1)["red"], 9,
 		"and no wider than before: %s" % _count(image, off, 1))
+
+
+# GP-0090: the switch was saved as highlight_riders before it was renamed. A
+# config holding only that key starts with the switch on, and the next save
+# writes the new key.
+func test_a_config_with_the_old_key_keeps_the_highlight_on() -> void:
+	var item: int = app.view_menu.get_item_index(Application.ViewItem.HIGHLIGHT_CHILDREN)
+	Config.clear()
+	Config.set_value("highlight_riders", true)
+	Config.forget()
+	app._restore_session()
+	var checked: bool = app.view_menu.is_item_checked(item)
+	var on: bool = app.highlight_children
+	app._save_session()
+	var saved: Variant = Config.get_value(Application.HIGHLIGHT_CHILDREN_KEY)
+
+	Config.clear()
+	app.highlight_children = false
+	app._update_view_menu_checks()
+	await frames(2)
+	assert_true(on and checked, "the old key switches the highlight on and checks the item")
+	assert_eq(saved, true, "and the session saves it under the new key")
 
 
 ### Helpers
@@ -252,9 +274,9 @@ func _load_with_raster(sample: String, title: String, raster := Color.RED) -> Fe
 	return feature
 
 
-# The View menu's Highlight riders switch, flipped the way a click does it.
-func _toggle_riders() -> void:
-	app._on_view_menu_id_pressed(Application.ViewItem.HIGHLIGHT_RIDERS)
+# The View menu's Highlight children switch, flipped the way a click does it.
+func _toggle_children() -> void:
+	app._on_view_menu_id_pressed(Application.ViewItem.HIGHLIGHT_CHILDREN)
 
 
 func _row(feature: Feature) -> TreeItem:
@@ -344,7 +366,7 @@ func _near_grid(point: Vector2) -> bool:
 	return false
 
 
-# How many pixels of a square around a point are yellow, how many are the rider
+# How many pixels of a square around a point are yellow, how many are the child
 # orange, and how many each channel dominates.
 func _count(image: Image, centre: Vector2, reach: int) -> Dictionary:
 	var counts := {"yellow": 0, "orange": 0, "red": 0, "green": 0, "blue": 0}

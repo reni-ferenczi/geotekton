@@ -64,7 +64,7 @@ static func path(root: Feature, node: Feature, oldest: float, youngest: float,
 
 
 # Every time the motion of a node can change, sorted youngest first: its
-# keyframe times, and while it rides on another feature the ends of that span
+# keyframe times, and while it follows another feature the ends of that span
 # and every time the parent's own motion changes inside it. Nothing above it in
 # the tree moves it.
 static func motion_times(root: Feature, node: Feature) -> PackedFloat64Array:

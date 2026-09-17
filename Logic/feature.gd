@@ -125,11 +125,11 @@ var triangles := PackedVector2Array()
 
 # How the feature turns over time, sorted by time. An empty list means it does
 # not move at all. Only a leaf has any: a group is organization and carries no
-# motion, since 0.8.0; what rides on what is a coupling between two features
+# motion, since 0.8.0; what follows what is a coupling between two features
 # (GP-0046), not the tree.
 var keyframes: Array[Keyframe] = []
 
-# The spans of the timeline over which the feature rides on another, youngest
+# The spans of the timeline over which the feature follows another, youngest
 # first. Inside one its keyframes are relative to that parent; see
 # Logic/coupling.gd. Only a leaf has any, and the tree has nothing to do with it.
 var couplings: Array[Coupling] = []
@@ -713,7 +713,7 @@ static func world_basis(root: Feature, node: Feature, time: float) -> Basis:
 
 
 # The rotation a keyframe at this time has to hold to keep the node where it
-# stands: its own interpolation when it rides on nothing, and otherwise its
+# stands: its own interpolation when it follows nothing, and otherwise its
 # world rotation put into the frame in effect at the time.
 static func keyframe_rotation(root: Feature, node: Feature, time: float) -> Vector3:
 	if node.couplings.is_empty():

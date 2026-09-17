@@ -1,6 +1,6 @@
 extends TestCase
 
-# Coupling: one feature riding on another over a span of the timeline. See
+# Coupling: one feature following another over a span of the timeline. See
 # Logic/coupling.gd and Docs/Time.md#coupling.
 
 # How the parent turns: two keyframes far enough apart that every span below
@@ -15,14 +15,14 @@ const EPS := 1e-4
 ### Helpers
 
 
-# A document holding a moving parent and a rider standing still at 800 Ma.
+# A document holding a moving parent and a child standing still at 800 Ma.
 func _document() -> Document:
 	var document := Document.new()
 	var parent := _polygon("Mountain")
 	Keyframe.upsert(parent.keyframes, 0.0, PARENT_YOUNG)
 	Keyframe.upsert(parent.keyframes, 1000.0, PARENT_OLD)
 	document.root.children.append(parent)
-	var child := _polygon("Rider")
+	var child := _polygon("Child")
 	Keyframe.upsert(child.keyframes, 800.0, Vector3(10, 5, 0))
 	document.root.children.append(child)
 	document.record()
@@ -122,7 +122,7 @@ func test_a_span_holds_its_older_end_and_not_its_younger_one() -> void:
 func test_a_child_follows_its_parent_between_coupling_and_decoupling() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	var still := _world(document, child, 900.0)
 
 	assert_eq(document.couple(child, parent, 500.0), "")
@@ -135,10 +135,10 @@ func test_a_child_follows_its_parent_between_coupling_and_decoupling() -> void:
 	for time in [2000.0, 900.0, 700.0, 520.0, 500.0]:
 		_assert_basis(_world(document, child, time), still, "stands still at %s Ma" % time)
 
-	var riding := _relative(document, parent, child, 500.0)
+	var on_parent := _relative(document, parent, child, 500.0)
 	for time in [480.0, 400.0, 300.0, 200.5]:
-		_assert_basis(_relative(document, parent, child, time), riding,
-			"rides on the parent at %s Ma" % time)
+		_assert_basis(_relative(document, parent, child, time), on_parent,
+			"follows the parent at %s Ma" % time)
 	assert_true(_differs(_world(document, child, 300.0), still), "and so moves in the world")
 
 	var left := _world(document, child, 200.0)
@@ -156,8 +156,8 @@ func test_a_child_follows_its_parent_between_coupling_and_decoupling() -> void:
 func test_two_children_ride_on_one_parent() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var first := _named(document, "Rider")
-	var second := _polygon("Second Rider")
+	var first := _named(document, "Child")
+	var second := _polygon("Second Child")
 	# Older than the span, so it stays a world keyframe.
 	Keyframe.upsert(second.keyframes, 900.0, Vector3(-70, 0, 0))
 	document.root.children.append(second)
@@ -166,10 +166,10 @@ func test_two_children_ride_on_one_parent() -> void:
 	assert_eq(document.couple(first, parent, 700.0), "")
 	assert_eq(document.couple(second, parent, 700.0), "")
 	for child in [first, second]:
-		var riding := _relative(document, parent, child, 700.0)
+		var on_parent := _relative(document, parent, child, 700.0)
 		for time in [600.0, 300.0, 0.0]:
-			_assert_basis(_relative(document, parent, child, time), riding,
-				"%s rides on at %s Ma" % [child.title, time])
+			_assert_basis(_relative(document, parent, child, time), on_parent,
+				"%s follows on at %s Ma" % [child.title, time])
 	assert_true(_differs(_world(document, first, 300.0), _world(document, second, 300.0)),
 		"and the two keep apart")
 
@@ -177,7 +177,7 @@ func test_two_children_ride_on_one_parent() -> void:
 func test_a_chain_of_three_is_followed_to_its_end() -> void:
 	var document := _document()
 	var top := _named(document, "Mountain")
-	var middle := _named(document, "Rider")
+	var middle := _named(document, "Child")
 	var bottom := _polygon("Pebble")
 	# Put the end of the chain first in the tree, so the geometry meets it
 	# before its parents.
@@ -192,9 +192,9 @@ func test_a_chain_of_three_is_followed_to_its_end() -> void:
 	var on_middle := _relative(document, middle, bottom, 900.0)
 	for time in [700.0, 300.0, 100.0]:
 		_assert_basis(_relative(document, middle, bottom, time), on_middle,
-			"the pebble rides on the rider at %s Ma" % time)
+			"the pebble follows the child at %s Ma" % time)
 	_assert_basis(_relative(document, top, middle, 300.0),
-		Feature.build_rotation_basis(Vector3(25, 0, 0)), "which rides on the mountain")
+		Feature.build_rotation_basis(Vector3(25, 0, 0)), "which follows the mountain")
 
 	var geometry := Planet.collect_geometry(document.root, 300.0)
 	for node in [bottom, middle, top]:
@@ -205,14 +205,14 @@ func test_a_chain_of_three_is_followed_to_its_end() -> void:
 func test_a_cycle_is_refused() -> void:
 	var document := _document()
 	var a := _named(document, "Mountain")
-	var b := _named(document, "Rider")
+	var b := _named(document, "Child")
 	var c := _polygon("Pebble")
 	document.root.children.append(c)
 	document.record()
 
 	assert_eq(document.couple(b, a, 500.0), "")
 	var versions := document.applied
-	assert_true(not document.couple(a, b, 300.0).is_empty(), "a rides on b while b rides on a")
+	assert_true(not document.couple(a, b, 300.0).is_empty(), "a follows b while b follows a")
 	assert_eq(document.couple(c, b, 600.0), "")
 	assert_true(not document.couple(a, c, 900.0).is_empty(), "round a chain of three")
 	assert_true(not document.couple(a, a, 900.0).is_empty(), "a feature on itself")
@@ -223,7 +223,7 @@ func test_a_cycle_is_refused() -> void:
 func test_what_cannot_be_coupled_is_refused_with_a_reason() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	var group := Feature.create_group("Plates")
 	document.root.children.append(group)
 	var topology := Feature.create_feature("Boundary")
@@ -233,7 +233,7 @@ func test_what_cannot_be_coupled_is_refused_with_a_reason() -> void:
 
 	assert_true(not document.couple(child, group, 500.0).is_empty(), "a group is no parent")
 	assert_true(not document.couple(child, topology, 500.0).is_empty(), "nor is a topology")
-	assert_true(not document.couple(topology, parent, 500.0).is_empty(), "nor does a topology ride")
+	assert_true(not document.couple(topology, parent, 500.0).is_empty(), "nor does a topology follow")
 	assert_true(not document.couple(child, null, 500.0).is_empty(), "nothing picked")
 	assert_true(not document.decouple(child, 500.0).is_empty(), "nothing to decouple")
 
@@ -243,7 +243,7 @@ func test_what_cannot_be_coupled_is_refused_with_a_reason() -> void:
 	parent.time_range = Vector2i(0, 2000)
 
 	assert_eq(document.couple(child, parent, 500.0), "")
-	assert_true(not document.couple(child, parent, 300.0).is_empty(), "already riding then")
+	assert_true(not document.couple(child, parent, 300.0).is_empty(), "already following then")
 	assert_true(not document.decouple(child, 0.0).is_empty(),
 		"a span running to the present is not decoupled at the present")
 
@@ -259,7 +259,7 @@ const OLDER_THAN_THE_CUT := [400.0, 480.0, 650.0, 800.0, 900.0, 2000.0]
 func test_coupling_moves_nothing_at_or_older_than_the_time_it_acts_at() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	Keyframe.upsert(child.keyframes, 100.0, Vector3(-20, 0, 5))
 	Keyframe.upsert(child.keyframes, 300.0, Vector3(30, -15, 0))
 	document.record()
@@ -272,7 +272,7 @@ func test_coupling_moves_nothing_at_or_older_than_the_time_it_acts_at() -> void:
 func test_decoupling_moves_nothing_at_or_older_than_the_time_it_acts_at() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	assert_eq(document.couple(child, parent, 900.0), "")
 	# A drag inside the span, younger than the decoupling below.
 	assert_eq(document.set_keyframe(child, 100.0, Vector3(5, -5, 15)), "")
@@ -285,7 +285,7 @@ func test_decoupling_moves_nothing_at_or_older_than_the_time_it_acts_at() -> voi
 func test_coupling_drops_the_keyframes_the_new_span_covers() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	Keyframe.upsert(child.keyframes, 100.0, Vector3(-20, 0, 5))
 	Keyframe.upsert(child.keyframes, 300.0, Vector3(30, -15, 0))
 	document.record()
@@ -293,16 +293,16 @@ func test_coupling_drops_the_keyframes_the_new_span_covers() -> void:
 	assert_eq(document.couple(child, parent, 400.0), "")
 	assert_eq(_times(child), [400.0, 800.0],
 		"the two world keyframes inside the span are gone, the older one stays")
-	var riding := _relative(document, parent, child, 400.0)
+	var on_parent := _relative(document, parent, child, 400.0)
 	for time in [399.0, 350.0, 200.0, 100.0, 0.0]:
-		_assert_basis(_world(document, child, time), _world(document, parent, time) * riding,
-			"the rider is the parent times one relative pose at %s Ma" % time)
+		_assert_basis(_world(document, child, time), _world(document, parent, time) * on_parent,
+			"the child is the parent times one relative pose at %s Ma" % time)
 
 
 func test_decoupling_drops_the_keyframes_the_span_covered() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	assert_eq(document.couple(child, parent, 900.0), "")
 	assert_eq(document.set_keyframe(child, 100.0, Vector3(5, -5, 15)), "")
 
@@ -314,13 +314,13 @@ func test_decoupling_drops_the_keyframes_the_span_covered() -> void:
 			"and the feature holds its world pose at %s Ma" % time)
 
 	document.undo()
-	assert_eq(_times(_named(document, "Rider")), [100.0, 900.0], "undo brings the keyframe back")
+	assert_eq(_times(_named(document, "Child")), [100.0, 900.0], "undo brings the keyframe back")
 
 
 func test_a_coupling_edit_keeps_every_remaining_keyframe_in_its_own_frame() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	Keyframe.upsert(child.keyframes, 100.0, Vector3(-20, 0, 5))
 	Keyframe.upsert(child.keyframes, 1200.0, Vector3(0, 40, 0))
 	document.record()
@@ -335,10 +335,10 @@ func test_a_coupling_edit_keeps_every_remaining_keyframe_in_its_own_frame() -> v
 	_assert_stored(child, before, 400.0, "and so does decoupling, the keyframe")
 
 
-func test_a_rider_of_the_edited_feature_moves_only_where_that_feature_does() -> void:
+func test_a_child_of_the_edited_feature_moves_only_where_that_feature_does() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	var pebble := _polygon("Pebble")
 	document.root.children.append(pebble)
 	Keyframe.upsert(child.keyframes, 100.0, Vector3(-20, 0, 5))
@@ -351,12 +351,12 @@ func test_a_rider_of_the_edited_feature_moves_only_where_that_feature_does() -> 
 	assert_eq(document.couple(child, parent, 400.0), "")
 	_assert_path(document, pebble, before, "the pebble stays where it was")
 	assert_true(_differs(_world(document, pebble, 200.0), younger),
-		"and follows the rider where the rider's own path changed")
+		"and follows the child where the child's own path changed")
 
 
 func test_key_holds_a_coupled_feature_where_it_stands() -> void:
 	var document := _document()
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	assert_eq(document.couple(child, _named(document, "Mountain"), 500.0), "")
 	var here := _world(document, child, 350.0)
 	assert_eq(document.set_keyframe(child, 350.0,
@@ -368,7 +368,7 @@ func test_key_holds_a_coupled_feature_where_it_stands() -> void:
 # converts it pointwise, so the path between two of them does change.
 func test_removing_a_span_leaves_every_keyframe_where_it_was() -> void:
 	var document := _document()
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	assert_eq(document.couple(child, _named(document, "Mountain"), 500.0), "")
 	assert_eq(document.set_keyframe(child, 300.0, Vector3(5, 5, 5)), "")
 	var before: Array[Basis] = []
@@ -387,7 +387,7 @@ func test_removing_a_span_leaves_every_keyframe_where_it_was() -> void:
 
 func test_decoupling_where_the_span_starts_takes_it_away() -> void:
 	var document := _document()
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	assert_eq(document.couple(child, _named(document, "Mountain"), 500.0), "")
 	assert_eq(document.decouple(child, 500.0), "")
 	assert_eq(child.couplings.size(), 0)
@@ -396,7 +396,7 @@ func test_decoupling_where_the_span_starts_takes_it_away() -> void:
 func test_a_span_coupled_before_another_ends_where_that_one_starts() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	assert_eq(document.couple(child, parent, 300.0), "")
 	assert_eq(document.couple(child, parent, 600.0), "")
 	assert_eq(child.couplings.map(func(s: Coupling) -> Array: return [s.from, s.to]),
@@ -409,22 +409,22 @@ func test_a_span_coupled_before_another_ends_where_that_one_starts() -> void:
 func test_a_deleted_keyframe_falls_back_to_the_older_frame() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	assert_eq(document.couple(child, parent, 500.0), "")
 	assert_eq(document.decouple(child, 200.0), "")
-	var riding := _relative(document, parent, child, 400.0)
+	var on_parent := _relative(document, parent, child, 400.0)
 
 	# Without the keyframe at 200 Ma the span at 500 Ma decides everything
-	# younger, so the child rides on past the decoupling.
+	# younger, so the child follows on past the decoupling.
 	assert_eq(document.remove_keyframe(child, 0), "")
 	for time in [300.0, 100.0]:
-		_assert_basis(_relative(document, parent, child, time), riding,
+		_assert_basis(_relative(document, parent, child, time), on_parent,
 			"the older keyframe's frame at %s Ma" % time)
 
 	# Without the one at 500 Ma the world keyframes either side decide, and the
 	# younger one is converted into the world frame at its own time.
 	document.undo()
-	child = _named(document, "Rider")
+	child = _named(document, "Child")
 	assert_eq(document.remove_keyframe(child, 1), "")
 	var wanted := Feature.build_rotation_basis(Keyframe.interpolate(child.keyframes, 400.0))
 	_assert_basis(_world(document, child, 400.0), wanted, "a world interpolation inside the span")
@@ -433,7 +433,7 @@ func test_a_deleted_keyframe_falls_back_to_the_older_frame() -> void:
 func test_a_deleted_parent_leaves_the_span_unresolved_until_undo() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	assert_eq(document.couple(child, parent, 500.0), "")
 	document.root.children.erase(parent)
 	document.record()
@@ -445,7 +445,7 @@ func test_a_deleted_parent_leaves_the_span_unresolved_until_undo() -> void:
 	_world(document, child, 300.0)
 
 	document.undo()
-	child = _named(document, "Rider")
+	child = _named(document, "Child")
 	nodes = Coupling.index(document.root)
 	assert_eq(Coupling.parent_problem(nodes, child, child.couplings[0]), "", "undo mends it")
 
@@ -456,7 +456,7 @@ func test_a_deleted_parent_leaves_the_span_unresolved_until_undo() -> void:
 func test_couplings_survive_json_clone_and_undo() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	assert_eq(document.couple(child, parent, 500.0), "")
 	assert_eq(document.decouple(child, 200.0), "")
 
@@ -468,42 +468,42 @@ func test_couplings_survive_json_clone_and_undo() -> void:
 	assert_eq(read.couplings[0].parent, parent.uuid, "naming the parent by uuid")
 
 	document.undo()
-	assert_eq(_named(document, "Rider").couplings[0].to, 0.0, "undo puts the open span back")
+	assert_eq(_named(document, "Child").couplings[0].to, 0.0, "undo puts the open span back")
 	document.undo()
-	assert_eq(_named(document, "Rider").couplings.size(), 0, "and then takes it away")
+	assert_eq(_named(document, "Child").couplings.size(), 0, "and then takes it away")
 	document.redo()
 	document.redo()
-	assert_eq(_named(document, "Rider").couplings[0].to, 200.0, "redo brings both back")
+	assert_eq(_named(document, "Child").couplings[0].to, 200.0, "redo brings both back")
 
 
 func test_both_halves_of_a_split_keep_the_couplings() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
-	var rider := _polygon("Pebble")
-	document.root.children.append(rider)
+	var child := _named(document, "Child")
+	var pebble := _polygon("Pebble")
+	document.root.children.append(pebble)
 	document.record()
 	assert_eq(document.couple(child, parent, 500.0), "")
-	assert_eq(document.couple(rider, child, 500.0), "")
+	assert_eq(document.couple(pebble, child, 500.0), "")
 
 	assert_eq(document.split_feature(child, 0, 0, 2), "")
-	var halves := [_named(document, "Rider"), _named(document, "Rider 2")]
+	var halves := [_named(document, "Child"), _named(document, "Child 2")]
 	for half in halves:
 		assert_eq(Coupling.list_to_json(half.couplings)[0]["parent"], parent.uuid,
-			"%s rides on the mountain" % half.title)
-	assert_eq(rider.couplings[0].parent, halves[0].uuid, "the pebble rides on the first half")
+			"%s follows the mountain" % half.title)
+	assert_eq(pebble.couplings[0].parent, halves[0].uuid, "the pebble follows the first half")
 
 
 func test_a_split_half_decoupled_between_keyframes_does_not_drift() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	assert_eq(document.couple(child, parent, 1000.0), "")
 	assert_eq(document.set_keyframe(child, 800.0, Vector3(10, 5, 0)), "")
 	assert_eq(document.set_keyframe(child, 100.0, Vector3(-20, 0, 5)), "")
 	assert_eq(document.split_feature(child, 0, 0, 2), "")
-	var first := _named(document, "Rider")
-	var second := _named(document, "Rider 2")
+	var first := _named(document, "Child")
+	var second := _named(document, "Child 2")
 
 	assert_eq(document.decouple(second, 400.0), "")
 	# Times strictly between the halves' keyframes, which is where the rebased
@@ -516,18 +516,18 @@ func test_a_split_half_decoupled_between_keyframes_does_not_drift() -> void:
 		_assert_basis(_world(document, second, time), left,
 			"the decoupled half stands still at %s Ma" % time)
 		assert_true(_differs(_world(document, first, time), left),
-			"while the other one rides on at %s Ma" % time)
+			"while the other one follows on at %s Ma" % time)
 
 
-### Riding on two parents
+### Following two parents
 #
-# A span that names a second parent puts its rider midway between the two: the
+# A span that names a second parent puts its child midway between the two: the
 # slerp of their world rotations at one half, which is the half stage rotation
-# GPlates reconstructs a mid ocean ridge by. See Docs/Time.md#riding-on-two-parents.
+# GPlates reconstructs a mid ocean ridge by. See Docs/Time.md#following-two-parents.
 
 
 # Two features standing still at 500 Ma and turning as told by the present, with
-# a rider on both of them over that span.
+# a child of both of them over that span.
 func _midway(west: Vector3, east: Vector3) -> Document:
 	var document := Document.new()
 	var names := {"West": west, "East": east}
@@ -536,61 +536,61 @@ func _midway(west: Vector3, east: Vector3) -> Document:
 		Keyframe.upsert(half.keyframes, 500.0, Vector3.ZERO)
 		Keyframe.upsert(half.keyframes, 0.0, names[title])
 		document.root.children.append(half)
-	var rider := _polygon("Ridge")
-	Keyframe.upsert(rider.keyframes, 500.0, Vector3.ZERO)
-	rider.couplings.append(Coupling.create(500.0, 0.0,
+	var ridge := _polygon("Ridge")
+	Keyframe.upsert(ridge.keyframes, 500.0, Vector3.ZERO)
+	ridge.couplings.append(Coupling.create(500.0, 0.0,
 		_named(document, "West").uuid, _named(document, "East").uuid))
-	document.root.children.append(rider)
+	document.root.children.append(ridge)
 	document.record()
 	return document
 
 
 func test_a_two_parent_span_turns_by_half_of_what_one_parent_does() -> void:
 	var document := _midway(Vector3.ZERO, Vector3(60, 0, 0))
-	var rider := _named(document, "Ridge")
-	_assert_basis(_world(document, rider, 500.0), Basis(),
+	var ridge := _named(document, "Ridge")
+	_assert_basis(_world(document, ridge, 500.0), Basis(),
 		"on the cut where the span starts")
-	_assert_basis(_world(document, rider, 0.0),
+	_assert_basis(_world(document, ridge, 0.0),
 		Feature.build_rotation_basis(Vector3(30, 0, 0)),
 		"half of the 60 degrees the one parent turned")
 
 
 func test_a_two_parent_span_follows_parents_that_turn_alike() -> void:
 	var document := _midway(Vector3(60, 0, 0), Vector3(60, 0, 0))
-	var rider := _named(document, "Ridge")
+	var ridge := _named(document, "Ridge")
 	for time in [400.0, 200.0, 0.0]:
-		_assert_basis(_world(document, rider, time), _world(document, _named(document, "West"), time),
-			"the rider turns with both of them at %s Ma" % time)
+		_assert_basis(_world(document, ridge, time), _world(document, _named(document, "West"), time),
+			"the ridge turns with both of them at %s Ma" % time)
 
 
 func test_a_cycle_through_the_second_parent_is_refused() -> void:
 	var document := _midway(Vector3.ZERO, Vector3(60, 0, 0))
 	var east := _named(document, "East")
-	var rider := _named(document, "Ridge")
-	assert_true(not document.couple(east, rider, 900.0).is_empty(),
-		"a parent of the rider cannot ride on the rider")
+	var ridge := _named(document, "Ridge")
+	assert_true(not document.couple(east, ridge, 900.0).is_empty(),
+		"a parent of the ridge cannot follow the ridge")
 	assert_eq(east.couplings.size(), 0, "and the refusal changed nothing")
 
-	# A hand written file naming the rider itself as the second parent.
-	rider.couplings[0].parent_b = rider.uuid
+	# A hand written file naming the ridge itself as the second parent.
+	ridge.couplings[0].parent_b = ridge.uuid
 	assert_true(not Coupling.parent_problem(
-		Coupling.index(document.root), rider, rider.couplings[0]).is_empty(),
-		"and a span that names the rider itself says so")
+		Coupling.index(document.root), ridge, ridge.couplings[0]).is_empty(),
+		"and a span that names the ridge itself says so")
 
 
 func test_a_span_keeps_its_second_parent_through_json() -> void:
 	var document := _midway(Vector3.ZERO, Vector3(60, 0, 0))
-	var rider := _named(document, "Ridge")
+	var ridge := _named(document, "Ridge")
 	var plain := _named(document, "West")
-	plain.couplings.append(Coupling.create(900.0, 600.0, rider.uuid))
+	plain.couplings.append(Coupling.create(900.0, 600.0, ridge.uuid))
 
-	for node in [rider, plain]:
+	for node in [ridge, plain]:
 		var read := Feature.from_json(JSON.parse_string(JSON.stringify(node.to_json())))
 		assert_eq(Coupling.list_to_json(read.couplings), Coupling.list_to_json(node.couplings),
 			"%s reads back the way it was written" % node.title)
 		assert_eq(read.couplings[0].parent_b, node.couplings[0].parent_b,
 			"%s keeps the second parent it had" % node.title)
-	assert_true(rider.couplings[0].to_json().has("parent_b"),
+	assert_true(ridge.couplings[0].to_json().has("parent_b"),
 		"the ridge's span writes a second parent")
 	assert_true(not plain.couplings[0].to_json().has("parent_b"),
 		"and an ordinary span writes no key for one")
@@ -641,7 +641,7 @@ func test_a_split_with_a_ridge_leaves_three_features_in_one_version() -> void:
 	assert_eq(ridge.geometry_kind, Feature.GeometryKind.POLYLINE, "the ridge is a line")
 	assert_eq(ridge.feature_type, FeatureType.LINE, "typed as one")
 	assert_eq(ridge.time_range, Vector2i(0, 400), "there from the split time to the present")
-	assert_eq(ridge.couplings.size(), 1, "riding on one span")
+	assert_eq(ridge.couplings.size(), 1, "following one span")
 	assert_eq([ridge.couplings[0].parent, ridge.couplings[0].parent_b],
 		[_named(document, "Shield").uuid, _named(document, "Shield 2").uuid],
 		"whose parents are the two halves")
@@ -691,10 +691,10 @@ func test_a_ridge_stays_midway_while_one_half_turns() -> void:
 ### The graphs
 
 
-func test_the_motion_times_of_a_rider_include_its_parents_inside_the_span() -> void:
+func test_the_motion_times_of_a_child_include_its_parents_inside_the_span() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
-	var child := _named(document, "Rider")
+	var child := _named(document, "Child")
 	Keyframe.upsert(parent.keyframes, 350.0, Vector3.ZERO)
 	assert_eq(document.couple(child, parent, 500.0), "")
 	assert_eq(document.decouple(child, 200.0), "")
@@ -702,12 +702,12 @@ func test_the_motion_times_of_a_rider_include_its_parents_inside_the_span() -> v
 		"the parent's keyframe at 350 Ma, but not those outside the span")
 
 
-### The riders of a feature
+### The children of a feature
 
 
-# A root holding one polygon per title, with no keyframes: riders() reads the
+# A root holding one polygon per title, with no keyframes: children_of() reads the
 # spans alone.
-func _riders_tree(titles: Array) -> Dictionary:
+func _children_tree(titles: Array) -> Dictionary:
 	var root := Feature.create_group("Root")
 	var nodes := {"root": root}
 	for title in titles:
@@ -717,54 +717,54 @@ func _riders_tree(titles: Array) -> Dictionary:
 	return nodes
 
 
-func _titles(riders: Array[Feature]) -> Array:
-	var titles := riders.map(func(node: Feature) -> String: return node.title)
+func _titles(nodes: Array[Feature]) -> Array:
+	var titles := nodes.map(func(node: Feature) -> String: return node.title)
 	titles.sort()
 	return titles
 
 
-func test_the_riders_of_a_chain_are_everything_below_it() -> void:
-	var nodes := _riders_tree(["Top", "Middle", "Bottom"])
+func test_the_children_of_a_chain_are_everything_below_it() -> void:
+	var nodes := _children_tree(["Top", "Middle", "Bottom"])
 	nodes["Middle"].couplings.append(Coupling.create(500.0, 0.0, nodes["Top"].uuid))
 	nodes["Bottom"].couplings.append(Coupling.create(500.0, 0.0, nodes["Middle"].uuid))
 	var root: Feature = nodes["root"]
-	assert_eq(_titles(Coupling.riders(root, nodes["Top"].uuid, 300.0)), ["Bottom", "Middle"])
-	assert_eq(_titles(Coupling.riders(root, nodes["Middle"].uuid, 300.0)), ["Bottom"])
-	assert_eq(_titles(Coupling.riders(root, nodes["Bottom"].uuid, 300.0)), [])
+	assert_eq(_titles(Coupling.children_of(root, nodes["Top"].uuid, 300.0)), ["Bottom", "Middle"])
+	assert_eq(_titles(Coupling.children_of(root, nodes["Middle"].uuid, 300.0)), ["Bottom"])
+	assert_eq(_titles(Coupling.children_of(root, nodes["Bottom"].uuid, 300.0)), [])
 
 
-func test_the_riders_of_a_fork_are_both_branches() -> void:
-	var nodes := _riders_tree(["Stem", "Left", "Right", "Leaf"])
+func test_the_children_of_a_fork_are_both_branches() -> void:
+	var nodes := _children_tree(["Stem", "Left", "Right", "Leaf"])
 	for branch in ["Left", "Right"]:
 		nodes[branch].couplings.append(Coupling.create(500.0, 0.0, nodes["Stem"].uuid))
 	nodes["Leaf"].couplings.append(Coupling.create(500.0, 0.0, nodes["Left"].uuid))
-	assert_eq(_titles(Coupling.riders(nodes["root"], nodes["Stem"].uuid, 100.0)),
+	assert_eq(_titles(Coupling.children_of(nodes["root"], nodes["Stem"].uuid, 100.0)),
 		["Leaf", "Left", "Right"])
 
 
-func test_a_ridge_rides_on_each_of_its_parents_once() -> void:
-	var nodes := _riders_tree(["West", "East", "Ridge", "Seamount"])
+func test_a_ridge_is_a_child_of_each_of_its_parents_once() -> void:
+	var nodes := _children_tree(["West", "East", "Ridge", "Seamount"])
 	nodes["Ridge"].couplings.append(
 		Coupling.create(500.0, 0.0, nodes["West"].uuid, nodes["East"].uuid))
 	nodes["Seamount"].couplings.append(Coupling.create(500.0, 0.0, nodes["Ridge"].uuid))
 	for side in ["West", "East"]:
-		assert_eq(_titles(Coupling.riders(nodes["root"], nodes[side].uuid, 100.0)),
-			["Ridge", "Seamount"], "the riders of %s" % side)
+		assert_eq(_titles(Coupling.children_of(nodes["root"], nodes[side].uuid, 100.0)),
+			["Ridge", "Seamount"], "the children of %s" % side)
 
 
 func test_a_span_counts_only_while_it_holds() -> void:
-	var nodes := _riders_tree(["Parent", "Rider"])
-	nodes["Rider"].couplings.append(Coupling.create(500.0, 200.0, nodes["Parent"].uuid))
+	var nodes := _children_tree(["Parent", "Child"])
+	nodes["Child"].couplings.append(Coupling.create(500.0, 200.0, nodes["Parent"].uuid))
 	var root: Feature = nodes["root"]
 	var uuid: String = nodes["Parent"].uuid
-	assert_eq(_titles(Coupling.riders(root, uuid, 600.0)), [], "older than the span")
-	assert_eq(_titles(Coupling.riders(root, uuid, 500.0)), ["Rider"], "where it starts")
-	assert_eq(_titles(Coupling.riders(root, uuid, 200.0)), [], "where it ends")
-	assert_eq(_titles(Coupling.riders(root, uuid, 100.0)), [], "younger than the span")
+	assert_eq(_titles(Coupling.children_of(root, uuid, 600.0)), [], "older than the span")
+	assert_eq(_titles(Coupling.children_of(root, uuid, 500.0)), ["Child"], "where it starts")
+	assert_eq(_titles(Coupling.children_of(root, uuid, 200.0)), [], "where it ends")
+	assert_eq(_titles(Coupling.children_of(root, uuid, 100.0)), [], "younger than the span")
 
 
-func test_riders_stop_at_a_loop() -> void:
-	var nodes := _riders_tree(["One", "Two"])
+func test_children_stop_at_a_loop() -> void:
+	var nodes := _children_tree(["One", "Two"])
 	nodes["One"].couplings.append(Coupling.create(500.0, 0.0, nodes["Two"].uuid))
 	nodes["Two"].couplings.append(Coupling.create(500.0, 0.0, nodes["One"].uuid))
-	assert_eq(_titles(Coupling.riders(nodes["root"], nodes["One"].uuid, 100.0)), ["Two"])
+	assert_eq(_titles(Coupling.children_of(nodes["root"], nodes["One"].uuid, 100.0)), ["Two"])

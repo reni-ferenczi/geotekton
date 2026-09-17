@@ -59,9 +59,9 @@ uniform float geometry_point_radius = 0.02;
 // highlight color.
 const float SELECTED_LINE_SCALE = 2.0;
 const vec3 HIGHLIGHT_COLOR = vec3(1.0, 1.0, 0.0);
-// What the segments of a feature riding on the selected one are drawn in, at the
-// normal width: Planet.RIDER_COLOR, an sRGB orange, in linear light.
-const vec3 RIDER_COLOR = vec3(1.0, 0.214041, 0.0);
+// What the segments of a child of the selected feature are drawn in, at the
+// normal width: Planet.CHILD_COLOR, an sRGB orange, in linear light.
+const vec3 CHILD_COLOR = vec3(1.0, 0.214041, 0.0);
 
 // Per feature state at the current time (filter_nearest for exact texel reads)
 // Layout: width = feature count, height = 5
@@ -75,8 +75,8 @@ const vec3 RIDER_COLOR = vec3(1.0, 0.214041, 0.0);
 // five texels per feature are re-uploaded, whatever the triangle count is.
 // `visible` is 0 while the feature is outside its time range, `hovered` is 1
 // while the pointer rests on it, `selected` is 1 on the feature whose
-// segments are drawn thicker and yellow, and `related` is 1 on a feature riding
-// on the selected one, whose lines and markers are drawn orange. A related
+// segments are drawn thicker and yellow, and `related` is 1 on a child of the
+// selected feature, whose lines and markers are drawn orange. A related
 // polygon keeps its fill; the outline overlay traces it instead.
 uniform sampler2D feature_data : filter_nearest, repeat_disable;
 
@@ -88,8 +88,8 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 // (the shape being drawn), 2 draws the vertex markers only, 3 closes it with
 // every segment alike (a polygon in the Vertex tool), 4 closes it the same way
 // with no markers (a selected polygon), 5 draws larger markers only (a
-// selected multipoint) and 6 closes it like 4 in RIDER_COLOR (a polygon riding
-// on the selected feature). 7 draws an open line as wide as a feature line,
+// selected multipoint) and 6 closes it like 4 in CHILD_COLOR (a polygon that
+// follows the selected feature). 7 draws an open line as wide as a feature line,
 // geometry_line_width, with no markers (the pole cross). Every style but 4, 6
 // and 7 marks each vertex.
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
@@ -328,14 +328,14 @@ void fragment() {
 				line_width *= SELECTED_LINE_SCALE;
 				paint = vec4(HIGHLIGHT_COLOR, 1.0);
 			} else if (feature_related) {
-				paint = vec4(RIDER_COLOR, 1.0);
+				paint = vec4(CHILD_COLOR, 1.0);
 			}
 			coverage = 1.0 - smoothstep(line_width * 0.5, line_width, d);
 		} else {
 			float d = chord(a, p);
 			coverage = 1.0 - smoothstep(geometry_point_radius * 0.7, geometry_point_radius, d);
 			if (feature_related) {
-				paint = vec4(RIDER_COLOR, 1.0);
+				paint = vec4(CHILD_COLOR, 1.0);
 			}
 		}
 
@@ -359,7 +359,7 @@ void fragment() {
 		float min_dot_dist = 1e10;
 		float min_line_dist = 1e10;
 		float closing_line_dist = 1e10;
-		float rider_line_dist = 1e10;
+		float child_line_dist = 1e10;
 		float bold_line_dist = 1e10;
 
 		for (int i = 0; i < outline_vertex_count; i++) {
@@ -393,7 +393,7 @@ void fragment() {
 			if (last && style == 1) {
 				closing_line_dist = min(closing_line_dist, d);
 			} else if (style == 6) {
-				rider_line_dist = min(rider_line_dist, d);
+				child_line_dist = min(child_line_dist, d);
 			} else if (style == 7) {
 				bold_line_dist = min(bold_line_dist, d);
 			} else {
@@ -407,8 +407,8 @@ void fragment() {
 		float closing_alpha = (1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, closing_line_dist)) * outline_closing_opacity;
 		float bold_alpha = 1.0 - smoothstep(geometry_line_width * 0.5, geometry_line_width, bold_line_dist);
 		float outline_alpha = max(max(dot_alpha, bold_alpha), max(line_alpha, closing_alpha));
-		float rider_alpha = 1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, rider_line_dist);
-		base = mix(base, RIDER_COLOR, rider_alpha);
+		float child_alpha = 1.0 - smoothstep(outline_line_width * 0.5, outline_line_width, child_line_dist);
+		base = mix(base, CHILD_COLOR, child_alpha);
 		base = mix(base, vec3(1.0, 1.0, 0.0), outline_alpha);
 	}
 

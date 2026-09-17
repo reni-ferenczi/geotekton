@@ -29,7 +29,7 @@ const MARKERS_TOOLTIP := "The keyframes of the selected feature; click one to go
 # The keyframe markers of the selected node, and the current time among them.
 const MARKER_COLOR := Color(1.0, 0.85, 0.2, 1.0)
 
-# The spans over which the selected feature rides on another, a bar along the
+# The spans over which the selected feature follows another, a bar along the
 # bottom of the strip under the keyframe marks, and the colour of one whose
 # parent cannot be followed.
 const COUPLING_HEIGHT := 3.0
