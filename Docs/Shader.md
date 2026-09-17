@@ -233,7 +233,7 @@ and `lon`.
 
 ## Feature Geometry Rendering
 
-A feature is drawn from one of three kinds of primitive, all of which follow
+A feature is drawn from four kinds of primitive, all of which follow
 great circles on the unit sphere:
 
 | Kind | Value | Vertices used | Drawn as |
@@ -241,6 +241,7 @@ great circles on the unit sphere:
 | Triangle | 0 | a, b, c | A filled spherical triangle, one of the triangles a polygon was cut into |
 | Segment | 1 | a, b | A great-circle capsule between the two ends of a polyline segment |
 | Point | 2 | a | A round marker at one vertex of a multipoint |
+| Sample | 3 | a | A point at `SAMPLE_DOT_SCALE` of the size, at one sample of a hotspot track |
 
 ### Math
 
@@ -277,10 +278,27 @@ wider than the drawn width, so a thin line stays easy to pick.
 | `geometry_data` | `sampler2D` | — | Data texture holding the primitives |
 | `geometry_count` | `int` | `0` | Number of primitives to render |
 | `feature_data` | `sampler2D` | — | Where each feature is at the current time |
-| `geometry_line_width` | `float` | `0.012` | Width of a polyline segment |
+| `geometry_line_width` | `float` | `0.012` | Width of a polyline segment, before the feature's line scale |
 | `geometry_point_radius` | `float` | `0.02` | Radius of a multipoint marker |
 
 The widths are chord lengths on the unit sphere, so 0.012 is about 0.7 degrees.
+`geometry_line_width` is the distance from the middle of a line to its edge.
+
+Each feature scales its line width by `Feature.line_scale()`, which reaches the
+shader in row 4 of [`feature_data`](#per-feature-rotation): 0.35 for a hotspot,
+0.5 for a circle and 1 for everything else. The scale applies before the halo
+and the feather, so a selected hotspot track keeps a thin halo too. A later per
+feature width setting would go into `line_scale()`.
+
+A hotspot also gets a dot at every sample of its track, primitive kind 3
+(`Planet.Primitive.SAMPLE`): a marker drawn at `SAMPLE_DOT_SCALE`, 0.5, times
+`geometry_point_radius`, in the feature's color. `Hotspot.samples()` names the
+samples, and `Planet._primitive_count()` counts them, so a long track counts
+against `MAX_PRIMITIVES` with its dots included. A 2000 My track at a 5 My step
+has 401 samples, which comes to 825 primitives with the mark: 24 segments for the mark, 400 for
+the track and 401 dots.
+`SAMPLE_DOT_SCALE` and `Planet.SAMPLE_DOT_SCALE` are held to each other by
+`test_shader_constants.gd`.
 
 A feature is drawn in one flat color: whichever the active draw style gave it,
 worked out once per feature and held in row 3 of
@@ -347,7 +365,7 @@ and how depends on its kind:
 | Kind | Highlight | Drawn by |
 |---|---|---|
 | Polygon | An outline along its rings at `OUTLINE_OPACITY`, 0.6, with no vertex markers | Outline style 4 |
-| Line (polyline, topology, circle, hotspot) | An opaque white halo `SELECTED_LINE_SCALE` (1.25) times `geometry_line_width` wide, with the segments over it at their own width, color and opacity | The segment pass, from the `selected` flag |
+| Line (polyline, topology, circle, hotspot) | An opaque white halo `SELECTED_LINE_SCALE` (1.25) times the feature's line width wide, with the segments over it at their own width, color and opacity | The segment pass, from the `selected` flag |
 | Multipoint | Its vertex markers at twice `outline_dot_radius` | Outline style 5 |
 
 A line is highlighted in the segment pass rather than by the outline overlay,
@@ -356,8 +374,11 @@ any other segment, and the flag travels in `feature_data`, so nothing is
 uploaded twice.
 
 The loop does not lay the selected feature's segments down as it meets them.
-It keeps the distance to the nearest of them, and once it is done the halo
-goes down first and the line over it. Drawn segment by segment, the halo of
+It keeps the distance to the nearest of them, divided by the feature's line
+scale, which is the same as comparing it against the scaled width. Once the loop
+is done the halo goes down first and the line over it. A selected hotspot's
+sample dots are held back the same way and laid down with its line, so the
+halo does not cross them. Drawn segment by segment, the halo of
 one segment would cover the end of the line before it wherever two meet. The
 selected line therefore lies over every other feature, and under the grid like
 any of them.
@@ -380,17 +401,17 @@ the same `Planet.LINE_HIT_WIDTH` as any other.
 ### Children of the selected feature
 
 With View > [Highlight children](Editing.md#highlighting-children) on, the
-children of the highlighted feature at the current time are drawn in
+children of the selected feature at the current time are drawn in
 `CHILD_COLOR`, orange. `Application._find_children()` asks
-`Coupling.children_of()` for them, which walks the couplings downward, and
-`_drawn_children()` passes them on only while
-`_highlighted_feature()` names a feature, so the tools that drop the selection
-highlight drop this one too.
+`Coupling.children_of()` for them, which walks the couplings downward. A
+selected group stands for every leaf under it: its children are the children
+of those leaves, leaving the leaves themselves out. The same list tints the
+tree rows and goes to the planet, in every tool, so the two always agree.
 
 | Kind | Highlight | Drawn by |
 |---|---|---|
 | Polygon | An orange outline along its rings, fill unchanged | Outline style 6 |
-| Line | Its segments at the normal `geometry_line_width`, opaque orange | The segment pass, from the `related` flag |
+| Line | Its segments at its normal width, opaque orange | The segment pass, from the `related` flag |
 | Multipoint | Its markers at their normal size, opaque orange | The marker pass, from the `related` flag |
 
 A child keeps its normal width and gets no halo, so it cannot be taken for
@@ -419,7 +440,7 @@ change of color re-uploads, whatever the triangle count is.
 
 `feature_data` uses `FORMAT_RGBAF` with **width = feature count** and
 **height = 5 rows**, one column of the rotation per row in the first three, the
-color in the fourth and the child flag in the fifth:
+color in the fourth and the child flag and the line scale in the fifth:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
@@ -427,7 +448,7 @@ color in the fourth and the child flag in the fifth:
 | 1 | m01 | m11 | m21 | visible |
 | 2 | m02 | m12 | m22 | selected |
 | 3 | red (linear) | green (linear) | blue (linear) | opacity |
-| 4 | related | 0 | 0 | 0 |
+| 4 | related | line scale | 0 | 0 |
 
 The color is what the draw style resolved for the feature, which is why it
 lives here rather than beside the vertices. The selection highlight of GP-0034
@@ -442,7 +463,9 @@ feature the tree has selected, which draws its segments over a white halo; see
 the selected feature while children are highlighted, which draws its lines
 and markers orange; see
 [Children of the selected feature](#children-of-the-selected-feature). The first
-four rows have no channel left over, so the flag takes a row of its own.
+four rows have no channel left over, so the flag takes a row of its own. The
+line scale, `Feature.line_scale()`, is what the feature's segments are drawn at
+against `geometry_line_width`; see [Shader Uniforms](#shader-uniforms).
 Selecting another feature re-uploads this texture and nothing else.
 
 The pointer is not the only thing that ends a hover. A change of the current
@@ -603,7 +626,7 @@ the same for every vertex of a part:
 | 4 | Closed like 3, with no vertex markers — the rings of a selected polygon | `OUTLINE_OPACITY` |
 | 5 | The vertex markers only, twice the size — a selected multipoint | no segments |
 | 6 | Closed like 4, in `CHILD_COLOR`: the rings of a polygon that follows the selected feature | 1 |
-| 7 | Open like 0, at `geometry_line_width` rather than `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross | 1 |
+| 7 | Open like 0, at `BOLD_SCALE` (0.5) times `geometry_line_width` rather than at `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross | 1 |
 
 The vertex markers are opaque in every style that has them, so the dots of
 the Vertex tool stand out against the translucent ring of style 3.
@@ -618,9 +641,10 @@ divides the distance by `SELECTED_MARKER_SCALE`, which draws the same dot twice
 as large.
 
 **Line segments**: the same `arc_distance()` the geometry pass uses, which gives
-each segment rounded caps, feathered by `line_coverage()`. Style 7 segments are as wide as a feature line,
-`geometry_line_width`, so the Outline line width preference, which scales
-`outline_line_width`, leaves them alone.
+each segment rounded caps, feathered by `line_coverage()`. Style 7 segments are half as wide as a feature line,
+`geometry_line_width` times `BOLD_SCALE`, so the Outline line width
+preference, which scales `outline_line_width`, leaves them alone.
+`test_shader_constants.gd` holds `BOLD_SCALE` to `Planet.BOLD_SCALE`.
 
 **Closing segment**: a vertex whose successor starts a new part is the last of
 its own. When the style closes the part, that vertex joins back to the vertex

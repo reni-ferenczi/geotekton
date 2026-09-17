@@ -114,7 +114,8 @@ The feature selected in the tree is highlighted on the planet in white:
   the grid showing through it, much as GPlates draws one;
 - a **line** (a polyline, a topology, a circle or a hotspot track) keeps its
   own color and gets a white halo a quarter wider than itself, so a color
-  picked for it shows while it is still selected;
+  picked for it shows while it is still selected. A hotspot track and a circle
+  are drawn thinner than other lines, and so are their halos;
 - a **multipoint** gets larger markers on its vertices.
 
 A dot on every vertex appears only in the [Vertex tool](#the-vertex-tool),
@@ -140,10 +141,10 @@ children of those in turn:
   the planet leaves the child out.
 
 The marks follow the current time, since a coupling holds over a span of it.
-They show in the tools that highlight the selection, which leaves out Vertex,
-Measure and the Draw tool while it draws a circle; the tree keeps its tint in
-every tool. A selected
-group has no children.
+The planet and the tree always mark the same features, in every tool. A
+selected group stands for the leaves under it: its children are the children
+of those leaves, and the leaves themselves are left out, so selecting the root
+marks nothing.
 
 Up to 0.1.0 the rows also had invert, single, wrap, resize and repeat, five
 switches left over from the rule editor this interface came from. Nothing read
@@ -210,9 +211,10 @@ drag has turned it.
 | **Escape** (Pole tool) | Take the pole away |
 
 The pole is drawn as a dot with a cross through it, in the same white the
-selection is traced in. Each arm reaches six degrees from the pole and is as
-wide as a feature line (`geometry_line_width`), so the cross is easy to spot;
-the Outline line width preference does not change it. The pole stays while the
+selection is traced in. Each arm reaches three degrees from the pole and is
+half as wide as a feature line (`geometry_line_width`), which still makes it
+wider than an outline line; the Outline line width preference does not change
+it. The pole stays while the
 Pole tool is armed, so several features can be turned about one pole in turn.
 Picking another tool takes it away. With [snapping](#snapping) on, a pole lands on
 the nearest vertex of any feature instead of where it was clicked.
@@ -523,9 +525,9 @@ count**, and its ring is always rebuilt from those three by
 `Feature.rebuild_circle()` with `Circle.vertices()`. Committing stores the
 center and radius the clicks describe and the number the box holds. The ring is
 an outline: a **polyline** with one vertex per segment plus the first one
-repeated at the end, so the line goes all the way around. It is drawn at the
-feature line width, the same as the [Pole tool](#turning-a-feature)'s cross, and
-the inside stays uncovered.
+repeated at the end, so the line goes all the way around. It is drawn at half
+the feature line width, as wide as the [Pole tool](#turning-a-feature)'s cross,
+and the inside stays uncovered.
 
 A Circle holds one circle. Drawing on a Circle that already has one replaces it,
 and keeps the [Axis circles](#axis-circles) switch as it was. A filled circle
@@ -616,6 +618,9 @@ polylines:
   left out. With no plate, or fewer than two vertices, there is no track.
 
 The oldest vertex is the farthest from the hotspot and the youngest is on it.
+Both polylines are drawn at 0.35 of the feature line width, and every vertex
+of the track gets a dot of its own in the feature's color, so the samples show
+along the thin line.
 The track depends on the plate and on the time, so it is rebuilt the way a
 [topology](#topologies) is: before the geometry is collected and at
 every time change.
