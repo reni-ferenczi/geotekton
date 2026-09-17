@@ -156,7 +156,8 @@ In the dialog under File > Preferences:
   part of a document.
 - **Vertex marker size** and **Outline line width** — how large the outline
   overlay draws the vertices of the selected feature and the lines between them,
-  as multiples of what the shader draws at.
+  as multiples of what the shader draws at. The white halo of a selected line
+  is sized from the line itself, so neither setting changes it.
 - **Export width (pixels)** — how wide File > Export Image writes its picture.
   The height comes from the projection, so this one number settles the size of
   every export; see [Exporting a picture of the map](#exporting-a-picture-of-the-map).

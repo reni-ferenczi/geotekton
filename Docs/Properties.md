@@ -8,7 +8,7 @@ catalog lists only what the program treats differently:
 
 | Id              | Name          | Geometry kinds    | Default color  |
 | --------------- | ------------- | ----------------- | -------------- |
-| `polygon`       | Polygon       | polygon           | chocolate      |
+| `polygon`       | Polygon       | polygon           | green, `Color(0.36, 0.60, 0.33)` |
 | `line`          | Line          | polyline          | crimson        |
 | `points`        | Points        | multipoint        | gold           |
 | `circle`        | Circle        | polyline, polygon | dark turquoise |
@@ -65,8 +65,9 @@ does through an undo that takes the geometry off again.
   it. The other buttons are
   greyed out, and picking a type arms the tool it calls for; see
   [Tools](Editing.md#tools).
-- **The color.** A new feature starts in the Polygon color, chocolate unless
-  the preferences say otherwise. Changing the type changes the color to the new
+- **The color.** A new feature starts in the Polygon color, green unless
+  the preferences say otherwise. A feature read from a file without a color
+  gets the catalog's green too. Changing the type changes the color to the new
   type's color, but only while the color is still the one the old type gives.
   A feature keeps the color it holds when the preferences change. A color someone picked is never overwritten. Drawing
   the first shape leaves the color alone.

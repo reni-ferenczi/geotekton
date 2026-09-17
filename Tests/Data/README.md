@@ -19,6 +19,11 @@ Every sample is older than 0.17.0 and names no raster, so each one opens
 wearing the built in Earth, which is what the probe points below were read
 against.
 
+Every feature in the samples carries a color of its own, so the green a new
+polygon starts in, `Color(0.36, 0.60, 0.33)` in `Logic/feature_type.gd`, shows
+in none of them. The tests that want that green draw a feature of their own,
+and a feature read without a color comes out in it.
+
 The other four are written in a format recent enough to need no geometry
 migration.
 `group_styles.middle-earth` is the one written in **0.10.0**, the fixture for

@@ -108,16 +108,18 @@ To put an item first in an open group, drop it on the band at the top of the
 group's first row. A group cannot be dropped into itself or anything under it.
 A move is one undo step.
 
-The feature selected in the tree is highlighted on the planet in yellow:
+The feature selected in the tree is highlighted on the planet in white:
 
-- a **polygon** gets an outline along its rings;
-- a **line** (a polyline, a topology, or a circle) is drawn
-  thicker;
+- a **polygon** gets a translucent outline along its rings, with the fill and
+  the grid showing through it, much as GPlates draws one;
+- a **line** (a polyline, a topology, a circle or a hotspot track) keeps its
+  own color and gets a white halo a quarter wider than itself, so a color
+  picked for it shows while it is still selected;
 - a **multipoint** gets larger markers on its vertices.
 
 A dot on every vertex appears only in the [Vertex tool](#the-vertex-tool),
 where the vertices are there to be picked; there a line is traced at its own
-width instead of thickened. A circle being drawn and the Measure tool show
+width and has no halo. A circle being drawn and the Measure tool show
 their own points in place of the highlight, and the Draw tool's preview of the shape
 being drawn is drawn over it as before. See
 [Shader](Shader.md#the-selected-feature).
@@ -132,7 +134,7 @@ children of those in turn:
 
 - on the planet, a child is traced in orange: a line or a multipoint is drawn
   orange at its normal width, and a polygon keeps its fill and gets an orange
-  outline. The selection stays yellow, so the two are not mixed up;
+  outline. The selection is white, so the two are not mixed up;
 - in the tree, a child's row gets a faint orange background. The row is tinted
   even while the child is outside its time range, so the coupling shows when
   the planet leaves the child out.
@@ -207,7 +209,7 @@ drag has turned it.
 | **LMB click** (Pole tool) | Place the pole to turn about |
 | **Escape** (Pole tool) | Take the pole away |
 
-The pole is drawn as a dot with a cross through it, in the same yellow the
+The pole is drawn as a dot with a cross through it, in the same white the
 selection is traced in. Each arm reaches six degrees from the pole and is as
 wide as a feature line (`geometry_line_width`), so the cross is easy to spot;
 the Outline line width preference does not change it. The pole stays while the
@@ -752,7 +754,7 @@ multipoint, whose vertices are separate markers rather than a path. A polygon
 also gets its area, as in "4430.9 km around Laurentia, 1.23 million km²". The
 Area row of the [Properties panel](Properties.md) shows the same area.
 
-The two points and the line between them are drawn in the same yellow outline
+The two points and the line between them are drawn in the same white outline
 overlay the Draw tool uses.
 
 ### The planet radius

@@ -2,7 +2,7 @@
 
 The planet shader (`Scenes/Planet/planet.gdshader`) renders the planet's color,
 with the document's raster over it, a longitude/latitude grid overlay, the geometry of the features on the
-surface of a sphere, and a yellow outline layer over that.
+surface of a sphere, and a white outline layer over that.
 
 ## Base Rendering
 
@@ -260,7 +260,10 @@ A segment and a point are drawn by distance instead. `arc_distance(a, b, p)` giv
 the distance from P to the arc from A to B: the distance to the plane of the arc
 while P projects within it, and the chord distance to the nearer end outside it.
 A point marker uses `chord(a, p)` directly. Both are antialiased with `smoothstep`,
-which is also what gives the segment its rounded caps.
+which is also what gives the segment its rounded caps. A segment, and every
+line of the outline overlay, goes through `line_coverage()`, which is solid out
+to 0.8 of the width and fades over the outer fifth, `LINE_FEATHER`; a marker
+fades over the outer three tenths of its radius.
 
 `Planet.arc_distance()` is the same function in GDScript, so a click and a
 fragment agree on what a line covers. The tolerance the two use differs on
@@ -296,7 +299,7 @@ texture, declared `source_color`, was decoded properly.
 `Planet.set_feature_state()` therefore packs `Color.srgb_to_linear()` into row 3
 of `feature_data`, leaving the alpha as it is, and
 `Planet.apply_view_settings()` does the same for the grid color. The
-outline yellow is unaffected, since 0 and 1 map onto themselves.
+highlight white is unaffected, since 0 and 1 map onto themselves.
 
 The planet color is handled like the raster instead: `planet_color` is declared
 `source_color`, so it is handed over as the document holds it and the engine
@@ -338,28 +341,38 @@ the rim off the cuts, is gone.
 
 ### The selected feature
 
-The feature selected in the tree is highlighted in yellow, and how depends on
-its kind:
+The feature selected in the tree is highlighted in white, `HIGHLIGHT_COLOR`,
+and how depends on its kind:
 
 | Kind | Highlight | Drawn by |
 |---|---|---|
-| Polygon | An outline along its rings, with no vertex markers | Outline style 4 |
-| Line (polyline, topology, a circle drawn as a line) | Its segments at twice `geometry_line_width`, opaque yellow | The segment pass, from the `selected` flag |
+| Polygon | An outline along its rings at `OUTLINE_OPACITY`, 0.6, with no vertex markers | Outline style 4 |
+| Line (polyline, topology, circle, hotspot) | An opaque white halo `SELECTED_LINE_SCALE` (1.25) times `geometry_line_width` wide, with the segments over it at their own width, color and opacity | The segment pass, from the `selected` flag |
 | Multipoint | Its vertex markers at twice `outline_dot_radius` | Outline style 5 |
 
 A line is highlighted in the segment pass rather than by the outline overlay,
-because the thicker line is the line itself: it follows the feature's rotation
-like any other segment, and the flag travels in `feature_data`, so nothing is
-uploaded twice. The yellow is opaque, so a line at an opacity of zero still
-shows while it is selected. The fill of a polygon and the markers of a
-multipoint ignore the flag.
+because the halo belongs to the line: it follows the feature's rotation like
+any other segment, and the flag travels in `feature_data`, so nothing is
+uploaded twice.
+
+The loop does not lay the selected feature's segments down as it meets them.
+It keeps the distance to the nearest of them, and once it is done the halo
+goes down first and the line over it. Drawn segment by segment, the halo of
+one segment would cover the end of the line before it wherever two meet. The
+selected line therefore lies over every other feature, and under the grid like
+any of them.
+
+The halo is opaque, so a line at an opacity of zero still shows while it is
+selected. The line keeps its own color, which is how a color picked for a
+selected hotspot or circle shows at once. The fill of a polygon and the
+markers of a multipoint ignore the flag.
 
 `Application._highlighted_feature()` decides which feature carries the flag.
 It is the selected leaf feature in every tool but Vertex and Measure, and in
 the Draw tool unless it is drawing a circle. Measure and a circle being drawn
 show overlays of their own. The Vertex tool traces the
 rings with a dot on every vertex instead, styles 3, 0 and 2, since picking
-vertices is what it is for, and a thick line would cover those dots.
+vertices is what it is for, and a halo would only crowd those dots.
 
 The hit test does not widen with the highlight: a selected line is picked with
 the same `Planet.LINE_HIT_WIDTH` as any other.
@@ -380,8 +393,8 @@ highlight drop this one too.
 | Line | Its segments at the normal `geometry_line_width`, opaque orange | The segment pass, from the `related` flag |
 | Multipoint | Its markers at their normal size, opaque orange | The marker pass, from the `related` flag |
 
-The width stays normal so a child cannot be taken for the selection, which is
-thicker as well as yellow. `CHILD_COLOR` in the shader is `Planet.CHILD_COLOR`,
+A child keeps its normal width and gets no halo, so it cannot be taken for
+the selection, which is white. `CHILD_COLOR` in the shader is `Planet.CHILD_COLOR`,
 an sRGB orange, in linear light; `test_shader_constants.gd` holds the two to
 each other. The tree tints a child's row in the same orange at a quarter
 alpha, `FeatureTree.CHILD_TINT`.
@@ -424,7 +437,7 @@ an animation, and neither has to rebuild the geometry texture to do so.
 `hovered` is 1 while the pointer rests on the feature, which brightens its
 fill. `visible` is 0 while the feature is outside its time range, so it is
 skipped without the geometry texture being rebuilt. `selected` is 1 on the
-feature the tree has selected, which draws its segments thicker and yellow; see
+feature the tree has selected, which draws its segments over a white halo; see
 [The selected feature](#the-selected-feature). `related` is 1 on a child of
 the selected feature while children are highlighted, which draws its lines
 and markers orange; see
@@ -550,7 +563,7 @@ the feature under the point, or null.
 
 ## Outline Overlay
 
-The shader draws a second, yellow layer over the geometry. It shows the shape
+The shader draws a second, white layer over the geometry. It shows the shape
 being drawn while the Draw tool places vertices, the points of the Circle and
 Measure tools, and otherwise the outline of a selected polygon or
 the markers of a selected multipoint. A selected line is drawn by the segment
@@ -566,6 +579,9 @@ pass instead; see [The selected feature](#the-selected-feature).
 | `outline_dot_radius` | `float` | `0.006` | Radius of vertex dot markers |
 | `outline_closing_opacity` | `float` | `0.25` | How faint the closing segment of an unfinished polygon is |
 
+`OUTLINE_OPACITY`, 0.6, is a constant rather than a uniform: the opacity of the
+segments of a closed ring, styles 3 and 4.
+
 ### Outline Data Texture Layout
 
 Width = vertex count, height = 1, format `RGBAF`:
@@ -578,37 +594,40 @@ Several parts fit in one texture: every vertex carries the index its part begins
 at, so the shader knows where a part ends without a second array. The style is
 the same for every vertex of a part:
 
-| Style | Meaning |
-|---|---|
-| 0 | Open: segments from the first vertex to the last, nothing more |
-| 1 | Closed, with the closing segment faint — a polygon still being drawn |
-| 2 | The vertex markers only — a multipoint |
-| 3 | Closed, every segment alike — a polygon in the Vertex tool, a closed circle |
-| 4 | Closed like 3, with no vertex markers — the rings of a selected polygon |
-| 5 | The vertex markers only, twice the size — a selected multipoint |
-| 6 | Closed like 4, in `CHILD_COLOR`: the rings of a polygon that follows the selected feature |
-| 7 | Open like 0, at `geometry_line_width` rather than `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross |
+| Style | Meaning | Segment opacity |
+|---|---|---|
+| 0 | Open: segments from the first vertex to the last, nothing more | 1 |
+| 1 | Closed, with the closing segment faint — a polygon still being drawn | 1, the closing segment `outline_closing_opacity` |
+| 2 | The vertex markers only — a multipoint | no segments |
+| 3 | Closed, every segment alike — a polygon in the Vertex tool, a closed circle | `OUTLINE_OPACITY` |
+| 4 | Closed like 3, with no vertex markers — the rings of a selected polygon | `OUTLINE_OPACITY` |
+| 5 | The vertex markers only, twice the size — a selected multipoint | no segments |
+| 6 | Closed like 4, in `CHILD_COLOR`: the rings of a polygon that follows the selected feature | 1 |
+| 7 | Open like 0, at `geometry_line_width` rather than `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross | 1 |
+
+The vertex markers are opaque in every style that has them, so the dots of
+the Vertex tool stand out against the translucent ring of style 3.
 
 `Planet.OutlineStyle` names the same eight values.
 
 ### Outline Math
 
 **Vertex dots**: the chord distance from the fragment to the nearest vertex,
-antialiased via `smoothstep`. Every vertex gets one except in styles 4, 6 and 7. Style 5
+antialiased via `smoothstep` over the outer three tenths of the radius. Every vertex gets one except in styles 4, 6 and 7. Style 5
 divides the distance by `SELECTED_MARKER_SCALE`, which draws the same dot twice
 as large.
 
 **Line segments**: the same `arc_distance()` the geometry pass uses, which gives
-each segment rounded caps. Style 7 segments are as wide as a feature line,
+each segment rounded caps, feathered by `line_coverage()`. Style 7 segments are as wide as a feature line,
 `geometry_line_width`, so the Outline line width preference, which scales
 `outline_line_width`, leaves them alone.
 
 **Closing segment**: a vertex whose successor starts a new part is the last of
 its own. When the style closes the part, that vertex joins back to the vertex
-the part started at, at reduced opacity for style 1 and at full opacity for
-styles 3 and 4.
+the part started at, at reduced opacity for style 1 and at `OUTLINE_OPACITY`, like the rest of
+the ring, for styles 3 and 4.
 
-The outline is composited on top of everything else using yellow color (`vec3(1, 1, 0)`) at the computed alpha. Style 6 keeps a distance of its own and is laid down in `CHILD_COLOR` first, so the yellow of a selection drawn over the same place wins.
+The outline is composited on top of everything else in `HIGHLIGHT_COLOR`, white, at the largest of the dot, line, closed ring and closing alphas. Styles 3 and 4 keep a distance of their own, whose alpha is scaled by `OUTLINE_OPACITY`, so the fill and the grid show through the ring. Style 6 keeps one too and is laid down in `CHILD_COLOR` first, so the white of a selection drawn over the same place wins.
 
 ## Notes
 
