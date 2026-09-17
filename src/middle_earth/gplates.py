@@ -1,10 +1,10 @@
 """Turning a GPlates reconstruction into a Middle Earth document.
 
 GPlates keeps a reconstruction in two halves: feature collections holding
-present day geometry, each feature naming the plate it rides on, and rotation
+present day geometry, each feature naming the plate it follows, and rotation
 files saying where every plate was at every time. Middle Earth keeps motion on
 each feature, so the import samples every plate's rotation into keyframes and
-writes the same list onto each feature that rides on that plate. The features
+writes the same list onto each feature that follows that plate. The features
 are grouped by plate for the tree's sake alone; a group carries no motion.
 
 Nothing is reconstructed here. The geometry is written down as GPlates holds

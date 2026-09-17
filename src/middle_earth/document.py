@@ -176,14 +176,14 @@ class Feature:
 
     @property
     def couplings(self) -> list[dict]:
-        """The spans over which the feature rides on another, since 0.12.0.
+        """The spans over which the feature follows another, since 0.12.0.
 
         Each is `from`, the older age, `to`, the younger one, and the `parent`
         uuid. Inside a span the keyframes are relative to the parent, so a
         keyframe written there by `set_keyframe` is too. A group has none.
 
         Since 0.15.0 a span may also carry `parent_b`, a second uuid, which a
-        ridge left by the Split tool rides on. Its frame is then midway
+        ridge left by the Split tool follows. Its frame is then midway
         between the two.
         """
         return self.data.get("couplings", []) if not self.is_group else []

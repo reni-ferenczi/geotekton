@@ -20,9 +20,9 @@ const ENABLE_BUTTON := 2
 # time, which is when the globe leaves it out as well.
 const ABSENT_COLOR := Color(0.5, 0.5, 0.5, 1.0)
 
-# The row tint of a rider: the planet's rider orange, faint enough to read the
+# The row tint of a child: the planet's child orange, faint enough to read the
 # title through.
-const RIDER_TINT := Color(Planet.RIDER_COLOR, 0.25)
+const CHILD_TINT := Color(Planet.CHILD_COLOR, 0.25)
 
 var root: Feature = null
 var items: Dictionary[int, TreeItem] = {}
@@ -32,9 +32,9 @@ var editable_item: TreeItem
 # the middle of an animation does not put the greyed out rows back.
 var time: float = 0.0
 
-# The pnids of the rows tinted as riding on the selected feature, kept over a
+# The pnids of the rows tinted as children of the selected feature, kept over a
 # rebuild the same way.
-var riders: Dictionary[int, bool] = {}
+var coupled: Dictionary[int, bool] = {}
 
 
 ### Initialization
@@ -99,23 +99,23 @@ func load_feature(parent: TreeItem, feature: Feature):
 		not feature.enabled, Helpers.SWATCH_TOOLTIP)
 	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_ENABLE + int(feature.enabled), not feature.enabled, feature.enabled), ENABLE_BUTTON, false, "Enable this feature")
 	_apply_time(item)
-	if riders.has(feature.pnid):
-		item.set_custom_bg_color(0, RIDER_TINT)
+	if coupled.has(feature.pnid):
+		item.set_custom_bg_color(0, CHILD_TINT)
 
 
-### Riders
+### Children of the selected feature
 
 
 # Tint the rows of the given features and clear every other tint.
-func mark_riders(nodes: Array[Feature]) -> void:
-	for pnid in riders:
+func mark_children(nodes: Array[Feature]) -> void:
+	for pnid in coupled:
 		if items.has(pnid):
 			items[pnid].clear_custom_bg_color(0)
-	riders.clear()
+	coupled.clear()
 	for node in nodes:
-		riders[node.pnid] = true
+		coupled[node.pnid] = true
 		if items.has(node.pnid):
-			items[node.pnid].set_custom_bg_color(0, RIDER_TINT)
+			items[node.pnid].set_custom_bg_color(0, CHILD_TINT)
 
 
 ### Time

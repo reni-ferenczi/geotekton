@@ -124,25 +124,25 @@ points in place of the highlight, and the Draw tool's preview of the shape
 being drawn is drawn over it as before. See
 [Shader](Shader.md#the-selected-feature).
 
-### Highlighting riders
+### Highlighting children
 
-View > Highlight riders shows which features are
+View > Highlight children shows which features are
 [coupled](Time.md#coupling) to the selected one. It is off by default, and the
 choice is remembered like the panel switches. While it is on and a feature is
-selected, every feature riding on it at the current time is marked, and so is
-everything riding on those in turn:
+selected, every child it has at the current time is marked, and so are the
+children of those in turn:
 
-- on the planet, a rider is traced in orange: a line or a multipoint is drawn
+- on the planet, a child is traced in orange: a line or a multipoint is drawn
   orange at its normal width, and a polygon keeps its fill and gets an orange
   outline. The selection stays yellow, so the two are not mixed up;
-- in the tree, a rider's row gets a faint orange background. The row is tinted
-  even while the rider is outside its time range, so the coupling shows when
-  the planet leaves the rider out.
+- in the tree, a child's row gets a faint orange background. The row is tinted
+  even while the child is outside its time range, so the coupling shows when
+  the planet leaves the child out.
 
 The marks follow the current time, since a coupling holds over a span of it.
 They show in the tools that highlight the selection, which leaves out Vertex,
 Circle, Light and Measure; the tree keeps its tint in every tool. A selected
-group has no riders.
+group has no children.
 
 Up to 0.1.0 the rows also had invert, single, wrap, resize and repeat, five
 switches left over from the rule editor this interface came from. Nothing read
@@ -198,7 +198,7 @@ a feature holding nothing are refused the way the Move tool is disabled for
 them. Both write the keyframe at the current time as the drag goes and record
 one undo version on the release, exactly as a move does; a release off the
 planet puts the keyframe list back. A feature that
-[rides on another](Time.md#coupling) is turned in world space and its keyframe
+[follows another](Time.md#coupling) is turned in world space and its keyframe
 is written in the frame in effect at the time. The status bar says how far the
 drag has turned it.
 
@@ -377,8 +377,8 @@ the feature had; the second is named after it, `Laurentia` and `Laurentia 2`,
 and holds its half alone. A split is one undo version.
 
 Both halves also keep the [couplings](Time.md#coupling) of the feature they came
-from, so both go on riding on the same parent. A feature that rode on the one
-that was split rides on the first half, which keeps the original's uuid.
+from, so both go on following the same parent. A child of the one that was
+split follows the first half, which keeps the original's uuid.
 
 ## The Split tool
 
@@ -427,11 +427,11 @@ polygon, `Laurentia ridge`, placed after the second half, holding the shared cut
 as its one part: the two ends where they landed on the boundary and every point
 clicked between them.
 
-The ridge rides on both halves at once, over a span from the age the cut was
+The ridge follows both halves at once, over a span from the age the cut was
 made at to the present, and its frame is theirs at one half. That is the half
 stage rotation GPlates reconstructs a ridge by, so the line stays midway between
 the two halves as they diverge and turns by half of whatever either one does.
-See [Riding on two parents](Time.md#riding-on-two-parents). Both halves have the
+See [Following two parents](Time.md#following-two-parents). Both halves have the
 polygon's own pose at the moment of the cut, so the ridge starts out lying
 exactly on it. Its time range runs from that age to the present, since it did
 not exist before the continent broke.

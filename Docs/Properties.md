@@ -151,7 +151,7 @@ follows the feature tree selection, through
 | Step (My)  | Number             | no, Hotspot only |
 | Keyframes  | Count, Key, Delete | no         |
 | Coupled to | Parent, Decouple   | no         |
-| Ride on    | Picker, Couple, pointer | no    |
+| Follow     | Picker, Couple, pointer | no    |
 | Couplings  | List, Remove       | no         |
 | Sections   | Table, Reverse, Remove | no     |
 
@@ -182,7 +182,7 @@ content set the width would let the split container hand the difference to the
 planet view, so the globe would move under the pointer every time the selection
 changed. `CONTENT_WIDTH` is 220 px, which is also as narrow as the panel can be
 dragged. Every row fits in that: the selectors and the text fields shrink and
-clip their text, the Enabled switch wraps its label, and the Keyframes, Ride on
+clip their text, the Enabled switch wraps its label, and the Keyframes, Follow
 and Ramp rows move the buttons or the span box that no longer fit onto a line
 of their own.
 
@@ -289,25 +289,25 @@ current time.
 The panel does not list the keyframes' times or angles. A keyframe is placed by
 dragging with the Move tool.
 
-On a feature that [rides on another](Time.md#coupling) at the current time,
+On a feature that [follows another](Time.md#coupling) at the current time,
 `Key` records the pose relative to the parent, which is what holds it where it
 stands.
 
 ### Coupling
 
 Two rows and a list, all about which feature this one
-[rides on](Time.md#coupling).
+[follows](Time.md#coupling).
 
 - **Coupled to** names the parent in effect at the current time, or says
   `nothing`. `Decouple` beside it ends that span at the current time and is
-  greyed out while the feature rides on nothing.
-- **Ride on** is a picker of every feature this one could ride on, in tree
+  greyed out while the feature follows nothing.
+- **Follow** is a picker of every feature this one could follow, in tree
   order: every leaf but itself and the topologies. `Couple` starts a span on the
   picked feature at the current time and is greyed out while the feature
-  already rides on something then. The pointer button beside them fills the
+  already follows something then. The pointer button beside them fills the
   picker from the planet instead of from the list: press it and the next left
   click on the globe or the map names whatever it lands on. The status bar says
-  `Pick the feature to ride on` while it is armed. A click on the ocean, on the
+  `Pick the feature to follow` while it is armed. A click on the ocean, on the
   feature itself or on a topology says so in the status bar and leaves the
   pointer armed, so only a click the picker can take ends it. So do Escape and
   pressing the button again. Nothing else moves: the selection, the current
@@ -317,14 +317,14 @@ Two rows and a list, all about which feature this one
   takes the selected span away, or the last one when none is selected, and
   leaves every keyframe where it was on the globe.
 
-To see the other side of a coupling, what rides on the selected feature,
-switch on View > Highlight riders; see
-[Highlighting riders](Editing.md#highlighting-riders).
+To see the other side of a coupling, the children of the selected feature,
+switch on View > Highlight children; see
+[Highlighting children](Editing.md#highlighting-children).
 
-A [ridge](Editing.md#the-ridge) rides on two features at once, and both rows
+A [ridge](Editing.md#the-ridge) follows two features at once, and both rows
 name them the way `Laurentia and Laurentia 2, midway` does. The picker makes
 single parent spans only; see
-[Riding on two parents](Time.md#riding-on-two-parents).
+[Following two parents](Time.md#following-two-parents).
 
 `Couple` and `Decouple` are a [cut in time](Time.md#a-coupling-edit-is-a-cut-in-time):
 they change nothing older than the current time and drop the keyframes the span
@@ -336,7 +336,7 @@ list and drawn in the warning colour a broken section has, with the reason as
 its tooltip. The Coupled to row takes the same colour while the time is inside
 that span. Undo brings the parent back and the colour goes.
 
-A refused Couple, such as a parent that already rides on this feature, shows
+A refused Couple, such as a parent that already follows this feature, shows
 the reason in an error dialog and changes nothing. The rows follow the current
 time, since the parent in effect changes with it.
 
@@ -383,8 +383,8 @@ undo version:
 | `split_feature_along`   | anything but a polygon, a part that is not there, fewer than two points, both ends on one edge, and a cut that runs outside the shape or crosses an edge or itself |
 | `set_keyframe`          | a group; the time it names replaces or is added    |
 | `remove_keyframe`       | a group, and a keyframe that is not there          |
-| `couple`                | a group or a topology on either side, the feature itself, a feature already riding on something at that time, a parent that rides on the feature down any chain, and a parent not there over the whole span |
-| `decouple`              | a feature riding on nothing at that time, and the present on a span that runs to it |
+| `couple`                | a group or a topology on either side, the feature itself, a feature already following something at that time, a parent that follows the feature down any chain, and a parent not there over the whole span |
+| `decouple`              | a feature following nothing at that time, and the present on a span that runs to it |
 | `remove_coupling`       | a span that is not there                           |
 | `add_section`           | a group, a feature holding vertices of its own, and a target that is a group, a topology, the topology itself or has no vertices |
 | `remove_section`        | anything but a topology, and a section that is not there |

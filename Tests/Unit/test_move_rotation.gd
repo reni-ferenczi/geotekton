@@ -131,33 +131,33 @@ func test_a_pole_turn_moves_every_vertex_by_the_same_angle() -> void:
 			"and vertex %d stays as far from the pole as it was" % index)
 
 
-func test_a_riders_keyframe_comes_out_relative_to_its_parent() -> void:
+func test_a_childs_keyframe_comes_out_relative_to_its_parent() -> void:
 	var parent := _polygon("Continent")
 	Keyframe.upsert(parent.keyframes, 0.0, Vector3(25, 10, -5))
 	parent.uuid = "parent"
-	var rider := _polygon("Terrane")
-	rider.uuid = "rider"
-	rider.couplings.append(Coupling.create(1000.0, 0.0, parent.uuid))
+	var child := _polygon("Terrane")
+	child.uuid = "child"
+	child.couplings.append(Coupling.create(1000.0, 0.0, parent.uuid))
 	var root := Feature.create_group("Planet")
 	root.is_root = true
 	root.children.append(parent)
-	root.children.append(rider)
+	root.children.append(child)
 
 	var nodes := Coupling.index(root)
-	var axis := Feature.centroid_axis(root, rider, 0.0)
-	var base := Feature.decompose_rotation_degrees(Feature.world_basis(root, rider, 0.0))
+	var axis := Feature.centroid_axis(root, child, 0.0)
+	var base := Feature.decompose_rotation_degrees(Feature.world_basis(root, child, 0.0))
 	var turned := Feature.compute_spin_rotation(axis, deg_to_rad(30.0), base)
-	var keyframe := Coupling.rotation_for(rider, 0.0,
+	var keyframe := Coupling.rotation_for(child, 0.0,
 		Feature.build_rotation_basis(turned), nodes)
-	Keyframe.upsert(rider.keyframes, 0.0, keyframe)
+	Keyframe.upsert(child.keyframes, 0.0, keyframe)
 
 	assert_true(not Feature.build_rotation_basis(keyframe).is_equal_approx(
 		Feature.build_rotation_basis(turned)),
 		"the keyframe is not the world rotation, since the parent is turned too")
-	var world_after := Feature.world_basis(root, rider, 0.0)
+	var world_after := Feature.world_basis(root, child, 0.0)
 	assert_close(world_after * Vector3.RIGHT,
 		Feature.build_rotation_basis(turned) * Vector3.RIGHT, 1e-4,
-		"and it puts the rider where the turn asked for, in world space")
+		"and it puts the child where the turn asked for, in world space")
 
 
 func test_a_point_on_the_axis_has_no_angle_about_it() -> void:

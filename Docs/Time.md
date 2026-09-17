@@ -63,7 +63,7 @@ The world frame is the one a feature with no keyframes and no coupling sits in:
 `Feature.world_basis()` is the identity for it. There is no absolute reference
 frame by name, so the world frame is also the mantle frame, and a
 [hotspot](Editing.md#hotspots) is fixed in it. Its track shows how the plate
-it names moved over it, whatever the plate rides on.
+it names moved over it, whatever the plate follows.
 
 ### Groups do not move
 
@@ -71,7 +71,7 @@ A group is organization: it holds features and other groups, and carries no
 motion. A feature's rotation in the world comes from its own keyframes and its
 [couplings](#coupling) (`Feature.world_basis()`), wherever it sits in the tree,
 so moving a feature from one group to another changes nothing about where it
-is. What rides on what is a coupling between two features over a span of the
+is. What follows what is a coupling between two features over a span of the
 timeline, and that is what takes the place of the plate circuit GPlates builds
 out of plate ids and a rotation tree.
 
@@ -83,35 +83,39 @@ time along the chain, so it is drawn where it was at each of those times; see
 
 ## Coupling
 
-A feature can ride on another feature for part of the animation and go its own
+A feature can follow another feature for part of the animation and go its own
 way for the rest. This is the Middle Earth form of the GPlates rotation model,
 where a plate's fixed plate changes from one time span to the next. A coupling
 is a relation between two leaf features over a **span** of the timeline
 (`Logic/coupling.gd`): `from`, the older age where it starts, `to`, the younger
 age where it ends, and the parent, named by uuid. A feature can have several
-spans, which do not overlap, and a parent can carry any number of riders. The
+spans, which do not overlap, and a parent can carry any number of children. The
 feature tree plays no part in it.
 
-While a span holds, the rider's keyframes are its pose **relative** to the
+In this documentation a *child* is a feature that follows another through a
+coupling. A group holds rows, not children, since groups carry no motion; a
+feature inside a group is a row in the group.
+
+While a span holds, the child's keyframes are its pose **relative** to the
 parent: its world rotation at a time is the parent's world rotation then,
-composed with the rider's own keyframe interpolation. Outside every span its
+composed with the child's own keyframe interpolation. Outside every span its
 keyframes are world rotations. A span holds its older end and not its younger
 one, so a keyframe at `from` is relative and a keyframe at `to` is a world pose.
 A span that runs to the present holds the present too.
 
-The parent may itself ride on another feature, and the chain is followed to its
+The parent may itself follow another feature, and the chain is followed to its
 end.
 
-### Riding on two parents
+### Following two parents
 
-A span may name a second parent, `parent_b`. The frame it then puts its rider in
+A span may name a second parent, `parent_b`. The frame it then puts its child in
 is midway between the two: the slerp of the parents' world rotations at one
 half, which is the half stage rotation GPlates reconstructs a mid ocean ridge
-by. The rider keeps its place between the two however far they diverge, and
+by. The child keeps its place between the two however far they diverge, and
 turns by half of whatever either one of them does.
 
 The [ridge](Editing.md#the-ridge) the Split tool leaves along a cut is the one
-thing that makes such a span. The Ride on picker builds single parent spans, so
+thing that makes such a span. The Follow picker builds single parent spans, so
 a second parent arrives only from a split or from a file. Everything else about
 the span is the same: the relative keyframe at its start, the blending between
 keyframes, the cycle check, and the chain being followed through both parents.
@@ -137,14 +141,14 @@ Both act at the current time, from the Properties panel's
 
 Couple is refused, with the reason, when:
 
-- the feature already rides on something at that time;
+- the feature already follows something at that time;
 - the parent is the feature itself, a group or a topology;
-- the parent already rides on the feature, directly or down a chain, at any
+- the parent already follows the feature, directly or down a chain, at any
   time;
 - the parent is not there, by its time range, all the way from the current time
   to where the span would end.
 
-A topology cannot ride either, having no motion of its own.
+A topology cannot follow either, having no motion of its own.
 
 ### A coupling edit is a cut in time
 
@@ -170,13 +174,13 @@ them and the path between two of them changes. Taking a relation away is
 expected to change how a feature gets from one keyframe to the next, and undo
 brings the old path back.
 
-### Moving a parent moves its riders
+### Moving a parent moves its children
 
-Moving a feature with any tool changes the world path of everything riding on
-it, since a rider's pose is worked out from its parent's. A rider whose span
+Moving a feature with any tool changes the world path of all its children,
+since a child's pose is worked out from its parent's. A child whose span
 ends in a world keyframe, the one Decouple wrote, is pulled towards that
 keyframe as the time runs on to it, and can jump there when the parent has been
-moved far since. That is the model rather than a defect: the rider follows the
+moved far since. That is the model rather than a defect: the child follows the
 parent inside the span, and the keyframe says where it is when the span ends.
 
 ### Between keyframes in different frames
@@ -185,7 +189,7 @@ Couple and Decouple keep the keyframes on either side of a boundary in their
 own frames, but deleting a keyframe can leave two neighbors in different ones.
 The rule then is that the span in effect at the **older** keyframe decides the
 frame, and the younger keyframe is converted into that frame at its own time.
-So a rider whose decoupling keyframe is deleted rides on past the old boundary
+So a child whose decoupling keyframe is deleted follows on past the old boundary
 until its next keyframe. Younger than the first keyframe, that keyframe's frame
 holds. Older than the last one, the frame in effect at the time holds, with the
 last keyframe converted into it, so a feature coupled at its only keyframe
@@ -197,16 +201,16 @@ Deleting a parent leaves the span in place. The Properties panel draws it in a
 warning color, like a broken topology section, and the timeline bar turns the
 same color. Undo brings the parent back and mends the span. While the parent
 cannot be followed, whether missing, turned into something that cannot be
-ridden on, or looped back by a hand-written file, it counts as not turning, so
-the rider's relative keyframes read as world rotations.
+followed, or looped back by a hand-written file, it counts as not turning, so
+the child's relative keyframes read as world rotations.
 
 ### Splitting a coupled feature
 
 Both halves of a [split](Editing.md#splitting) keep the couplings of the
-feature they came from, so both go on riding on the same parent. A feature
-that rode on the one split rides on the first half, which keeps the original's
-uuid. The [ridge](Editing.md#the-ridge) a split leaves rides on both halves at
-once; see [Riding on two parents](#riding-on-two-parents).
+feature they came from, so both go on following the same parent. A child of
+the one split follows the first half, which keeps the original's uuid. The
+[ridge](Editing.md#the-ridge) a split leaves follows both halves at once; see
+[Following two parents](#following-two-parents).
 
 ### Precision
 
@@ -243,7 +247,7 @@ on one exactly. The panel shows no keyframe times or angles; see
 A leaf feature has a time range, two ages. Outside it the feature is not drawn,
 not hit tested, and greyed out in the tree; it is still in the document and
 still in the file. Both ends count as inside. A group has no range of its own
-and is there whenever its children are.
+and is there whenever one of its rows is.
 
 The panel calls the older end `From` and the younger one `To`: a feature that
 exists between 2000 and 0 Ma appears at 2000 and disappears at 0. A range whose

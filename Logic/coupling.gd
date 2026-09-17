@@ -1,7 +1,7 @@
 class_name Coupling
 extends RefCounted
 
-# One span of the timeline over which a feature rides on another. While the span
+# One span of the timeline over which a feature follows another. While the span
 # holds, the feature's keyframes are its pose relative to the parent: its world
 # rotation is the parent's world rotation composed with its own interpolation.
 # Outside every span its keyframes are world rotations. See Docs/Time.md#coupling.
@@ -17,8 +17,8 @@ extends RefCounted
 # parent that is deleted leaves the span in place and unresolved.
 #
 # A span may name a second parent, which is what a ridge left by the Split tool
-# rides on. Its frame is then midway between the two, the half stage rotation
-# GPlates reconstructs a mid ocean ridge by; see Docs/Time.md#riding-on-two-parents.
+# follows. Its frame is then midway between the two, the half stage rotation
+# GPlates reconstructs a mid ocean ridge by; see Docs/Time.md#following-two-parents.
 
 var from: float
 var to: float
@@ -41,7 +41,7 @@ func clone() -> Coupling:
 	return Coupling.create(from, to, parent, parent_b)
 
 
-# The uuids the span follows: one ordinarily, two while it rides midway.
+# The uuids the span follows: one ordinarily, two while it sits midway.
 func parents() -> Array[String]:
 	var result: Array[String] = [parent]
 	if not parent_b.is_empty():
@@ -90,8 +90,8 @@ static func parent_problem(nodes: Dictionary, node: Feature, span: Coupling) -> 
 	return ""
 
 
-# What a span rides on, as the panel and a refusal name it: the parent's title,
-# or both titles when it rides midway between two.
+# What a span follows, as the panel and a refusal name it: the parent's title,
+# or both titles when it sits midway between two.
 static func parents_label(nodes: Dictionary, span: Coupling) -> String:
 	var titles := PackedStringArray()
 	for uuid in span.parents():
@@ -105,13 +105,13 @@ static func parents_label(nodes: Dictionary, span: Coupling) -> String:
 static func _one_parent_problem(nodes: Dictionary, node: Feature, uuid: String) -> String:
 	var parent: Feature = nodes.get(uuid)
 	if parent == null:
-		return "The feature it rode on is no longer in the document."
+		return "The feature it follows is no longer in the document."
 	if parent.is_group:
-		return "%s is a group, and a feature rides on a feature." % parent.title
+		return "%s is a group, and a feature follows a feature." % parent.title
 	if parent.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return "%s is a topology, which has no motion of its own." % parent.title
 	if parent == node or reaches(nodes, parent, node):
-		return "%s rides on %s, so the chain goes round in a circle." % [parent.title, node.title]
+		return "%s follows %s, so the chain goes round in a circle." % [parent.title, node.title]
 	return ""
 
 
@@ -136,11 +136,11 @@ static func reaches(nodes: Dictionary, start: Feature, target: Feature) -> bool:
 	return false
 
 
-# Every feature that rides on the one with `uuid` at a time, and whatever rides
-# on those in turn: the couplings walked downward, the way reaches() walks them
-# up. A rider of two parents counts once. The list never holds the feature
+# Every child of the feature with `uuid` at a time, and the children of those in
+# turn: the couplings walked downward, the way reaches() walks them up. A child
+# of two parents counts once. The list never holds the feature
 # itself, even where a broken document loops back to it.
-static func riders(root: Feature, uuid: String, time: float) -> Array[Feature]:
+static func children_of(root: Feature, uuid: String, time: float) -> Array[Feature]:
 	var on := {}
 	for node: Feature in index(root).values():
 		var span: Coupling = null if node.is_group else span_at(node, time)
@@ -152,12 +152,12 @@ static func riders(root: Feature, uuid: String, time: float) -> Array[Feature]:
 	var seen := {uuid: true}
 	var queue: Array[String] = [uuid]
 	while not queue.is_empty():
-		for rider: Feature in on.get(queue.pop_back(), []):
-			if seen.has(rider.uuid):
+		for child: Feature in on.get(queue.pop_back(), []):
+			if seen.has(child.uuid):
 				continue
-			seen[rider.uuid] = true
-			result.append(rider)
-			queue.append(rider.uuid)
+			seen[child.uuid] = true
+			result.append(child)
+			queue.append(child.uuid)
 	return result
 
 
@@ -252,9 +252,9 @@ static func _out_of_frame(span: Coupling, time: float, world: Basis, nodes: Dict
 	return _parent_basis(span, time, nodes, cache, visiting).transposed() * world
 
 
-# The frame a span puts its rider in at a time. With one parent that is the
+# The frame a span puts its child in at a time. With one parent that is the
 # parent's world rotation; with two it is the slerp of theirs at one half, the
-# half stage rotation, so the rider sits midway between them however far they
+# half stage rotation, so the child sits midway between them however far they
 # have diverged.
 static func _parent_basis(span: Coupling, time: float, nodes: Dictionary, cache,
 		visiting: Array) -> Basis:

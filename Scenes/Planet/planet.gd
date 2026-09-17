@@ -21,10 +21,10 @@ const POINT_HIT_RADIUS := 0.025
 const DEFAULT_DOT_RADIUS := 0.006
 const DEFAULT_LINE_WIDTH := 0.002
 
-# What a feature riding on the selected one is traced in, when the View menu
+# What a child of the selected feature is traced in, when the View menu
 # asks for it, and what tints its row in the tree. planet.gdshader
-# holds the same color, linearized, as RIDER_COLOR.
-const RIDER_COLOR := Color(1.0, 0.5, 0.0)
+# holds the same color, linearized, as CHILD_COLOR.
+const CHILD_COLOR := Color(1.0, 0.5, 0.0)
 
 # Style of one part of the outline overlay. Matches planet.gdshader.
 enum OutlineStyle {
@@ -34,7 +34,7 @@ enum OutlineStyle {
 	CLOSED = 3,         # closed, with every segment drawn the same
 	OUTLINE = 4,        # closed like CLOSED, with no vertex markers
 	MARKERS = 5,        # the vertex markers only, drawn larger
-	RIDER = 6,          # closed like OUTLINE, in RIDER_COLOR
+	CHILD = 6,          # closed like OUTLINE, in CHILD_COLOR
 	BOLD = 7,           # open like OPEN, as wide as a feature line, no markers
 }
 
@@ -241,8 +241,8 @@ class Geometry extends RefCounted:
 			cap_cosines[index] = -1.0 if radius >= PI * 0.5 else cos(radius)
 
 	# Work out where every feature sits at a time and whether it is there then.
-	# A feature's rotation is its own, composed with its parent's while it rides
-	# on one; nothing above it in the tree moves it. Parents are worked out before
+	# A feature's rotation is its own, composed with its parent's while it
+	# follows one; nothing above it in the tree moves it. Parents are worked out before
 	# their children and once each, through the cache. A feature colored by its
 	# age changes color with the time as well.
 	func resolve(_root: Feature, time_: float) -> void:
@@ -309,7 +309,7 @@ func set_geometry(geometry: Geometry) -> void:
 
 # Upload where each feature sits, whether it is there at the current time, what
 # color it is, which one the pointer rests on, which one is highlighted as
-# selected and which ones ride on that one. This is the whole of what one step of an
+# selected and which ones follow that one. This is the whole of what one step of an
 # animation, a change of color or a change of selection touches, so it is five
 # texels per feature rather than anything per triangle. Call geometry.resolve()
 # for the wanted time first.
@@ -322,8 +322,8 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 	# Data texture: width = feature count, height = 5, 32-bit float RGBA. The
 	# first three rows carry one column of the rotation each, with the hover,
 	# the visibility and the selection in the channels the rotation leaves over;
-	# the fourth is the color and the fifth says whether the feature rides on the
-	# selected one.
+	# the fourth is the color and the fifth says whether the feature is a child
+	# of the selected one.
 	var img := Image.create(count, 5, false, Image.FORMAT_RGBAF)
 	for i in range(count):
 		var m: Basis = geometry.bases[i]

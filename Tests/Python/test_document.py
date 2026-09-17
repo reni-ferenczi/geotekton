@@ -131,15 +131,15 @@ def test_the_version_this_package_writes_is_the_application_version():
     assert 'config/version="%s"' % CURRENT_VERSION in settings
 
 
-def test_a_feature_reads_the_spans_it_rides_on():
+def test_a_feature_reads_the_spans_it_follows():
     feature = Feature({"type": "Feature", "is_group": False, "couplings": [
         {"from": 500.0, "to": 200.0, "parent": "6b0d6b1e"}]})
     assert feature.couplings == [{"from": 500.0, "to": 200.0, "parent": "6b0d6b1e"}]
-    assert Feature.new_feature("Rider").couplings == []
+    assert Feature.new_feature("Child").couplings == []
     assert Feature.new_group("Plates").couplings == []
 
 
-def test_a_ridge_reads_the_second_parent_it_rides_on(tmp_path):
+def test_a_ridge_reads_the_second_parent_it_follows(tmp_path):
     """A span may name two parents since 0.15.0, and the file keeps both."""
     document = Document.empty(CURRENT_VERSION)
     ridge = Feature.new_feature("Shield ridge", geometry_kind="polyline")

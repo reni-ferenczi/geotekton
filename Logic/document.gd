@@ -442,7 +442,7 @@ func split_feature(feature: Feature, part: int, first: int, second: int = -1) ->
 # them go to both halves; see GeometryEdit.split_along(). Otherwise the same as
 # split_feature(): both halves carry what the feature was, and one version.
 #
-# With `ridge` on, a Line feature is left along the cut as well, riding on both
+# With `ridge` on, a Line feature is left along the cut as well, following both
 # halves at one half; see _add_ridge() and Docs/Editing.md#the-ridge. With
 # `crust` on as well, two closed topologies fill the sea floor between the ridge
 # and each half; see _add_crust().
@@ -490,7 +490,7 @@ func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array],
 	return ""
 
 
-# The rift the cut leaves behind: a Line along the shared edge, riding on both
+# The rift the cut leaves behind: a Line along the shared edge, following both
 # halves from the current time to the present. Its frame is theirs at one half,
 # so it stays midway between them however far they drift apart. Both halves have
 # the polygon's pose at the split time, so the one keyframe written there puts
@@ -666,7 +666,7 @@ func remove_keyframe(node: Feature, index: int) -> String:
 
 ### Coupling
 
-# A coupling is a span of the timeline over which a feature rides on another.
+# A coupling is a span of the timeline over which a feature follows another.
 # Couple and Decouple are a cut in time: nothing older than the time they act at
 # changes at all, and the keyframes the span covered younger than that time are
 # dropped, so the feature is rigid from the cut until the user moves it again.
@@ -674,7 +674,7 @@ func remove_keyframe(node: Feature, index: int) -> String:
 # See Logic/coupling.gd and Docs/Time.md#a-coupling-edit-is-a-cut-in-time.
 
 
-# Start a span at the time: the feature rides on the parent from then until the
+# Start a span at the time: the feature follows the parent from then until the
 # next span it already has towards the present, or the present itself. A
 # keyframe at the time holds it where it stands, and the keyframes the span
 # covers younger than the time are dropped.
@@ -695,30 +695,30 @@ func couple(child: Feature, parent: Feature, time: float) -> String:
 	return ""
 
 
-# Why the child cannot start riding on the parent at the time, or an empty
+# Why the child cannot start following the parent at the time, or an empty
 # string when it can.
 func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 	if child == null or child.is_group:
-		return "Only a feature can ride on another feature."
+		return "Only a feature can follow another feature."
 	if child.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return "%s is a topology and has no motion of its own to couple." % child.title
 	if parent == null:
-		return "Pick the feature %s is to ride on." % child.title
+		return "Pick the feature %s is to follow." % child.title
 	if parent == child:
-		return "%s cannot ride on itself." % child.title
+		return "%s cannot follow itself." % child.title
 	if parent.is_group:
-		return "%s is a group; a feature rides on another feature." % parent.title
+		return "%s is a group; a feature follows another feature." % parent.title
 	if parent.geometry_kind == Feature.GeometryKind.TOPOLOGY:
-		return "%s is a topology and has no motion of its own to ride on." % parent.title
+		return "%s is a topology and has no motion of its own to follow." % parent.title
 	var nodes := Coupling.index(root)
 	if nodes.get(child.uuid) != child or nodes.get(parent.uuid) != parent:
 		return "Both features have to be in the document."
 	var current := Coupling.span_at(child, time)
 	if current != null:
-		return "%s already rides on %s at %s Ma; decouple it first." % [
+		return "%s already follows %s at %s Ma; decouple it first." % [
 			child.title, Coupling.parents_label(nodes, current), time]
 	if Coupling.reaches(nodes, parent, child):
-		return "%s already rides on %s, so the chain would go round in a circle." % [
+		return "%s already follows %s, so the chain would go round in a circle." % [
 			parent.title, child.title]
 	var end := _span_end(child, time)
 	if float(parent.time_range.x) > end or float(parent.time_range.y) < time:
@@ -732,12 +732,12 @@ func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 # dropped. Decoupling where the span starts takes the whole span away.
 func decouple(child: Feature, time: float) -> String:
 	if child == null or child.is_group:
-		return "Only a feature rides on another."
+		return "Only a feature follows another."
 	var span := Coupling.span_at(child, time)
 	if span == null:
-		return "%s rides on nothing at %s Ma." % [child.title, time]
+		return "%s follows nothing at %s Ma." % [child.title, time]
 	if span.to <= 0.0 and is_equal_approx(time, 0.0) and not is_equal_approx(span.from, 0.0):
-		return "%s rides on to the present; decouple it at an older time." % child.title
+		return "%s follows to the present; decouple it at an older time." % child.title
 	var nodes := Coupling.index(root)
 	var here := Coupling.world_basis(child, time, nodes)
 	_drop_younger_keyframes(child, span, time)
@@ -758,7 +758,7 @@ func decouple(child: Feature, time: float) -> String:
 # away is expected to, and undo brings it back.
 func remove_coupling(child: Feature, index: int) -> String:
 	if child == null or child.is_group:
-		return "Only a feature rides on another."
+		return "Only a feature follows another."
 	if index < 0 or index >= child.couplings.size():
 		return "%s has no coupling %d." % [child.title, index + 1]
 	var nodes := Coupling.index(root)
@@ -781,7 +781,7 @@ func _span_end(child: Feature, time: float) -> float:
 
 # Drop the keyframes the span covers younger than the time. That is the younger
 # half of the cut a coupling edit makes: the keyframe the edit writes at the time
-# is then the youngest one the span holds, and the feature rides rigidly, or
+# is then the youngest one the span holds, and the feature follows rigidly, or
 # stands still, from there on. Keyframes older than the time and keyframes the
 # span does not cover are left alone, frames and all.
 func _drop_younger_keyframes(child: Feature, span: Coupling, time: float) -> void:
@@ -990,14 +990,14 @@ static func migrate(data: Dictionary) -> Dictionary:
 		_to_0_10_0(data)
 	# 0.11.0 added the age ramp to the group style. A style without it takes the
 	# default ramp, which nothing drew with before, so there is no step.
-	# 0.12.0 added couplings to a leaf. A leaf without them rides on nothing,
+	# 0.12.0 added couplings to a leaf. A leaf without them follows nothing,
 	# which is what every feature did before, so there is no step either.
 	if _is_older_than(version, "0.13.0"):
 		_to_0_13_0(data.get("features", {}))
 	# 0.14.0 gave a leaf an icon for its tree row. A leaf without the key has
 	# none, which is what every feature had before, so there is no step.
 	# 0.15.0 let a coupling span name a second parent. A span without the key
-	# rides on one parent, which is what every span did before, so there is
+	# follows one parent, which is what every span did before, so there is
 	# none either.
 	if _is_older_than(version, "0.16.0") and view is Dictionary:
 		rename_view_keys(view)

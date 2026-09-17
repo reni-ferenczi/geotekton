@@ -325,17 +325,17 @@ carries no motion since 0.8.0. The file is written at full float
 precision, so a keyframe time comes back as the exact time it was written at;
 see [Time](Time.md#precision).
 
-`couplings` is what the feature rides on and when: a list of
+`couplings` is what the feature follows and when: a list of
 `{from, to, parent}`, `from` the older age where the span starts, `to` the
-younger one where it ends, and `parent` the uuid of the feature ridden on, the
+younger one where it ends, and `parent` the uuid of the feature followed, the
 way a section names its feature. Inside a span the keyframes are relative to
 the parent; see [Time](Time.md#coupling). Only a leaf has them, and spans on one
 feature do not overlap. A span whose parent is not in the file is kept as it
 stands, like a section whose feature is missing.
 
 A span may carry `parent_b`, a second uuid, which is what a ridge left by the
-Split tool rides on. Its frame is then midway between the two parents; see
-[Time](Time.md#riding-on-two-parents). The key is written only when there is
+Split tool follows. Its frame is then midway between the two parents; see
+[Time](Time.md#following-two-parents). The key is written only when there is
 one, so an ordinary span reads the way it always did.
 
 The triangles a polygon is filled with are not in the file. They are derived
@@ -409,7 +409,7 @@ every class of geometry shown, which is what every version before 0.7.0 drew.
 
 Up to 0.7.0 a group had `keyframes` and everything under it inherited that
 motion. 0.8.0 keeps motion on leaf features alone: a group is organization and
-carries none, and what rides on what is a coupling between two features
+carries none, and what follows what is a coupling between two features
 (GP-0046).
 
 The migration folds the motion in. For every leaf under at least one moving
@@ -417,7 +417,7 @@ group, the rotations of the groups above it and its own are composed at every
 time any keyframe along that chain sits at, and the result is written as the
 leaf's own keyframes, so the feature is drawn where it was at each of those
 times. Between two of them the interpolation of the composed rotations is not
-quite the composition of the interpolations, so a feature that rode on a moving
+quite the composition of the interpolations, so a feature under a moving
 group can differ slightly from what 0.7.0 drew between keyframes. A leaf under
 no moving group is left exactly as it was, and every group loses its keyframe
 list. The step is `Document._to_0_8_0()`.
@@ -483,7 +483,7 @@ opens at the present looking the way it did.
 #### 0.11.0 to 0.12.0
 
 0.12.0 added `couplings` to a leaf feature. There is no migration step: a leaf
-without the key rides on nothing, and its keyframes are world rotations, which
+without the key follows nothing, and its keyframes are world rotations, which
 is what every feature's keyframes were before.
 
 #### 0.12.0 to 0.13.0
@@ -504,8 +504,8 @@ without the key carries no icon, which is what every feature carried before.
 #### 0.14.0 to 0.15.0
 
 0.15.0 added `parent_b` to a coupling span. There is no migration step either:
-a span without the key rides on the one parent it names, which is what every
-span did before a ridge rode on two.
+a span without the key follows the one parent it names, which is what every
+span did before a ridge followed two.
 
 #### 0.15.0 to 0.16.0
 
@@ -577,7 +577,7 @@ more than the last change.
 | `splitter_left`, `splitter_right`  | The two split offsets                                |
 | `panel_features`, `panel_properties`, `panel_timeline`, `panel_kinematics`, `panel_console`, `panel_status_bar` | Which panels are shown. Everything but the kinematics graphs and the console is shown when the file says nothing |
 | `kinematics_place` | Whether the kinematics panel graphs latitude and longitude above the rate. Off when the file says nothing |
-| `highlight_riders` | Whether the features riding on the selected one are highlighted. Off when the file says nothing |
+| `highlight_children` | Whether the children of the selected feature are highlighted. Off when the file says nothing. When the key is absent, `highlight_riders`, the name an older version wrote, is read instead |
 | `animation`                        | The playback range, the speed and the loop switch    |
 | `skip_increment`                   | How far the timeline's `<` and `>` buttons jump, in millions of years |
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |

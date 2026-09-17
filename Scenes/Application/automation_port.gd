@@ -235,7 +235,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"timeline": app.timeline.visible,
 				"kinematics": app.kinematics.visible,
 				"kinematics_place": app.kinematics.show_place,
-				"highlight_riders": app.highlight_riders,
+				"highlight_children": app.highlight_children,
 				"console": app.console.visible,
 				"status_bar": app.status_bar.visible,
 			}}
@@ -375,7 +375,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true}
 
 		"coupling":
-			# Couple rides on the picked parent and Decouple stops riding, both at
+			# Couple follows the picked parent and Decouple stops following, both at
 			# the current time; Remove takes a span of the list away. `pick` arms
 			# the pointer instead, so the next `click` on the planet names the
 			# parent, and `pick: false` puts it away again.
@@ -1086,7 +1086,7 @@ func _menu_item(name: String) -> Array:
 		"timeline": return [app.view_menu, Application.ViewItem.TIMELINE]
 		"kinematics": return [app.view_menu, Application.ViewItem.KINEMATICS]
 		"kinematics_place": return [app.view_menu, Application.ViewItem.KINEMATICS_PLACE]
-		"highlight_riders": return [app.view_menu, Application.ViewItem.HIGHLIGHT_RIDERS]
+		"highlight_children": return [app.view_menu, Application.ViewItem.HIGHLIGHT_CHILDREN]
 		"console": return [app.view_menu, Application.ViewItem.CONSOLE]
 		"status_bar": return [app.view_menu, Application.ViewItem.STATUS_BAR]
 		"run_script": return [app.file_menu, Application.FileItem.RUN_SCRIPT]

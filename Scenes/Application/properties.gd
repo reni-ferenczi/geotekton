@@ -26,7 +26,7 @@ signal recolored()
 # An edit was refused, with the message saying why.
 signal rejected(message: String)
 
-# The pointer button on the Ride on row was pressed or let go. The Application
+# The pointer button on the Follow row was pressed or let go. The Application
 # owns the pick mode; the button only asks for it and shows whether it is on.
 signal pick_parent_requested(on: bool)
 
@@ -58,7 +58,7 @@ const STYLE_TOOLTIP := ("Same as parent colors the features the way the group ab
 # way round it is walked.
 const SECTION_COLUMNS = ["Feature", "From", "To", "Way"]
 
-# The pointer on the Ride on row, which picks the parent off the planet.
+# The pointer on the Follow row, which picks the parent off the planet.
 const PICK_PARENT_ICON := "res://Assets/Icons/Pointer.svg"
 
 # A section whose feature can no longer be found, or cannot be followed at the
@@ -66,7 +66,7 @@ const PICK_PARENT_ICON := "res://Assets/Icons/Pointer.svg"
 # has lost instead of quietly shrinking.
 const BROKEN_SECTION_COLOR = Color(0.9, 0.45, 0.4, 1.0)
 
-# The columns of the coupling list: the feature ridden on, and the older and the
+# The columns of the coupling list: the feature followed, and the older and the
 # younger end of the span in Ma. A span whose parent cannot be followed is drawn
 # in the same warning colour as a broken section.
 const SPAN_COLUMNS = ["Parent", "From", "To"]
@@ -437,8 +437,8 @@ func _build_keyframes(form: GridContainer) -> void:
 	row.add_child(delete_key_button)
 
 
-# What the feature rides on: the parent in effect at the current time with the
-# Decouple button beside it, a picker of the features it could ride on with the
+# What the feature follows: the parent in effect at the current time with the
+# Decouple button beside it, a picker of the features it could follow with the
 # Couple button, and the list of its spans, each removable. See
 # Docs/Properties.md#coupling.
 func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
@@ -457,13 +457,13 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	decouple_button = Button.new()
 	decouple_button.name = "Decouple"
 	decouple_button.text = "Decouple"
-	decouple_button.tooltip_text = "Stop riding on it at the current time"
+	decouple_button.tooltip_text = "Stop following it at the current time"
 	decouple_button.pressed.connect(_on_decouple_pressed)
 	coupled_row.add_child(decouple_button)
 
 	var couple_row := HFlowContainer.new()
 	couple_row.name = "CoupleRow"
-	_row(form, "Ride on", couple_row)
+	_row(form, "Follow", couple_row)
 	_motion_boxes.append(_rows.back()["label"])
 	_motion_boxes.append(couple_row)
 
@@ -475,7 +475,7 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	couple_button = Button.new()
 	couple_button.name = "Couple"
 	couple_button.text = "Couple"
-	couple_button.tooltip_text = "Ride on the picked feature from the current time"
+	couple_button.tooltip_text = "Follow the picked feature from the current time"
 	couple_button.pressed.connect(_on_couple_pressed)
 	couple_row.add_child(couple_button)
 
@@ -483,7 +483,7 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	pick_parent_button.name = "PickParent"
 	pick_parent_button.toggle_mode = true
 	pick_parent_button.icon = load(PICK_PARENT_ICON)
-	pick_parent_button.tooltip_text = "Click a feature on the planet to ride on it"
+	pick_parent_button.tooltip_text = "Click a feature on the planet to follow it"
 	pick_parent_button.toggled.connect(
 		func(on: bool) -> void: pick_parent_requested.emit(on))
 	couple_row.add_child(pick_parent_button)
@@ -898,7 +898,7 @@ func _on_delete_key_pressed() -> void:
 ### Coupling
 
 
-# The picker lists every feature the selected one could ride on, in tree order,
+# The picker lists every feature the selected one could follow, in tree order,
 # and the list holds its spans. The picked parent is kept across a refill.
 func _fill_coupling() -> void:
 	var picked := picked_parent()
@@ -967,8 +967,8 @@ func pick_parent_uuid(uuid: String) -> String:
 			_update_coupling()
 			return ""
 	if node != null and node.uuid == uuid:
-		return "A feature cannot ride on itself."
-	return "That feature is not one of the ones to ride on."
+		return "A feature cannot follow itself."
+	return "That feature is not one of the ones to follow."
 
 
 # Whether the pick mode is on, which is what the button shows. The mode itself
@@ -981,7 +981,7 @@ func show_picking(on: bool) -> void:
 	pick_parent_button.set_pressed_no_signal(on)
 
 
-# What the feature rides on at the current time, and which buttons work there.
+# What the feature follows at the current time, and which buttons work there.
 func _update_coupling() -> void:
 	var feature := document != null and node != null and not node.is_group
 	var span := Coupling.span_at(node, document.current_time) if feature else null
@@ -1421,7 +1421,11 @@ func _coupling_to_json() -> Dictionary:
 				"to": float(item.get_text(2)),
 				"broken": item.get_custom_color(0) == BROKEN_SECTION_COLOR,
 			})
+	var couple_row := parent_selector.get_parent()
+	var caption: Label = _rows.filter(
+		func(row: Dictionary) -> bool: return row["control"] == couple_row)[0]["label"]
 	return {
+		"caption": caption.text,
 		"coupled_to": coupled_label.text,
 		"parents": range(parent_selector.item_count).map(
 			func(index: int) -> String: return parent_selector.get_item_text(index)),

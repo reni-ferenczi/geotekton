@@ -44,7 +44,7 @@ multipoint, which have no area at all.
 
 **Where it is** at a time is that point carried through the feature's world
 rotation, which is what the user sees move: its own keyframes, composed with
-the parent's world rotation while it [rides on another feature](Time.md#coupling).
+the parent's world rotation while it [follows another feature](Time.md#coupling).
 A group above it moves nothing. So the graphs of a coupled feature plot its
 world path, not its keyframes relative to the parent.
 
@@ -70,9 +70,9 @@ and the bar for that span is as tall.
 The times the rate can change at are the feature's keyframe times: a feature
 with three keyframes has two spans. A coupled feature's world motion can also
 change where a coupling starts or ends, and wherever its parent's motion
-changes while it rides on it, so those times are added: both ends of every
+changes while it follows it, so those times are added: both ends of every
 coupling, and every such time of the parent that falls inside the span,
-followed up the chain (`Kinematics.motion_times()`). A ridge rides on two
+followed up the chain (`Kinematics.motion_times()`). A ridge follows two
 parents at once, and either of them turning moves the midpoint it sits on, so
 both are counted.
 

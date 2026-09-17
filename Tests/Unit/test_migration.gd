@@ -167,12 +167,12 @@ func test_a_still_leaf_takes_its_moving_group_s_keyframes() -> void:
 	var migrated := Document.migrate({"version": "0.7.0", "features": {
 		"type": "Group", "title": "Planet",
 		"keyframes": [{"time": 200.0, "rotation": [0.0, 45.0, 0.0]}],
-		"children": [{"type": "Feature", "title": "Rider", "rings": [], "keyframes": []}],
+		"children": [{"type": "Feature", "title": "Leaf", "rings": [], "keyframes": []}],
 	}})
-	var rider: Dictionary = migrated["features"]["children"][0]
-	assert_eq(rider["keyframes"].size(), 1, "one keyframe, from the root's one")
-	assert_close(rider["keyframes"][0]["time"], 200.0, 1e-9)
-	var rotation: Array = rider["keyframes"][0]["rotation"]
+	var leaf: Dictionary = migrated["features"]["children"][0]
+	assert_eq(leaf["keyframes"].size(), 1, "one keyframe, from the root's one")
+	assert_close(leaf["keyframes"][0]["time"], 200.0, 1e-9)
+	var rotation: Array = leaf["keyframes"][0]["rotation"]
 	assert_close(Vector3(rotation[0], rotation[1], rotation[2]), Vector3(0, 45, 0), 1e-6,
 		"and it is the root's rotation")
 	assert_true(not migrated["features"].has("keyframes"), "the root has none any more")
@@ -369,8 +369,8 @@ func test_a_0_13_0_leaf_reads_with_no_icon() -> void:
 ### 0.14.0 to 0.15.0: a coupling span may name a second parent
 
 
-# There is no step either: a span without the key rides on one parent, which is
-# what every span did before a ridge rode on two.
+# There is no step either: a span without the key follows one parent, which is
+# what every span did before a ridge followed two.
 func test_a_0_14_0_span_reads_with_one_parent() -> void:
 	var migrated := Document.migrate({"version": "0.14.0", "features": {
 		"type": "Group", "is_group": true, "title": "Planet", "children": [

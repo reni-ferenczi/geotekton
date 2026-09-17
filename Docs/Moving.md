@@ -99,16 +99,16 @@ would have nothing to write; see [Time](Time.md#groups-do-not-move).
 
 ### Dragging a coupled feature
 
-A feature that [rides on another](Time.md#coupling) at the current time is
+A feature that [follows another](Time.md#coupling) at the current time is
 dragged in world space all the same: the drag starts from its world rotation,
 `Feature.world_basis()`, and the rotation that comes out is put into the frame
 in effect at the current time before it is written, by
 `Coupling.rotation_for()`. Inside a span that is the pose relative to the
 parent, so the keyframe is relative and the feature lands where it was dropped.
 
-Dragging a parent moves whatever rides on it at that time. Nothing is written
-to the riders: their keyframes are relative already, and
-`Planet.Geometry.resolve()` works every rider out from its parent's world
+Dragging a parent moves its children at that time. Nothing is written
+to the children: their keyframes are relative already, and
+`Planet.Geometry.resolve()` works every child out from its parent's world
 rotation, parents first and each once.
 
 ---
@@ -199,10 +199,10 @@ decompose_rotation_degrees(Basis(axis, angle) * build_rotation_basis(base_rot))
 ```
 
 The base rotation is the one the feature had when the drag started — its own, or
-its world rotation when it rides on another — so the turn is applied on top of
+its world rotation when it follows another — so the turn is applied on top of
 wherever the feature already stood. The keyframe goes in at the current time
 while the drag runs and the release records one undo version, exactly as a move
-does; a rider's keyframe goes through `Coupling.rotation_for()` first, so what is
+does; a child's keyframe goes through `Coupling.rotation_for()` first, so what is
 stored is relative to the parent.
 
 ---
