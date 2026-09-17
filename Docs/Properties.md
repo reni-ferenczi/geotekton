@@ -33,8 +33,8 @@ does.
 A new feature is a Polygon. The Type selector of the Properties panel is the one
 place the type is picked, and on a feature holding nothing it takes any of the
 seven, because the type is what the tools then draw: Polygon a polygon, Line a
-polyline, Points a multipoint, Circle a closed polyline through the
-[Circle tool](Editing.md#the-circle-tool) and Topology a boundary picked
+polyline, Points a multipoint, Circle a closed polyline, which
+[Draw draws as a circle](Editing.md#drawing-a-circle), and Topology a boundary picked
 together with the [section table](#the-section-table)'s Pick toggle. Polar circles and Hotspot need
 no tool: picking the type builds their rings at once, so the feature is never
 empty; see [Polar circles](Editing.md#polar-circles) and
@@ -304,19 +304,22 @@ stands.
 ### Coupling
 
 Two rows and a list, all about which feature this one
-[follows](Time.md#coupling).
+[follows](Time.md#coupling). A Circle has none of them: it follows nothing and
+carries nothing, so the panel hides the rows and keeps only the keyframe row.
+A span a file already gives a circle still counts; `get_properties` reports it
+under `coupling` with `hidden: true`.
 
 - **Coupled to** names the parent in effect at the current time, or says
   `nothing`. `Decouple` beside it ends that span at the current time and is
   greyed out while the feature follows nothing.
 - **Follow** is a picker of every feature this one could follow, in tree
-  order: every leaf but itself and the topologies. `Couple` starts a span on the
+  order: every leaf but itself, the topologies and the circles. `Couple` starts a span on the
   picked feature at the current time and is greyed out while the feature
   already follows something then. The pointer button beside them fills the
   picker from the planet instead of from the list: press it and the next left
   click on the globe or the map names whatever it lands on. The status bar says
   `Pick the feature to follow` while it is armed. A click on the ocean, on the
-  feature itself or on a topology says so in the status bar and leaves the
+  feature itself, on a topology or on a circle says so in the status bar and leaves the
   pointer armed, so only a click the picker can take ends it. So do Escape and
   pressing the button again. Nothing else moves: the selection, the current
   tool and the globe are where they were, and the picked parent is still

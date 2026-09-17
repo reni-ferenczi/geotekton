@@ -90,7 +90,10 @@ is a relation between two leaf features over a **span** of the timeline
 (`Logic/coupling.gd`): `from`, the older age where it starts, `to`, the younger
 age where it ends, and the parent, named by uuid. A feature can have several
 spans, which do not overlap, and a parent can carry any number of children. The
-feature tree plays no part in it.
+feature tree plays no part in it. A Circle is neither a child nor a parent:
+coupling one is refused with "A circle follows nothing." and following one with
+"A circle carries nothing." A file that already couples a circle still loads
+and resolves as written, and a span that follows a circle is shown as broken.
 
 In this documentation a *child* is a feature that follows another through a
 coupling. A group holds rows, not children, since groups carry no motion; a

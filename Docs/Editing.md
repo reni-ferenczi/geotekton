@@ -2,7 +2,7 @@
 
 ## Tools
 
-The toolbar contains eight mutually exclusive tool buttons, two switches and a
+The toolbar contains seven mutually exclusive tool buttons, two switches and a
 number:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
@@ -12,16 +12,15 @@ number:
 - **Pole** — Turns the selected feature about a pole placed with a click; see
   [Turning a feature](#turning-a-feature).
 - **Draw** — Enables drawing on the globe surface. See `Docs/Draw.md` for full details.
-  Offered on a Polygon, a Line and Points.
+  Offered on a Polygon, a Line, Points and a Circle, where it draws a circle; see
+  [Drawing a circle](#drawing-a-circle).
 - **Vertex** — Edits the vertices of the selected feature. Needs a leaf feature
   holding vertices of its own; see [The Vertex tool](#the-vertex-tool).
 - **Measure** — Reports great circle distances in the status bar; see
   [The Measure tool](#the-measure-tool).
-- **Circle** — Draws a circle from a centre or through three points; see
-  [The Circle tool](#the-circle-tool). Offered on a Circle.
 - **Split** — Cuts the selected polygon in two along a line drawn across it;
   see [The Split tool](#the-split-tool). Offered while a polygon is selected.
-- **Circle segments** — Shown only while the Circle tool is active; see
+- **Circle segments** — Shown only while the Draw tool is drawing a circle; see
   [Segments of a circle](#segments-of-a-circle).
 - **Ridge** — Whether the Split tool leaves a line along the cut. Shown only
   while that tool is active, on to start with, and remembered between sessions;
@@ -31,7 +30,8 @@ number:
   while Ridge is off, on to start with, and remembered between sessions; see
   [The crust](#the-crust).
 
-Which of Draw and Circle is offered follows the selected feature's
+Whether Draw is offered, and whether it draws a circle or a shape clicked out
+vertex by vertex, follows the selected feature's
 [type](Properties.md#what-the-type-restricts), which is picked in the Properties
 panel and is the one place it is picked. Picking a type on a feature holding
 nothing arms the tool that draws it, so a new feature can be drawn straight
@@ -42,8 +42,8 @@ drag lands on a nearby vertex is a setting, Edit > Snap to vertices, rather
 than a tool; see [Snapping](#snapping). The light is set in the
 [View settings](#view-settings) dialog.
 
-Only one of Move, Rotate, Pole, Draw, Vertex, Measure, Circle, Topology and
-Split is active at a time. Everything but
+Only one of Move, Rotate, Pole, Draw, Vertex, Measure, Topology and Split is
+active at a time. Everything but
 Move takes the clicks on the planet for itself, so selecting a feature, moving
 one and the right click menu wait until Move comes back. Rotating the globe with
 the middle button always works.
@@ -58,10 +58,10 @@ letters are GPlates' where GPlates has one for the same tool:
 | --- | ----------------- | --- | ----------------- |
 | M   | Move              | V   | Edit Vertices     |
 | R   | Rotate            | E   | Measure Distances |
-| P   | Pole Rotate       | C   | Circle            |
-| D   | Draw              | X   | Split             |
+| P   | Pole Rotate       | X   | Split             |
+| D   | Draw              |     |                   |
 
-The Topology tool has no key, since it has no button. L and T pick nothing.
+The Topology tool has no key, since it has no button. C, L and T pick nothing.
 
 A key of a tool the toolbar greys out for what is selected does nothing. A text
 field with the keyboard takes the letter as the character it is, so typing a
@@ -466,14 +466,19 @@ The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
 operation with no points between the ends, and `GeometryEdit` works both out
 with the same functions.
 
-## The Circle tool
+## Drawing a circle
+
+On a feature typed [Circle](Properties.md#the-type-is-picked-before-the-shape),
+the Draw tool draws a circle instead of placing vertices one by one. The type
+decides; there is no separate tool or key. Everything else about Draw, for
+the other types, is in [Draw](Draw.md).
 
 A **circle** is every point the same angular distance from one centre, which is
 also the path a point follows while a plate turns about a fixed pole. A great
 circle is the case where that distance is 90 degrees.
 
-The tool takes the circle from the points clicked on the globe, and how many
-were clicked says which construction is meant:
+Draw takes the circle from the points clicked on the globe, and how many were
+clicked says which construction is meant:
 
 | Points clicked | The circle |
 |----------------|------------|
@@ -492,19 +497,21 @@ fourth starts again.
 | **Enter** | Commit the circle to the selected feature |
 | **Escape** | Start again with no points |
 
-The status bar carries the centre, the radius in degrees and the segment count
-while the tool is armed, so the circle can be read before it is committed.
+While a circle is being drawn, the status bar shows its centre, its radius in
+degrees and the segment count, so the circle can be read before it is
+committed. Snapping and Shift+click tracing do not apply to these points.
 
 ### Segments of a circle
 
 A committed circle is not a true curve but a ring of straight edges. The
 **Circle segments** box in the toolbar says how many: from 3 to 720,
-starting at 36. Only this tool reads it, so the box is shown only while the
-Circle tool is active. The preview and the status bar follow it as it changes.
+starting at 36. Only a circle being drawn reads it, so the box is shown only
+while Draw is armed on a Circle. The preview and the status bar follow it as it
+changes.
 
 The box fits in the toolbar's spare width, so showing it does not push the
 Properties panel aside or move the planet. That is why its label is not longer. The scripted session checks that the planet
-stays put when the tool changes.
+stays put when the box appears.
 
 ### What it commits
 
@@ -515,15 +522,22 @@ the same as the [Pole tool](#turning-a-feature)'s cross, and the inside stays
 uncovered.
 
 A filled circle, a polygon, still reads back as a Circle from a file that holds
-one, but the tool does not add to it: committing on such a feature is refused
+one, but Draw does not add a circle to it: committing on such a feature is refused
 with a message in the status bar. Draw the outline on a new Circle instead.
 
 The vertices are worked out in world coordinates and then mapped into the
 feature's own frame, the same way the Draw tool does it, so a circle drawn while
 the current time has moved the feature lands where it was clicked. Committing
-records one undo version and goes back to the Move tool. The tool is offered on
-a [Circle](Properties.md#the-type-is-picked-before-the-shape) alone, which is
-what a feature drawn with it already is.
+records one undo version and goes back to the Move tool. The feature is a
+Circle before the first click and stays one.
+
+### A circle follows nothing
+
+A circle takes no part in [coupling](Time.md#coupling). The Properties panel
+shows no coupling rows for it, Couple is refused with "A circle follows
+nothing.", and a circle is not offered as a feature to follow: the picker
+leaves it out and a pick click on one says "A circle carries nothing." The
+keyframe row stays, since Move and Rotate still turn a circle.
 
 The construction itself is in `Logic/circle.gd` and is tested without a
 window. How well three points settle a centre depends on how large the circle

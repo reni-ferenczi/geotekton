@@ -15,7 +15,6 @@ const TOOL_NAMES := {
 	Application.Tool.DRAW: "draw",
 	Application.Tool.VERTEX: "vertex",
 	Application.Tool.MEASURE: "measure",
-	Application.Tool.CIRCLE: "circle",
 	Application.Tool.TOPOLOGY: "topology",
 	Application.Tool.SPLIT: "split",
 }
@@ -381,6 +380,12 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true}
 
 		"coupling":
+			# A circle has no coupling rows; the refusal is the one the document
+			# gives.
+			var coupling_node: Feature = app.features.feature_tree.get_selected_node()
+			if coupling_node != null and coupling_node.feature_type == FeatureType.CIRCLE:
+				return {"ok": false, "error": app.document.coupling_problem(
+					coupling_node, null, app.document.current_time)}
 			# Couple follows the picked parent and Decouple stops following, both at
 			# the current time; Remove takes a span of the list away. `pick` arms
 			# the pointer instead, so the next `click` on the planet names the
@@ -612,6 +617,11 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true,
 				"tool": TOOL_NAMES[app.active_tool],
 				"drawing_vertices": app.outline_vertices.size(),
+				# What the Draw tool draws: "circle" on a feature typed Circle,
+				# otherwise the geometry kind it commits; null in any other tool.
+				"drawing": null if app.active_tool != Application.Tool.DRAW
+					else "circle" if app._drawing_circle()
+					else Feature.KIND_NAMES[app.drawing_kind()],
 				"vertex_enabled": not app.vertex_button.disabled,
 				"pole": null if app.pole_at == Application.NO_POLE
 					else [app.pole_at.x, app.pole_at.y],
@@ -632,12 +642,11 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"crust_enabled": not app.crust_check.disabled,
 				"measure_points": _points_to_json(app.measure_points),
 				"measure_label": _measure_label_to_json(),
-				"circle_points": _points_to_json(app.circle_points),
+				"circle_points": _points_to_json(app.circle_points()),
 				"circle": _circle_to_json(),
 				"segments": app.circle_segments(),
 				"segments_visible": app.segments_spin.is_visible_in_tree(),
 				"draw_enabled": not app.draw_button.disabled,
-				"circle_enabled": not app.circle_button.disabled,
 				"topology_enabled": app._can_build_topology(
 					app.features.feature_tree.get_selected_node()),
 				# The names of what the tool strip holds, buttons and switches.
@@ -648,9 +657,9 @@ func _dispatch(request: Dictionary) -> Dictionary:
 		"set_tool":
 			# Only what the toolbar itself allows: a tool is refused wherever its
 			# button is greyed out, and Topology, which has no button, wherever
-			# the section table's Pick toggle would be refused. Which kind the
-			# Draw and Circle tools produce comes from the selected feature's
-			# type, which set_property sets.
+			# the section table's Pick toggle would be refused. What the Draw
+			# tool produces, a circle among them, comes from the selected
+			# feature's type, which set_property sets.
 			var tool_name := str(request.get("tool", ""))
 			if tool_name == "draw":
 				if app.draw_button.disabled:
@@ -669,10 +678,6 @@ func _dispatch(request: Dictionary) -> Dictionary:
 						"turning a feature needs one holding vertices of its own"}
 				app.set_active_tool(Application.Tool.ROTATE if tool_name == "rotate"
 					else Application.Tool.POLE)
-			elif tool_name == "circle":
-				if app.circle_button.disabled:
-					return {"ok": false, "error": "the Circle tool needs a feature selected"}
-				app.set_active_tool(Application.Tool.CIRCLE)
 			elif tool_name == "topology":
 				if not app._can_build_topology(app.features.feature_tree.get_selected_node()):
 					return {"ok": false, "error":
@@ -913,7 +918,7 @@ func _vertex_to_json(vertex: Vector2i) -> Variant:
 	return null if vertex == Application.NO_VERTEX else [vertex.x, vertex.y]
 
 
-# The circle the Circle tool has been given, and the ring it would commit, so a
+# The circle the Draw tool has been given, and the ring it would commit, so a
 # run can read back what the preview is drawing without looking at the screen.
 func _circle_to_json() -> Variant:
 	var circle: Array = app.circle_from_points()

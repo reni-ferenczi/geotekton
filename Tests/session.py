@@ -399,12 +399,12 @@ def run_point_undo_session(client: AutomationClient) -> None:
           "with nothing held, Edit > Undo reaches the document")
     client.call("menu", item="redo")
 
-    # The Circle and Measure tools hold their points the same way.
-    for tool, field in (("circle", "circle_points"), ("measure", "measure_points")):
+    # A circle being drawn and the Measure tool hold their points the same way.
+    for tool, field in (("draw", "circle_points"), ("measure", "measure_points")):
         # Redo put the feature back but not the selection.
         client.call("select", title="Feature")
-        if tool == "circle":
-            # The Circle tool is offered on a Circle, and a polygon may be one.
+        if tool == "draw":
+            # The Draw tool draws a circle on a Circle, and a polygon may be one.
             # Picking the type is an edit, so the stack is read again after it.
             client.call("set_property", field="feature_type", value="circle")
             depth = undo_depth(client)
@@ -1704,14 +1704,13 @@ CIRCLE_TOLERANCE = 0.5
 
 
 def build_circle(client: AutomationClient, points: list[tuple[float, float]]) -> dict:
-    """Start a document and click the points with the Circle tool.
+    """Start a document and click the points with the Draw tool on a Circle.
 
-    The Circle tool is offered on a Circle, which is picked in the Properties
-    panel.
+    The type, picked in the Properties panel, is what makes Draw draw a circle.
     """
     start_new_document(client)
-    # The segment count is set while its box is hidden, so the Circle tool has to
-    # pick up a value typed in another tool.
+    # The segment count is set while its box is hidden, so drawing a circle has
+    # to pick up a value typed in another tool.
     client.call("set_tool", tool="move", segments=CIRCLE_SEGMENTS)
     tool = client.call("get_tool")
     check(not tool["segments_visible"], "the Segments box is hidden in the Move tool")
@@ -1720,14 +1719,26 @@ def build_circle(client: AutomationClient, points: list[tuple[float, float]]) ->
     # splitter would give way and the planet would jump sideways under the pointer.
     before = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
     client.call("toolbar", button="AddFeature")
-    check(not client.call("get_tool")["circle_enabled"],
-          "the Circle tool waits for a Circle")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "draw" and tool["drawing"] == "polygon",
+          f"a fresh polygon arms Draw for a polygon: {tool['tool']}, {tool['drawing']}")
+    check(not tool["segments_visible"], "and Draw hides the Segments box for a polygon")
     client.call("set_property", field="feature_type", value="circle")
     tool = client.call("get_tool")
-    check(tool["tool"] == "circle", "picking the type arms the Circle tool")
-    check(not tool["draw_enabled"], "and takes the Draw tool away")
-    client.call("set_tool", tool="circle")
+    check(tool["tool"] == "draw" and tool["drawing"] == "circle",
+          f"picking the Circle type keeps Draw armed, drawing a circle: "
+          f"{tool['tool']}, {tool['drawing']}")
+    check("Circle" not in tool["tool_strip"],
+          f"the tool strip has no Circle button: {tool['tool_strip']}")
+    check("unknown tool" in refusal(client, "set_tool", tool="circle"),
+          "and the port has no circle tool")
+    # C picks nothing, and D gives the circle back.
+    client.call("set_tool", tool="move")
+    client.call("key", key="C")
+    check(client.call("get_tool")["tool"] == "move", "C leaves the tool alone on a Circle")
+    client.call("key", key="D")
     tool = client.call("get_tool")
+    check(tool["tool"] == "draw" and tool["drawing"] == "circle", "D arms Draw for the circle")
     check(tool["segments_visible"], "which shows the Segments box")
     after = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
     check(after == before, f"without moving the planet: {before} then {after}")
@@ -1758,7 +1769,9 @@ def run_circle_session(client: AutomationClient) -> None:
     check(feature["geometry_kind"] == "polyline",
           f"the circle is an outline, a polyline: {feature['geometry_kind']}")
     check(feature["feature_type"] == "circle",
-          f"which the Circle tool makes a Circle: {feature['feature_type']!r}")
+          f"and the feature stays a Circle: {feature['feature_type']!r}")
+    tool = client.call("get_tool")
+    check(tool["tool"] == "move", f"committing the circle brings Move back: {tool['tool']}")
     if check(len(feature["rings"]) == 1, "the circle is committed as one part"):
         ring = feature["rings"][0]
         # The polyline draws the whole circle, so it repeats its first vertex.
@@ -1780,6 +1793,20 @@ def run_circle_session(client: AutomationClient) -> None:
         check(is_colour(rim_colour, list(TYPE_COLORS[3])),
               f"the rim is drawn in the Circle colour: {rim_colour}")
         client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+
+        run_circle_coupling_checks(client, feature["title"], ring[1])
+
+    # A right click takes a point back, as Ctrl+Z does.
+    tool = build_circle(client, [CIRCLE_CENTRE, rim])
+    if tool and draw(client, [(CIRCLE_CENTRE[0], CIRCLE_CENTRE[1] + CIRCLE_RADIUS)]):
+        check(len(client.call("get_tool")["circle_points"]) == 3, "a third click is held")
+        screen = client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"]
+        client.call("click", x=screen[0], y=screen[1], button="right")
+        tool = client.call("get_tool")
+        check(len(tool["circle_points"]) == 2, f"a right click takes it back: {tool['circle_points']}")
+        check(tool["circle"] is not None
+              and abs(tool["circle"]["radius"] - CIRCLE_RADIUS) < CIRCLE_TOLERANCE,
+              "and the centre and rim describe the circle again")
 
     # Three points on the rim describe the same circle, without its centre ever
     # being clicked.
@@ -1803,6 +1830,34 @@ def run_circle_session(client: AutomationClient) -> None:
     check(client.call("get_tool")["circle"] is None, "Escape drops the clicked points")
     check(client.call("get_selected")["feature"]["rings"] == [],
           "and leaves the feature without geometry")
+
+
+def run_circle_coupling_checks(client: AutomationClient, circle: str,
+                               rim: list[float]) -> None:
+    """A circle has no coupling rows, and neither follows nor carries anything."""
+    client.call("select", title=circle)
+    properties = client.call("get_properties")["properties"]
+    check("keyframes" in properties, "a circle keeps its keyframe row")
+    coupling = properties.get("coupling", {})
+    check(coupling.get("hidden") is True,
+          f"but the panel hides its coupling rows: {coupling.get('hidden')}")
+    error = refusal(client, "coupling", button="Couple")
+    check(error == "A circle follows nothing.", f"coupling a circle is refused: {error!r}")
+
+    # A polygon beside the circle is not offered the circle to follow.
+    client.call("toolbar", button="AddFeature")
+    coupling = client.call("get_properties")["properties"]["coupling"]
+    check(coupling["hidden"] is False, "a polygon shows its coupling rows")
+    check(circle not in coupling["parents"],
+          f"and the picker leaves the circle out: {coupling['parents']}")
+    client.call("coupling", pick=True)
+    screen = client.call("latlon_to_screen", lat=rim[0], lon=rim[1])["screen"]
+    client.call("click", x=screen[0], y=screen[1])
+    status = client.call("get_status")["status"]["measure"]
+    check(status == "A circle carries nothing.", f"nor is a click on its rim: {status!r}")
+    check(client.call("get_properties")["properties"]["coupling"]["picking"],
+          "which leaves the pointer armed")
+    client.call("key", key="Escape")
 
 
 ### The Polar circles scenario
@@ -4054,8 +4109,8 @@ def run_tool_key_checks(client: AutomationClient) -> None:
         picked = client.call("get_tool")["tool"]
         check(picked == tool, f"{key} picks the {tool} tool: {picked}")
 
-    # A key of a tool the toolbar greys out for what is selected does nothing,
-    # and L and T, which picked the Light and Topology tools once, pick nothing.
+    # C, L and T, which picked the Circle, Light and Topology tools once, pick
+    # nothing.
     for key in ["C", "L", "T"]:
         client.call("key", key=key)
         check(client.call("get_tool")["tool"] == "move",

@@ -56,7 +56,7 @@ const IMPORT_SCRATCH := "user://imported.middle-earth"
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, ROTATE, POLE, DRAW, VERTEX, MEASURE, CIRCLE, TOPOLOGY, SPLIT }
+enum Tool { MOVE, ROTATE, POLE, DRAW, VERTEX, MEASURE, TOPOLOGY, SPLIT }
 
 # The key that picks each tool, single letters without a modifier. GPlates'
 # own letters where it has one for the same tool. The Topology tool has no key:
@@ -68,7 +68,6 @@ const TOOL_KEYS := {
 	KEY_D: Tool.DRAW,
 	KEY_V: Tool.VERTEX,
 	KEY_E: Tool.MEASURE,
-	KEY_C: Tool.CIRCLE,
 	KEY_X: Tool.SPLIT,
 }
 
@@ -140,7 +139,6 @@ const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
 @onready var draw_button: Button = %Draw
 @onready var vertex_button: Button = %Vertex
 @onready var measure_button: Button = %Measure
-@onready var circle_button: Button = %Circle
 @onready var split_button: Button = %Split
 @onready var segments_spin: SpinBox = %Segments
 @onready var segments_label: Label = %SegmentsLabel
@@ -177,7 +175,6 @@ const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
 	Tool.DRAW: draw_button,
 	Tool.VERTEX: vertex_button,
 	Tool.MEASURE: measure_button,
-	Tool.CIRCLE: circle_button,
 	Tool.SPLIT: split_button,
 }
 
@@ -2004,8 +2001,6 @@ func set_active_tool(tool: Tool) -> void:
 		_let_every_vertex_go()
 	if active_tool == Tool.MEASURE and tool != Tool.MEASURE:
 		_measure_clear()
-	if active_tool == Tool.CIRCLE and tool != Tool.CIRCLE:
-		circle_points = PackedVector2Array()
 	if active_tool == Tool.SPLIT and tool != Tool.SPLIT:
 		split_points = PackedVector2Array()
 	if _spins(active_tool) and tool != active_tool:
@@ -2015,10 +2010,8 @@ func set_active_tool(tool: Tool) -> void:
 	for entry: Tool in tool_buttons:
 		tool_buttons[entry].button_pressed = entry == tool
 	properties.show_section_picking(tool == Tool.TOPOLOGY)
-	# Only the Circle tool reads the segment count, and only the Split tool the
-	# Ridge and Crust switches, so each shows its own.
-	segments_label.visible = tool == Tool.CIRCLE
-	segments_spin.visible = tool == Tool.CIRCLE
+	# Only the Split tool reads the Ridge and Crust switches. The segment count
+	# follows the selection as well, so _update_tool_buttons shows it.
 	ridge_check.visible = tool == Tool.SPLIT
 	crust_check.visible = tool == Tool.SPLIT
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
@@ -2046,7 +2039,8 @@ func snapping() -> bool:
 # nothing to take hold of otherwise, and a topology's vertices belong to the
 # features it runs along. Rotate and Pole want the same thing, since they turn
 # those vertices about an axis. Measure needs nothing at all, and Split a
-# polygon. Which of Draw and Circle is offered follows the feature's type.
+# polygon. Whether Draw is offered follows the feature's type, and so does the
+# segment count, which only a circle being drawn reads.
 func _update_tool_buttons() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var editable := _can_spin(selected)
@@ -2054,19 +2048,18 @@ func _update_tool_buttons() -> void:
 	rotate_button.disabled = not editable
 	pole_button.disabled = not editable
 	draw_button.disabled = not _can_draw(selected)
-	circle_button.disabled = not _can_draw_circle(selected)
 	split_button.disabled = not _can_split_along(selected)
+	segments_label.visible = _drawing_circle()
+	segments_spin.visible = _drawing_circle()
 
 
-# Whether the armed tool can still work on the selected feature. Only the three
+# Whether the armed tool can still work on the selected feature. Only the two
 # drawing tools are asked: the type says which of them a feature is drawn with,
 # and nothing a type can change reaches the others.
 func _tool_fits(node: Feature) -> bool:
 	match active_tool:
 		Tool.DRAW:
 			return _can_draw(node)
-		Tool.CIRCLE:
-			return _can_draw_circle(node)
 		Tool.TOPOLOGY:
 			return _can_build_topology(node)
 	return true
@@ -2134,8 +2127,7 @@ func _on_feature_selected(node: Feature) -> void:
 			set_active_tool(_tool_for(node))
 	else:
 		# Can't draw or build a topology on groups or nothing — force Move
-		if active_tool == Tool.DRAW or active_tool == Tool.CIRCLE \
-				or active_tool == Tool.TOPOLOGY:
+		if active_tool == Tool.DRAW or active_tool == Tool.TOPOLOGY:
 			set_active_tool(Tool.MOVE)
 
 	_update_move_enabled()
@@ -2222,11 +2214,11 @@ func _update_view_toolbar() -> void:
 ### What the tools draw
 #
 # The selected feature's type is the one place it is picked, in the Properties
-# panel. It says which kind the Draw and Circle tools commit and which of the
-# three drawing tools is offered at all.
+# panel. It says what the Draw tool commits and which of the two drawing tools
+# is offered at all.
 
 
-# The kind the Draw and Circle tools commit. A feature that already holds
+# The kind the Draw tool commits. A feature that already holds
 # geometry keeps its kind, whatever the type says, since the parts of a feature
 # are all of one kind. Before that the type decides: the first kind it allows.
 func drawing_kind() -> Feature.GeometryKind:
@@ -2239,12 +2231,12 @@ func drawing_kind() -> Feature.GeometryKind:
 	return Feature.KIND_VALUES[str(kinds[0])] as Feature.GeometryKind
 
 
-# Which tool draws which type. A Circle is drawn with the Circle tool and a
-# Topology picked together out of other features, so the Draw tool
-# is left the three types clicked out vertex by vertex. A feature carrying no
+# Which types the Draw tool draws. A Topology is picked together out of other
+# features instead. A Circle is drawn from two or three clicks rather than
+# vertex by vertex, which _drawing_circle() tells apart. A feature carrying no
 # type at all, which only a file written before 0.3.0 holds, is drawn like a
 # Polygon.
-const DRAW_TYPES := [FeatureType.NONE, "polygon", "line", "points"]
+const DRAW_TYPES := [FeatureType.NONE, "polygon", "line", "points", FeatureType.CIRCLE]
 
 
 func _has_type(node: Feature, types: Array) -> bool:
@@ -2259,8 +2251,11 @@ func _can_draw(node: Feature) -> bool:
 	return _has_type(node, DRAW_TYPES)
 
 
-func _can_draw_circle(node: Feature) -> bool:
-	return _has_type(node, [FeatureType.CIRCLE])
+# Whether the Draw tool is drawing a circle rather than clicking a shape out
+# vertex by vertex: it is armed and the selected feature is typed Circle.
+func _drawing_circle() -> bool:
+	return active_tool == Tool.DRAW \
+		and _has_type(features.feature_tree.get_selected_node(), [FeatureType.CIRCLE])
 
 
 # Whether a feature can be edited vertex by vertex or turned about an axis. A
@@ -2285,8 +2280,6 @@ func _tool_for(node: Feature) -> Tool:
 		return Tool.MOVE
 	if _can_draw(node):
 		return Tool.DRAW
-	if _can_draw_circle(node):
-		return Tool.CIRCLE
 	return Tool.MOVE
 
 
@@ -2645,8 +2638,6 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 			_on_vertex_input(lat, lon, event)
 		Tool.MEASURE:
 			_on_measure_input(lat, lon, event)
-		Tool.CIRCLE:
-			_on_circle_input(lat, lon, event)
 		Tool.TOPOLOGY:
 			_on_topology_input(lat, lon, event)
 		Tool.SPLIT:
@@ -2671,8 +2662,8 @@ func _on_planet_input_outside(event: InputEvent) -> void:
 
 ### Undo and redo
 #
-# A tool that takes clicks before it commits them — the shape being drawn, the
-# points of a circle, the ends of a measurement — holds them outside the
+# A tool that takes clicks before it commits them — the shape or the circle
+# being drawn, the ends of a measurement — holds them outside the
 # document, so the document's undo stack knows nothing about them. Ctrl+Z while
 # a tool holds points takes the last one back rather than undoing the previous
 # edit under the half drawn shape, and Ctrl+Y puts it back; a right click is the
@@ -2720,8 +2711,6 @@ func _tool_points() -> PackedVector2Array:
 	match active_tool:
 		Tool.DRAW:
 			return outline_vertices
-		Tool.CIRCLE:
-			return circle_points
 		Tool.MEASURE:
 			return measure_points
 		Tool.SPLIT:
@@ -2735,10 +2724,6 @@ func _set_tool_points(points: PackedVector2Array) -> void:
 		Tool.DRAW:
 			outline_vertices = points
 			_refresh_outline()
-		Tool.CIRCLE:
-			circle_points = points
-			_refresh_selection_outline()
-			_show_measurement()
 		Tool.MEASURE:
 			measure_points = points
 			_refresh_selection_outline()
@@ -2756,6 +2741,9 @@ func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group:
+		return
+	if selected.feature_type == FeatureType.CIRCLE:
+		_on_draw_circle_input(lat, lon, event)
 		return
 
 	if event.button_index == MOUSE_BUTTON_LEFT:
@@ -2935,7 +2923,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				return
 		Tool.DRAW:
 			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
-				_outline_commit()
+				if _drawing_circle():
+					_report(_circle_commit())
+				else:
+					_outline_commit()
 			elif event.keycode == KEY_ESCAPE:
 				_outline_cancel()
 			else:
@@ -2954,16 +2945,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			if event.keycode == KEY_ESCAPE:
 				_measure_clear()
 				_refresh_selection_outline()
-			else:
-				return
-		Tool.CIRCLE:
-			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
-				_report(_circle_commit())
-			elif event.keycode == KEY_ESCAPE:
-				circle_points = PackedVector2Array()
-				taken_back = PackedVector2Array()
-				_refresh_selection_outline()
-				_show_measurement()
 			else:
 				return
 		Tool.TOPOLOGY:
@@ -3017,9 +2998,14 @@ func _outline_cancel() -> void:
 	outline_vertices = PackedVector2Array()
 	taken_back = PackedVector2Array()
 	_refresh_selection_outline()
+	_show_measurement()
 
 
 func _refresh_outline() -> void:
+	if _drawing_circle():
+		planet_view.planet.set_outline(_circle_outline())
+		_show_measurement()
+		return
 	planet_view.planet.set_outline([{
 		"vertices": outline_vertices,
 		"style": _drawing_outline_style(),
@@ -3493,38 +3479,44 @@ func split_along_points() -> String:
 	return "Split into %s" % ", ".join(made)
 
 
-### The Circle tool
+### Drawing a circle
 #
-# A circle, drawn as a preview and committed as a polygon or a polyline of
-# a chosen number of segments. Two clicks are a centre and a point on the rim;
+# The Draw tool on a feature typed Circle. The circle is drawn as a preview and
+# committed as a polyline of a chosen number of segments. Two clicks are a
+# centre and a point on the rim;
 # three are three points the circle passes through. Which one is meant follows
 # from how many points have been clicked, so there is no mode to pick: the
 # preview shows what the clicks so far describe and a third click changes it
-# from the one construction to the other.
+# from the one construction to the other. The clicked points are held in
+# outline_vertices, like the vertices of any other shape being drawn, so undo,
+# redo and a cancel treat them alike. Snapping and tracing do not apply.
 
-# The points clicked so far, in world coordinates.
-var circle_points := PackedVector2Array()
 
-
-func _on_circle_input(lat: float, lon: float, event: InputEvent) -> void:
-	if event is not InputEventMouseButton or not event.is_pressed():
-		return
+# Called by _on_draw_input, which has already checked the event and the
+# selection.
+func _on_draw_circle_input(lat: float, lon: float, event: InputEvent) -> void:
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		if circle_points.size() >= 3:
-			circle_points = PackedVector2Array()
+		if outline_vertices.size() >= 3:
+			outline_vertices = PackedVector2Array()
 		_place_point(Vector2(lat, lon))
-	elif event.button_index == MOUSE_BUTTON_RIGHT and not circle_points.is_empty():
+	elif event.button_index == MOUSE_BUTTON_RIGHT and not outline_vertices.is_empty():
 		undo()
+
+
+# The points clicked for the circle, or none while no circle is being drawn.
+func circle_points() -> PackedVector2Array:
+	return outline_vertices if _drawing_circle() else PackedVector2Array()
 
 
 # The circle the clicked points describe, as [centre, angular radius], or an
 # empty array while they describe none.
 func circle_from_points() -> Array:
-	if circle_points.size() == 2:
-		var radius := Circle.radius_to(circle_points[0], circle_points[1])
-		return [] if radius < 1e-6 else [circle_points[0], radius]
-	if circle_points.size() == 3:
-		return Circle.through(circle_points[0], circle_points[1], circle_points[2])
+	var points := circle_points()
+	if points.size() == 2:
+		var radius := Circle.radius_to(points[0], points[1])
+		return [] if radius < 1e-6 else [points[0], radius]
+	if points.size() == 3:
+		return Circle.through(points[0], points[1], points[2])
 	return []
 
 
@@ -3545,8 +3537,8 @@ func circle_ring() -> PackedVector2Array:
 # The clicked points as markers, with the circle they describe over them.
 func _circle_outline() -> Array:
 	var parts: Array = []
-	if not circle_points.is_empty():
-		parts.append({"vertices": circle_points, "style": Planet.OutlineStyle.POINTS})
+	if not outline_vertices.is_empty():
+		parts.append({"vertices": outline_vertices, "style": Planet.OutlineStyle.POINTS})
 	var ring := circle_ring()
 	if not ring.is_empty():
 		# CLOSED draws the segment back to the first vertex itself, so the repeat
@@ -3564,7 +3556,8 @@ func _circle_commit() -> String:
 	var circle := circle_from_points()
 	if circle.is_empty():
 		return "Click a centre and a point on the rim, or three points on the rim."
-	# A circle is always an outline. A filled one from a file written before
+	# The feature is typed Circle already, since that is what made Draw draw a
+	# circle. A circle is always an outline. A filled one from a file written before
 	# that is left as it is rather than given a part of another kind.
 	if selected.has_geometry() and selected.geometry_kind != Feature.GeometryKind.POLYLINE:
 		return "A circle is drawn as an outline, not into a %s." 			% Feature.KIND_NAMES[selected.geometry_kind]
@@ -3575,9 +3568,8 @@ func _circle_commit() -> String:
 		features.root, selected, document.current_time).transposed()
 	selected.add_ring(Feature.apply_basis(circle_ring(), into_local),
 		Feature.GeometryKind.POLYLINE)
-	selected.feature_type = FeatureType.CIRCLE
 
-	circle_points = PackedVector2Array()
+	outline_vertices = PackedVector2Array()
 	document.record()
 	features.reload()
 	refresh_geometry()
@@ -3718,7 +3710,7 @@ func _show_measurement(error: String = "") -> void:
 				count, "" if count == 1 else "s"]
 		return
 
-	if active_tool == Tool.CIRCLE:
+	if _drawing_circle():
 		var circle := circle_from_points()
 		status_measure.text = "click a centre and the rim, or three points on the rim" 			if circle.is_empty() else "centre %.2f° %.2f°   radius %s   %d segments" % [
 				(circle[0] as Vector2).x, (circle[0] as Vector2).y,
@@ -3996,11 +3988,11 @@ func _drawn_children() -> Array[Feature]:
 
 
 # The feature whose lines the shader draws thicker and yellow: the selected one,
-# in the tools that trace the selection. Circle and Measure draw their own
-# overlay instead, and the Vertex tool traces the rings with a dot on every
+# in the tools that trace the selection. A circle being drawn and the Measure
+# tool draw their own overlay instead, and the Vertex tool traces the rings with a dot on every
 # vertex, which a thick line would cover.
 func _highlighted_feature() -> Feature:
-	if active_tool in [Tool.VERTEX, Tool.CIRCLE, Tool.MEASURE]:
+	if active_tool in [Tool.VERTEX, Tool.MEASURE] or _drawing_circle():
 		return null
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group:
@@ -4014,13 +4006,14 @@ func _highlighted_feature() -> Feature:
 # it thicker. Only the Vertex tool puts a dot on every vertex, since picking
 # vertices is what it is for.
 func _refresh_selection_outline() -> void:
+	# A circle being drawn shows the circle its clicks describe, so what
+	# pressing Enter would commit is on the globe before it is committed. That
+	# covers a change of the segment count, which comes through here.
+	if _drawing_circle():
+		_refresh_outline()
+		return
 	# Don't overwrite the drawing outline
 	if not outline_vertices.is_empty():
-		return
-	# The Circle tool draws the circle its clicks describe, so what pressing
-	# Enter would commit is on the globe before it is committed.
-	if active_tool == Tool.CIRCLE:
-		planet_view.planet.set_outline(_circle_outline())
 		return
 	# The Measure tool draws the path it has been given instead, so the points
 	# clicked and the line between them are visible while the distance is read.

@@ -18,9 +18,9 @@ selecting one deselects the others.
 ### Enabling the Draw Tool
 
 The Draw button is **disabled** when no leaf feature is selected, that is when a
-group or nothing is selected, and when the selected feature's type is drawn with
-another tool: a Circle with the [Circle tool](Editing.md#the-circle-tool) and a
-Topology with the section table's [Pick toggle](Editing.md#building-one).
+group or nothing is selected, and when the selected feature is typed Topology,
+whose sections are picked with the section table's
+[Pick toggle](Editing.md#building-one) instead.
 
 If a newly selected feature has **no geometry** yet, the tool its type is drawn
 with is activated to streamline the workflow.
@@ -29,7 +29,7 @@ with is activated to streamline the workflow.
 
 What the Draw tool produces follows the selected feature's
 [type](Properties.md#what-the-type-restricts): a Polygon gives a polygon, a Line
-a polyline and Points a multipoint. A feature holds one kind of geometry, so once
+a polyline, Points a multipoint and a Circle a circle. A feature holds one kind of geometry, so once
 it holds anything, everything else drawn on it joins that as another part of the
 same kind, whatever the type says.
 
@@ -38,6 +38,16 @@ same kind, whatever the type says.
 | Polygon | 3 | A closed outline, filled in |
 | Polyline | 2 | An open line through the vertices |
 | Multipoint | 1 | Separate markers, one per vertex |
+| Circle | 2 or 3 clicks | A polyline around a circle, cut into the Circle segments count |
+
+A Circle takes its points differently. Two clicks are the centre and a point
+on the rim; three are points the circle passes through. A fourth click starts
+a new circle, and Enter commits the circle the clicks describe. Snapping and
+tracing do not apply, and the Circle segments box is shown in the toolbar
+while Draw is armed on a Circle. RMB, Ctrl+Z, Ctrl+Y and Escape work on the
+clicked points as they do on vertices. See
+[Drawing a circle](Editing.md#drawing-a-circle). The rest of this page is about
+the other three kinds.
 
 The minimums are `Feature.MINIMUM_VERTICES`, which the Vertex tool reads as
 well: it refuses to delete a vertex that would leave a part under its minimum.

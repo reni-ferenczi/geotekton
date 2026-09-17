@@ -700,6 +700,8 @@ func couple(child: Feature, parent: Feature, time: float) -> String:
 func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 	if child == null or child.is_group:
 		return "Only a feature can follow another feature."
+	if child.feature_type == FeatureType.CIRCLE:
+		return Coupling.CIRCLE_CHILD_PROBLEM
 	if child.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return "%s is a topology and has no motion of its own to couple." % child.title
 	if parent == null:
@@ -708,6 +710,8 @@ func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 		return "%s cannot follow itself." % child.title
 	if parent.is_group:
 		return "%s is a group; a feature follows another feature." % parent.title
+	if parent.feature_type == FeatureType.CIRCLE:
+		return Coupling.CIRCLE_PARENT_PROBLEM
 	if parent.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return "%s is a topology and has no motion of its own to follow." % parent.title
 	var nodes := Coupling.index(root)

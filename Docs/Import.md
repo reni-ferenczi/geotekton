@@ -109,8 +109,8 @@ feature, it imports as one of three:
 | Point or multipoint | Points       |
 
 A Coastline outline and a Craton are both Polygons, and a MidOceanRidge drawn
-as a line is a Line. Nothing imports as a Circle, which only the Circle tool
-makes. The table is `KIND_TYPES` in `src/middle_earth/gplates.py`.
+as a line is a Line. Nothing imports as a Circle, a type picked by hand
+before Draw draws one. The table is `KIND_TYPES` in `src/middle_earth/gplates.py`.
 
 ### Time
 
