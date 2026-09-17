@@ -44,7 +44,10 @@ count of polar circles, and a leaf without them is some other type, so it reads 
 0.17.0 file as it stands; and 0.19.0 gave a leaf the place, plate and track step
 of a hotspot, which a 0.18.0 leaf does not have either, so that file too is read
 as it stands; and 0.20.0 let a topology be closed, and a topology without the
-flag is open, so a 0.19.0 file is read as it stands as well.
+flag is open, so a 0.19.0 file is read as it stands as well; and 0.21.0 folded
+Polar circles into Circle and gave a circle its center and radius, which has a
+step that retypes a polar circles leaf and works out the center and radius of a
+drawn circle from its ring.
 
 The first public release will have major version 1.
 

@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "features": { ... },
   "view": { ... }
 }
@@ -222,7 +222,7 @@ draw into it; empty is read as no type at all, which only a file written before
 0.3.0 holds. See [Properties](Properties.md#the-type-catalog).
 A `circle` is written as a `polyline` whose last vertex repeats its first. A
 `circle` holding a `polygon` still reads as a Circle, filled, so both kinds are
-valid for the type and neither needs a version change.
+valid for the type; see [Circles](#circles) for the keys it adds.
 `icon` is the glyph the feature's tree row carries, an id from
 `Logic/feature_icon.gd` and the stem of the file under
 `Assets/Icons/Features`. It is written only when there is one, and a feature
@@ -235,28 +235,33 @@ only for a polygon, and several rings on one polygon are separate outlines
 rather than holes. The vertices are in the frame of the feature itself, before
 the rotation its keyframes give it at the current time is applied.
 
-#### Polar circles
+#### Circles
 
-A leaf of type `polar_circles` also carries the three values its two circles
-are built from:
+A drawn leaf of type `circle` also carries the values its ring is built from:
 
 ```json
-"feature_type": "polar_circles",
+"feature_type": "circle",
 "axis": [90.0, 0.0],
 "radius": 23.0,
 "circle_segments": 36,
+"polar": true,
 "geometry_kind": "polyline",
 "rings": [[...], [...]]
 ```
 
-`axis` is the latitude and longitude of the first pole, in the feature's own
-frame; the second pole is its antipode. `radius` is the radius of both circles
-in degrees and `circle_segments` how many segments each is cut into. The keys
-are optional and written only for this type, so a leaf without them is some
-other type. `rings` holds the two closed polylines as usual, for a reader that
-knows nothing about the type. On load the three values win:
-`Feature.from_json()` rebuilds the rings from them, and a missing value takes
-its default, `[90, 0]`, 23 and 36. See [Editing](Editing.md#polar-circles).
+`axis` is the latitude and longitude of the circle's center, in the feature's
+own frame. `radius` is the radius in degrees and `circle_segments` how many
+segments the ring is cut into. `polar` is written only when it is true, and
+then the circle is drawn a second time around the antipode of `axis`; see
+[Axis circles](Editing.md#axis-circles). The keys are written only for a circle
+that holds a ring, so a leaf without them is some other type or a circle not
+drawn yet. `rings` holds the closed polylines as usual, one or two, for a
+reader that knows nothing about the parameters. On load the parameters win:
+`Feature.from_json()` rebuilds the rings from them, and a missing `radius` or
+`circle_segments` takes its default, 23 or 36.
+
+A `circle` leaf with rings but no `axis`, which a script can write, is read the
+way the 0.21.0 migration reads one; see [below](#0200-to-0210).
 
 #### Hotspots
 
@@ -546,8 +551,9 @@ document has no raster.
 #### 0.17.0 to 0.18.0
 
 0.18.0 added `axis`, `radius` and `circle_segments` to a leaf feature, for
-[polar circles](#polar-circles). The step changes nothing but the version: a
-leaf without the keys is not polar circles, and no file before 0.18.0 holds one.
+the Polar circles type, which 0.21.0 folded into [Circle](#circles). The step
+changes nothing but the version: a leaf without the keys is not polar circles,
+and no file before 0.18.0 holds one.
 
 #### 0.18.0 to 0.19.0
 
@@ -560,6 +566,28 @@ without the keys is not a hotspot, and no file before 0.19.0 holds one.
 0.20.0 added `closed` to a topology, for
 [closed topologies](#topologies). The step changes nothing but the version: a
 topology without the key is open, which is what every topology was before.
+
+#### 0.20.0 to 0.21.0
+
+0.21.0 dropped the `polar_circles` type and gave a [circle](#circles) its
+center, radius, segment count and `polar` switch. The step,
+`Document._to_0_21_0()`, changes two kinds of leaf:
+
+- A `polar_circles` leaf becomes a `circle` with `polar` true. It keeps
+  `axis`, `radius` and `circle_segments`, so it rebuilds the same two rings.
+- A `circle` leaf without `axis` holding one ring, which is what Draw wrote,
+  is given the circle that ring was cut from by `Circle.fit()`: the center is
+  the direction of the mean of the vertices' unit vectors, the radius their
+  mean angular distance from it, and the segment count the number of vertices,
+  less the repeated last one. The ring rebuilt from them is the stored ring to
+  within rounding. A ring of fewer than three distinct vertices is left alone,
+  and so is the leaf.
+- A `circle` leaf holding more than one ring was drawn more than once and is no
+  single circle. It keeps its rings and becomes the type of its kind, `line`
+  for polylines and `polygon` for polygons.
+
+The Preferences' Feature colors drop a color kept for `polar_circles` when they
+are read.
 
 ## The config file
 
