@@ -350,7 +350,7 @@ its kind:
 
 A line is highlighted in the segment pass rather than by the outline overlay,
 because the thicker line is the line itself: it follows the feature's rotation
-like any other segment, and the flag rides in `feature_data`, so nothing is
+like any other segment, and the flag travels in `feature_data`, so nothing is
 uploaded twice. The yellow is opaque, so a line at an opacity of zero still
 shows while it is selected. The fill of a polygon and the markers of a
 multipoint ignore the flag.
@@ -364,12 +364,13 @@ vertices is what it is for, and a thick line would cover those dots.
 The hit test does not widen with the highlight: a selected line is picked with
 the same `Planet.LINE_HIT_WIDTH` as any other.
 
-### Riders of the selected feature
+### Children of the selected feature
 
-With View > [Highlight riders](Editing.md#highlighting-riders) on, the features
-riding on the highlighted one at the current time are drawn in `RIDER_COLOR`,
-orange. `Application._find_riders()` asks `Coupling.riders()` for them, which
-walks the couplings downward, and `_drawn_riders()` passes them on only while
+With View > [Highlight children](Editing.md#highlighting-children) on, the
+children of the highlighted feature at the current time are drawn in
+`CHILD_COLOR`, orange. `Application._find_children()` asks
+`Coupling.children_of()` for them, which walks the couplings downward, and
+`_drawn_children()` passes them on only while
 `_highlighted_feature()` names a feature, so the tools that drop the selection
 highlight drop this one too.
 
@@ -379,13 +380,13 @@ highlight drop this one too.
 | Line | Its segments at the normal `geometry_line_width`, opaque orange | The segment pass, from the `related` flag |
 | Multipoint | Its markers at their normal size, opaque orange | The marker pass, from the `related` flag |
 
-The width stays normal so a rider cannot be taken for the selection, which is
-thicker as well as yellow. `RIDER_COLOR` in the shader is `Planet.RIDER_COLOR`,
+The width stays normal so a child cannot be taken for the selection, which is
+thicker as well as yellow. `CHILD_COLOR` in the shader is `Planet.CHILD_COLOR`,
 an sRGB orange, in linear light; `test_shader_constants.gd` holds the two to
-each other. The tree tints a rider's row in the same orange at a quarter
-alpha, `FeatureTree.RIDER_TINT`.
+each other. The tree tints a child's row in the same orange at a quarter
+alpha, `FeatureTree.CHILD_TINT`.
 
-`Application._refresh_feature_state()` works the riders out again, so they
+`Application._refresh_feature_state()` works the children out again, so they
 follow a change of selection, of tool and of time along with the selection
 highlight.
 
@@ -405,7 +406,7 @@ change of color re-uploads, whatever the triangle count is.
 
 `feature_data` uses `FORMAT_RGBAF` with **width = feature count** and
 **height = 5 rows**, one column of the rotation per row in the first three, the
-color in the fourth and the rider flag in the fifth:
+color in the fourth and the child flag in the fifth:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
@@ -424,10 +425,10 @@ an animation, and neither has to rebuild the geometry texture to do so.
 fill. `visible` is 0 while the feature is outside its time range, so it is
 skipped without the geometry texture being rebuilt. `selected` is 1 on the
 feature the tree has selected, which draws its segments thicker and yellow; see
-[The selected feature](#the-selected-feature). `related` is 1 on a feature
-riding on the selected one while riders are highlighted, which draws its lines
+[The selected feature](#the-selected-feature). `related` is 1 on a child of
+the selected feature while children are highlighted, which draws its lines
 and markers orange; see
-[Riders of the selected feature](#riders-of-the-selected-feature). The first
+[Children of the selected feature](#children-of-the-selected-feature). The first
 four rows have no channel left over, so the flag takes a row of its own.
 Selecting another feature re-uploads this texture and nothing else.
 
@@ -527,7 +528,7 @@ primitives clears everything.
 
 ### `Planet.set_feature_state(geometry: Geometry, hovered_feature: Feature = null, selected_feature: Feature = null, related: Array[Feature] = [])`
 
-Packs `bases`, `shown`, `colors`, the hover, the selection and the riders into
+Packs `bases`, `shown`, `colors`, the hover, the selection and the children into
 `feature_data`. This is what a step of an animation calls, and it is the only
 thing it calls. A change of color takes the same path:
 `Application.refresh_colors()` calls `geometry.recolor()` and then this, which
@@ -585,7 +586,7 @@ the same for every vertex of a part:
 | 3 | Closed, every segment alike — a polygon in the Vertex tool, a closed circle |
 | 4 | Closed like 3, with no vertex markers — the rings of a selected polygon |
 | 5 | The vertex markers only, twice the size — a selected multipoint |
-| 6 | Closed like 4, in `RIDER_COLOR`: the rings of a polygon riding on the selected feature |
+| 6 | Closed like 4, in `CHILD_COLOR`: the rings of a polygon that follows the selected feature |
 | 7 | Open like 0, at `geometry_line_width` rather than `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross |
 
 `Planet.OutlineStyle` names the same eight values.
@@ -607,7 +608,7 @@ its own. When the style closes the part, that vertex joins back to the vertex
 the part started at, at reduced opacity for style 1 and at full opacity for
 styles 3 and 4.
 
-The outline is composited on top of everything else using yellow color (`vec3(1, 1, 0)`) at the computed alpha. Style 6 keeps a distance of its own and is laid down in `RIDER_COLOR` first, so the yellow of a selection drawn over the same place wins.
+The outline is composited on top of everything else using yellow color (`vec3(1, 1, 0)`) at the computed alpha. Style 6 keeps a distance of its own and is laid down in `CHILD_COLOR` first, so the yellow of a selection drawn over the same place wins.
 
 ## Notes
 

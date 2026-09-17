@@ -28,13 +28,13 @@ which has a step too; and 0.10.0 gave groups a style and moves the draw style,
 the single colour and the palette out of the view settings onto the root group,
 which has a step as well; and 0.11.0 added the age ramp to the group style,
 whose defaults nothing drew with before, so it reads a 0.10.0 file as it stands;
-and 0.12.0 added couplings to a leaf feature, and a leaf without them rides on
+and 0.12.0 added couplings to a leaf feature, and a leaf without them follows
 nothing, so it reads a 0.11.0 file as it stands too; and 0.13.0 made the group
 style's ramp a list of colours and cut the built in palettes down to Rainbow,
 which has a step for the two ends and the palettes that went; and 0.14.0 gave a
 leaf feature the icon of its tree row, and a leaf without one carries none, so
 it reads a 0.13.0 file as it stands; and 0.15.0 let a coupling span name a
-second parent, and a span without one rides on the parent it names, so it reads
+second parent, and a span without one follows the parent it names, so it reads
 a 0.14.0 file as it stands too; and 0.16.0 renamed five keys of the view block,
 calling the backdrop image a raster and the graticule a grid, which has a step
 that renames them; and 0.17.0 gave the planet a color of its own and made the

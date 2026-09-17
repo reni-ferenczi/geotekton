@@ -162,11 +162,11 @@ triangle leaves the span listed as broken and undo mends it. It then saves,
 loads, removes the span, and checks that undo, redo and undo give the spans
 back each time.
 
-The pick checks arm the pointer on the Ride on row and click the planet with
+The pick checks arm the pointer on the Follow row and click the planet with
 it. A click on the ocean, shown to be empty by a pixel probe first, leaves the
 pointer armed with the reason in the status bar; a click on the green craton
 names it in the picker and puts the pointer away, with the selection, the tool
-and the globe where they were; `Couple` then rides on what was clicked; and
+and the globe where they were; `Couple` then follows what was clicked; and
 Escape puts an armed pointer away too.
 
 Last it opens the sample again for the
@@ -492,7 +492,7 @@ comes first so that what playback adds can be told apart from what drawing that
 much geometry costs whether anything moves or not. The third reading is what
 recoloring every feature on every frame adds; it is reported, not held against
 a budget. A fourth plays a copy of the document in which every feature but the
-first [rides on the first](Time.md#coupling) over the whole animation, which is
+first [follows the first](Time.md#coupling) over the whole animation, which is
 what resolving every rotation through a parent adds. It is reported the same
 way. The numbers come from the engine's own
 counters, never from how the animation looks.
@@ -657,13 +657,13 @@ a round trip is also a wait for the screen to catch up.
 | `cancel_export`                      | stops a running export at its next frame                         |
 | `get_document`                       | `document` with `path`, `name`, `dirty`, `title`, `can_undo`, `can_redo` and `undo_depth`, the number of versions applied, so a run can check that an edit recorded exactly one |
 | `benchmark_hit_test {samples}`       | `hit_test` with the microseconds one hit test costs with and without the bounding caps; see [Frame time](#frame-time) |
-| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `export_image`, `export_video`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `features`, `properties`, `timeline`, `kinematics`, `kinematics_place`, `highlight_riders`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
+| `menu {item}`                        | runs a menu item, refusing a disabled one: `new`, `open`, `import`, `save`, `save_as`, `export_image`, `export_video`, `run_script`, `preferences`, `quit`, `undo`, `redo`, `cut`, `copy`, `paste`, `duplicate`, `delete`, `copy_shape`, `paste_shape`, `features`, `properties`, `timeline`, `kinematics`, `kinematics_place`, `highlight_children`, `console`, `status_bar`, `view_settings`, `full_screen`, `about`, and `polygons`, `polylines`, `points`, `circles` and `topologies`, the geometry class switches |
 | `get_context_menu`                   | `context_menu` with whether the globe right click menu is open and what it offers |
 | `context_menu {item}`                | closes that menu and runs one of its items by label |
 | `properties {button}`                | presses a button of the Properties panel by node name, such as `LoadPalette` on a group's Palette row, refusing one the panel does not show |
 | `toolbar {button}`                   | presses a feature tree toolbar button by node name, `AddFeature` and the rest |
 | `swatch {title\|pnid, button}`        | presses the colour swatch of a feature's tree row, opening the groups above it first and checking that the swatch is under the point before it presses. A `left` press selects the feature and opens the picker, a `right` one puts the type's default colour back |
-| `get_panels`                         | `panels`, which of the six panels are shown, `kinematics_place`, whether the kinematics panel graphs latitude and longitude, and `highlight_riders`, whether the View menu highlights riders |
+| `get_panels`                         | `panels`, which of the six panels are shown, `kinematics_place`, whether the kinematics panel graphs latitude and longitude, and `highlight_children`, whether the View menu highlights children |
 | `get_python`                         | `python` with the interpreter's `state`, the `reason` it is not running, the `interpreter` path, the `port` it was given and whether it is `ready` |
 | `get_console`                        | `console` with whether the panel is `visible`, the `prompt`, what is typed in it, whether it is `editable`, the whole `transcript` and the `history` |
 | `console {line}`                     | types one line at the prompt and answers when the interpreter has finished with it, with the `transcript` and the `prompt` it left behind |

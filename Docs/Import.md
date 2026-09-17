@@ -42,7 +42,7 @@ rotation model and one holding both is used as both.
 
 ## The tree that comes out
 
-GPlates keeps motion in two places: a feature names the plate it rides on, and
+GPlates keeps motion in two places: a feature names the plate it follows, and
 a rotation file says where every plate was at every time. Middle Earth keeps
 motion on each feature, and a group carries none (see
 [Time](Time.md#groups-do-not-move)). So the import builds:
@@ -56,7 +56,7 @@ Planet
 ```
 
 One group per plate id, named `Plate <id>`, in increasing order, each holding
-the features that ride on it in the order the files listed them, and every
+the features of that plate in the order the files listed them, and every
 feature carrying its plate's rotation sampled into keyframes, the same list on
 each feature of the plate. The plate circuit GPlates resolves is already
 resolved: the rotation is the plate's relative to the anchor, not relative to

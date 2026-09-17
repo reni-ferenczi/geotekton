@@ -153,7 +153,7 @@ func test_a_child_follows_its_parent_between_coupling_and_decoupling() -> void:
 			"continuous from the younger side at %s Ma" % boundary, 1e-3)
 
 
-func test_two_children_ride_on_one_parent() -> void:
+func test_two_children_follow_one_parent() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
 	var first := _named(document, "Child")
