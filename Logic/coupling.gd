@@ -80,6 +80,12 @@ static func index(root: Feature) -> Dictionary:
 	return nodes
 
 
+# Circles take no part in coupling. A span a file already gives one still
+# resolves; a span following one is shown as broken for this reason.
+const CIRCLE_CHILD_PROBLEM := "A circle follows nothing."
+const CIRCLE_PARENT_PROBLEM := "A circle carries nothing."
+
+
 # Why a parent of a span cannot be followed, or an empty string when every one
 # of them can. A span with two parents needs both.
 static func parent_problem(nodes: Dictionary, node: Feature, span: Coupling) -> String:
@@ -108,6 +114,8 @@ static func _one_parent_problem(nodes: Dictionary, node: Feature, uuid: String) 
 		return "The feature it follows is no longer in the document."
 	if parent.is_group:
 		return "%s is a group, and a feature follows a feature." % parent.title
+	if parent.feature_type == FeatureType.CIRCLE:
+		return CIRCLE_PARENT_PROBLEM
 	if parent.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return "%s is a topology, which has no motion of its own." % parent.title
 	if parent == node or reaches(nodes, parent, node):

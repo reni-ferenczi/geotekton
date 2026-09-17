@@ -139,6 +139,10 @@ var _topology_boxes: Array[Control] = []
 # The keyframe row, label and all, which a feature holding vertices of its own
 # has. A topology has no motion of its own, and a group carries none.
 var _motion_boxes: Array[Control] = []
+# The Coupled to and Follow rows, the Couplings heading, the span list and its
+# button. Only a feature with motion has them, and a circle does not either:
+# it follows nothing and carries nothing.
+var _coupling_boxes: Array[Control] = []
 # The axis, radius and segment rows, which only polar circles have.
 var _polar_boxes: Array[Control] = []
 # The place, plate and step rows, which only a hotspot has.
@@ -464,8 +468,8 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	var coupled_row := HBoxContainer.new()
 	coupled_row.name = "CoupledTo"
 	_row(form, "Coupled to", coupled_row)
-	_motion_boxes.append(_rows.back()["label"])
-	_motion_boxes.append(coupled_row)
+	_coupling_boxes.append(_rows.back()["label"])
+	_coupling_boxes.append(coupled_row)
 
 	coupled_label = Label.new()
 	coupled_label.name = "Parent"
@@ -483,8 +487,8 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	var couple_row := HFlowContainer.new()
 	couple_row.name = "CoupleRow"
 	_row(form, "Follow", couple_row)
-	_motion_boxes.append(_rows.back()["label"])
-	_motion_boxes.append(couple_row)
+	_coupling_boxes.append(_rows.back()["label"])
+	_coupling_boxes.append(couple_row)
 
 	parent_selector = _selector("ParentPicker")
 	parent_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -511,7 +515,7 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	heading.name = "SpanHeading"
 	heading.text = "Couplings"
 	box.add_child(heading)
-	_motion_boxes.append(heading)
+	_coupling_boxes.append(heading)
 
 	spans = Tree.new()
 	spans.name = "Spans"
@@ -527,12 +531,12 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	spans.item_selected.connect(_update_coupling)
 	spans.nothing_selected.connect(_update_coupling)
 	box.add_child(spans)
-	_motion_boxes.append(spans)
+	_coupling_boxes.append(spans)
 
 	var buttons := HBoxContainer.new()
 	buttons.name = "SpanButtons"
 	box.add_child(buttons)
-	_motion_boxes.append(buttons)
+	_coupling_boxes.append(buttons)
 
 	remove_span_button = Button.new()
 	remove_span_button.name = "RemoveSpan"
@@ -618,8 +622,11 @@ func show_node(node_: Feature) -> void:
 		control.visible = is_topology
 	# A hotspot is fixed in the world frame, so it has no motion either.
 	var is_hotspot := is_feature and node.is_hotspot()
+	var has_motion := is_feature and not is_topology and not is_hotspot
 	for control in _motion_boxes:
-		control.visible = is_feature and not is_topology and not is_hotspot
+		control.visible = has_motion
+	for control in _coupling_boxes:
+		control.visible = has_motion and node.feature_type != FeatureType.CIRCLE
 	var is_polar := is_feature and node.is_polar_circles()
 	for control in _polar_boxes:
 		control.visible = is_polar
@@ -907,7 +914,8 @@ func _fill_coupling() -> void:
 	if document == null or node == null or node.is_group:
 		return
 	for leaf in _leaves(document.root, []):
-		if leaf == node or leaf.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+		if leaf == node or leaf.geometry_kind == Feature.GeometryKind.TOPOLOGY \
+				or leaf.feature_type == FeatureType.CIRCLE:
 			continue
 		parent_selector.add_item(leaf.title)
 		parent_selector.set_item_metadata(parent_selector.item_count - 1, leaf.uuid)
@@ -968,6 +976,9 @@ func pick_parent_uuid(uuid: String) -> String:
 			return ""
 	if node != null and node.uuid == uuid:
 		return "A feature cannot follow itself."
+	var picked: Feature = Coupling.index(document.root).get(uuid)
+	if picked != null and picked.feature_type == FeatureType.CIRCLE:
+		return Coupling.CIRCLE_PARENT_PROBLEM
 	return "That feature is not one of the ones to follow."
 
 
@@ -1380,8 +1391,14 @@ func to_json() -> Dictionary:
 			"key": not key_button.disabled,
 			"delete": not delete_key_button.disabled,
 		}
+	# A circle's spans, which only a file can give it, are still reported,
+	# marked as not shown.
 	if coupled_label.get_parent().visible:
 		data["coupling"] = _coupling_to_json()
+		data["coupling"]["hidden"] = false
+	elif keyframe_count.get_parent().visible:
+		data["coupling"] = _coupling_to_json()
+		data["coupling"]["hidden"] = true
 	data["sections"] = _sections_to_json()
 	if closed_check.visible:
 		data["closed"] = closed_check.button_pressed

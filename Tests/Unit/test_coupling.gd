@@ -248,6 +248,37 @@ func test_what_cannot_be_coupled_is_refused_with_a_reason() -> void:
 		"a span running to the present is not decoupled at the present")
 
 
+func test_a_circle_neither_follows_nor_carries() -> void:
+	var document := _document()
+	var parent := _named(document, "Mountain")
+	var child := _named(document, "Child")
+	var circle := _polygon("Ring")
+	circle.feature_type = FeatureType.CIRCLE
+	document.root.children.append(circle)
+	document.record()
+
+	assert_eq(document.couple(circle, parent, 500.0), "A circle follows nothing.")
+	assert_eq(document.couple(child, circle, 500.0), "A circle carries nothing.")
+	assert_true(circle.couplings.is_empty() and child.couplings.is_empty(), "nothing was coupled")
+
+
+# A span a file gives a circle still resolves. One that follows a circle
+# resolves too, and the panel marks it as broken with the reason.
+func test_a_coupling_a_file_gives_a_circle_still_resolves() -> void:
+	var document := _document()
+	var parent := _named(document, "Mountain")
+	var child := _named(document, "Child")
+	assert_eq(document.couple(child, parent, 500.0), "")
+	var before := _world(document, child, 300.0)
+	parent.feature_type = FeatureType.CIRCLE
+	child.feature_type = FeatureType.CIRCLE
+
+	_assert_basis(_world(document, child, 300.0), before, "the child still follows")
+	var nodes := Coupling.index(document.root)
+	assert_eq(Coupling.parent_problem(nodes, child, child.couplings[0]),
+		"A circle carries nothing.")
+
+
 ### A coupling edit is a cut in time
 
 
