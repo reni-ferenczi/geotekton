@@ -545,30 +545,6 @@ func corner_colour() -> Color:
 	return Color(channels[0][middle], channels[1][middle], channels[2][middle])
 
 
-# Press at one window pixel, move to another and release, which is what the
-# Light tool reads as a drag.
-func drag(from: Vector2, to: Vector2) -> void:
-	Input.use_accumulated_input = false
-	_motion(from)
-	await _physics_frames(2)
-	_button(true)
-	await _physics_frames(2)
-	_motion(to)
-	await _physics_frames(2)
-	_button(false)
-	await _physics_frames(2)
-	await frames(2)
-
-
-func _motion(screen: Vector2) -> void:
-	var motion := InputEventMouseMotion.new()
-	motion.position = screen
-	motion.global_position = screen
-	motion.relative = screen - mouse
-	mouse = screen
-	Input.parse_input_event(motion)
-
-
 # How many pixels of an image are not fully opaque.
 func count_clear(image: Image) -> int:
 	var clear := 0
