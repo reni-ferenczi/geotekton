@@ -701,12 +701,12 @@ func test_a_0_22_0_crust_becomes_bands_with_lines_after_it() -> void:
 	var migrated := Document.migrate(_split_0_22_0())
 	var plates: Array = migrated["features"]["children"][0]["children"]
 	assert_eq(plates.map(func(leaf: Dictionary) -> String: return leaf["title"]),
-		["West", "East", "West ridge", "West crust", "West crust lines", "East crust",
-			"East crust lines"], "a lines leaf after each crust")
-	for index in [3, 5]:
+		["West", "East", "West ridge", "West crust lines", "West crust", "East crust lines",
+			"East crust"], "a lines leaf before each crust")
+	for index in [4, 6]:
 		var crust := Feature.from_json(plates[index])
-		var lines := Feature.from_json(plates[index + 1])
-		var half := "west" if index == 3 else "east"
+		var lines := Feature.from_json(plates[index - 1])
+		var half := "west" if index == 4 else "east"
 		assert_true(crust.is_crust() and crust.closed and not crust.crust_lines,
 			"%s is a crust" % crust.title)
 		assert_eq([crust.crust_half, crust.crust_ridge, crust.crust_edge], [half, "ridge", 3],
@@ -768,8 +768,8 @@ func test_a_0_22_0_file_round_trips() -> void:
 			"and the same %s" % document.root.children[index].title)
 	assert_true(not Hotspot.placed(reloaded.root.children[3]), "the waiting hotspot is not placed")
 	assert_true(reloaded.root.children[6].midway, "the ridge is midway")
-	assert_true(reloaded.root.children[10].crust_lines, "the last crust holds lines")
-	assert_eq(reloaded.root.children[9].crust_ridge, reloaded.root.children[6].uuid,
+	assert_true(reloaded.root.children[9].crust_lines, "the second lines come before the crust")
+	assert_eq(reloaded.root.children[10].crust_ridge, reloaded.root.children[6].uuid,
 		"and the crust names the ridge")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 

@@ -257,8 +257,8 @@ func test_an_import_that_cannot_be_read_says_so_and_changes_nothing() -> void:
 ### The ridge and crust a split leaves
 
 
-const CRUST_TITLES := ["Square", "Square 2", "Square ridge", "Square crust",
-	"Square crust lines", "Square 2 crust", "Square 2 crust lines"]
+const CRUST_TITLES := ["Square", "Square 2", "Square ridge", "Square crust lines",
+	"Square crust", "Square 2 crust lines", "Square 2 crust"]
 
 
 # A square split at 100 Ma with Ridge and Crust on, the halves drifting apart
@@ -300,7 +300,7 @@ func _assert_same_ring(actual: PackedVector2Array, expected: PackedVector2Array,
 func test_a_split_with_ridge_and_crust_leaves_seven_features_in_order() -> void:
 	var document := _split_square(false)
 	assert_eq(document.root.children.map(func(n: Feature) -> String: return n.title),
-		CRUST_TITLES, "the halves, the ridge, and a crust and its lines for each half")
+		CRUST_TITLES, "the halves, the ridge, and the lines and a crust for each half")
 	var ridge: Feature = document.root.children[2]
 	assert_true(ridge.midway and ridge.geometry_kind == Feature.GeometryKind.TOPOLOGY,
 		"the ridge is a midway topology")
@@ -308,20 +308,20 @@ func test_a_split_with_ridge_and_crust_leaves_seven_features_in_order() -> void:
 	assert_eq(ridge.keyframes.size() + ridge.couplings.size(), 0, "with no motion of its own")
 	assert_eq(ridge.sections.size(), 2, "between two sections")
 	assert_eq(ridge.time_range, Vector2i(0, 100), "from the split to the present")
-	for index in [3, 5]:
+	for index in [4, 6]:
 		var crust: Feature = document.root.children[index]
 		assert_true(crust.is_crust() and crust.closed and not crust.crust_lines, "a crust")
 		assert_eq(crust.color, FeatureType.color(FeatureType.CRUST), "in the crust colour")
 		assert_eq(crust.time_range, Vector2i(0, 100), "over the ridge's time range")
 		assert_eq(crust.crust_ridge, ridge.uuid, "opened by the ridge")
-		assert_eq(crust.crust_half, document.root.children[(index - 3) / 2].uuid,
+		assert_eq(crust.crust_half, document.root.children[(index - 4) / 2].uuid,
 			"beside its half")
 		assert_eq(crust.crust_edge, 3, "along a cut of three vertices")
-		var lines: Feature = document.root.children[index + 1]
+		var lines: Feature = document.root.children[index - 1]
 		assert_true(lines.is_crust() and lines.crust_lines and not lines.closed, "its lines")
 		assert_eq(lines.color, FeatureType.color(FeatureType.CRUST_LINES), "in their colour")
 		assert_eq(lines.line_scale(), Feature.CRUST_LINES_LINE_SCALE, "and drawn thin")
-	var data: Dictionary = document.root.children[4].to_json()
+	var data: Dictionary = document.root.children[3].to_json()
 	assert_eq(data.get("crust"), {"half": document.root.children[0].uuid, "ridge": ridge.uuid,
 		"edge": 3, "lines": true}, "the lines write what they are built from")
 	assert_true(Feature.from_json(data).crust_lines, "and read it back")
@@ -347,9 +347,9 @@ func test_the_ridge_is_the_half_stage_line() -> void:
 func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
 	var document := _split_square(true)
 	var root := document.root
-	for index in [3, 5]:
+	for index in [4, 6]:
 		var crust: Feature = root.children[index]
-		var lines: Feature = root.children[index + 1]
+		var lines: Feature = root.children[index - 1]
 		var half: Feature = root.get_node_by_uuid(crust.crust_half)
 		Crust.rebuild(root, crust, 0.0, 25.0)
 		Crust.rebuild(root, lines, 0.0, 25.0)
@@ -405,7 +405,7 @@ func test_the_crust_shape_is_its_bands() -> void:
 	var document := _split_square(true)
 	document.current_time = 0.0
 	Planet.collect_geometry(document.root, 0.0)
-	var crust: Feature = document.root.children[3]
+	var crust: Feature = document.root.children[4]
 	var shape := document.shape_of(crust)
 	assert_eq(shape["kind"], Feature.GeometryKind.POLYGON, "Copy Shape takes a polygon")
 	assert_eq(shape["rings"].size(), crust.rings.size(), "of the bands")

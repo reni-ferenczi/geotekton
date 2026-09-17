@@ -597,15 +597,16 @@ func _add_ridge(parent: Feature, first: Feature, second: Feature, part: int,
 	return ridge
 
 
-# The sea floor a ridge opens: for each half, a crust of bands between isochrons
-# and a feature holding the isochrons and flowlines, inserted after the ridge
-# with its time range, the crust first. Their rings follow the time and the
-# timeline's Skip, so Crust.rebuild_all() gives them their rings. Part of the
+# The sea floor a ridge opens: for each half, a feature holding the isochrons
+# and flowlines and a crust of bands between them, inserted after the ridge with
+# its time range. The lines come first, since the first feature of a group is
+# drawn on top and the bands would hide them. Their rings follow the time and
+# the timeline's Skip, so Crust.rebuild_all() gives them their rings. Part of the
 # split's own undo version.
 func _add_crust(parent: Feature, ridge: Feature, halves: Array, edge_size: int) -> void:
 	var at := parent.find_child(ridge)
 	for half: Feature in halves:
-		for lines in [false, true]:
+		for lines in [true, false]:
 			var title := "%s crust%s" % [half.title, " lines" if lines else ""]
 			var crust := Feature.create_feature(Feature.clamp_title(title),
 				FeatureType.color(FeatureType.CRUST_LINES if lines else FeatureType.CRUST),
@@ -1112,7 +1113,7 @@ static func migrate(data: Dictionary) -> Dictionary:
 # of the cut, the second walked back; the side of the first half is in the part
 # its crust names, else in part 0. A closed topology whose second section runs
 # along such a ridge was its crust, and becomes one, with the lines feature
-# inserted after it. See Docs/Persistence.md.
+# inserted before it, so the bands do not hide them. See Docs/Persistence.md.
 static func _to_0_23_0(features: Variant) -> void:
 	var leaves: Array = []
 	_leaves_of(features, leaves)
@@ -1200,7 +1201,7 @@ static func _crusts_to_0_23_0(node: Variant, ridges: Dictionary) -> void:
 		lines["color"] = [color.r, color.g, color.b, color.a]
 		lines.erase("closed")
 		lines["crust"]["lines"] = true
-		children.insert(index, lines)
+		children.insert(index - 1, lines)
 		index += 1
 
 
