@@ -42,7 +42,7 @@ const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]
 # is a polyline; it still allows a polygon, so a filled circle from an older file
 # reads back as a Circle.
 const CATALOG := {
-	"polygon": {"name": "Polygon", "kinds": ["polygon"], "color": Color.CHOCOLATE},
+	"polygon": {"name": "Polygon", "kinds": ["polygon"], "color": Color(0.36, 0.60, 0.33)},
 	"line": {"name": "Line", "kinds": ["polyline"], "color": Color.CRIMSON},
 	"points": {"name": "Points", "kinds": ["multipoint"], "color": Color.GOLD},
 	CIRCLE: {"name": "Circle", "kinds": ["polyline", "polygon"], "color": Color.DARK_TURQUOISE},
