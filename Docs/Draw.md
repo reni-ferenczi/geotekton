@@ -39,7 +39,7 @@ same kind, whatever the type says.
 | Polygon | 3 | A closed outline, filled in |
 | Polyline | 2 | An open line through the vertices |
 | Multipoint | 1 | Separate markers, one per vertex |
-| Circle | 2 or 3 clicks | A polyline around a circle, cut into the Circle segments count |
+| Circle | 2 or 3 clicks | A circle, drawn as a curve, with a polyline ring of the Circle segments count for measuring and export |
 | Hotspot | 1 click | The place of the hotspot; its mark and track are built from it |
 
 A Circle takes its points differently. Two clicks are the centre and a point
@@ -91,6 +91,10 @@ While placing vertices, the shader renders a **live preview overlay** in white:
   unless the kind is Multipoint, which shows the dots alone
 - **Closing line** from the last vertex back to the first, faint, once a Polygon
   has three vertices, so the shape it would close into is visible
+
+A Circle shows a dot on each clicked point and, once they describe one, the
+circle itself: the same curve the finished circle is drawn as, at 60 percent
+opacity.
 
 This preview is ephemeral — it is not saved to the feature until Enter is pressed.
 
@@ -209,5 +213,5 @@ Polygon color, `Color(0.36, 0.60, 0.33)`, a medium green that stands out
 against the blue ocean; see [Properties](Properties.md#the-type-catalog).
 The outline overlay is white, apart from the orange outline of a child of the
 selection. A closed ring in it, such as the outline of a selected polygon or
-a finished circle, is drawn at 60 percent opacity; see
+the circle being drawn, is drawn at 60 percent opacity; see
 [Shader](Shader.md#outline-overlay).
