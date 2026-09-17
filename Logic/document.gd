@@ -278,21 +278,48 @@ func set_circle(feature: Feature, axis: Vector2, radius: float, segments: int,
 	return ""
 
 
-# Give a hotspot another place or plate and rebuild its rings, in one undo
-# version. The place is in the world frame, where the hotspot is fixed, or
+# Give a hotspot another place, plate or time step and rebuild its rings, in one
+# undo version. The place is in the world frame, where the hotspot is fixed, or
 # Feature.NO_HOTSPOT, so the plate can be picked before the hotspot is placed.
-func set_hotspot(feature: Feature, hotspot: Vector2, plate_uuid: String) -> String:
+func set_hotspot(feature: Feature, hotspot: Vector2, plate_uuid: String,
+		time_step: float) -> String:
 	if feature == null or not feature.is_hotspot():
-		return "Only a hotspot has a place and a plate."
+		return "Only a hotspot has a place, a plate and a time step."
 	var problem := "" if hotspot == Feature.NO_HOTSPOT else check_coordinates(hotspot)
 	if problem.is_empty():
 		problem = Hotspot.plate_problem(root, feature, plate_uuid)
+	if problem.is_empty():
+		problem = check_time_step(time_step)
 	if not problem.is_empty():
 		return problem
 	feature.hotspot = hotspot
 	feature.plate_uuid = plate_uuid
+	feature.time_step = time_step
 	Hotspot.rebuild(root, feature, current_time, Config.get_skip_increment())
 	record()
+	return ""
+
+
+# Give a crust its own time step and rebuild its bands, in one undo version. A
+# crust is generated, but the step is a setting on it, like the step of a
+# hotspot, so this is the one thing about a crust anybody edits.
+func set_crust_step(feature: Feature, time_step: float) -> String:
+	if feature == null or not feature.is_crust():
+		return "Only a crust has a time step of its own."
+	var problem := check_time_step(time_step)
+	if not problem.is_empty():
+		return problem
+	feature.time_step = time_step
+	Crust.rebuild(root, feature, current_time, Config.get_skip_increment())
+	record()
+	return ""
+
+
+# Why that time step cannot be, or an empty string when it can. 0 is the
+# timeline's Skip; anything above it is the feature's own step.
+func check_time_step(time_step: float) -> String:
+	if time_step < 0.0 or time_step > Hotspot.MAX_STEP:
+		return "The time step is %s My, outside 0 to %s My." % [time_step, Hotspot.MAX_STEP]
 	return ""
 
 
@@ -1052,7 +1079,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.24.0"):
+	if not _is_older_than(version, "0.25.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -1099,7 +1126,10 @@ static func migrate(data: Dictionary) -> Dictionary:
 		_to_0_23_0(data.get("features", {}))
 	if _is_older_than(version, "0.24.0"):
 		_to_0_24_0(data.get("features", {}))
-	data["version"] = "0.24.0"
+	# 0.25.0 gave a hotspot and a crust a time step of their own. A leaf without
+	# the key carries 0, which follows the timeline's Skip, and that is what both
+	# did before, so only the version moves.
+	data["version"] = "0.25.0"
 	return data
 
 

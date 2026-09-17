@@ -116,7 +116,7 @@ func _build() -> Array:
 	document.set_time(0.0)
 	app.timeline.skip_spin.value = SKIP
 	assert_eq(document.set_feature_type(hotspot, FeatureType.HOTSPOT), "", "a hotspot")
-	assert_eq(document.set_hotspot(hotspot, HOTSPOT, plate.uuid), "", "on the plate")
+	assert_eq(document.set_hotspot(hotspot, HOTSPOT, plate.uuid, 0.0), "", "on the plate")
 	assert_eq(document.set_feature_type(circle, FeatureType.CIRCLE), "", "a circle")
 	assert_eq(document.set_circle(circle, CIRCLE_AXIS, CIRCLE_RADIUS, 64, false), "",
 		"with its center and radius")

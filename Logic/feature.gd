@@ -113,6 +113,13 @@ var crust_ridge := ""
 var crust_edge := 0
 var crust_line_rings: Array[PackedVector2Array] = []
 
+# How far apart in time a hotspot's track samples and a crust's isochrons are,
+# in My, and 0 for the timeline's Skip. Only those two read it, through
+# Hotspot.step_of(). It is saved with the feature, so a file samples the same
+# way on every machine, while the Skip is a setting of the machine. Since
+# 0.25.0; before that both followed the Skip alone.
+var time_step := 0.0
+
 # What a Circle is built from: its center, the point its axis comes out of, as
 # (latitude, longitude) in degrees in the feature's own frame, its radius in
 # degrees, how many segments it is cut into, and whether the circle around the
@@ -407,6 +414,7 @@ func clone() -> Feature:
 	node.crust_half = crust_half
 	node.crust_ridge = crust_ridge
 	node.crust_edge = crust_edge
+	node.time_step = time_step
 	node.crust_line_rings.assign(crust_line_rings.map(
 		func(ring: PackedVector2Array) -> PackedVector2Array: return ring.duplicate()))
 	for ring in rings:
@@ -565,6 +573,11 @@ func to_json() -> Variant:
 			if Hotspot.placed(self):
 				data["hotspot"] = [hotspot.x, hotspot.y]
 			data["plate"] = plate_uuid
+		# 0.25.0, and written only when the feature carries a step of its own.
+		# A missing key reads as 0, which is the timeline's Skip, and that is
+		# what every hotspot and crust did before.
+		if time_step > 0.0:
+			data["time_step"] = time_step
 	return data
 
 
@@ -621,6 +634,7 @@ static func from_json(data: Variant) -> Feature:
 			var h: Array = data["hotspot"]
 			node.hotspot = Vector2(h[0], h[1])
 		node.plate_uuid = str(data.get("plate", ""))
+		node.time_step = float(data.get("time_step", 0.0))
 		# The parameters win over the rings the file holds. A hotspot's track
 		# needs the whole tree, so Hotspot.rebuild_all() redoes it before the
 		# geometry is collected.
