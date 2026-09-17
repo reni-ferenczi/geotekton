@@ -1104,10 +1104,10 @@ def run_colour_session(client: AutomationClient) -> None:
 
 
 # The default colour of each feature type, in the order Logic/feature_type.gd
-# lists them: chocolate, crimson, gold, dark turquoise, medium purple and orange
-# red. Every picker starts with these as its presets.
+# lists them: a map green, crimson, gold, dark turquoise, medium purple and
+# orange red. Every picker starts with these as its presets.
 TYPE_COLORS = [
-    (0.824, 0.412, 0.118),
+    (0.36, 0.6, 0.33),
     (0.863, 0.078, 0.235),
     (1.0, 0.843, 0.0),
     (0.0, 0.808, 0.820),
@@ -1177,13 +1177,13 @@ def feature_row(client: AutomationClient, title: str) -> dict:
 def run_feature_colour_preference_checks(client: AutomationClient) -> None:
     """A type colour set in Preferences reaches new features and the Feature type style."""
     blue = [0.0, 0.0, 1.0, 1.0]
-    chocolate = TYPE_COLOURS["polygons"]
+    green = TYPE_COLOURS["polygons"]
     start_new_document(client)
     client.call("toolbar", button="AddGroup")
     client.call("set_property", field="name", value="Plates")
     add_drawn(client, "Old", PREFERENCE_POLYGON)
-    check(is_colour(client.call("get_selected")["feature"]["color"], chocolate),
-          "a polygon drawn with the default preferences is chocolate")
+    check(is_colour(client.call("get_selected")["feature"]["color"], green),
+          "a polygon drawn with the default preferences is green")
 
     client.call("set_preferences", preferences={"feature_colors": {"polygon": blue}})
     colors = client.call("get_preferences")["preferences"]["feature_colors"]
@@ -1195,8 +1195,8 @@ def run_feature_colour_preference_checks(client: AutomationClient) -> None:
     check(client.call("get_properties")["properties"]["color"] == blue,
           "a new feature's Colour row is blue")
     check(feature_row(client, "New")["swatch"] == blue, "and so is its swatch")
-    check(is_colour(feature_row(client, "Old")["swatch"], chocolate),
-          "the existing polygon's swatch stays chocolate")
+    check(is_colour(feature_row(client, "Old")["swatch"], green),
+          "the existing polygon's swatch stays green")
 
     client.call("select", title="Plates")
     client.call("set_property", field="style", value="type")
@@ -1211,10 +1211,10 @@ def run_feature_colour_preference_checks(client: AutomationClient) -> None:
 
     client.call("set_preferences", button="CatalogColors")
     colors = client.call("get_preferences")["preferences"]["feature_colors"]
-    check(is_colour(colors["polygon"], chocolate) and colors["polygon"][3] == 1.0,
-          f"Catalog colors puts the polygon back to chocolate: {colors['polygon']}")
+    check(is_colour(colors["polygon"], green) and colors["polygon"][3] == 1.0,
+          f"Catalog colors puts the polygon back to green: {colors['polygon']}")
     client.call("mouse_move", x=10, y=10)
-    check(is_colour(probe_at(client, *PREFERENCE_PROBE), chocolate),
+    check(is_colour(probe_at(client, *PREFERENCE_PROBE), green),
           "and the Feature type style follows")
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
@@ -1799,12 +1799,11 @@ def run_circle_session(client: AutomationClient) -> None:
         check(worst < CIRCLE_TOLERANCE,
               f"every vertex sits the radius from the centre, within {worst:.4f} degrees")
 
-        # Only the rim is drawn. The root is selected before the rim is probed,
-        # so the yellow highlight is off the line.
+        # Only the rim is drawn. The circle stays selected: the highlight is a
+        # halo beside the line, which keeps its own colour.
         centre = probe_at(client, *CIRCLE_CENTRE)
         check(is_colour(centre, planet),
               f"the centre shows the planet, not a fill: {centre}, planet {planet}")
-        client.call("select", title=None)
         # The first vertex is on a grid crossing, which is drawn over the rim.
         rim_colour = probe_at(client, *ring[1])
         check(is_colour(rim_colour, list(TYPE_COLORS[3])),
@@ -1981,25 +1980,21 @@ def run_axis_circles_session(client: AutomationClient) -> None:
     check_circle_rings(feature["rings"], AXIS_PICK, AXIS_RADIUS, "after the pick", polar=False)
 
     # Ticking the box draws the circle at the antipode as well, and unticking
-    # takes it away. The root is selected before each probe, so the highlight
-    # is off the line; the second vertex is off the grid lines.
+    # takes it away. The circle stays selected, which leaves its lines in their
+    # own colour; the second vertex is off the grid lines.
     feature = set_axis_circles(client, True, "ticking Axis circles")
     check_circle_rings(feature["rings"], AXIS_PICK, AXIS_RADIUS, "axis circles")
     far = feature["rings"][1][1] if len(feature["rings"]) == 2 else antipode(AXIS_PICK)
-    client.call("select", title=None)
     rim = probe_at(client, *feature["rings"][0][1])
     check(is_colour(rim, list(TYPE_COLORS[3])), f"the rim is drawn in the Circle colour: {rim}")
     drawn = probe_at(client, *far)
     check(is_colour(drawn, list(TYPE_COLORS[3])),
           f"and so is the ring at the antipode: {drawn} at {far}")
-    client.call("select", title="Feature")
     feature = set_axis_circles(client, False, "unticking Axis circles")
     check_circle_rings(feature["rings"], AXIS_PICK, AXIS_RADIUS, "unticked", polar=False)
-    client.call("select", title=None)
     gone = probe_at(client, *far)
     check(not is_colour(gone, list(TYPE_COLORS[3])),
           f"which takes the antipode ring away: {gone} at {far}")
-    client.call("select", title="Feature")
     set_axis_circles(client, True, "ticking the box again")
     look_at(client, (0.0, 0.0))
 
@@ -2057,6 +2052,8 @@ HOTSPOT_SHIFT = 15.0
 # where the Pick click lands, on the moved plate.
 HOTSPOT_FIRST = (-32.0, 37.0)
 HOTSPOT_PICK = (4.0, 21.0)
+# The colour the hotspot is given through the panel once it has a track.
+HOTSPOT_COLOR = [0.2, 0.4, 0.9, 1.0]
 
 
 def hotspot_rows(client: AutomationClient) -> dict:
@@ -2112,10 +2109,9 @@ def run_hotspot_session(client: AutomationClient) -> None:
     worst = max(abs(angular_distance(tuple(v), HOTSPOT_FIRST) - 1.0) for v in mark)
     check(mark[0] == mark[-1] and worst < CIRCLE_TOLERANCE,
           f"the mark is a closed ring a degree around the hotspot, within {worst:.4f}")
-    client.call("select", title=None)
     pixel = probe_at(client, *mark[3])
-    check(is_colour(pixel, list(TYPE_COLORS[5])), f"the mark is drawn in orange red: {pixel}")
-    client.call("select", title="Hotspot")
+    check(is_colour(pixel, list(TYPE_COLORS[5])),
+          f"the mark is drawn in orange red while selected: {pixel}")
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
     run_hotspot_refusals(client)
@@ -2153,6 +2149,13 @@ def run_hotspot_session(client: AutomationClient) -> None:
         shift = angular_distance(tuple(track[0]), HOTSPOT_PICK)
         check(abs(shift - HOTSPOT_SHIFT) < 0.5,
               f"the oldest {shift:.2f} degrees away, as far as the plate moved")
+        # The colour picked in the panel is what the track is drawn in, with
+        # the hotspot still selected.
+        client.call("set_property", field="color", value=HOTSPOT_COLOR)
+        pixel = probe_unhovered(client, *track[2])
+        check(is_colour(pixel, HOTSPOT_COLOR),
+              f"the selected track is drawn in the colour picked for it: {pixel}")
+        client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
     # Stepping the time changes how many vertices the track has.
     client.call("set_time", time=10.0)
@@ -4247,8 +4250,8 @@ STYLE_PROBES = {"polygons": (-3.0, 3.0), "polylines": (5.0, 40.0), "points": (-2
 
 # The colour each feature of the sample takes under the feature type style: the
 # type its geometry gives, as FeatureType.CATALOG colours it in
-# Logic/feature_type.gd. Chocolate, crimson and gold.
-TYPE_COLOURS = {"polygons": [0.824, 0.412, 0.118], "polylines": [0.863, 0.078, 0.235],
+# Logic/feature_type.gd. Green, crimson and gold.
+TYPE_COLOURS = {"polygons": [0.36, 0.60, 0.33], "polylines": [0.863, 0.078, 0.235],
                 "points": [1.0, 0.843, 0.0]}
 
 
