@@ -144,6 +144,7 @@ const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
 @onready var segments_label: Label = %SegmentsLabel
 @onready var ridge_check: CheckButton = %Ridge
 @onready var crust_check: CheckButton = %Crust
+@onready var children_check: CheckButton = %Children
 @onready var projection_selector: OptionButton = %Projection
 @onready var zoom_spin: SpinBox = %Zoom
 @onready var zoom_in_button: Button = %ZoomIn
@@ -340,6 +341,8 @@ func _ready() -> void:
 	ridge_check.toggled.connect(Config.set_split_ridge)
 	crust_check.button_pressed = Config.get_split_crust()
 	crust_check.toggled.connect(Config.set_split_crust)
+	children_check.button_pressed = Config.get_split_children()
+	children_check.toggled.connect(Config.set_split_children)
 	# Crust lies between the ridge and the halves, so there is none without one.
 	crust_check.disabled = not ridge_check.button_pressed
 	ridge_check.toggled.connect(func(on: bool) -> void: crust_check.disabled = not on)
@@ -2015,6 +2018,7 @@ func set_active_tool(tool: Tool) -> void:
 	# follows the selection as well, so _update_tool_buttons shows it.
 	ridge_check.visible = tool == Tool.SPLIT
 	crust_check.visible = tool == Tool.SPLIT
+	children_check.visible = tool == Tool.SPLIT
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
@@ -3452,16 +3456,20 @@ func split_along_points() -> String:
 			part = index
 	var ridge := ridge_check.button_pressed
 	var crust := ridge and crust_check.button_pressed
-	var error := document.split_feature_along(feature, part, path, ridge, crust)
+	var error := document.split_feature_along(feature, part, path, ridge, crust,
+		children_check.button_pressed)
 	if not error.is_empty():
 		return error
 	# The halves, and the ridge and crust behind them, sit side by side where
-	# the polygon was, so the status bar reads them straight off the tree.
+	# the polygon was, so the status bar reads them straight off the tree. The
+	# children cut with them are wherever they were, and the document names them.
 	var group := features.root.find_parent(feature)
 	var at := group.find_child(feature)
 	var made := PackedStringArray()
 	for child in group.children.slice(at, at + 2 + int(ridge) + 2 * int(crust)):
 		made.append(child.title)
+	for piece in document.split_children:
+		made.append(piece.title)
 	split_points = PackedVector2Array()
 	features.reload()
 	refresh_geometry()

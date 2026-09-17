@@ -645,6 +645,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"crust": app.crust_check.button_pressed,
 				"crust_visible": app.crust_check.is_visible_in_tree(),
 				"crust_enabled": not app.crust_check.disabled,
+				"children": app.children_check.button_pressed,
+				"children_visible": app.children_check.is_visible_in_tree(),
 				"measure_points": _points_to_json(app.measure_points),
 				"measure_label": _measure_label_to_json(),
 				"circle_points": _points_to_json(app.circle_points()),
@@ -706,6 +708,9 @@ func _dispatch(request: Dictionary) -> Dictionary:
 					return {"ok": false, "error": "there is no crust without a ridge"}
 				app.crust_check.button_pressed = bool(request["crust"])
 				app.crust_check.toggled.emit(app.crust_check.button_pressed)
+			if request.has("children"):
+				app.children_check.button_pressed = bool(request["children"])
+				app.children_check.toggled.emit(app.children_check.button_pressed)
 			await _frames(2)
 			return {"ok": true}
 

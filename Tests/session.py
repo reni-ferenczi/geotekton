@@ -3939,6 +3939,97 @@ def run_crust_session(client: AutomationClient) -> None:
     run_closed_topology_checks(client)
 
 
+# The children scenario: a range on the northern part of the crust scenario's
+# square, following it from an older age and straddling the same cut, so the
+# Split tool cuts both. The halves' middles, where they are dragged by, are off
+# the range.
+CHILDREN_AGE = 200.0
+CHILDREN_RANGE = [(3.0, -6.0), (3.0, 12.0), (8.0, 12.0), (8.0, -6.0)]
+CHILDREN_COLOR = [1.0, 0.0, 1.0, 1.0]
+CHILDREN_TITLES = ["Range", "Range 2", "Plate", "Plate 2"]
+
+
+def run_split_children_session(client: AutomationClient) -> None:
+    """The Split tool cutting a child along with its parent, each piece staying on its half."""
+    start_new_document(client)
+    client.call("set_time", time=CHILDREN_AGE)
+    # The first feature of a group is drawn on top, so the range comes first.
+    add_drawn(client, "Range", CHILDREN_RANGE)
+    client.call("set_property", field="color", value=CHILDREN_COLOR)
+    add_drawn(client, "Plate", CRUST_SQUARE)
+    plate_uuid = client.call("get_selected")["feature"]["uuid"]
+    client.call("select", title="Range")
+    client.call("coupling", button="Couple", parent="Plate")
+
+    client.call("set_time", time=CRUST_AGE)
+    client.call("select", title="Plate")
+    client.call("set_tool", tool="split", ridge=False, children=False)
+    tool = client.call("get_tool")
+    check(tool["children_visible"] and not tool["children"],
+          f"the Children switch is shown with the Split tool and turns off: {tool['children']}")
+    client.call("set_tool", children=True)
+    check(client.call("get_tool")["children"], "and on again")
+    depth = undo_depth(client)
+    if not draw(client, CRUST_CUT):
+        return
+    client.call("key", key="Enter")
+    check(undo_depth(client) == depth + 1, "the split and the range's are one version")
+    check(not client.call("get_tool")["children_visible"], "and the switch goes with the tool")
+    titles = [f["title"] for f in client.call("get_features")["features"]]
+    check(titles[-4:] == CHILDREN_TITLES, f"the range is split beside itself: {titles}")
+    status = client.call("get_status")["status"]["measure"]
+    check(all(title in status for title in CHILDREN_TITLES),
+          f"the status bar names the halves and the pieces: {status!r}")
+
+    # Held where they are at the split, carried apart at the present.
+    client.call("set_tool", tool="move")
+    halves, pieces = {}, {}
+    for title in CHILDREN_TITLES:
+        client.call("select", title=title)
+        feature = client.call("get_selected")["feature"]
+        entry = {"uuid": feature["uuid"], "then": world_centroid(client)}
+        if title.startswith("Plate"):
+            halves[title] = entry
+            client.call("keyframes", button="Key")
+        else:
+            # The spans are listed youngest first.
+            pieces[title] = entry | {"parent": feature["couplings"][0]["parent"]}
+    check(pieces["Range"]["parent"] != pieces["Range 2"]["parent"],
+          f"the pieces follow different halves: {pieces}")
+    check(plate_uuid in (pieces["Range"]["parent"], pieces["Range 2"]["parent"]),
+          "one of them still the original")
+    client.call("set_time", time=0.0)
+    for title in halves:
+        client.call("select", title=title)
+        middle = world_centroid(client)
+        shift = CRUST_DRIFT if middle[1] > CRUST_CUT[1][1] else -CRUST_DRIFT
+        if not drag(client, middle[0], middle[1] + shift):
+            return
+        halves[title]["now"] = world_centroid(client)
+
+    for title, piece in pieces.items():
+        client.call("select", title=title)
+        now = world_centroid(client)
+        half = next(h for h in halves.values() if h["uuid"] == piece["parent"])
+        moved, carried = now[1] - piece["then"][1], half["now"][1] - half["then"][1]
+        check(abs(moved - carried) < DRAG_TOLERANCE,
+              f"{title} went {moved:.1f} degrees east with its half's {carried:.1f}")
+        client.call("select", title=None)
+        pixel = probe_unhovered(client, now[0], now[1])
+        check(is_colour(pixel, CHILDREN_COLOR), f"{title} is drawn there at 0 Ma: {pixel}")
+
+    # Where the cut ran through the range is open sea between the halves now.
+    gap = (sum(p["then"][0] for p in pieces.values()) / 2, CRUST_CUT[1][1])
+    pixel = probe_unhovered(client, *gap)
+    check(not is_colour(pixel, CHILDREN_COLOR), f"and nothing of it is left at the cut: {pixel}")
+
+    # The two drags, the two keyframes and the split.
+    for _ in range(5):
+        client.call("menu", item="undo")
+    titles = [f["title"] for f in client.call("get_features")["features"]]
+    check(titles[-2:] == ["Range", "Plate"], f"undo puts the range and the plate back: {titles}")
+
+
 def run_closed_topology_checks(client: AutomationClient) -> None:
     """The Closed switch on a topology built by hand fills it."""
     client.call("select", title=None)
@@ -5087,6 +5178,7 @@ def main(argv: list[str]) -> int:
         run_split_tool_session(client)
         run_ridge_session(client)
         run_crust_session(client)
+        run_split_children_session(client)
         run_copy_shape_session(client)
         run_rotate_session(client)
         run_circle_session(client)
