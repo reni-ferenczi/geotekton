@@ -385,7 +385,8 @@ and holds its half alone. A split is one undo version.
 
 Both halves also keep the [couplings](Time.md#coupling) of the feature they came
 from, so both go on following the same parent. A child of the one that was
-split follows the first half, which keeps the original's uuid.
+split follows the first half, which keeps the original's uuid, unless the
+Split tool's [Children](#the-children) switch cuts it along.
 
 ## The Split tool
 
@@ -471,6 +472,38 @@ change, and it is part of the split's one undo version.
 The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
 operation with no points between the ends, and `GeometryEdit` works both out
 with the same functions.
+
+### The children
+
+With **Children** on, which is how it starts, the cut also goes through the
+features that follow the polygon at the current time, such as a mountain range
+coupled to the craton it sits on. Only direct children are cut. A grandchild
+goes on following its own parent, and a circle follows nothing.
+
+Each polygon child is cut along the part of the cut that lies inside it: from
+where the line first crosses its edge to where it last crosses it, with the
+clicked points in between. The child keeps the first piece, and a copy named
+`Range 2` is placed right after it with the second. A child the cut misses, or
+crosses in a way the checks above would refuse, stays whole, and so does a
+line or a set of points.
+
+Then each piece, and each child left whole, is placed on one side of the cut by
+the middle of its vertices. One whose middle lies inside the second half
+follows that half from the age of the cut; its span is cut at that age, and the
+older part still names the original. Everything else keeps following the first
+half. The second half starts with the polygon's keyframes and couplings, so no
+piece moves at the cut, and as the halves drift apart each piece goes with its
+own half.
+
+The child pieces are part of the split's one undo version, and the status bar
+names them after the halves, the ridge and the crust, as in
+`Split into Laurentia, Laurentia 2, Range, Range 2` with Ridge off. The first feature of a
+group is drawn on top of the ones after it, so a range meant to show over its
+craton goes above it in the tree.
+
+With the switch off, the children are left alone and all of them follow the
+first half. The Vertex tool's split has no such switch and always leaves them
+alone.
 
 ## Drawing a circle
 

@@ -211,7 +211,16 @@ the child's relative keyframes read as world rotations.
 
 Both halves of a [split](Editing.md#splitting) keep the couplings of the
 feature they came from, so both go on following the same parent. A child of
-the one split follows the first half, which keeps the original's uuid. The
+the one split follows the first half, which keeps the original's uuid.
+
+With the Split tool's [Children](Editing.md#the-children) switch on, a child
+whose middle lies beyond the cut follows the second half instead, from the age
+of the cut. Its span is cut there, the way [Couple](#a-coupling-edit-is-a-cut-in-time)
+cuts one: the older part keeps naming the original, the younger part names the
+second half, and a keyframe at the cut holds the child where it stands. The
+second half has the same pose as the first at every age until one of them is
+moved, so no keyframe changes place. A child on the near side keeps its span.
+A child the cut crosses is split first, and each piece is placed this way. The
 [ridge](Editing.md#the-ridge) a split leaves follows both halves at once; see
 [Following two parents](#following-two-parents).
 
