@@ -84,7 +84,7 @@ static func _add_motion_times(node: Feature, nodes: Dictionary, visiting: Array,
 	for span in node.couplings:
 		_add_time(times, span.from)
 		_add_time(times, span.to)
-		# Both parents of a ridge, since either one turning moves the midpoint.
+		# Both parents of a midway span, since either one turning moves the midpoint.
 		for uuid in span.parents():
 			var parent: Feature = nodes.get(uuid)
 			if parent == null or visiting.has(parent):

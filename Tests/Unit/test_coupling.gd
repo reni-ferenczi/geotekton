@@ -669,13 +669,15 @@ func test_a_split_with_a_ridge_leaves_three_features_in_one_version() -> void:
 		["Shield", "Shield 2", "Shield ridge"], "the halves and the ridge behind them")
 
 	var ridge := _named(document, "Shield ridge")
-	assert_eq(ridge.geometry_kind, Feature.GeometryKind.POLYLINE, "the ridge is a line")
-	assert_eq(ridge.feature_type, FeatureType.LINE, "typed as one")
+	assert_true(ridge.midway and ridge.geometry_kind == Feature.GeometryKind.TOPOLOGY,
+		"the ridge is a midway topology")
+	assert_eq(ridge.drawn_as(), Feature.GeometryKind.POLYLINE, "drawn as a line")
 	assert_eq(ridge.time_range, Vector2i(0, 400), "there from the split time to the present")
-	assert_eq(ridge.couplings.size(), 1, "following one span")
-	assert_eq([ridge.couplings[0].parent, ridge.couplings[0].parent_b],
+	assert_eq(ridge.couplings.size(), 0, "following nothing")
+	assert_eq(ridge.sections.map(func(section: TopologySection) -> String:
+			return section.feature_uuid),
 		[_named(document, "Shield").uuid, _named(document, "Shield 2").uuid],
-		"whose parents are the two halves")
+		"between the two halves")
 
 	# Every vertex of the ridge is a vertex of both halves at the split time,
 	# which is what "on the shared edge" means.
@@ -699,24 +701,28 @@ func test_a_ridge_stays_midway_while_one_half_turns() -> void:
 	document.record()
 	assert_eq(document.split_feature_along(craton, 0,
 		PackedVector2Array([Vector2(5, -1), Vector2(6, 8), Vector2(5, 20)]), true), "")
+	var first := _named(document, "Shield")
 	var second := _named(document, "Shield 2")
 	var ridge := _named(document, "Shield ridge")
 	assert_eq(document.set_keyframe(second, 300.0, Vector3.ZERO), "")
 	assert_eq(document.set_keyframe(second, 0.0, Vector3(40, 0, 0)), "")
 
 	# The one half turned forty degrees and the ridge turned twenty.
-	_assert_basis(_world(document, ridge, 0.0), Feature.build_rotation_basis(Vector3(20, 0, 0)),
-		"the ridge turns by half of what the half that moved did")
+	var turned := Feature.apply_basis(first.rings[0].slice(0, 3),
+		Feature.build_rotation_basis(Vector3(20, 0, 0)))
+	var on_ridge := Ridge.ring_at(document.root, ridge, 0.0)
+	assert_eq(on_ridge.size(), 3, "a vertex for each of the cut's")
+	for i in on_ridge.size():
+		assert_true(on_ridge[i].distance_to(turned[i]) < ON_THE_EDGE,
+			"the ridge turns by half of what the half that moved did: %s" % on_ridge[i])
 
 	document.root.children.erase(second)
 	document.record()
-	var nodes := Coupling.index(document.root)
-	assert_true(not Coupling.parent_problem(nodes, ridge, ridge.couplings[0]).is_empty(),
-		"deleting a half leaves the ridge's span broken")
+	assert_true(not str(Topology.resolve(document.root, ridge, 0.0)[1]["problem"]).is_empty(),
+		"deleting a half leaves the ridge's section broken")
 	document.undo()
 	ridge = _named(document, "Shield ridge")
-	assert_eq(Coupling.parent_problem(Coupling.index(document.root), ridge, ridge.couplings[0]), "",
-		"and undo mends it")
+	assert_eq(Ridge.ring_at(document.root, ridge, 0.0).size(), 3, "and undo mends it")
 
 
 ### The graphs

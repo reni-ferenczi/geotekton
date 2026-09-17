@@ -97,6 +97,19 @@ var sections: Array[TopologySection] = []
 # Whether a topology joins its sections into one ring and is filled like a
 # polygon. See Topology.rebuild().
 var closed := false
+# Whether a topology is the line midway between its two sections, vertex by
+# vertex, the way a mid-ocean ridge lies between the plates it opens. See
+# Logic/ridge.gd.
+var midway := false
+
+# What a crust is built from: the half of a split plate it lies beside, the
+# ridge it opened from and how many vertices the cut had. A crust is a topology
+# without sections; Crust.rebuild() gives it its rings. The lines one holds the
+# isochrons and flowlines instead of the bands between them.
+var crust_half := ""
+var crust_ridge := ""
+var crust_edge := 0
+var crust_lines := false
 
 # What a Circle is built from: its center, the point its axis comes out of, as
 # (latitude, longitude) in degrees in the feature's own frame, its radius in
@@ -219,7 +232,7 @@ func has_geometry() -> bool:
 	# A topology is there as soon as it names a section, whether or not the
 	# feature that section runs along can still be found.
 	if geometry_kind == GeometryKind.TOPOLOGY:
-		return not sections.is_empty()
+		return not sections.is_empty() or is_crust()
 	for ring in rings:
 		if not ring.is_empty():
 			return true
@@ -316,12 +329,17 @@ func is_hotspot() -> bool:
 	return not is_group and feature_type == FeatureType.HOTSPOT
 
 
+func is_crust() -> bool:
+	return not is_group and not crust_half.is_empty()
+
+
 # How wide the feature's lines are drawn, against the shader's
 # geometry_line_width. A hotspot track is thin so the dots at its samples stand
 # out, and a circle is thinner than a line someone drew. A per feature setting
 # would go here.
 const HOTSPOT_LINE_SCALE := 0.35
 const CIRCLE_LINE_SCALE := 0.5
+const CRUST_LINES_LINE_SCALE := 0.5
 
 
 func line_scale() -> float:
@@ -329,6 +347,8 @@ func line_scale() -> float:
 		return HOTSPOT_LINE_SCALE
 	if is_circle():
 		return CIRCLE_LINE_SCALE
+	if is_crust() and crust_lines:
+		return CRUST_LINES_LINE_SCALE
 	return 1.0
 
 
@@ -351,6 +371,11 @@ func clone() -> Feature:
 	node.geometry_kind = geometry_kind
 	node.sections = TopologySection.clone_list(sections)
 	node.closed = closed
+	node.midway = midway
+	node.crust_half = crust_half
+	node.crust_ridge = crust_ridge
+	node.crust_edge = crust_edge
+	node.crust_lines = crust_lines
 	for ring in rings:
 		node.rings.append(ring.duplicate())
 	# Copied rather than recomputed: every undo step clones the whole tree.
@@ -484,6 +509,13 @@ func to_json() -> Variant:
 			# 0.20.0.
 			if closed:
 				data["closed"] = true
+			# Both 0.23.0, and written only when set, like closed.
+			if midway:
+				data["midway"] = true
+			if is_crust():
+				data["crust"] = {"half": crust_half, "ridge": crust_ridge, "edge": crust_edge}
+				if crust_lines:
+					data["crust"]["lines"] = true
 		else:
 			data["rings"] = rings_to_json(rings)
 		data["time_range"] = [time_range.x, time_range.y]
@@ -539,6 +571,13 @@ static func from_json(data: Variant) -> Feature:
 		node.geometry_kind = KIND_VALUES.get(data.get("geometry_kind", "polygon"), GeometryKind.POLYGON)
 		node.sections = TopologySection.list_from_json(data.get("sections", []))
 		node.closed = bool(data.get("closed", false))
+		node.midway = bool(data.get("midway", false))
+		var crust: Variant = data.get("crust")
+		if crust is Dictionary:
+			node.crust_half = str(crust.get("half", ""))
+			node.crust_ridge = str(crust.get("ridge", ""))
+			node.crust_edge = int(crust.get("edge", 0))
+			node.crust_lines = bool(crust.get("lines", false))
 		node.rings = rings_from_json(data.get("rings", []))
 		node.rebuild_triangles()
 		var tr: Array = data.get("time_range", [0, 2000])

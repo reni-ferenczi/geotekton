@@ -161,7 +161,8 @@ vertex is placed, moved, inserted and deleted on the globe with the
 count vertices or parts.
 
 The Area row is there only for a feature drawn as a polygon: a polygon, a
-closed topology and a filled crust. Lines, markers, open topologies, groups and
+closed topology and a crust, whose area is the sum of its bands. Lines,
+markers, open topologies, a ridge, the crust's lines, groups and
 features with no geometry yet do not have it. It has two lines, the area on the
 first and the share of the planet it covers on the second:
 
@@ -346,10 +347,12 @@ To see the other side of a coupling, the children of the selected feature,
 switch on View > Highlight children; see
 [Highlighting children](Editing.md#highlighting-children).
 
-A [ridge](Editing.md#the-ridge) follows two features at once, and both rows
-name them the way `Laurentia and Laurentia 2, midway` does. The picker makes
+A span that follows two features at once, which only a file can give, is named
+in both rows the way `Laurentia and Laurentia 2, midway` does. The picker makes
 single parent spans only; see
-[Following two parents](Time.md#following-two-parents).
+[Following two parents](Time.md#following-two-parents). The
+[ridge](Editing.md#the-ridge) a split leaves is a topology, so it has no
+coupling rows.
 
 `Couple` and `Decouple` are a [cut in time](Time.md#a-coupling-edit-is-a-cut-in-time):
 they change nothing older than the current time and drop the keyframes the span
@@ -393,6 +396,15 @@ current time — is shown in a warning colour with the reason as its tooltip,
 rather than being dropped. The table is filled again whenever the current time
 moves, since a section can be followed at one time and not at another.
 
+A [midway topology](Editing.md#midway-topologies), such as a ridge, has no
+Closed switch. A line above the table says `Midway between two sections`, and
+Pick refuses a third section. A [crust](Editing.md#the-crust) has neither the
+switch nor the table, since it is built from its half and its ridge. The line
+says what it is and how many bands it has at the current time and Skip, as in
+`Crust of Laurentia, 4 chunks` or `Crust lines of Laurentia, 4 chunks`.
+`get_properties` reports the line as `topology_note` and, on a crust, the count
+as `crust_chunks`.
+
 ### Every edit goes through the document
 
 The panel never writes to a feature. Each edit calls one of the editing methods
@@ -418,11 +430,11 @@ undo version:
 | `couple`                | a group or a topology on either side, the feature itself, a feature already following something at that time, a parent that follows the feature down any chain, and a parent not there over the whole span |
 | `decouple`              | a feature following nothing at that time, and the present on a span that runs to it |
 | `remove_coupling`       | a span that is not there                           |
-| `add_section`           | a group, a feature holding vertices of its own, and a target that is a group, a topology, the topology itself or has no vertices |
+| `add_section`           | a group, a feature holding vertices of its own, a crust, a midway topology that has two sections, and a target that is a group, a topology that is not midway (any topology for a midway one), the topology itself or has no vertices |
 | `remove_section`        | anything but a topology, and a section that is not there |
 | `reverse_section`       | the same                                           |
 | `set_section_range`     | the same, and a vertex number below one            |
-| `set_topology_closed`   | anything but a topology                            |
+| `set_topology_closed`   | anything but a topology, a midway topology and a crust |
 
 A method that can refuse returns the message saying why and changes nothing;
 the panel puts the widget back and shows the message in an error dialog.

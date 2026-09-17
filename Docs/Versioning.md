@@ -49,7 +49,10 @@ Polar circles into Circle and gave a circle its center and radius, which has a
 step that retypes a polar circles leaf and works out the center and radius of a
 drawn circle from its ring; and 0.22.0 samples a hotspot track at the
 timeline's Skip, which has a step that removes the track step from a hotspot
-leaf, and lets a hotspot wait for its place, which a 0.21.0 hotspot always has.
+leaf, and lets a hotspot wait for its place, which a 0.21.0 hotspot always has;
+and 0.23.0 made the ridge a midway topology and the crust bands between
+isochrons, which has a step that turns a 0.22.0 ridge and its crusts into the
+new ones and adds the lines feature beside each crust.
 
 The first public release will have major version 1.
 

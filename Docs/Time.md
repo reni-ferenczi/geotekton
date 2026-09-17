@@ -117,15 +117,17 @@ half, which is the half stage rotation GPlates reconstructs a mid ocean ridge
 by. The child keeps its place between the two however far they diverge, and
 turns by half of whatever either one of them does.
 
-The [ridge](Editing.md#the-ridge) the Split tool leaves along a cut is the one
-thing that makes such a span. The Follow picker builds single parent spans, so
-a second parent arrives only from a split or from a file. Everything else about
-the span is the same: the relative keyframe at its start, the blending between
-keyframes, the cycle check, and the chain being followed through both parents.
-A parent that cannot be followed counts as not turning, as it does on a single
-parent span, so losing one half leaves the ridge halfway to where the other half
-stands. The Properties panel writes both names in the Coupled to row and in the
-spans list, `Laurentia and Laurentia 2, midway`.
+The Follow picker builds single parent spans, so a second parent arrives only
+from a file, such as one a script wrote. The [ridge](Editing.md#the-ridge) the
+Split tool leaves is not such a span but a
+[midway topology](Editing.md#midway-topologies) that uses the same half stage
+rotation. Everything else about a span with two parents is the same: the
+relative keyframe at its start, the blending between keyframes, the cycle check,
+and the chain being followed through both parents. A parent that cannot be
+followed counts as not turning, as it does on a single parent span, so losing
+one parent leaves the child halfway to where the other one stands. The
+Properties panel writes both names in the Coupled to row and in the spans list,
+`Laurentia and Laurentia 2, midway`.
 
 ### Coupling and decoupling
 
@@ -221,8 +223,8 @@ second half, and a keyframe at the cut holds the child where it stands. The
 second half has the same pose as the first at every age until one of them is
 moved, so no keyframe changes place. A child on the near side keeps its span.
 A child the cut crosses is split first, and each piece is placed this way. The
-[ridge](Editing.md#the-ridge) a split leaves follows both halves at once; see
-[Following two parents](#following-two-parents).
+[ridge](Editing.md#the-ridge) a split leaves lies midway between both halves,
+and its [crust](Editing.md#the-crust) follows its own half.
 
 ### Precision
 

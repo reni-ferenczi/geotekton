@@ -254,19 +254,17 @@ func test_an_import_that_cannot_be_read_says_so_and_changes_nothing() -> void:
 	assert_eq(document.root.child_count(), before, "and the open document is untouched")
 
 
-### The crust a split leaves
+### The ridge and crust a split leaves
 
 
-func _crust_area(document: Document, time: float) -> Array[float]:
-	var areas: Array[float] = []
-	for index in [3, 4]:
-		var crust: Feature = document.root.children[index]
-		Topology.rebuild(document.root, crust, time)
-		areas.append(Measure.geometry_area(crust))
-	return areas
+const CRUST_TITLES := ["Square", "Square 2", "Square ridge", "Square crust lines",
+	"Square crust", "Square 2 crust lines", "Square 2 crust"]
 
 
-func test_a_split_with_ridge_and_crust_opens_two_crusts_as_the_halves_drift() -> void:
+# A square split at 100 Ma with Ridge and Crust on, the halves drifting apart
+# from there, one faster and both sliding along the cut, so that the half stage
+# rotation is not the identity.
+func _split_square(drift: bool) -> Document:
 	var document := Document.new()
 	var square := Feature.create_feature("Square")
 	square.add_ring(PackedVector2Array([Vector2(-10, -10), Vector2(-10, 10),
@@ -276,32 +274,150 @@ func test_a_split_with_ridge_and_crust_opens_two_crusts_as_the_halves_drift() ->
 	document.record()
 	assert_eq(document.split_feature_along(square, 0,
 		PackedVector2Array([Vector2(-11, 0), Vector2(0, 2), Vector2(11, 0)]), true, true), "")
+	if drift:
+		for index in [0, 1]:
+			var half: Feature = document.root.children[index]
+			var west := _mean_longitude(half.rings[0]) < 0.0
+			assert_eq(document.set_keyframe(half, 100.0, Vector3.ZERO), "")
+			assert_eq(document.set_keyframe(half, 0.0,
+				Vector3(20, 0, 4) if west else Vector3(-15, 0, -3)), "")
+	return document
+
+
+func _world(document: Document, node: Feature, ring: PackedVector2Array,
+		time: float) -> PackedVector2Array:
+	return Feature.apply_basis(ring, Feature.world_basis(document.root, node, time))
+
+
+func _assert_same_ring(actual: PackedVector2Array, expected: PackedVector2Array,
+		tolerance: float, message: String) -> void:
+	assert_eq(actual.size(), expected.size(), "%s: the vertex count" % message)
+	for i in mini(actual.size(), expected.size()):
+		assert_true(actual[i].distance_to(expected[i]) <= tolerance,
+			"%s: vertex %d is %s, not %s" % [message, i, actual[i], expected[i]])
+
+
+func test_a_split_with_ridge_and_crust_leaves_seven_features_in_order() -> void:
+	var document := _split_square(false)
 	assert_eq(document.root.children.map(func(n: Feature) -> String: return n.title),
-		["Square", "Square 2", "Square ridge", "Square crust", "Square 2 crust"],
-		"the halves, the ridge and a crust for each half, in that order")
-	var crust: Feature = document.root.children[3]
-	assert_true(crust.closed and crust.geometry_kind == Feature.GeometryKind.TOPOLOGY,
-		"a crust is a closed topology")
-	assert_eq(crust.feature_type, "topology", "typed as one")
-	assert_eq(crust.color, FeatureType.color(FeatureType.CRUST), "in the crust colour")
-	assert_eq(crust.time_range, Vector2i(0, 100), "over the ridge's time range")
-	assert_eq(crust.sections.size(), 2, "along the half and back along the ridge")
+		CRUST_TITLES, "the halves, the ridge, and the lines and a crust for each half")
+	var ridge: Feature = document.root.children[2]
+	assert_true(ridge.midway and ridge.geometry_kind == Feature.GeometryKind.TOPOLOGY,
+		"the ridge is a midway topology")
+	assert_eq(ridge.feature_type, "topology", "typed as one")
+	assert_eq(ridge.keyframes.size() + ridge.couplings.size(), 0, "with no motion of its own")
+	assert_eq(ridge.sections.size(), 2, "between two sections")
+	assert_eq(ridge.time_range, Vector2i(0, 100), "from the split to the present")
+	for index in [4, 6]:
+		var crust: Feature = document.root.children[index]
+		assert_true(crust.is_crust() and crust.closed and not crust.crust_lines, "a crust")
+		assert_eq(crust.color, FeatureType.color(FeatureType.CRUST), "in the crust colour")
+		assert_eq(crust.time_range, Vector2i(0, 100), "over the ridge's time range")
+		assert_eq(crust.crust_ridge, ridge.uuid, "opened by the ridge")
+		assert_eq(crust.crust_half, document.root.children[(index - 4) / 2].uuid,
+			"beside its half")
+		assert_eq(crust.crust_edge, 3, "along a cut of three vertices")
+		var lines: Feature = document.root.children[index - 1]
+		assert_true(lines.is_crust() and lines.crust_lines and not lines.closed, "its lines")
+		assert_eq(lines.color, FeatureType.color(FeatureType.CRUST_LINES), "in their colour")
+		assert_eq(lines.line_scale(), Feature.CRUST_LINES_LINE_SCALE, "and drawn thin")
+	var data: Dictionary = document.root.children[3].to_json()
+	assert_eq(data.get("crust"), {"half": document.root.children[0].uuid, "ridge": ridge.uuid,
+		"edge": 3, "lines": true}, "the lines write what they are built from")
+	assert_true(Feature.from_json(data).crust_lines, "and read it back")
+	document.undo()
+	assert_eq(document.root.children.size(), 1, "one undo puts the square back")
 
-	for area in _crust_area(document, 100.0):
-		assert_close(area, 0.0, 1.0, "at the split both crusts enclose nothing")
 
-	# The halves drift apart, the western one west.
-	for index in [0, 1]:
-		var half: Feature = document.root.children[index]
-		var west := _mean_longitude(half.rings[0]) < 0.0
-		assert_eq(document.set_keyframe(half, 100.0, Vector3.ZERO), "")
-		assert_eq(document.set_keyframe(half, 0.0, Vector3(20.0 if west else -20.0, 0, 0)), "")
-	var at_50 := _crust_area(document, 50.0)
-	var at_0 := _crust_area(document, 0.0)
-	for area in at_0:
-		assert_true(area > 0.0, "at the present both crusts have an area: %s" % area)
-	assert_true(at_0[0] + at_0[1] > at_50[0] + at_50[1],
-		"and more of it than at 50 Ma: %s, %s" % [at_50, at_0])
+func test_the_ridge_is_the_half_stage_line() -> void:
+	var document := _split_square(true)
+	var first: Feature = document.root.children[0]
+	var second: Feature = document.root.children[1]
+	var ridge: Feature = document.root.children[2]
+	# The line the 0.22.0 ridge was: the cut carried by the half stage rotation.
+	var half := Basis(Quaternion(Feature.world_basis(document.root, first, 50.0)).slerp(
+		Quaternion(Feature.world_basis(document.root, second, 50.0)), 0.5))
+	var expected := Feature.apply_basis(first.rings[0].slice(0, 3), half)
+	_assert_same_ring(Ridge.ring_at(document.root, ridge, 50.0), expected, 1e-6,
+		"the ridge at 50 Ma")
+	Topology.rebuild(document.root, ridge, 50.0)
+	_assert_same_ring(ridge.rings[0], expected, 1e-6, "and as rebuilt")
+
+
+func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
+	var document := _split_square(true)
+	var root := document.root
+	for index in [4, 6]:
+		var crust: Feature = root.children[index]
+		var lines: Feature = root.children[index - 1]
+		var half: Feature = root.get_node_by_uuid(crust.crust_half)
+		Crust.rebuild(root, crust, 0.0, 25.0)
+		Crust.rebuild(root, lines, 0.0, 25.0)
+		assert_eq(crust.rings.size(), 4, "%s: four bands from 100 Ma at 25 My" % crust.title)
+		assert_eq(Crust.chunks(crust), 4, "counted as four chunks")
+		assert_eq(crust.drawn_as(), Feature.GeometryKind.POLYGON, "drawn as a polygon")
+		assert_eq(lines.rings.size(), 5 + 3, "five isochrons and three flowlines")
+		assert_eq(Crust.chunks(lines), 4, "the lines count the same chunks")
+		assert_eq(lines.drawn_as(), Feature.GeometryKind.POLYLINE, "drawn as lines")
+
+		# The oldest band is against the continent: its outer isochron is the cut.
+		var cut := _world(document, half, half.rings[0].slice(0, 3), 0.0)
+		var outer := lines.rings[0]
+		var matches := outer.duplicate()
+		if outer[0].distance_to(cut[0]) > outer[0].distance_to(cut[2]):
+			matches.reverse()
+		_assert_same_ring(matches, cut, 1e-3, "%s: the oldest isochron" % crust.title)
+		_assert_same_ring(crust.rings[0].slice(0, 3), outer, 1e-9,
+			"%s: the first band starts on it" % crust.title)
+		var ridge := Ridge.ring_at(root, root.children[2], 0.0)
+		_assert_same_ring(lines.rings[4], ridge, 1e-3, "%s: the youngest is the ridge" % crust.title)
+		for i in 3:
+			assert_eq(lines.rings[5 + i].size(), 5, "a flowline crosses every isochron")
+			assert_eq(lines.rings[5 + i][0], outer[i], "from the continent")
+			assert_eq(lines.rings[5 + i][4], lines.rings[4][i], "to the ridge")
+
+		# The bands tile the sea floor between the cut and the ridge, which is
+		# bounded by the flowlines of the cut's two ends.
+		var whole := Feature.create_feature("Whole")
+		var ring := outer.duplicate()
+		ring.append_array(lines.rings[7].slice(1, 4))
+		var back := lines.rings[4].duplicate()
+		back.reverse()
+		ring.append_array(back)
+		var first_flowline := lines.rings[5].slice(1, 4)
+		first_flowline.reverse()
+		ring.append_array(first_flowline)
+		whole.add_ring(ring, Feature.GeometryKind.POLYGON)
+		var total := Measure.geometry_area(crust)
+		assert_true(total > 0.0, "%s has an area" % crust.title)
+		assert_close(total, Measure.geometry_area(whole), 1e-6 * total,
+			"%s: the bands add up to the sea floor" % crust.title)
+
+		Crust.rebuild(root, crust, 100.0, 25.0)
+		for band in crust.rings:
+			assert_close(Measure.ring_area(band), 0.0, 1e-3, "no band has an area at the split")
+		assert_eq(Crust.chunks(crust), 0, "and there are none")
+		Crust.rebuild(root, crust, 0.0, 50.0)
+		assert_eq(Crust.chunks(crust), 2, "a longer skip gives fewer chunks")
+
+
+func test_the_crust_shape_is_its_bands() -> void:
+	var document := _split_square(true)
+	document.current_time = 0.0
+	Planet.collect_geometry(document.root, 0.0)
+	var crust: Feature = document.root.children[4]
+	var shape := document.shape_of(crust)
+	assert_eq(shape["kind"], Feature.GeometryKind.POLYGON, "Copy Shape takes a polygon")
+	assert_eq(shape["rings"].size(), crust.rings.size(), "of the bands")
+	shape = document.shape_of(document.root.children[2])
+	assert_eq(shape["kind"], Feature.GeometryKind.POLYLINE, "and a line from the ridge")
+	assert_eq(shape["rings"].size(), 1, "of one ring")
+	assert_true(not document.set_topology_closed(crust, false).is_empty(),
+		"a crust cannot be opened")
+	assert_true(not document.add_section(crust, document.root.children[0], 0).is_empty(),
+		"nor take a section")
+	assert_true(not document.add_section(document.root.children[2],
+		document.root.children[0], 0).is_empty(), "nor a ridge a third one")
 
 
 ### The children a split takes along

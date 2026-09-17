@@ -385,3 +385,82 @@ func test_closing_a_topology_is_one_version_and_copies_as_one_polygon() -> void:
 	assert_eq(shape["rings"].size(), 1, "of one ring")
 	assert_true(not document.set_topology_closed(document.root.children[0], true).is_empty(),
 		"a line cannot be closed")
+
+
+### Midway topologies
+
+
+# Root > South, North on the equator and ten degrees north, the midway topology
+# between them, and a topology along the midway one placed before it.
+func _midway_tree(north: Array) -> Feature:
+	var root := Feature.create_group("Planet")
+	root.is_root = true
+	var south := Feature.create_feature("South")
+	south.add_ring(west_ring(), Feature.GeometryKind.POLYLINE)
+	var far := Feature.create_feature("North")
+	far.add_ring(PackedVector2Array(north), Feature.GeometryKind.POLYLINE)
+	var midway := Feature.create_feature("Midway")
+	midway.feature_type = "topology"
+	midway.geometry_kind = Feature.GeometryKind.TOPOLOGY
+	midway.midway = true
+	midway.sections = [TopologySection.whole_part(south, 0), TopologySection.whole_part(far, 0)]
+	var along := Feature.create_feature("Along")
+	along.feature_type = "topology"
+	along.geometry_kind = Feature.GeometryKind.TOPOLOGY
+	along.sections = [TopologySection.create(midway.uuid, 0, 0, 3)]
+	root.children.assign([along, south, far, midway])
+	Topology.rebuild_all(root, 0.0)
+	return root
+
+
+const NORTH := [Vector2(10, 0), Vector2(10, 10), Vector2(10, 20), Vector2(10, 30)]
+
+
+func test_a_midway_topology_is_the_vertex_wise_midpoint_of_its_two_sections() -> void:
+	var root := _midway_tree(NORTH)
+	var midway: Feature = root.children[3]
+	assert_eq(midway.drawn_as(), Feature.GeometryKind.POLYLINE, "drawn as a line")
+	assert_eq(midway.rings.size(), 1, "one ring")
+	assert_eq(midway.rings[0].size(), WEST.size(), "a vertex for each pair")
+	for i in WEST.size():
+		assert_close(midway.rings[0][i].x, 5.0, 1e-4, "vertex %d halfway north" % i)
+		assert_close(midway.rings[0][i].y, WEST[i].y, 1e-4, "vertex %d on its meridian" % i)
+	for entry in Topology.resolve(root, midway, 0.0):
+		assert_eq(entry["problem"], "", "both sections resolve")
+
+
+func test_a_midway_topology_of_unequal_sections_is_empty_and_says_why() -> void:
+	var root := _midway_tree(NORTH.slice(0, 3))
+	var midway: Feature = root.children[3]
+	assert_eq(midway.rings.size(), 0, "no ring")
+	assert_eq(Ridge.ring_at(root, midway, 0.0).size(), 0, "and no ridge")
+	var resolved := Topology.resolve(root, midway, 0.0)
+	assert_eq(resolved[0]["problem"], "", "the first section is fine")
+	assert_eq(resolved[1]["problem"], "it has 3 vertices and the first section 4",
+		"the second is reported")
+	midway.sections.pop_back()
+	assert_eq(Topology.resolve(root, midway, 0.0)[0]["problem"],
+		"a midway topology needs a second section", "one section is reported too")
+
+
+func test_a_section_may_run_along_a_midway_topology_wherever_it_sits() -> void:
+	var root := _midway_tree(NORTH)
+	var along: Feature = root.children[0]
+	assert_eq(along.rings.size(), 1, "the midway topology was rebuilt first")
+	assert_close(along.rings[0][0].x, 5.0, 1e-4, "and the section runs along it")
+	var midway: Feature = root.children[3]
+	assert_eq(Topology.section_problem(along, midway), "", "it can be picked")
+	assert_true(not Topology.section_problem(midway, root.children[1]).is_empty(),
+		"a midway topology takes no third section")
+	along.midway = true
+	assert_true(not Topology.section_problem(along, midway).is_empty(),
+		"and a midway topology cannot run along another")
+
+
+func test_the_midway_flag_round_trips() -> void:
+	var midway: Feature = _midway_tree(NORTH).children[3]
+	assert_eq(midway.to_json().get("midway"), true, "written")
+	assert_true(Feature.from_json(midway.to_json()).midway, "read back")
+	assert_true(midway.clone().midway, "and cloned")
+	midway.midway = false
+	assert_true(not midway.to_json().has("midway"), "no key when not midway")

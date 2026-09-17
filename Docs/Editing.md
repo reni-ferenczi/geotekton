@@ -23,7 +23,7 @@ number:
   see [The Split tool](#the-split-tool). Offered while a polygon is selected.
 - **Circle segments** — Shown only while the Draw tool is drawing a circle; see
   [Segments of a circle](#segments-of-a-circle).
-- **Ridge** — Whether the Split tool leaves a line along the cut. Shown only
+- **Ridge** — Whether the Split tool leaves a ridge along the cut. Shown only
   while that tool is active, on to start with, and remembered between sessions;
   see [The ridge](#the-ridge).
 - **Crust** — Whether the Split tool also leaves oceanic crust between the ridge
@@ -420,34 +420,36 @@ A cut is refused, with the reason in the status bar, when:
 A refused cut keeps its points, so the one at fault can be taken back with
 Ctrl+Z. A cut that is made records one undo version and goes back to the Move
 tool, with the first half selected. The status bar names what the cut left
-behind, `Split into Laurentia, Laurentia 2, Laurentia ridge, Laurentia crust,
-Laurentia 2 crust`.
+behind, `Split into Laurentia, Laurentia 2, Laurentia ridge, Laurentia crust
+lines, Laurentia crust, Laurentia 2 crust lines, Laurentia 2 crust`.
 
 Each half's ring starts with the cut: its first vertices are the two ends and
-the points between them, which is how the crust names that stretch.
+the points between them, which is how the ridge names that stretch.
 
 ### The ridge
 
-With the **Ridge** switch on, which is how it starts, the cut also leaves a
-line where the two halves parted, the rift or mid ocean ridge that opens between
-two continents as they drift apart. It is a Line feature named after the
-polygon, `Laurentia ridge`, placed after the second half, holding the shared cut
-as its one part: the two ends where they landed on the boundary and every point
-clicked between them.
+With the **Ridge** switch on, which is how it starts, the cut also leaves the
+rift or mid ocean ridge that opens between the two halves as they drift apart.
+It is a [midway topology](#midway-topologies) named after the polygon,
+`Laurentia ridge`, placed after the second half and colored like a Line. Its two
+sections are the two halves' sides of the cut: the first half's run from the
+first vertex of its ring to the last point of the cut, and the same run on the
+second half, walked back, because the second half holds the cut the other way
+round. Its time range runs from the age of the cut to the present, since the
+ridge did not exist before the continent broke.
 
-The ridge follows both halves at once, over a span from the age the cut was
-made at to the present, and its frame is theirs at one half. That is the half
-stage rotation GPlates reconstructs a ridge by, so the line stays midway between
-the two halves as they diverge and turns by half of whatever either one does.
-See [Following two parents](Time.md#following-two-parents). Both halves have the
-polygon's own pose at the moment of the cut, so the ridge starts out lying
-exactly on it. Its time range runs from that age to the present, since it did
-not exist before the continent broke.
+Each vertex of the ridge is the pair of cut vertices taken back into their own
+halves' frames and carried out by the rotation halfway between the two halves'
+rotations. That is the half stage rotation GPlates reconstructs a ridge by, so
+the line stays midway between the halves as they diverge and turns by half of
+whatever either one does. Both halves have the polygon's own pose at the moment
+of the cut, so the ridge starts out lying exactly on it. The ridge has no
+keyframes and follows nothing; `Ridge.ring_at()` in `Logic/ridge.gd` works out
+where it is at any age.
 
-The ridge is part of the split's one undo version, so undo takes all three
-features away together. Deleting a half afterwards leaves the span with a parent
-that cannot be followed, drawn in the warning color like a missing parent
-anywhere else, and undo mends it.
+The ridge is part of the split's one undo version, so undo takes it away with
+the halves. Deleting a half afterwards leaves the ridge's section on that half
+broken, the ridge draws nothing, and undo mends it.
 
 With the switch off the cut leaves the two halves and nothing else, and the
 Crust switch is greyed out.
@@ -455,19 +457,39 @@ Crust switch is greyed out.
 ### The crust
 
 With **Crust** on as well, which is how it starts, the cut also leaves the sea
-floor that opens between the ridge and each half as they drift apart. These are
-two [closed topologies](#closed-topologies), `Laurentia crust` and
-`Laurentia 2 crust`, placed after the ridge, with the ridge's time range and
-colored steel blue. Each has two sections: the half's cut edge, from the first
-vertex of its ring to the last point of the cut, and the whole ridge, walked
-from the end the cut edge stops at, so the ring runs out along the half and
-back along the ridge.
+floor that opens between the ridge and each half, drawn the way GPlates shows
+sea floor spreading: with isochrons and flowlines. New crust is next to the
+ridge and older crust is next to the continent.
 
-At the age of the cut both runs lie on the same line, so each crust encloses
-nothing and draws nothing. As the time moves towards the present the halves
-drift, the ridge stays midway, and each crust opens between its half's edge
-and the ridge. The crust is rebuilt with the other topologies at every time
-change, and it is part of the split's one undo version.
+An **isochron** is a line of equal crust age: where the ridge was at that age,
+carried along with the half since. The oldest one, at the age of the cut, is the
+half's side of the cut, and the youngest, at the current time, is the ridge
+itself. Between them there is one at every multiple of the timeline's
+[Skip](Time.md#the-time-control), the same step a [hotspot](#hotspots) track is
+sampled at. A **flowline** follows one vertex of the cut across every isochron,
+from the continent to the ridge.
+
+Each half gets two features, placed after the ridge, both with the ridge's time
+range:
+
+- `Laurentia crust lines` holds the isochrons and a flowline for each vertex of
+  the cut, drawn as thin lines in light steel blue.
+- `Laurentia crust` holds the bands between two isochrons in a row, one filled
+  part each, in steel blue. The band against the continent is the oldest.
+
+The lines come before the bands in the tree because the first feature of a
+group is drawn on top, and the bands would hide them otherwise. So the order is
+`Laurentia`, `Laurentia 2`, `Laurentia ridge`, `Laurentia crust lines`,
+`Laurentia crust`, `Laurentia 2 crust lines` and `Laurentia 2 crust`.
+
+At the age of the cut there is only the one isochron, so neither feature draws
+anything. As the time moves towards the present the halves drift and the bands
+open, one more at each Skip. `Logic/crust.gd` rebuilds both features after the
+topologies whenever the tree, the time or the Skip changes. Both are topologies
+with no sections: the Properties panel shows a line such as
+`Crust of Laurentia, 4 chunks` in place of the section table, and the Area row of
+the crust is the sum of its bands. Copy Shape takes the bands as a polygon of
+several parts. Both are part of the split's one undo version.
 
 The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
 operation with no points between the ends, and `GeometryEdit` works both out
@@ -730,9 +752,11 @@ vertex nearest the click, for a feature that has several. Trimming it to the
 stretch that belongs to the boundary is done afterwards in the panel.
 
 A click is refused, with the reason in the status bar, when the feature under it
-is a group, is the topology itself, is another topology, or has no vertices. The
-feature being built on is refused as well when it already holds vertices of its
-own: a feature cannot both draw its geometry and borrow it.
+is a group, is the topology itself, is a topology that is not
+[midway](#midway-topologies), or has no vertices. The feature being built on is
+refused as well when it already holds vertices of its own, since a feature
+cannot both draw its geometry and borrow it, when it is a midway topology that
+has its two sections, and when it is a [crust](#the-crust).
 
 ### Editing the sections
 
@@ -775,8 +799,26 @@ closed by a chord. Nothing is intersected or trimmed at crossings: each run is
 the vertex range its section names. A broken section adds nothing to the ring
 and stays reported in the section table.
 
-A ring whose vertices all lie on one line, as a [crust](#the-crust) does at the
-age of its split, encloses nothing and draws nothing.
+A ring whose vertices all lie on one line encloses nothing and draws nothing.
+
+### Midway topologies
+
+A **midway** topology has exactly two sections of the same length and is the
+line between them, vertex by vertex: each pair of vertices is taken back into
+its own feature's frame and carried out by the rotation halfway between the two
+features' rotations. For two features that have not moved apart, that is the
+point halfway between the pair. The [ridge](#the-ridge) the Split tool leaves is
+one, and the file marks it with `midway`.
+
+A midway topology is drawn as one line. It has no Closed switch; the panel says
+`Midway between two sections` above the section table instead. When the two
+sections have different vertex counts, or one of them is broken, it draws
+nothing and the section table says why. The Pick toggle refuses a third section.
+
+A section of any other topology may run along a midway one, reading the line it
+was last rebuilt into. Midway topologies are rebuilt before the others, wherever
+they sit in the tree. A midway topology cannot run along another topology, and
+no topology can run along one that is not midway.
 
 ## The light
 

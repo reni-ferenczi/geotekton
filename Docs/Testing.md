@@ -388,8 +388,11 @@ and that undo brings back the one outline.
 and Crust off. It
 checks that the switch is shown with the tool alone, that the cut and the ridge
 are one undo version, that the status bar names all three features, and that the
-ridge is a Line there from 400 Ma to the present whose span names both halves,
-which the Coupled to row reads as `Old Shield and Old Shield 2, midway`. Every
+ridge is a midway topology there from 400 Ma to the present, with no keyframes
+or couplings, whose two sections name the halves, the second walked back. The
+panel says `Midway between two sections` and has the section table but no
+Coupled to row or Closed switch, and a Pick click on a half leaves the ridge
+with two sections and a status bar saying why. Every
 vertex of the ridge is on both halves at the cut. The second half is then held
 with a keyframe at 400 Ma and dragged 24 degrees away at the present, and at
 200 Ma, where the two are about 12 degrees apart, each ridge vertex is within a
@@ -400,13 +403,18 @@ leave the one craton.
 
 `run_crust_session` draws a square at 100 Ma and picks the Split tool with
 Ridge off, where the Crust switch is shown but greyed out and refuses to be
-turned on. With both on, one cut leaves five features in one undo version, the
-two halves, the ridge and the two crusts, and the status bar names all five.
-Each crust is a closed topology from the split to the present that encloses
-nothing yet. Both halves are keyed at the split and dragged apart at the
-present, and a pixel midway between each half's cut edge and the ridge is the
-crust's steel blue, with the pointer moved away so no hover highlight is read.
-Both crusts then have an area. Last, a topology clicked together from two
+turned on. With both on, one cut leaves seven features in one undo version,
+the two halves, the ridge and each half's crust lines and crust, and the status
+bar names all seven. Each crust and lines feature is a topology from the split
+to the present whose panel line reads `Crust of Plate, 0 chunks` or
+`Crust lines of Plate, 0 chunks`, with no area, no section table and no Closed
+switch. Both halves are keyed at the split and dragged apart at the present.
+The skip is then set to 25 My; the application reads the user's configuration,
+so the scenario puts the old skip back at the end. Each crust has four chunks
+and an area, and its lines feature five isochrons and three flowlines. A pixel
+between the 75 and 50 Ma isochrons is the crust's steel blue and a pixel on the
+75 Ma isochron is the lines' light steel blue, with the pointer moved away so
+no hover highlight is read. A skip of 50 My leaves two chunks. Last, a topology clicked together from two
 lines fills nothing until the Closed switch is set through `set_property`,
 which is one undo version, gives one ring of four, shows the Area row, which
 the open topology did not have, and fills the square between the lines in the Topology

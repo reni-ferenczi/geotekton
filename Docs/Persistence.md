@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "features": { ... },
   "view": { ... }
 }
@@ -323,6 +323,28 @@ A closed topology adds `"closed": true`, and the sections are then joined into
 one filled ring; see [Editing](Editing.md#closed-topologies). An open topology
 writes no `closed` key, and a topology without one is open.
 
+A midway topology adds `"midway": true`: it has two sections and is the line
+between them, the way a [ridge](Editing.md#the-ridge) is. A topology without
+the key is not midway.
+
+A [crust](Editing.md#the-crust) is a topology with no sections and a `crust`
+object naming what it is built from:
+
+```json
+"feature_type": "topology",
+"geometry_kind": "topology",
+"closed": true,
+"sections": [],
+"crust": {"half": "3e1d...", "ridge": "77ab...", "edge": 3}
+```
+
+`half` is the uuid of the half of the split plate it lies beside, `ridge` the
+uuid of the midway topology it opened from, and `edge` how many vertices the
+cut had. The crust is closed and holds the bands; the feature holding the
+isochrons and flowlines is open and adds `"lines": true` to the object. Neither
+writes its rings: they are rebuilt from the half, the ridge, the time and the
+timeline's Skip before the geometry is collected.
+
 `keyframes` is where the feature is over time: a list of `{time, rotation}`,
 sorted with the youngest first, `time` an age in millions of years before
 present and `rotation` the three angles above. Only a leaf has them; a group
@@ -338,8 +360,8 @@ the parent; see [Time](Time.md#coupling). Only a leaf has them, and spans on one
 feature do not overlap. A span whose parent is not in the file is kept as it
 stands, like a section whose feature is missing.
 
-A span may carry `parent_b`, a second uuid, which is what a ridge left by the
-Split tool follows. Its frame is then midway between the two parents; see
+A span may carry `parent_b`, a second uuid. Its frame is then midway between
+the two parents; see
 [Time](Time.md#following-two-parents). The key is written only when there is
 one, so an ordinary span reads the way it always did.
 
@@ -510,7 +532,7 @@ without the key carries no icon, which is what every feature carried before.
 
 0.15.0 added `parent_b` to a coupling span. There is no migration step either:
 a span without the key follows the one parent it names, which is what every
-span did before a ridge followed two.
+span did before 0.15.0.
 
 #### 0.15.0 to 0.16.0
 
@@ -596,6 +618,29 @@ are read.
 hotspot be not placed yet. The step, `Document._to_0_22_0()`, removes
 `track_step` from every `hotspot` leaf and leaves the rest alone. A 0.21.0
 hotspot always has its `hotspot` key, so it stays placed.
+
+#### 0.22.0 to 0.23.0
+
+0.23.0 made the [ridge](Editing.md#the-ridge) a midway topology and the
+[crust](Editing.md#the-crust) bands between isochrons with a lines feature. The
+step, `Document._to_0_23_0()`, changes what the Split tool left at 0.22.0:
+
+- A polyline leaf with one ring, one keyframe and one coupling span naming a
+  `parent_b` is a ridge. It becomes a `topology` leaf with `"midway": true` and
+  two sections covering vertices 0 to n - 1, where n is the ring's vertex count:
+  one on `parent`, and one on `parent_b`, reversed, since the second half of a
+  split holds the cut the other way round. The first section is on the part of
+  `parent` that its crust names, or on part 0 without a crust. The ring, the
+  keyframe and the span are dropped. The title, color and time range stay.
+- A closed topology with two sections, the second on such a ridge, is a crust.
+  Its sections go and it gets `"crust": {"half": ..., "ridge": ..., "edge": ...}`,
+  with the half from the first section, the ridge from the second, and the
+  first section's `to` plus one as the edge. A copy titled `<title> lines`, with
+  a new uuid, the crust lines color, no `closed` key and `"lines": true`, is
+  inserted before it.
+
+Every other leaf, including closed topologies along anything else, is left
+alone.
 
 ## The config file
 

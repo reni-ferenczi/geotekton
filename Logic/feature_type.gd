@@ -19,7 +19,7 @@ const POLYGON := "polygon"
 # No type at all, which is what a file written before 0.3.0 carries. It allows
 # every kind, since nothing in the file said which one was meant.
 const NONE := ""
-# The type a ridge left by the Split tool is given.
+# A Line, whose colour a ridge left by the Split tool is also given.
 const LINE := "line"
 # A circle, or two of one radius around an axis and its antipode, rebuilt from
 # the parameters the feature keeps; see Feature.rebuild_circle().
@@ -27,11 +27,15 @@ const CIRCLE := "circle"
 # A plume fixed in the world frame and the track it leaves on a plate, rebuilt
 # at every time change; see Logic/hotspot.gd.
 const HOTSPOT := "hotspot"
-# The oceanic crust the Split tool leaves beside a ridge is a closed Topology,
-# not a type of its own, but it has a colour of its own. color() takes this id,
-# so a crust colour kept in the preferences would be used the same way.
+# The oceanic crust the Split tool leaves beside a ridge is a Topology, not a
+# type of its own, but it has a colour of its own, and so do its isochrons and
+# flowlines. color() takes these ids, so a colour kept in the preferences under
+# one of them is used the same way.
 const CRUST := "crust"
 const CRUST_COLOR := Color.STEEL_BLUE
+const CRUST_LINES := "crust_lines"
+const CRUST_LINES_COLOR := Color.LIGHT_STEEL_BLUE
+const OWN_COLORS := {CRUST: CRUST_COLOR, CRUST_LINES: CRUST_LINES_COLOR}
 
 const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]
 
@@ -80,8 +84,8 @@ static func label(type_id: String) -> String:
 # preferences hold for it, else the catalog's. A type the catalog does not know
 # takes the Polygon colour, which is also what a new feature starts in.
 static func color(type_id: String) -> Color:
-	if type_id == CRUST:
-		return Config.get_feature_colors().get(CRUST, CRUST_COLOR)
+	if OWN_COLORS.has(type_id):
+		return Config.get_feature_colors().get(type_id, OWN_COLORS[type_id])
 	if not CATALOG.has(type_id):
 		type_id = POLYGON
 	return Config.get_feature_colors().get(type_id, CATALOG[type_id]["color"])

@@ -110,6 +110,7 @@ var reverse_button: Button
 var remove_section_button: Button
 var pick_section_button: Button
 var closed_check: CheckBox
+var topology_note: Label
 var coupled_label: Label
 var decouple_button: Button
 var parent_selector: OptionButton
@@ -307,6 +308,12 @@ func _build() -> void:
 # section built by clicking a whole feature can be trimmed to the stretch that
 # belongs to the boundary.
 func _build_sections(box: VBoxContainer) -> void:
+	# What a ridge or a crust is, since neither is built from the table.
+	topology_note = Label.new()
+	topology_note.name = "TopologyNote"
+	topology_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(topology_note)
+
 	closed_check = CheckBox.new()
 	closed_check.name = "Closed"
 	closed_check.text = "Closed"
@@ -634,8 +641,14 @@ func show_node(node_: Feature) -> void:
 	# its Pick toggle can add the first one.
 	var is_topology := is_feature and (node.geometry_kind == Feature.GeometryKind.TOPOLOGY
 		or node.feature_type == "topology")
+	# A crust is built from its half and its ridge, so it has no table, and a
+	# ridge is a line between its two sections, so it cannot be closed.
+	var is_crust := is_feature and node.is_crust()
+	var is_midway := is_feature and node.midway
 	for control in _topology_boxes:
-		control.visible = is_topology
+		control.visible = is_topology and not is_crust
+	closed_check.visible = is_topology and not is_crust and not is_midway
+	topology_note.visible = is_crust or is_midway
 	# A hotspot is fixed in the world frame, so it has no motion either.
 	var is_hotspot := is_feature and node.is_hotspot()
 	var has_motion := is_feature and not is_topology and not is_hotspot
@@ -668,6 +681,7 @@ func show_node(node_: Feature) -> void:
 			_show_hotspot()
 		closed_check.button_pressed = node.closed
 		_fill_sections()
+		_show_topology_note()
 		_fill_coupling()
 	else:
 		_show_style()
@@ -739,6 +753,15 @@ func _resolved_sections() -> Array:
 			or node.geometry_kind != Feature.GeometryKind.TOPOLOGY:
 		return []
 	return Topology.resolve(document.root, node, document.current_time)
+
+
+func _show_topology_note() -> void:
+	if node == null or node.is_group:
+		return
+	if node.is_crust():
+		topology_note.text = Crust.describe(document.root if document != null else null, node)
+	elif node.midway:
+		topology_note.text = "Midway between two sections"
 
 
 func _fill_sections() -> void:
@@ -860,6 +883,7 @@ func _update_section_buttons() -> void:
 func _refill_sections() -> void:
 	_filling = true
 	_fill_sections()
+	_show_topology_note()
 	if not node.is_group:
 		_show_area()
 	_filling = false
@@ -1432,7 +1456,12 @@ func to_json() -> Dictionary:
 	data["sections"] = _sections_to_json()
 	if closed_check.visible:
 		data["closed"] = closed_check.button_pressed
+	if sections.visible:
 		data["picking_sections"] = pick_section_button.button_pressed
+	if topology_note.visible:
+		data["topology_note"] = topology_note.text
+	if node.is_crust():
+		data["crust_chunks"] = Crust.chunks(node)
 	if pick_axis_button.visible:
 		data["circle"] = {
 			"polar": axis_circles_check.button_pressed,
@@ -1586,7 +1615,7 @@ func set_field(field: String, value: Variant) -> String:
 			_commit_circle()
 		"closed":
 			if not closed_check.visible:
-				return "only a topology can be closed"
+				return "only a topology built from its sections can be closed"
 			closed_check.button_pressed = bool(value)
 		"plate":
 			if not plate_row.visible:
