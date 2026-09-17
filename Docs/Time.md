@@ -299,12 +299,12 @@ tree does not scroll on them instead. A skip never leaves the animation range.
 
 The skip is also the fallback for how finely a [hotspot](Editing.md#hotspots)
 track and the bands of a [crust](Editing.md#the-crust) are sampled over time.
-It is the fallback rather than the rule: each of those features has a **Step
-(My)** row of its own in the [Properties
-panel](Properties.md#the-step-row), and a step above 0 there is what the
-feature is sampled at. A step of 0, which is how a feature starts, follows the
-skip, so a new value in the box redraws every hotspot and crust still on 0 and
-leaves the rest alone.
+It is the fallback rather than the rule: each of those features has a
+**Step (My)** row of its own in the
+[Properties panel](Properties.md#the-step-row), and a step above 0 there is
+what the feature is sampled at. A step of 0, which is how a feature starts,
+follows the skip, so a new value in the box redraws every hotspot and crust
+still on 0 and leaves the rest alone.
 
 The skip is a setting of the machine, kept in the configuration and not in the
 document, so the same file would otherwise draw a different number of track
