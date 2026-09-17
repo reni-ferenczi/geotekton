@@ -397,6 +397,40 @@ func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
 		assert_eq(Crust.chunks(crust), 2, "a longer skip gives fewer chunks")
 
 
+# The step on the crust wins over the Skip the rebuild is handed, so the same
+# file opens with the same bands wherever the Skip happens to sit.
+func test_a_crust_samples_at_its_own_step() -> void:
+	var document := _split_square(true)
+	var root := document.root
+	document.current_time = 0.0
+	var crust: Feature = root.children[3]
+	var versions := document.applied
+	assert_eq(document.set_crust_step(crust, 25.0), "", "the crust takes a 25 My step")
+	assert_eq(document.applied, versions + 1, "as one undo version")
+	for skip: float in [1.0, 10.0, 50.0]:
+		Crust.rebuild_all(root, 0.0, skip)
+		assert_eq(Crust.chunks(crust), 4,
+			"four bands over the 100 My range at a skip of %s" % skip)
+		assert_eq(crust.crust_line_rings.size(), 5 + 3,
+			"with five isochrons and three flowlines")
+	# The other half is still on the Skip, so it follows it.
+	var other: Feature = root.children[4]
+	assert_eq(other.time_step, 0.0, "the other crust carries no step")
+	assert_eq(Crust.chunks(other), 2, "so a skip of 50 leaves it two bands")
+
+	assert_eq(document.set_crust_step(crust, 0.0), "", "back to the Skip")
+	Crust.rebuild_all(root, 0.0, 50.0)
+	assert_eq(Crust.chunks(crust), 2, "and it follows it again")
+	assert_true(not document.set_crust_step(root.children[2], 25.0).is_empty(),
+		"the ridge is no crust")
+	assert_true(not document.set_crust_step(crust, -1.0).is_empty(), "nor is -1 a step")
+
+	var data: Dictionary = crust.to_json()
+	assert_true(not data.has("time_step"), "a crust on the Skip writes no step")
+	document.set_crust_step(crust, 25.0)
+	assert_eq(Feature.from_json(crust.to_json()).time_step, 25.0, "one with a step round trips")
+
+
 func test_the_crust_shape_is_its_bands() -> void:
 	var document := _split_square(true)
 	document.current_time = 0.0

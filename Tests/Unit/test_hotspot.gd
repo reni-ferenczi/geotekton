@@ -106,6 +106,71 @@ func test_a_100_my_track_at_a_30_my_skip() -> void:
 	_done()
 
 
+# The step on the hotspot wins over whatever skip the caller hands down, and 0
+# hands the decision back to the skip.
+func test_a_hotspot_samples_at_its_own_step() -> void:
+	var parts := _fixture()
+	var document: Document = parts[0]
+	var plate: Feature = parts[1]
+	var hotspot: Feature = parts[2]
+	plate.time_range = Vector2i(0, 100)
+	hotspot.time_range = Vector2i(0, 100)
+	plate.keyframes.assign([Keyframe.create(0.0, Vector3(100.0, 0, 0)),
+		Keyframe.create(100.0, Vector3.ZERO)])
+	var versions := document.applied
+	assert_eq(document.set_hotspot(hotspot, ON_EQUATOR, plate.uuid, 30.0), "", "given a 30 My step")
+	assert_eq(document.applied, versions + 1, "as one undo version")
+	assert_eq(hotspot.time_step, 30.0, "the hotspot carries it")
+	for skip: float in [1.0, 5.0, 50.0, 1000.0]:
+		assert_eq(Hotspot.step_of(hotspot, skip), 30.0, "step_of ignores a skip of %s" % skip)
+		assert_eq(Hotspot.track(document.root, hotspot, 0.0, skip).size(), 5,
+			"100, 90, 60, 30 and the present at a skip of %s" % skip)
+	Hotspot.rebuild_all(document.root, 0.0, 1.0)
+	assert_eq(hotspot.rings[1].size(), 5, "and a rebuild at a fine skip draws the same five")
+
+	assert_eq(document.set_hotspot(hotspot, ON_EQUATOR, plate.uuid, 0.0), "", "back to 0")
+	assert_eq(Hotspot.step_of(hotspot, 25.0), 25.0, "step_of follows the skip again")
+	assert_eq(Hotspot.track(document.root, hotspot, 0.0, 25.0).size(), 5, "100 to 0 at 25 My")
+	assert_eq(Hotspot.track(document.root, hotspot, 0.0, 50.0).size(), 3, "and three at 50")
+	_done()
+
+
+# Two hotspots in one document, each sampled at the step it carries.
+func test_two_hotspots_hold_their_own_counts() -> void:
+	var parts := _fixture()
+	var document: Document = parts[0]
+	var plate: Feature = parts[1]
+	var slow: Feature = parts[2]
+	var fast := Feature.create_feature("Iceland")
+	fast.time_range = Vector2i(0, 30)
+	document.root.children.append(fast)
+	assert_eq(document.set_feature_type(fast, FeatureType.HOTSPOT), "", "a second hotspot")
+	assert_eq(document.set_hotspot(slow, ON_EQUATOR, plate.uuid, 10.0), "", "one at 10 My")
+	assert_eq(document.set_hotspot(fast, ON_EQUATOR, plate.uuid, 5.0), "", "the other at 5")
+	Hotspot.rebuild_all(document.root, 0.0, 1.0)
+	assert_eq([Hotspot.samples(slow).size(), Hotspot.samples(fast).size()], [4, 7],
+		"one rebuild leaves each with the samples its own step asks for")
+	_done()
+
+
+# 0 to MAX_STEP, and nothing outside it.
+func test_a_step_outside_the_range_is_refused() -> void:
+	var parts := _fixture()
+	var document: Document = parts[0]
+	var plate: Feature = parts[1]
+	var hotspot: Feature = parts[2]
+	document.set_hotspot(hotspot, ON_EQUATOR, plate.uuid, 5.0)
+	var versions := document.applied
+	for bad: float in [-1.0, Hotspot.MAX_STEP + 1.0]:
+		assert_true(not document.set_hotspot(hotspot, ON_EQUATOR, plate.uuid, bad).is_empty(),
+			"a step of %s is refused" % bad)
+	assert_eq(document.applied, versions, "nothing was recorded")
+	assert_eq(hotspot.time_step, 5.0, "and the step it had is still there")
+	assert_true(not document.set_crust_step(hotspot, 5.0).is_empty(),
+		"a hotspot is no crust, so set_crust_step refuses it")
+	_done()
+
+
 func test_the_track_runs_along_the_equator_at_the_present() -> void:
 	var parts := _fixture()
 	var document: Document = parts[0]
@@ -273,8 +338,8 @@ func test_the_file_round_trips_the_place_and_the_plate() -> void:
 	assert_close(back.hotspot, Vector2(19.4, -155.3), 1e-4, "at the same place")
 	assert_eq(back.plate_uuid, plate.uuid, "on the same plate")
 	var clone := back.clone()
-	assert_eq([clone.hotspot, clone.plate_uuid], [back.hotspot, back.plate_uuid],
-		"a clone keeps the values")
+	assert_eq([clone.hotspot, clone.plate_uuid, clone.time_step],
+		[back.hotspot, back.plate_uuid, back.time_step], "a clone keeps the values")
 
 	# The parameters win over the rings the file holds.
 	back.rings.assign([PackedVector2Array([Vector2(0, 0), Vector2(0, 10)])])
