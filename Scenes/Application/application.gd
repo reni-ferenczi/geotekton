@@ -322,8 +322,10 @@ func _ready() -> void:
 	document.time_changed.connect(_on_time_changed)
 	timeline.attach(document)
 	timeline.configure_requested.connect(_show_animation_dialog)
-	# A hotspot's track has a sample at every skip, so a new one redraws it.
+	# A hotspot's track has a sample at every skip, and a crust a band, so a new
+	# one redraws them and the panel counts the bands again.
 	timeline.skip_changed.connect(refresh_motion)
+	timeline.skip_changed.connect(properties.show_time)
 	kinematics.attach(document, timeline)
 	# The Edit menus follow the feature tree's own signal: the undo depth, the
 	# selection and the clipboard all reach it, which a copy that records no
@@ -3466,7 +3468,7 @@ func split_along_points() -> String:
 	var group := features.root.find_parent(feature)
 	var at := group.find_child(feature)
 	var made := PackedStringArray()
-	for child in group.children.slice(at, at + 2 + int(ridge) + 2 * int(crust)):
+	for child in group.children.slice(at, at + 2 + int(ridge) + 4 * int(crust)):
 		made.append(child.title)
 	for piece in document.split_children:
 		made.append(piece.title)
