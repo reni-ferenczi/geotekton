@@ -194,12 +194,12 @@ answers with the stem of the row's texture, so a row that kept the rule icon
 fails there. It saves, loads, undoes and redoes, and checks that a glyph nobody
 offers and a group are both refused.
 
-The feature color preference checks draw a chocolate polygon in a new group,
+The feature color preference checks draw a green polygon in a new group,
 then set the Polygon color to blue through `set_preferences`. A new feature's
-Colour row and swatch are blue, the old polygon's swatch stays chocolate, the
+Colour row and swatch are blue, the old polygon's swatch stays green, the
 group on the Feature type style paints the old polygon blue at an off-grid
 probe, and a right click on its swatch gives it blue. The `CatalogColors`
-button then puts chocolate back in `get_preferences` and on the planet, which
+button then puts green back in `get_preferences` and on the planet, which
 is also what leaves the preferences as a golden run expects them.
 
 The Edit menu scenario copies a feature, so a run puts a `.middle-earth` feature
@@ -248,8 +248,9 @@ tool is not offered. Pick axis arms the Pole tool with its cross on the axis;
 Escape gives the pick up, and a click moves the axis to the clicked point and
 brings Move back. Ticking Axis circles is one undo version and adds the ring
 around the antipode: the rim and a vertex of the far ring are probed for the
-Circle color. Unticking is one more version, and the same pixel no longer shows
-that color. With the box ticked again, a Pole tool drag writes a keyframe, and
+Circle color, with the circle still selected, since the highlight is a halo
+beside the line and leaves the line its own color. Unticking is one more
+version, and the same pixel no longer shows that color. With the box ticked again, a Pole tool drag writes a keyframe, and
 both world rings sit the radius from the turned axis and its antipode. A second
 pick on the turned feature lands the circle around the point clicked, and undo
 puts it back. A feature holding a line cannot become a Circle, the refusal is
@@ -264,7 +265,9 @@ Pole tool with its cross on the hotspot, and Escape gives it up. A click on the
 plate moves the hotspot there and makes that feature the plate, in one undo
 version, and the track has seven vertices at the present, the oldest as far
 from the hotspot as the plate moved. At 10 Ma it has five, and at 30 Ma there
-is no track. A new step and taking the plate away are one version each, and
+is no track. A color set through the panel is what a pixel on the track shows
+while the hotspot is still selected. A new step and taking the plate away are
+one version each, and
 undo brings the plate back. The plate itself cannot become a hotspot.
 
 The projection scenario asks each of the six views — the globe and the five

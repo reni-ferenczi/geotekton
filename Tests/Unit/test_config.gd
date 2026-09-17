@@ -152,7 +152,7 @@ func test_the_ffmpeg_path_is_remembered_as_it_was_typed() -> void:
 func test_feature_colors_survive_a_reload() -> void:
 	_use_a_scratch_config()
 	assert_eq(Config.get_feature_colors(), {}, "no file, no feature colors")
-	assert_eq(FeatureType.color(FeatureType.POLYGON), Color.CHOCOLATE, "so the catalog color holds")
+	assert_eq(FeatureType.color(FeatureType.POLYGON), Color(0.36, 0.60, 0.33), "so the catalog color holds")
 	var blue := Color(0.0, 0.0, 1.0, 1.0)
 	Config.set_feature_colors({FeatureType.POLYGON: blue})
 	Config.forget()

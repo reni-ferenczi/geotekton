@@ -32,7 +32,7 @@ EXTENSION = ".middle-earth"
 CURRENT_VERSION = "0.21.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
-DEFAULT_COLOR = [0.82, 0.41, 0.12, 1.0]
+DEFAULT_COLOR = [0.36, 0.60, 0.33, 1.0]
 DEFAULT_TIME_RANGE = [0, 2000]
 DEFAULT_GEOMETRY_KIND = "polygon"
 DEFAULT_FEATURE_TYPE = ""

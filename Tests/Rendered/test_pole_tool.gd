@@ -58,14 +58,14 @@ func test_a_placed_pole_is_marked_by_a_bold_cross() -> void:
 			assert_true(near != null, "%s: the probe %s degrees along is in view" % [arm, along])
 			if near == null:
 				continue
-			assert_eq(_yellow(before, near), 0,
+			assert_eq(_white(before, near), 0,
 				"%s: %s degrees along is the raster before the pole is placed" % [arm, along])
-			assert_eq(_yellow(after, near), 9,
-				"%s: %s degrees along and %s off its line is yellow" % [arm, along, OFF])
+			assert_eq(_white(after, near), 9,
+				"%s: %s degrees along and %s off its line is white" % [arm, along, OFF])
 		var far: Variant = _screen(ends[0], ends[1], 8.0)
 		assert_true(far != null, "%s: the probe 8 degrees along is in view" % arm)
 		if far != null:
-			assert_eq(_yellow(after, far), 0, "%s: 8 degrees along is past its end" % arm)
+			assert_eq(_white(after, far), 0, "%s: 8 degrees along is past its end" % arm)
 	await _restore()
 
 
@@ -86,13 +86,13 @@ func _screen(a: Vector2, b: Vector2, along: float) -> Variant:
 	return view().latlon_to_screen(point.x, point.y)
 
 
-# How many pixels of the 3 by 3 square around a point are yellow.
-func _yellow(image: Image, centre: Vector2) -> int:
+# How many pixels of the 3 by 3 square around a point are white.
+func _white(image: Image, centre: Vector2) -> int:
 	var count := 0
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
 			var color := image.get_pixel(int(centre.x) + dx, int(centre.y) + dy)
-			if color.r > 0.5 and color.g > 0.5 and color.b < color.r * 0.5:
+			if color.r > 0.85 and color.g > 0.85 and color.b > 0.85:
 				count += 1
 	return count
 

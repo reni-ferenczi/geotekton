@@ -77,10 +77,10 @@ Each of them only adds held points, so Enter still decides what is committed.
 
 ### Visual Feedback
 
-While placing vertices, the shader renders a **live preview overlay** in yellow:
+While placing vertices, the shader renders a **live preview overlay** in white:
 
-- **Yellow dots** at each placed vertex (antialiased circles)
-- **Yellow lines** connecting consecutive vertices along great-circle arcs,
+- **White dots** at each placed vertex (antialiased circles)
+- **White lines** connecting consecutive vertices along great-circle arcs,
   unless the kind is Multipoint, which shows the dots alone
 - **Closing line** from the last vertex back to the first, faint, once a Polygon
   has three vertices, so the shape it would close into is visible
@@ -92,12 +92,12 @@ while any are held: Ctrl+Z takes the last one back and Ctrl+Y puts it down
 again, and the document's own undo stack is reached only once the outline is
 empty. Without this, Ctrl+Z halfway through a shape would undo the creation of
 the very feature being drawn on. The vertices taken back are forgotten by the
-next click, a commit, Escape or a change of tool. The Circle and Measure tools
-hold their points the same way.
+next click, a commit, Escape or a change of tool. The points of a circle and
+those of the Measure tool are held the same way.
 
-Outside drawing, the selected feature is highlighted instead: an outline along
-the rings of a polygon, a thicker line, larger markers on a multipoint, and no
-dots on the vertices. See [Editing](Editing.md#the-feature-tree).
+Outside drawing, the selected feature is highlighted instead: a translucent
+white outline along the rings of a polygon, a white halo along a line, larger
+markers on a multipoint, and no dots on the vertices. See [Editing](Editing.md#the-feature-tree).
 
 ### Step by Step
 
@@ -197,5 +197,10 @@ enabled feature into primitives — triangles, segments or markers — which
 
 ## Color
 
-Every kind is drawn in the colour of its feature (default `Color.CHOCOLATE`).
-The outline overlay is always yellow.
+Every kind is drawn in the colour of its feature. A new feature starts in the
+Polygon color, `Color(0.36, 0.60, 0.33)`, a medium green that stands out
+against the blue ocean; see [Properties](Properties.md#the-type-catalog).
+The outline overlay is white, apart from the orange outline of a child of the
+selection. A closed ring in it, such as the outline of a selected polygon or
+a finished circle, is drawn at 60 percent opacity; see
+[Shader](Shader.md#outline-overlay).
