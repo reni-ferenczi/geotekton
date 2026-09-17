@@ -597,29 +597,23 @@ func _add_ridge(parent: Feature, first: Feature, second: Feature, part: int,
 	return ridge
 
 
-# The sea floor a ridge opens: for each half, a feature holding the isochrons
-# and flowlines and a crust of bands between them, inserted after the ridge with
-# its time range. The lines come first, since the first feature of a group is
-# drawn on top and the bands would hide them. Their rings follow the time and
-# the timeline's Skip, so Crust.rebuild_all() gives them their rings. Part of the
-# split's own undo version.
+# The sea floor a ridge opens: one crust per half, inserted after the ridge with
+# its time range, holding the bands between the isochrons and the isochrons and
+# flowlines drawn over them. Its rings follow the time and the timeline's Skip,
+# so Crust.rebuild_all() gives them to it. Part of the split's own undo version.
 func _add_crust(parent: Feature, ridge: Feature, halves: Array, edge_size: int) -> void:
 	var at := parent.find_child(ridge)
 	for half: Feature in halves:
-		for lines in [true, false]:
-			var title := "%s crust%s" % [half.title, " lines" if lines else ""]
-			var crust := Feature.create_feature(Feature.clamp_title(title),
-				FeatureType.color(FeatureType.CRUST_LINES if lines else FeatureType.CRUST),
-				ridge.time_range)
-			crust.feature_type = "topology"
-			crust.geometry_kind = Feature.GeometryKind.TOPOLOGY
-			crust.closed = not lines
-			crust.crust_half = half.uuid
-			crust.crust_ridge = ridge.uuid
-			crust.crust_edge = edge_size
-			crust.crust_lines = lines
-			at += 1
-			parent.children.insert(at, crust)
+		var crust := Feature.create_feature(Feature.clamp_title("%s crust" % half.title),
+			FeatureType.color(FeatureType.CRUST), ridge.time_range)
+		crust.feature_type = "topology"
+		crust.geometry_kind = Feature.GeometryKind.TOPOLOGY
+		crust.closed = true
+		crust.crust_half = half.uuid
+		crust.crust_ridge = ridge.uuid
+		crust.crust_edge = edge_size
+		at += 1
+		parent.children.insert(at, crust)
 
 
 ### Topologies
@@ -1058,7 +1052,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.23.0"):
+	if not _is_older_than(version, "0.24.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -1103,8 +1097,25 @@ static func migrate(data: Dictionary) -> Dictionary:
 		_to_0_22_0(data.get("features", {}))
 	if _is_older_than(version, "0.23.0"):
 		_to_0_23_0(data.get("features", {}))
-	data["version"] = "0.23.0"
+	if _is_older_than(version, "0.24.0"):
+		_to_0_24_0(data.get("features", {}))
+	data["version"] = "0.24.0"
 	return data
+
+
+# 0.24.0 put the isochrons and the flowlines into the crust feature itself, so
+# the leaf that held them alone goes. A crust leaf carrying "lines": true is
+# dropped; the crust beside it is already what it should be. See
+# Docs/Persistence.md.
+static func _to_0_24_0(node: Variant) -> void:
+	if node is not Dictionary or node.get("children") is not Array:
+		return
+	var children: Array = node["children"]
+	for child in children:
+		_to_0_24_0(child)
+	children.assign(children.filter(func(child: Variant) -> bool:
+		return child is not Dictionary or child.get("crust") is not Dictionary \
+			or not bool((child["crust"] as Dictionary).get("lines", false))))
 
 
 # 0.23.0 made the ridge a midway topology and the crust bands between isochrons.
