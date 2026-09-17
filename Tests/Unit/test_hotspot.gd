@@ -73,6 +73,55 @@ func test_the_track_runs_along_the_equator_at_the_present() -> void:
 			"samples are a step apart")
 
 
+# Every sample of the track gets a small dot of its own, after the segments.
+func test_every_sample_is_drawn_with_a_dot() -> void:
+	var parts := _fixture()
+	var document: Document = parts[0]
+	var hotspot: Feature = parts[2]
+	document.set_hotspot(hotspot, ON_EQUATOR, (parts[1] as Feature).uuid, 5.0)
+	var geometry := Planet.collect_geometry(document.root, 0.0)
+	var samples: Array = geometry.primitives.filter(func(primitive: Dictionary) -> bool:
+		return primitive["kind"] == Planet.Primitive.SAMPLE)
+	assert_eq(samples.size(), 7, "one dot per sample")
+	for i in mini(samples.size(), 7):
+		assert_eq(samples[i]["feature"], hotspot, "dot %d belongs to the hotspot" % i)
+		assert_close(samples[i]["verts"][0], hotspot.rings[1][i], 1e-9,
+			"dot %d sits on its sample" % i)
+	var index: int = geometry.index_of[hotspot]
+	assert_eq(Planet._primitive_count(hotspot), geometry.ends[index] - geometry.starts[index],
+		"the count made before building covers the dots")
+
+
+# A 2000 My range at a 5 My step is 401 samples, each a segment and a dot.
+func test_a_long_track_fits_the_geometry_texture() -> void:
+	var parts := _fixture()
+	var document: Document = parts[0]
+	var plate: Feature = parts[1]
+	var hotspot: Feature = parts[2]
+	plate.time_range = Vector2i(0, 2000)
+	plate.keyframes.assign([Keyframe.create(0.0, Vector3(TURN, 0, 0)),
+		Keyframe.create(2000.0, Vector3.ZERO)])
+	hotspot.time_range = Vector2i(0, 2000)
+	document.set_hotspot(hotspot, ON_EQUATOR, plate.uuid, 5.0)
+	assert_eq(Hotspot.samples(hotspot).size(), 401, "401 samples")
+	var geometry := Planet.collect_geometry(document.root, 0.0)
+	assert_eq(geometry.dropped, 0, "nothing is left out")
+	var index: int = geometry.index_of[hotspot]
+	assert_eq(geometry.ends[index] - geometry.starts[index],
+		Hotspot.MARK_SEGMENTS + 400 + 401, "the mark, the track and the dots")
+	assert_true(geometry.primitives.size() <= Planet.MAX_PRIMITIVES, "within MAX_PRIMITIVES")
+
+
+func test_a_hotspot_draws_thin_lines_a_circle_thinner_ones_and_the_rest_full() -> void:
+	var parts := _fixture()
+	assert_close((parts[2] as Feature).line_scale(), 0.35, 1e-12, "a hotspot")
+	assert_close((parts[1] as Feature).line_scale(), 1.0, 1e-12, "a polygon")
+	var circle := Feature.create_feature("Ring")
+	circle.feature_type = FeatureType.CIRCLE
+	assert_close(circle.line_scale(), 0.5, 1e-12, "a circle")
+	assert_close(Feature.create_group().line_scale(), 1.0, 1e-12, "a group")
+
+
 func test_at_the_oldest_age_there_is_no_track() -> void:
 	var parts := _fixture()
 	var document: Document = parts[0]

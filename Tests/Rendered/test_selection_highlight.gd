@@ -233,6 +233,51 @@ func test_a_polygon_following_the_selection_is_traced_orange() -> void:
 	assert_true(tint_after != FeatureTree.CHILD_TINT, "and loses the tint when switched off")
 
 
+# GP-0096: the planet traces the children whenever the tree tints them: in the
+# Vertex tool too, and for a selected group, which stands for its leaves.
+func test_children_are_traced_in_the_vertex_tool_and_for_a_group() -> void:
+	var parent := await _load_with_raster("two_cratons.middle-earth", "Red Triangle", Color.BLACK)
+	var child := _find("Blue Quad")
+	var group := _find("Cratons")
+	if parent == null or child == null or group == null:
+		return
+	assert_eq(app.document.couple(child, parent, app.document.current_time), "")
+	# The child moves out of the group, so the group's leaves are the parent and
+	# the one other craton.
+	group.children.erase(child)
+	app.features.root.children.append(child)
+	app.features.reload()
+	app.refresh_geometry()
+	view().set_zoom(POLYGON_ZOOM)
+	var child_edge := await _edge_probe(child)
+	if child_edge.is_empty():
+		fail("the child has an edge away from the grid")
+		await _restore()
+		return
+
+	_select(parent)
+	_toggle_children()
+	app.set_active_tool(Application.Tool.VERTEX)
+	var editing := await _count_at(child_edge)
+	app.set_active_tool(Application.Tool.MOVE)
+	_select(group)
+	var grouped := await _count_at(child_edge)
+	var tint := _row(child).get_custom_bg_color(0)
+	_select(null)
+	var everything := await _count_at(child_edge)
+	_toggle_children()
+	await _restore()
+
+	assert_true(editing["orange"] > 0,
+		"in the Vertex tool, the child's edge is orange: %s" % editing)
+	assert_true(grouped["orange"] > 0,
+		"with the parent's group selected, the child's edge is orange: %s" % grouped)
+	assert_eq(tint, FeatureTree.CHILD_TINT, "and its row is tinted")
+	assert_true(everything["orange"] == 0 and everything["blue"] > 0,
+		"with the root selected, which holds the child itself, the edge is blue: %s"
+			% everything)
+
+
 func test_a_line_following_the_selection_is_drawn_orange_at_its_width() -> void:
 	var parent := await _load_with_raster("mixed_geometry.middle-earth", "Red Triangle")
 	var child := _find("Blue Ridge")

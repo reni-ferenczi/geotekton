@@ -63,6 +63,14 @@ static func rebuild(root: Feature, node: Feature, time: float) -> void:
 	node.rebuild_triangles()
 
 
+# The samples of the track, in the hotspot's own frame, each of which is drawn
+# with a dot: the second ring rebuild() gives it. Empty for any other feature.
+static func samples(node: Feature) -> PackedVector2Array:
+	if not node.is_hotspot() or node.rings.size() < 2:
+		return PackedVector2Array()
+	return node.rings[1]
+
+
 # Rebuild every hotspot in the tree at that time, beside Topology.rebuild_all().
 static func rebuild_all(root: Feature, time: float) -> void:
 	for node in _hotspots(root):

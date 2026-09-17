@@ -2596,12 +2596,12 @@ func _finish_hotspot_pick(world: Vector2, clicked: Vector2) -> void:
 
 
 # How far each arm of the cross marking the pole reaches, in degrees.
-const POLE_CROSS := 6.0
+const POLE_CROSS := 3.0
 
 
 # The pole in the outline overlay: a point with a short cross through it, so it
-# is not taken for a vertex. The arms are as wide as a feature line, so the
-# cross is easy to see. Empty unless the Pole tool holds one.
+# is not taken for a vertex. The arms are half as wide as a feature line
+# (Planet.BOLD_SCALE), wider than an outline line, so the cross is easy to see. Empty unless the Pole tool holds one.
 func _pole_outline() -> Array:
 	if active_tool != Tool.POLE or pole_at == NO_POLE:
 		return []
@@ -3004,10 +3004,10 @@ func _outline_cancel() -> void:
 
 func _refresh_outline() -> void:
 	if _drawing_circle():
-		planet_view.planet.set_outline(_circle_outline())
+		planet_view.planet.set_outline(_child_outline() + _circle_outline())
 		_show_measurement()
 		return
-	planet_view.planet.set_outline([{
+	planet_view.planet.set_outline(_child_outline() + [{
 		"vertices": outline_vertices,
 		"style": _drawing_outline_style(),
 	}])
@@ -3909,7 +3909,7 @@ func _on_craton_hovered(lat: float, lon: float) -> void:
 	hovered_lon = lon
 	if _resolve_hover():
 		planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature(),
-			_drawn_children())
+			coupled_children)
 
 
 # Work out what the pointer is over from where it last was, and report whether
@@ -3966,27 +3966,36 @@ func _refresh_feature_state() -> void:
 	_resolve_hover()
 	_find_children()
 	planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature(),
-		_drawn_children())
+		coupled_children)
 	_refresh_selection_outline()
 
 
 # The children of the selected feature at the current time, when the View menu
-# asks for it, for the planet to draw orange and the tree to tint. Only a leaf
-# is followed; a group or nothing selected has no children.
+# asks for it, for the planet to draw orange and the tree to tint, in every
+# tool. A selected group stands for the leaves under it.
 func _find_children() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var found: Array[Feature] = []
-	if highlight_children and selected != null and not selected.is_group:
+	if highlight_children and selected != null:
 		found = Coupling.children_of(features.root, selected.uuid, document.current_time)
 	coupled_children = found
 	features.feature_tree.mark_children(found)
 
 
-# The children the planet highlights: none in the tools that do not highlight the
-# selection either.
-func _drawn_children() -> Array[Feature]:
-	var none: Array[Feature] = []
-	return coupled_children if _highlighted_feature() != null else none
+# The orange outlines of the children that are polygons, where the planet draws
+# them at all; the shader colors the lines and markers of the other children
+# itself.
+func _child_outline() -> Array:
+	var parts: Array = []
+	for child in coupled_children:
+		var index: int = geometry.index_of.get(child, -1)
+		if index < 0 or not geometry.shown[index] \
+				or child.drawn_as() != Feature.GeometryKind.POLYGON:
+			continue
+		for ring in child.rings:
+			parts.append({"vertices": Feature.apply_basis(ring, geometry.bases[index]),
+				"style": Planet.OutlineStyle.CHILD})
+	return parts
 
 
 # The feature whose lines the shader draws over a white halo: the selected one,
@@ -4020,25 +4029,15 @@ func _refresh_selection_outline() -> void:
 	# The Measure tool draws the path it has been given instead, so the points
 	# clicked and the line between them are visible while the distance is read.
 	if active_tool == Tool.MEASURE:
-		planet_view.planet.set_outline([] if measure_points.is_empty() else [{
+		var path: Array = [] if measure_points.is_empty() else [{
 			"vertices": measure_points,
 			"style": Planet.OutlineStyle.OPEN,
-		}])
+		}]
+		planet_view.planet.set_outline(_child_outline() + path)
 		return
-	# The pole the Pole tool turns about is drawn along with the selection, so
-	# it is on the globe whatever else is.
-	var parts: Array = _pole_outline()
-	# A polygon that follows the selection is traced in orange, where the planet
-	# draws it at all; the shader colors the lines and markers of the other
-	# children itself.
-	for child in _drawn_children():
-		var index: int = geometry.index_of.get(child, -1)
-		if index < 0 or not geometry.shown[index] \
-				or child.drawn_as() != Feature.GeometryKind.POLYGON:
-			continue
-		for ring in child.rings:
-			parts.append({"vertices": Feature.apply_basis(ring, geometry.bases[index]),
-				"style": Planet.OutlineStyle.CHILD})
+	# The pole the Pole tool turns about and the children are drawn along with
+	# the selection, so they are on the globe whatever else is.
+	var parts: Array = _pole_outline() + _child_outline()
 	var selected := features.feature_tree.get_selected_node()
 	if selected == null or selected.is_group or not selected.has_geometry():
 		planet_view.planet.set_outline(parts)

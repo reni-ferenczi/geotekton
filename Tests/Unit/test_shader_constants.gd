@@ -50,6 +50,23 @@ func test_the_shader_draws_children_in_the_same_orange() -> void:
 			"component %d of the shader's CHILD_COLOR" % i)
 
 
+# A hotspot sample dot and the pole cross are drawn at a fraction of what a
+# marker and a feature line are, and the tests that probe them take the fraction
+# from Planet.
+func test_the_shader_scales_sample_dots_and_the_pole_cross_the_same() -> void:
+	assert_close(_float_constant("SAMPLE_DOT_SCALE"), Planet.SAMPLE_DOT_SCALE, 1e-12,
+		"the shader's SAMPLE_DOT_SCALE")
+	assert_close(_float_constant("BOLD_SCALE"), Planet.BOLD_SCALE, 1e-12,
+		"the shader's BOLD_SCALE")
+
+
+# The shader tells a sample dot from a marker by the number Planet gives it.
+func test_the_shader_draws_a_sample_as_kind_three() -> void:
+	assert_eq(int(Planet.Primitive.SAMPLE), 3, "Planet numbers a sample 3")
+	assert_true(_source().contains("kind == 3 ? SAMPLE_DOT_SCALE"),
+		"and the shader draws kind 3 at SAMPLE_DOT_SCALE")
+
+
 # The two tables are written out in the shader as float[19] literals, in the
 # same order MapProjection lists them: the lengths first, the distances second.
 func test_the_shader_carries_the_same_robinson_tables() -> void:

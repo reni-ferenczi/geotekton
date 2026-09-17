@@ -316,6 +316,22 @@ func is_hotspot() -> bool:
 	return not is_group and feature_type == FeatureType.HOTSPOT
 
 
+# How wide the feature's lines are drawn, against the shader's
+# geometry_line_width. A hotspot track is thin so the dots at its samples stand
+# out, and a circle is thinner than a line someone drew. A per feature setting
+# would go here.
+const HOTSPOT_LINE_SCALE := 0.35
+const CIRCLE_LINE_SCALE := 0.5
+
+
+func line_scale() -> float:
+	if is_hotspot():
+		return HOTSPOT_LINE_SCALE
+	if is_circle():
+		return CIRCLE_LINE_SCALE
+	return 1.0
+
+
 ### Clone (preserves pnid) and Duplicate (new pnid)
 
 

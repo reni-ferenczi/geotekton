@@ -45,15 +45,21 @@ const float MAP_EDGE_SLACK = 1e-6;
 // Layout: width = primitive count, height = 2
 //   Row 0: (lat_a, lon_a, lat_b, lon_b) in radians
 //   Row 1: (lat_c, lon_c, feature, kind)
-// kind 0 is a triangle (a, b, c), 1 a polyline segment (a, b) and 2 a
-// multipoint marker (a); the unused vertices repeat a. The vertices are in the
+// kind 0 is a triangle (a, b, c), 1 a polyline segment (a, b), 2 a
+// multipoint marker (a) and 3 a hotspot sample (a), a marker SAMPLE_DOT_SCALE
+// the size; the unused vertices repeat a. The vertices are in the
 // frame of the feature the primitive belongs to, and `feature` is the column of
 // feature_data holding the rotation and the color of that feature.
 uniform sampler2D geometry_data : filter_nearest, repeat_disable;
 uniform int geometry_count = 0;
 
+// The width of a feature line before its feature's line_scale, and the radius of
+// a marker.
 uniform float geometry_line_width = 0.012;
 uniform float geometry_point_radius = 0.02;
+// How large a hotspot sample dot is against geometry_point_radius:
+// Planet.SAMPLE_DOT_SCALE.
+const float SAMPLE_DOT_SCALE = 0.5;
 
 // How much wider the halo under the segments of the selected feature is than
 // the segments themselves, and its color, which is also the outline overlay's.
@@ -71,7 +77,7 @@ const vec3 CHILD_COLOR = vec3(1.0, 0.214041, 0.0);
 //   Row 1: (m01, m11, m21, visible)  -- the second
 //   Row 2: (m02, m12, m22, selected) -- the third
 //   Row 3: (r, g, b, a)              -- the color, linear, alpha the opacity
-//   Row 4: (related, 0, 0, 0)
+//   Row 4: (related, line_scale, 0, 0)
 // Keeping the rotation and the color here rather than beside the vertices is
 // what makes a step of an animation or a change of color cheap: only these
 // five texels per feature are re-uploaded, whatever the triangle count is.
@@ -79,7 +85,9 @@ const vec3 CHILD_COLOR = vec3(1.0, 0.214041, 0.0);
 // while the pointer rests on it, `selected` is 1 on the feature whose
 // segments get a white halo, and `related` is 1 on a child of the
 // selected feature, whose lines and markers are drawn orange. A related
-// polygon keeps its fill; the outline overlay traces it instead.
+// polygon keeps its fill; the outline overlay traces it instead. `line_scale`
+// is what the feature's segments are drawn at against geometry_line_width,
+// halo and feather included: Feature.line_scale().
 uniform sampler2D feature_data : filter_nearest, repeat_disable;
 
 // Outline overlay data texture (filter_nearest for exact texel reads)
@@ -91,8 +99,8 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 // every segment alike (a polygon in the Vertex tool), 4 closes it the same way
 // with no markers (a selected polygon), 5 draws larger markers only (a
 // selected multipoint) and 6 closes it like 4 in CHILD_COLOR (a polygon that
-// follows the selected feature). 7 draws an open line as wide as a feature line,
-// geometry_line_width, with no markers (the pole cross). Every style but 4, 6
+// follows the selected feature). 7 draws an open line BOLD_SCALE times as wide
+// as a feature line, geometry_line_width, with no markers (the pole cross). Every style but 4, 6
 // and 7 marks each vertex.
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
@@ -105,6 +113,9 @@ const float OUTLINE_OPACITY = 0.6;
 
 // How much larger style 5 draws its markers than outline_dot_radius.
 const float SELECTED_MARKER_SCALE = 2.0;
+// How wide style 7 draws its line against geometry_line_width:
+// Planet.BOLD_SCALE.
+const float BOLD_SCALE = 0.5;
 
 // One of the two Robinson tables at a latitude in degrees, interpolated between
 // the five degree entries it is given at. The counterpart of
@@ -290,12 +301,16 @@ void fragment() {
 	bool feature_visible = true;
 	bool feature_selected = false;
 	bool feature_related = false;
+	float line_scale = 1.0;
 	vec4 feature_color = vec4(1.0);
 	// The selected feature's segments are laid down after the loop, halo first
 	// and the line over it, from the distance to the nearest of them. Drawing
 	// each segment's halo in turn would paint over the line of the one before
-	// where the two meet.
+	// where the two meet. The distance is divided by the feature's line_scale,
+	// which is the same as drawing at the scaled width. A hotspot's sample dots
+	// are held back too, so the halo does not cross them.
 	float selected_line_dist = 1e10;
+	float selected_dot = 0.0;
 	vec4 selected_paint = vec4(1.0);
 	float selected_hovered = 0.0;
 
@@ -314,7 +329,9 @@ void fragment() {
 			feature_visible = f1.w > 0.5;
 			feature_selected = f2.w > 0.5;
 			feature_color = texelFetch(feature_data, ivec2(feature, 3), 0);
-			feature_related = texelFetch(feature_data, ivec2(feature, 4), 0).r > 0.5;
+			vec4 f4 = texelFetch(feature_data, ivec2(feature, 4), 0);
+			feature_related = f4.r > 0.5;
+			line_scale = f4.g;
 		}
 		if (!feature_visible) {
 			continue;
@@ -339,7 +356,7 @@ void fragment() {
 		} else if (kind == 1) {
 			float d = arc_distance(a, rotation * latlon_to_unit(row0.zw), p);
 			if (feature_selected) {
-				selected_line_dist = min(selected_line_dist, d);
+				selected_line_dist = min(selected_line_dist, d / line_scale);
 				selected_paint = feature_color;
 				selected_hovered = hovered;
 				continue;
@@ -348,10 +365,15 @@ void fragment() {
 			if (feature_related) {
 				paint = vec4(CHILD_COLOR, 1.0);
 			}
-			coverage = line_coverage(geometry_line_width, d);
+			coverage = line_coverage(geometry_line_width * line_scale, d);
 		} else {
 			float d = chord(a, p);
-			coverage = 1.0 - smoothstep(geometry_point_radius * 0.7, geometry_point_radius, d);
+			float radius = geometry_point_radius * (kind == 3 ? SAMPLE_DOT_SCALE : 1.0);
+			coverage = 1.0 - smoothstep(radius * 0.7, radius, d);
+			if (kind == 3 && feature_selected) {
+				selected_dot = max(selected_dot, coverage);
+				continue;
+			}
 			if (feature_related) {
 				paint = vec4(CHILD_COLOR, 1.0);
 			}
@@ -369,15 +391,16 @@ void fragment() {
 	}
 
 	// The selected line: an opaque white halo, so it shows even at an opacity
-	// of zero, and the line in its own color on top.
-	if (selected_line_dist < 1e9) {
+	// of zero, and the line and its sample dots in its own color on top.
+	if (selected_line_dist < 1e9 || selected_dot > 0.0) {
 		float halo = line_coverage(geometry_line_width * SELECTED_LINE_SCALE, selected_line_dist);
 		base = mix(base, HIGHLIGHT_COLOR, halo);
 		vec3 fill = mix(base, selected_paint.rgb, selected_paint.a);
 		if (selected_hovered > 0.5) {
 			fill = mix(fill, vec3(1.0), 0.15);
 		}
-		base = mix(base, fill, line_coverage(geometry_line_width, selected_line_dist));
+		base = mix(base, fill,
+			max(line_coverage(geometry_line_width, selected_line_dist), selected_dot));
 	}
 
 	// The grid goes over the feature fills, the way GPlates draws its
@@ -439,7 +462,7 @@ void fragment() {
 		float line_alpha = line_coverage(outline_line_width, min_line_dist);
 		float closed_alpha = line_coverage(outline_line_width, closed_line_dist) * OUTLINE_OPACITY;
 		float closing_alpha = line_coverage(outline_line_width, closing_line_dist) * outline_closing_opacity;
-		float bold_alpha = line_coverage(geometry_line_width, bold_line_dist);
+		float bold_alpha = line_coverage(geometry_line_width * BOLD_SCALE, bold_line_dist);
 		float outline_alpha = max(max(dot_alpha, bold_alpha), max(max(line_alpha, closed_alpha), closing_alpha));
 		float child_alpha = line_coverage(outline_line_width, child_line_dist);
 		base = mix(base, CHILD_COLOR, child_alpha);

@@ -1,7 +1,7 @@
 extends RenderedCase
 
-# GP-0076: the Pole tool marks its pole with a cross whose arms are as wide as a
-# feature line and reach six degrees each way.
+# GP-0076 and GP-0096: the Pole tool marks its pole with a cross whose arms are
+# half as wide as a feature line and reach three degrees each way.
 #
 # The planet wears a flat red raster, since the Earth's detail does not come out
 # the same from one frame to the next, and each probe reads a 3 by 3 square: the
@@ -9,14 +9,17 @@ extends RenderedCase
 # computed to be.
 
 # Clear of the grid, which runs along every fifteenth degree, and of the probes
-# eight degrees out.
+# four degrees out.
 const POLE := Vector2(20.0, 40.0)
 # Zoomed in this far a quarter of a degree is several pixels across.
 const ZOOM := 4.0
-# How far off an arm's line the probes sit, in degrees. The arm is fully opaque
-# out to half of geometry_line_width, 0.006 chord or about 0.34 degrees, while
-# the old outline line faded out by 0.12 degrees.
-const OFF := 0.25
+# How far off an arm's line the probes sit, in degrees. The arm is
+# geometry_line_width * BOLD_SCALE, 0.006 chord or about 0.34 degrees, from its
+# line to its edge and fully opaque over the inner 0.28 degrees; the outline
+# line it replaced faded out by 0.12 degrees. WIDE is past the edge, where an
+# arm as wide as a feature line would still be white.
+const OFF := 0.1
+const WIDE := 0.5
 
 
 func test_a_placed_pole_is_marked_by_a_bold_cross() -> void:
@@ -53,8 +56,8 @@ func test_a_placed_pole_is_marked_by_a_bold_cross() -> void:
 	}
 	for arm: String in arms:
 		var ends: Array = arms[arm]
-		for along in [2.0, 5.0]:
-			var near: Variant = _screen(ends[0], ends[1], along)
+		for along in [1.0, 2.5]:
+			var near: Variant = _screen(ends[0], ends[1], along, OFF)
 			assert_true(near != null, "%s: the probe %s degrees along is in view" % [arm, along])
 			if near == null:
 				continue
@@ -62,10 +65,14 @@ func test_a_placed_pole_is_marked_by_a_bold_cross() -> void:
 				"%s: %s degrees along is the raster before the pole is placed" % [arm, along])
 			assert_eq(_white(after, near), 9,
 				"%s: %s degrees along and %s off its line is white" % [arm, along, OFF])
-		var far: Variant = _screen(ends[0], ends[1], 8.0)
-		assert_true(far != null, "%s: the probe 8 degrees along is in view" % arm)
+			var wide: Variant = _screen(ends[0], ends[1], along, WIDE)
+			if wide != null:
+				assert_eq(_white(after, wide), 0,
+					"%s: %s degrees along and %s off its line is past its edge" % [arm, along, WIDE])
+		var far: Variant = _screen(ends[0], ends[1], 4.0, OFF)
+		assert_true(far != null, "%s: the probe 4 degrees along is in view" % arm)
 		if far != null:
-			assert_eq(_white(after, far), 0, "%s: 8 degrees along is past its end" % arm)
+			assert_eq(_white(after, far), 0, "%s: 4 degrees along is past its end" % arm)
 	await _restore()
 
 
@@ -73,15 +80,15 @@ func test_a_placed_pole_is_marked_by_a_bold_cross() -> void:
 
 
 # Where the point `along` degrees from the middle of the arc from a to b, and
-# OFF degrees to one side of it, is drawn in the window, or null.
-func _screen(a: Vector2, b: Vector2, along: float) -> Variant:
+# `off` degrees to one side of it, is drawn in the window, or null.
+func _screen(a: Vector2, b: Vector2, along: float, off: float) -> Variant:
 	var from := Measure._to_unit(a)
 	var to := Measure._to_unit(b)
 	var middle := (from + to).normalized()
 	var normal := from.cross(to).normalized()
 	var forward := normal.cross(middle)
 	var on := middle * cos(deg_to_rad(along)) + forward * sin(deg_to_rad(along))
-	var beside := on * cos(deg_to_rad(OFF)) + normal * sin(deg_to_rad(OFF))
+	var beside := on * cos(deg_to_rad(off)) + normal * sin(deg_to_rad(off))
 	var point := Measure._to_latlon(beside)
 	return view().latlon_to_screen(point.x, point.y)
 

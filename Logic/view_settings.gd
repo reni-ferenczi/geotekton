@@ -167,9 +167,9 @@ func grid_split() -> Vector2:
 #
 # The direction is an elevation above the line of sight and an azimuth around
 # it, both in degrees, and it is fixed to the view: (0, 0) shines straight from
-# the camera, which is where the scene has always put the light. The two
-# functions below turn that into a direction in the scene and back, which is how
-# the Light tool takes a drag on the globe and stores what it means.
+# the camera, which is where the scene has always put the light. The View
+# settings panel sets both angles; light_vector() turns them into a direction in
+# the scene, and clamp_light() keeps them in range.
 
 
 # Which way the light comes from, in the frame the scene is laid out in: +Z is

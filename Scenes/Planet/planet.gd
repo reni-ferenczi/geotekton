@@ -3,7 +3,13 @@ class_name Planet
 
 # What one entry of the geometry data texture draws. The values are the ones
 # the shader switches on, so they must match the kinds listed in planet.gdshader.
-enum Primitive { TRIANGLE = 0, SEGMENT = 1, POINT = 2 }
+# SAMPLE is a hotspot track sample: a POINT drawn SAMPLE_DOT_SCALE the size.
+enum Primitive { TRIANGLE = 0, SEGMENT = 1, POINT = 2, SAMPLE = 3 }
+
+# How large a hotspot sample dot is against a multipoint marker, and how wide
+# the pole cross is against a feature line. planet.gdshader holds both.
+const SAMPLE_DOT_SCALE := 0.5
+const BOLD_SCALE := 0.5
 
 # Radius of the globe, in the units planet.tscn is laid out in. The SphereMesh
 # is set to it in _ready(), and PlanetView casts a ray against a sphere of the
@@ -35,7 +41,7 @@ enum OutlineStyle {
 	OUTLINE = 4,        # closed like CLOSED, with no vertex markers
 	MARKERS = 5,        # the vertex markers only, drawn larger
 	CHILD = 6,          # closed like OUTLINE, in CHILD_COLOR
-	BOLD = 7,           # open like OPEN, as wide as a feature line, no markers
+	BOLD = 7,           # open like OPEN, BOLD_SCALE of a feature line, no markers
 }
 
 # The map mesh with the sheet of a projection half a unit tall, which is what a
@@ -323,7 +329,7 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 	# first three rows carry one column of the rotation each, with the hover,
 	# the visibility and the selection in the channels the rotation leaves over;
 	# the fourth is the color and the fifth says whether the feature is a child
-	# of the selected one.
+	# of the selected one and how wide its lines are.
 	var img := Image.create(count, 5, false, Image.FORMAT_RGBAF)
 	for i in range(count):
 		var m: Basis = geometry.bases[i]
@@ -338,7 +344,8 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 		# it was picked. The alpha is left as it is. See
 		# Docs/Shader.md#colour-space.
 		img.set_pixel(i, 3, geometry.colors[i].srgb_to_linear())
-		img.set_pixel(i, 4, Color(1.0 if geometry.features[i] in related else 0.0, 0.0, 0.0))
+		img.set_pixel(i, 4, Color(1.0 if geometry.features[i] in related else 0.0,
+			geometry.features[i].line_scale(), 0.0))
 
 	var tex := ImageTexture.create_from_image(img)
 	for material in [globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
@@ -348,7 +355,7 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 # Flatten a feature tree into the primitives that draw it, in the frame of each
 # feature. A polygon contributes its cached triangles, a polyline the segments
 # between consecutive vertices of each ring, and a multipoint one marker per
-# vertex. The result is resolved for the given time, so it can be drawn or hit
+# vertex. A hotspot adds a small dot at every sample of its track. The result is resolved for the given time, so it can be drawn or hit
 # tested straight away; resolve() again to move it to another time.
 #
 # A topology borrows its vertices from other features, so it is resolved for the
@@ -395,6 +402,8 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 					for j in range(ring.size() - 1):
 						geometry.primitives.append(_primitive(
 							Primitive.SEGMENT, [ring[j], ring[j + 1]], node, index))
+				for v in Hotspot.samples(node):
+					geometry.primitives.append(_primitive(Primitive.SAMPLE, [v], node, index))
 			Feature.GeometryKind.MULTIPOINT:
 				for ring in node.rings:
 					for v in ring:
@@ -409,9 +418,10 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 
 # How many primitives a feature is drawn with, without building them: a polygon
 # ring of n vertices is cut into n - 2 triangles, a polyline ring of n into
-# n - 1 segments, and a multipoint into one marker per vertex.
+# n - 1 segments, and a multipoint into one marker per vertex. A hotspot's
+# sample dots come on top.
 static func _primitive_count(node: Feature) -> int:
-	var total := 0
+	var total := Hotspot.samples(node).size()
 	match node.drawn_as():
 		Feature.GeometryKind.POLYGON:
 			total = node.triangles.size() / 3
@@ -465,7 +475,7 @@ static func hit_test(lat: float, lon: float, geometry: Geometry) -> Feature:
 					var b := _latlon_to_unit(deg_to_rad(v[1].x), deg_to_rad(v[1].y))
 					if arc_distance(a, b, local) <= LINE_HIT_WIDTH:
 						return primitive["feature"] as Feature
-				Primitive.POINT:
+				Primitive.POINT, Primitive.SAMPLE:
 					if _chord(a, local) <= POINT_HIT_RADIUS:
 						return primitive["feature"] as Feature
 	return null
