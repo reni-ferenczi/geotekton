@@ -16,8 +16,8 @@ extends RefCounted
 # The parent is named by uuid, the way a topology section names a feature, so a
 # parent that is deleted leaves the span in place and unresolved.
 #
-# A span may name a second parent, which is what a ridge left by the Split tool
-# follows. Its frame is then midway between the two, the half stage rotation
+# A span may name a second parent, which only a file can give it. Its frame is
+# then midway between the two, the half stage rotation
 # GPlates reconstructs a mid ocean ridge by; see Docs/Time.md#following-two-parents.
 
 var from: float
@@ -311,7 +311,8 @@ static func sort(spans: Array[Coupling]) -> void:
 
 func to_json() -> Dictionary:
 	var result := {"from": from, "to": to, "parent": parent}
-	# Only a ridge has a second parent, so an ordinary span reads as it always did.
+	# Written only when there is a second parent, so an ordinary span reads as it
+	# always did.
 	if not parent_b.is_empty():
 		result["parent_b"] = parent_b
 	return result

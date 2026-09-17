@@ -200,7 +200,7 @@ static func split_along(ring: PackedVector2Array, path: PackedVector2Array) -> A
 
 
 # The edge the two halves of such a cut share: the cut itself with its ends
-# snapped onto the ring, which is what the ridge left behind is drawn along.
+# snapped onto the ring, which is where the ridge left behind starts out.
 static func shared_edge(ring: PackedVector2Array, path: PackedVector2Array) -> PackedVector2Array:
 	var cut := with_cut_ends(ring, path[0], path[path.size() - 1])
 	var edge := PackedVector2Array([cut[0][cut[1]]])
