@@ -4,7 +4,8 @@ class_name Planet
 # What one entry of the geometry data texture draws. The values are the ones
 # the shader switches on, so they must match the kinds listed in planet.gdshader.
 # SAMPLE is a hotspot track sample: a POINT drawn SAMPLE_DOT_SCALE the size.
-enum Primitive { TRIANGLE = 0, SEGMENT = 1, POINT = 2, SAMPLE = 3 }
+# CIRCLE is one ring of a circle, drawn from its center and radius.
+enum Primitive { TRIANGLE = 0, SEGMENT = 1, POINT = 2, SAMPLE = 3, CIRCLE = 4 }
 
 # How large a hotspot sample dot is against a multipoint marker, and how wide
 # the pole cross is against a feature line. planet.gdshader holds both.
@@ -42,6 +43,7 @@ enum OutlineStyle {
 	MARKERS = 5,        # the vertex markers only, drawn larger
 	CHILD = 6,          # closed like OUTLINE, in CHILD_COLOR
 	BOLD = 7,           # open like OPEN, BOLD_SCALE of a feature line, no markers
+	CIRCLE = 8,         # a center and a point of the rim, the circle drawn like CLOSED, no markers
 }
 
 # The map mesh with the sheet of a projection half a unit tall, which is what a
@@ -156,7 +158,9 @@ const MAX_PRIMITIVES := 16384
 class Geometry extends RefCounted:
 	# One entry per primitive: { "kind": Primitive, "verts": Array of
 	# Vector2(latitude, longitude) in degrees in the feature's own frame,
-	# "feature": Feature, "index": int into features }. Every
+	# "feature": Feature, "index": int into features }. A CIRCLE's verts are
+	# its center followed by its ring, which is what the cap is built from, and
+	# it carries "radius" in degrees as well. Every
 	# primitive of one feature is contiguous, which is what lets the shader and
 	# the hit test look its rotation up once instead of once per primitive.
 	var primitives: Array = []
@@ -288,29 +292,35 @@ func set_geometry(geometry: Geometry) -> void:
 
 	# Data texture: width = primitive count, height = 2, 32-bit float RGBA
 	var img := Image.create(count, 2, false, Image.FORMAT_RGBAF)
-
 	for i in range(count):
-		var primitive: Dictionary = geometry.primitives[i]
-		var v: Array = primitive["verts"]
-		var kind: int = primitive["kind"]
-
-		# Row 0: (lat_a, lon_a, lat_b, lon_b) in radians; b is unused by a point
-		var b: Vector2 = v[1] if v.size() > 1 else v[0]
-		img.set_pixel(i, 0, Color(
-			deg_to_rad(v[0].x), deg_to_rad(v[0].y),
-			deg_to_rad(b.x), deg_to_rad(b.y)
-		))
-		# Row 1: (lat_c, lon_c, feature, kind); c is only used by a triangle
-		var c: Vector2 = v[2] if v.size() > 2 else v[0]
-		img.set_pixel(i, 1, Color(
-			deg_to_rad(c.x), deg_to_rad(c.y),
-			float(primitive["index"]), float(kind)
-		))
+		var texels := _texels(geometry.primitives[i])
+		img.set_pixel(i, 0, texels[0])
+		img.set_pixel(i, 1, texels[1])
 
 	var tex := ImageTexture.create_from_image(img)
 	for material in [globe_mat, map_mat]:
 		material.set_shader_parameter("geometry_data", tex)
 		material.set_shader_parameter("geometry_count", count)
+
+
+# The two texels of the geometry texture one primitive is packed into, rows 0
+# and 1; see Docs/Shader.md#data-texture-layout.
+static func _texels(primitive: Dictionary) -> Array[Color]:
+	var v: Array = primitive["verts"]
+	var kind: int = primitive["kind"]
+	var a: Vector2 = v[0]
+	# Row 0: (lat_a, lon_a, lat_b, lon_b) in radians; b is unused by a point. A
+	# circle has its center in a and its radius in radians where lat_b would be.
+	var row0 := Color(deg_to_rad(a.x), deg_to_rad(a.y), deg_to_rad(a.x), deg_to_rad(a.y))
+	if kind == Primitive.CIRCLE:
+		row0.b = deg_to_rad(float(primitive["radius"]))
+	elif v.size() > 1:
+		row0.b = deg_to_rad(v[1].x)
+		row0.a = deg_to_rad(v[1].y)
+	# Row 1: (lat_c, lon_c, feature, kind); c is only used by a triangle
+	var c: Vector2 = v[2] if v.size() > 2 and kind == Primitive.TRIANGLE else a
+	var row1 := Color(deg_to_rad(c.x), deg_to_rad(c.y), float(primitive["index"]), float(kind))
+	return [row0, row1]
 
 
 # Upload where each feature sits, whether it is there at the current time, what
@@ -355,7 +365,8 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 # Flatten a feature tree into the primitives that draw it, in the frame of each
 # feature. A polygon contributes its cached triangles, a polyline the segments
 # between consecutive vertices of each ring, and a multipoint one marker per
-# vertex. A hotspot adds a small dot at every sample of its track. The result is resolved for the given time, so it can be drawn or hit
+# vertex. A circle outline is one CIRCLE per ring instead of the ring's
+# segments; the rings stay on the feature for everything else. A hotspot adds a small dot at every sample of its track. The result is resolved for the given time, so it can be drawn or hit
 # tested straight away; resolve() again to move it to another time.
 #
 # A topology borrows its vertices from other features, so it is resolved for the
@@ -399,6 +410,12 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 				for j in range(0, verts.size() - 2, 3):
 					geometry.primitives.append(_primitive(Primitive.TRIANGLE,
 						[verts[j], verts[j + 1], verts[j + 2]], node, index))
+			Feature.GeometryKind.POLYLINE when node.draws_true_circles():
+				var centers := node.circle_centers()
+				for j in centers.size():
+					geometry.primitives.append({"kind": Primitive.CIRCLE,
+						"verts": [centers[j]] + Array(node.rings[j]), "radius": node.radius,
+						"feature": node, "index": index})
 			Feature.GeometryKind.POLYLINE:
 				for ring in node.rings:
 					for j in range(ring.size() - 1):
@@ -420,10 +437,12 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 
 # How many primitives a feature is drawn with, without building them: a polygon
 # ring of n vertices is cut into n - 2 triangles, a polyline ring of n into
-# n - 1 segments, and a multipoint into one marker per vertex. A hotspot's
-# sample dots come on top.
+# n - 1 segments, and a multipoint into one marker per vertex. A circle drawn
+# as curves is one primitive per ring. A hotspot's sample dots come on top.
 static func _primitive_count(node: Feature) -> int:
 	var total := Hotspot.samples(node).size()
+	if node.draws_true_circles():
+		return node.rings.size()
 	match node.drawn_as():
 		Feature.GeometryKind.POLYGON:
 			total = node.triangles.size() / 3
@@ -480,6 +499,9 @@ static func hit_test(lat: float, lon: float, geometry: Geometry) -> Feature:
 				Primitive.POINT, Primitive.SAMPLE:
 					if _chord(a, local) <= POINT_HIT_RADIUS:
 						return primitive["feature"] as Feature
+				Primitive.CIRCLE:
+					if circle_distance(a, deg_to_rad(float(primitive["radius"])), local) 							<= LINE_HIT_WIDTH:
+						return primitive["feature"] as Feature
 	return null
 
 
@@ -494,6 +516,13 @@ static func arc_distance(a: Vector3, b: Vector3, p: Vector3) -> float:
 	if n.cross(a).dot(p) >= 0.0 and b.cross(n).dot(p) >= 0.0:
 		return absf(n.dot(p))
 	return minf(_chord(a, p), _chord(b, p))
+
+
+# Distance from p to the circle of the given angular radius around axis, as an
+# angle, which is as good as a chord at the width of a line. The counterpart
+# of circle_distance() in planet.gdshader.
+static func circle_distance(axis: Vector3, radius_rad: float, p: Vector3) -> float:
+	return absf(axis.angle_to(p) - radius_rad)
 
 
 static func _chord(a: Vector3, b: Vector3) -> float:

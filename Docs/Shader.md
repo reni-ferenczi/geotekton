@@ -233,8 +233,8 @@ and `lon`.
 
 ## Feature Geometry Rendering
 
-A feature is drawn from four kinds of primitive, all of which follow
-great circles on the unit sphere:
+A feature is drawn from five kinds of primitive. The first four follow great
+circles on the unit sphere, and the fifth is a small circle:
 
 | Kind | Value | Vertices used | Drawn as |
 |---|---|---|---|
@@ -242,6 +242,7 @@ great circles on the unit sphere:
 | Segment | 1 | a, b | A great-circle capsule between the two ends of a polyline segment |
 | Point | 2 | a | A round marker at one vertex of a multipoint |
 | Sample | 3 | a | A point at `SAMPLE_DOT_SCALE` of the size, at one sample of a hotspot track |
+| Circle | 4 | a, and the radius | A line along the circle of that angular radius around a; see [Circles](#circles) |
 
 ### Math
 
@@ -270,6 +271,44 @@ fades over the outer three tenths of its radius.
 fragment agree on what a line covers. The tolerance the two use differs on
 purpose: `Planet.LINE_HIT_WIDTH` and `Planet.POINT_HIT_RADIUS` are a little
 wider than the drawn width, so a thin line stays easy to pick.
+
+### Circles
+
+A circle outline is drawn as the curve it is, at every zoom. `collect_geometry()`
+emits one `Planet.Primitive.CIRCLE` per ring of the circle, around the axis and,
+for axis circles, around its antipode, instead of the segments of that ring,
+and the ring's vertices are not uploaded. The fragment test is
+
+```
+d = abs(angle_between(a, P) - radius)
+```
+
+where `angle_between()` is `atan(length(cross(a, P)), dot(a, P))`. An `acos()`
+of the dot product would lose the digits of a small circle in 32-bit floats.
+The result is an angle rather than a chord, which makes no difference at the
+width of a line. From there on a circle is a segment: the same
+`line_coverage()`, the feature's line scale, the halo of
+[the selected feature](#the-selected-feature) and the orange of a child.
+`Planet.circle_distance()` is the same test in GDScript, which is what the hit
+test uses on a CIRCLE.
+
+The map projections need nothing of their own: the test runs on the point of
+the planet the fragment shows, so a circle across the date line or over a pole
+comes out the way the projection draws that place.
+
+The ring stays on the feature, with its Circle segments count of vertices, for
+everything that is not drawing: measuring, Copy Shape, export, the Python model
+and older readers. The primitive also carries the ring as its `verts`, after
+the center, so the [bounding cap](#the-bounding-cap) is built from it as
+before. `Feature.draws_true_circles()` decides which circles qualify: an
+outline whose rings are the ones `rebuild_circle()` made. A filled circle
+from an older file is drawn from its triangles, and a circle whose ring was
+too short to fit parameters to keeps its segments.
+
+`Tests/Unit/test_true_circle.gd` holds the packing and the hit test, and
+`Tests/Rendered/test_true_circle.gd` probes a six segment circle between its
+vertices on the globe, on the Mollweide and rectangular maps, selected, and as
+the Draw preview.
 
 ### Shader Uniforms
 
@@ -342,7 +381,15 @@ The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with 
 
 Each column stores one primitive, and the shader reads exact texels via
 `texelFetch`. A vertex a kind does not use repeats vertex a, so a fetch never
-reads uninitialised data. The vertices are in the frame of the feature the
+reads uninitialised data. A circle keeps its center in a and its angular radius
+in radians in the B channel of row 0, where lat_b would be:
+
+| Row | R | G | B | A |
+|---|---|---|---|---|
+| 0 | lat (rad) | lon (rad) | radius (rad) | lon (rad) |
+| 1 | lat (rad) | lon (rad) | feature | 4 |
+
+`Planet._texels()` packs one primitive into its two texels. The vertices are in the frame of the feature the
 primitive belongs to, and `feature` is the column of `feature_data` holding the
 rotation that carries them into world space and the color they are drawn in.
 
@@ -365,7 +412,7 @@ and how depends on its kind:
 | Kind | Highlight | Drawn by |
 |---|---|---|
 | Polygon | An outline along its rings at `OUTLINE_OPACITY`, 0.6, with no vertex markers | Outline style 4 |
-| Line (polyline, topology, circle, hotspot) | An opaque white halo `SELECTED_LINE_SCALE` (1.25) times the feature's line width wide, with the segments over it at their own width, color and opacity | The segment pass, from the `selected` flag |
+| Line (polyline, topology, circle, hotspot) | An opaque white halo `SELECTED_LINE_SCALE` (1.25) times the feature's line width wide, with the segments over it at their own width, color and opacity | The segment pass, which also draws circles, from the `selected` flag |
 | Multipoint | Its vertex markers at twice `outline_dot_radius` | Outline style 5 |
 
 A line is highlighted in the segment pass rather than by the outline overlay,
@@ -622,16 +669,21 @@ the same for every vertex of a part:
 | 0 | Open: segments from the first vertex to the last, nothing more | 1 |
 | 1 | Closed, with the closing segment faint — a polygon still being drawn | 1, the closing segment `outline_closing_opacity` |
 | 2 | The vertex markers only — a multipoint | no segments |
-| 3 | Closed, every segment alike — a polygon in the Vertex tool, a closed circle | `OUTLINE_OPACITY` |
+| 3 | Closed, every segment alike — a polygon in the Vertex tool | `OUTLINE_OPACITY` |
 | 4 | Closed like 3, with no vertex markers — the rings of a selected polygon | `OUTLINE_OPACITY` |
 | 5 | The vertex markers only, twice the size — a selected multipoint | no segments |
 | 6 | Closed like 4, in `CHILD_COLOR`: the rings of a polygon that follows the selected feature | 1 |
 | 7 | Open like 0, at `BOLD_SCALE` (0.5) times `geometry_line_width` rather than at `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross | 1 |
+| 8 | Two vertices, a center and a point of the rim, drawn as the [circle](#circles) through that point, with no vertex markers: the circle being drawn | `OUTLINE_OPACITY` |
 
 The vertex markers are opaque in every style that has them, so the dots of
 the Vertex tool stand out against the translucent ring of style 3.
 
-`Planet.OutlineStyle` names the same eight values.
+`Planet.OutlineStyle` names the same nine values.
+
+A style 8 part is read at its first vertex, which takes the radius from the
+second, so the preview is the same curve the finished circle is drawn as. The
+Circle segments count does not reach it.
 
 ### Outline Math
 
@@ -651,7 +703,7 @@ its own. When the style closes the part, that vertex joins back to the vertex
 the part started at, at reduced opacity for style 1 and at `OUTLINE_OPACITY`, like the rest of
 the ring, for styles 3 and 4.
 
-The outline is composited on top of everything else in `HIGHLIGHT_COLOR`, white, at the largest of the dot, line, closed ring and closing alphas. Styles 3 and 4 keep a distance of their own, whose alpha is scaled by `OUTLINE_OPACITY`, so the fill and the grid show through the ring. Style 6 keeps one too and is laid down in `CHILD_COLOR` first, so the white of a selection drawn over the same place wins.
+The outline is composited on top of everything else in `HIGHLIGHT_COLOR`, white, at the largest of the dot, line, closed ring and closing alphas. Styles 3, 4 and 8 keep a distance of their own, whose alpha is scaled by `OUTLINE_OPACITY`, so the fill and the grid show through the ring. Style 6 keeps one too and is laid down in `CHILD_COLOR` first, so the white of a selection drawn over the same place wins.
 
 ## Notes
 

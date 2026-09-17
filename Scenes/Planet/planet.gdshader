@@ -46,8 +46,9 @@ const float MAP_EDGE_SLACK = 1e-6;
 //   Row 0: (lat_a, lon_a, lat_b, lon_b) in radians
 //   Row 1: (lat_c, lon_c, feature, kind)
 // kind 0 is a triangle (a, b, c), 1 a polyline segment (a, b), 2 a
-// multipoint marker (a) and 3 a hotspot sample (a), a marker SAMPLE_DOT_SCALE
-// the size; the unused vertices repeat a. The vertices are in the
+// multipoint marker (a), 3 a hotspot sample (a), a marker SAMPLE_DOT_SCALE
+// the size, and 4 a circle around a whose angular radius is in lat_b, drawn
+// like a segment; the unused vertices repeat a. The vertices are in the
 // frame of the feature the primitive belongs to, and `feature` is the column of
 // feature_data holding the rotation and the color of that feature.
 uniform sampler2D geometry_data : filter_nearest, repeat_disable;
@@ -100,8 +101,10 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 // with no markers (a selected polygon), 5 draws larger markers only (a
 // selected multipoint) and 6 closes it like 4 in CHILD_COLOR (a polygon that
 // follows the selected feature). 7 draws an open line BOLD_SCALE times as wide
-// as a feature line, geometry_line_width, with no markers (the pole cross). Every style but 4, 6
-// and 7 marks each vertex.
+// as a feature line, geometry_line_width, with no markers (the pole cross). 8 is
+// a circle drawn like 3, from two vertices, its center and a point of its rim,
+// with no markers (the circle being drawn). Every style but 4, 6, 7 and 8 marks
+// each vertex.
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
 uniform float outline_line_width = 0.002;
@@ -251,6 +254,18 @@ float arc_distance(vec3 a, vec3 b, vec3 p) {
 	return min(chord(a, p), chord(b, p));
 }
 
+// The angle between two unit vectors. atan() of the sine and the cosine stays
+// exact near zero, where acos() of the cosine loses the digits of a small circle.
+float angle_between(vec3 a, vec3 b) {
+	return atan(length(cross(a, b)), dot(a, b));
+}
+
+// Distance from p to the circle of the given angular radius around axis, as an
+// angle. The counterpart of Planet.circle_distance().
+float circle_distance(vec3 axis, float radius, vec3 p) {
+	return abs(angle_between(axis, p) - radius);
+}
+
 void fragment() {
 	// Where on the planet this fragment is. The globe carries the
 	// equirectangular grid on its surface, so its UV is the position; the map
@@ -353,8 +368,9 @@ void fragment() {
 					&& dot(cross(c, a), p) > 0.0) {
 				coverage = 1.0;
 			}
-		} else if (kind == 1) {
-			float d = arc_distance(a, rotation * latlon_to_unit(row0.zw), p);
+		} else if (kind == 1 || kind == 4) {
+			float d = kind == 1 ? arc_distance(a, rotation * latlon_to_unit(row0.zw), p)
+				: circle_distance(a, row0.z, p);
 			if (feature_selected) {
 				selected_line_dist = min(selected_line_dist, d / line_scale);
 				selected_paint = feature_color;
@@ -420,6 +436,16 @@ void fragment() {
 			vec4 v = texelFetch(outline_data, ivec2(i, 0), 0);
 			vec3 a = latlon_to_unit(v.xy);
 			int style = int(v.w + 0.5);
+			// A circle part is its center and a point of its rim, read at the
+			// center.
+			if (style == 8) {
+				if (i + 1 < outline_vertex_count && i == int(v.z + 0.5)) {
+					vec3 rim = latlon_to_unit(texelFetch(outline_data, ivec2(i + 1, 0), 0).xy);
+					closed_line_dist = min(closed_line_dist,
+						circle_distance(a, angle_between(a, rim), p));
+				}
+				continue;
+			}
 			// A larger marker is the same test against a shorter distance.
 			if (style == 5) {
 				min_dot_dist = min(min_dot_dist, chord(a, p) / SELECTED_MARKER_SCALE);

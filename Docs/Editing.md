@@ -564,11 +564,14 @@ committed. Snapping and Shift+click tracing do not apply to these points.
 
 ### Segments of a circle
 
-A committed circle is not a true curve but a ring of straight edges. The
-**Circle segments** box in the toolbar says how many: from 3 to 720,
-starting at 36. Only a circle being drawn reads it, so the box is shown only
-while Draw is armed on a Circle. The preview and the status bar follow it as it
-changes.
+The planet draws a circle as the curve it is, at every zoom, from its center
+and radius; the preview while drawing is that curve too. A circle also keeps a
+ring of straight edges, which is what measuring, Copy Shape, export, the
+Python model and older readers use. A click picks the circle by the curve, as
+it is drawn. The **Circle segments** box in the toolbar says how many edges
+that ring has: from 3 to 720, starting at 36. It does not change how the circle
+looks. Only a circle being drawn reads it, so the box is shown only while Draw
+is armed on a Circle. The status bar follows it as it changes.
 
 The box fits in the toolbar's spare width, so showing it does not push the
 Properties panel aside or move the planet. That is why its label is not longer. The scripted session checks that the planet
@@ -581,7 +584,8 @@ count**, and its ring is always rebuilt from those three by
 `Feature.rebuild_circle()` with `Circle.vertices()`. Committing stores the
 center and radius the clicks describe and the number the box holds. The ring is
 an outline: a **polyline** with one vertex per segment plus the first one
-repeated at the end, so the line goes all the way around. It is drawn at half
+repeated at the end, so the line goes all the way around. The planet draws the
+curve rather than the ring (see [Shader](Shader.md#circles)), at half
 the feature line width, as wide as the [Pole tool](#turning-a-feature)'s cross,
 and the inside stays uncovered.
 

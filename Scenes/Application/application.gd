@@ -3541,9 +3541,10 @@ func _circle_outline() -> Array:
 		parts.append({"vertices": outline_vertices, "style": Planet.OutlineStyle.POINTS})
 	var ring := circle_ring()
 	if not ring.is_empty():
-		# CLOSED draws the segment back to the first vertex itself, so the repeat
-		# is left off.
-		parts.append({"vertices": ring.slice(0, -1), "style": Planet.OutlineStyle.CLOSED})
+		# The shader draws the curve itself, from the center and a point of
+		# the rim, so the preview is the circle the feature will draw.
+		parts.append({"vertices": PackedVector2Array([circle_from_points()[0], ring[0]]),
+			"style": Planet.OutlineStyle.CIRCLE})
 	return parts
 
 
