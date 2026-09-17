@@ -173,7 +173,7 @@ static func format_area(km2: float) -> String:
 # the percent sign.
 static func format_share(km2: float, radius: float) -> String:
 	var percent := km2 / planet_area(radius) * 100.0
-	return "" if percent < 0.05 else "%.1f\u00a0%% of the planet" % percent
+	return "" if percent < 0.05 else "%.1f\u00a0%% of planet" % percent
 
 
 static func _unit64(v: Vector2) -> PackedFloat64Array:
