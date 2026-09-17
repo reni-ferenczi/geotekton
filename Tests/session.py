@@ -3757,6 +3757,21 @@ def nearest_vertex(ring: list[list[float]], vertex: list[float]) -> tuple[int, f
                key=lambda pair: pair[1])
 
 
+def run_third_section_check(client: AutomationClient) -> None:
+    """The section pick clicking a half again gives the ridge no third section."""
+    client.call("select", title="Old Shield")
+    half = world_centroid(client)
+    client.call("select", title="Old Shield ridge")
+    client.call("sections", button="Pick")
+    if not click_at(client, half):
+        return
+    status = client.call("get_status")["status"]["measure"]
+    sections = client.call("get_properties")["properties"]["sections"]
+    check(len(sections) == 2 and "midway" in status,
+          f"a third section is refused: {len(sections)}, {status!r}")
+    client.call("key", key="Escape")
+
+
 def run_ridge_session(client: AutomationClient) -> None:
     """The Split tool leaving a ridge that stays midway between the halves."""
     client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.middle-earth"))
@@ -3786,20 +3801,26 @@ def run_ridge_session(client: AutomationClient) -> None:
 
     client.call("select", title="Old Shield ridge")
     ridge = client.call("get_selected")["feature"]
-    check(ridge["geometry_kind"] == "polyline" and ridge["feature_type"] == "line",
-          f"the ridge is a Line: {ridge['geometry_kind']}, {ridge['feature_type']}")
+    check(ridge["geometry_kind"] == "topology" and ridge["feature_type"] == "topology",
+          f"the ridge is a topology: {ridge['geometry_kind']}, {ridge['feature_type']}")
     check(ridge["time_range"] == [0, int(RIDGE_CUT_AT)],
           f"there from the cut to the present: {ridge['time_range']}")
+    check(ridge["keyframes"] == [] and ridge["couplings"] == [],
+          f"with no motion of its own: {ridge['keyframes']}, {ridge['couplings']}")
     client.call("select", title="Old Shield")
     west_uuid = client.call("get_selected")["feature"]["uuid"]
     client.call("select", title="Old Shield 2")
     east_uuid = client.call("get_selected")["feature"]["uuid"]
-    check(ridge["couplings"] == [{"from": RIDGE_CUT_AT, "to": 0.0,
-                                 "parent": west_uuid, "parent_b": east_uuid}],
-          f"following both halves from the cut on: {ridge['couplings']}")
+    sections = [(s["feature"], s["reversed"], s["problem"]) for s in ridge["sections"]]
+    check(sections == [(west_uuid, False, ""), (east_uuid, True, "")],
+          f"midway between the halves' sides of the cut: {sections}")
     client.call("select", title="Old Shield ridge")
-    check(coupling_row(client)["coupled_to"] == "Old Shield and Old Shield 2, midway",
-          f"which the panel says: {coupling_row(client)['coupled_to']!r}")
+    panel = client.call("get_properties")["properties"]
+    check(panel.get("topology_note") == "Midway between two sections",
+          f"which the panel says: {panel.get('topology_note')!r}")
+    check("coupling" not in panel and "closed" not in panel and len(panel["sections"]) == 2,
+          f"with the section table and no Coupled to row or Closed switch: {sorted(panel)}")
+    run_third_section_check(client)
 
     # Where each of the ridge's vertices sits on the two halves at the cut.
     on_ridge = world_ring(client, "Old Shield ridge")
@@ -3855,17 +3876,19 @@ def run_ridge_session(client: AutomationClient) -> None:
 
 # The crust scenario splits a square along a meridian off the grid at an age
 # old enough to drift from, carries the halves apart by the same amount each
-# way, and probes midway between each half's cut edge and the ridge.
+# way, and probes between two isochrons and on one, at a skip of 25 My.
 CRUST_SQUARE = [(-10.0, -20.0), (-10.0, 26.0), (10.0, 26.0), (10.0, -20.0)]
 CRUST_CUT = [(-12.0, 3.0), (1.0, 4.0), (12.0, 3.0)]
 CRUST_AGE = 100.0
 CRUST_DRIFT = 12.0
-# Between each half's cut edge and the ridge at the present, off the grid lines.
-# The cut leaves Plate east of it and Plate 2 west.
-CRUST_PROBES = {"Plate 2 crust": (5.0, -3.0), "Plate crust": (5.0, 9.0)}
-# Steel blue, the colour the Split tool gives the crust.
+CRUST_SKIP = 25.0
+# Steel blue, the colour the Split tool gives the crust, and light steel blue,
+# the colour of its isochrons and flowlines.
 CRUST_COLOR = [0.275, 0.510, 0.706]
-CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust", "Plate 2 crust"]
+CRUST_LINES_COLOR = [0.690, 0.769, 0.871]
+CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust lines", "Plate crust",
+                "Plate 2 crust lines", "Plate 2 crust"]
+CRUSTS = ["Plate crust", "Plate 2 crust"]
 
 # Two lines a hand built topology runs along, end to end, and a point inside the
 # square they make once the topology is closed.
@@ -3901,18 +3924,24 @@ def run_crust_session(client: AutomationClient) -> None:
     client.call("key", key="Enter")
     check(undo_depth(client) == depth + 1, "the split, the ridge and the crust are one version")
     titles = [f["title"] for f in client.call("get_features")["features"]]
-    check(titles[-5:] == CRUST_TITLES, f"the halves, the ridge and two crusts: {titles}")
+    check(titles[-7:] == CRUST_TITLES, f"the halves, the ridge and two crusts: {titles}")
     status = client.call("get_status")["status"]["measure"]
     check(all(title in status for title in CRUST_TITLES),
-          f"the status bar names all five: {status!r}")
+          f"the status bar names all seven: {status!r}")
     for title in CRUST_TITLES[3:]:
         client.call("select", title=title)
         crust = client.call("get_selected")["feature"]
         check(crust["geometry_kind"] == "topology" and crust["time_range"] == [0, int(CRUST_AGE)],
               f"{title} is a topology from the split on: {crust['time_range']}")
         panel = client.call("get_properties")["properties"]
-        check(panel["closed"] and panel["area_km2"] < 1.0,
-              f"closed, and enclosing nothing at the split: {panel['area_km2']}")
+        half = "Plate 2" if "Plate 2" in title else "Plate"
+        kind = "Crust lines" if title.endswith("lines") else "Crust"
+        check(panel.get("topology_note") == f"{kind} of {half}, 0 chunks",
+              f"the panel says what it is: {panel.get('topology_note')!r}")
+        check(panel["area_km2"] < 1.0 and panel["crust_chunks"] == 0,
+              f"with no chunks at the split: {panel['area_km2']}, {panel['crust_chunks']}")
+        check("closed" not in panel and "picking_sections" not in panel and not panel["sections"],
+              f"and no section table or Closed switch: {sorted(panel)}")
 
     # Held where they are at the split, carried apart at the present.
     client.call("set_tool", tool="move")
@@ -3927,16 +3956,42 @@ def run_crust_session(client: AutomationClient) -> None:
         if not drag(client, middle[0], middle[1] + shift):
             return
 
-    client.call("select", title=None)
-    for title, (lat, lon) in CRUST_PROBES.items():
-        pixel = probe_unhovered(client, lat, lon)
-        check(is_colour(pixel, CRUST_COLOR), f"{title} fills the gap at ({lat}, {lon}): {pixel}")
-    for title in CRUST_PROBES:
-        client.call("select", title=title)
-        area = client.call("get_properties")["properties"]["area_km2"]
-        check(area > 1e5, f"{title} has opened: {area:.0f} km²")
+    # Headless runs share the user's configuration, so the skip is set here
+    # and put back at the end.
+    skip = client.call("get_timeline")["timeline"]["skip"]
+    client.call("set_skip", skip=CRUST_SKIP)
+    for title in CRUSTS:
+        run_crust_probes(client, title)
+    client.call("set_skip", skip=50.0)
+    client.call("select", title=CRUSTS[0])
+    panel = client.call("get_properties")["properties"]
+    check(panel["crust_chunks"] == 2 and panel["topology_note"] == "Crust of Plate, 2 chunks",
+          f"a skip of 50 gives two chunks: {panel.get('topology_note')!r}")
+    client.call("set_skip", skip=skip)
 
     run_closed_topology_checks(client)
+
+
+def run_crust_probes(client: AutomationClient, title: str) -> None:
+    """A crust at 0 Ma: four bands, isochron colour on an isochron, crust colour between two."""
+    client.call("select", title=title)
+    panel = client.call("get_properties")["properties"]
+    check(panel["crust_chunks"] == 4 and panel["area_km2"] > 1e5,
+          f"{title} has opened in four chunks: {panel['crust_chunks']}, {panel['area_km2']:.0f} km²")
+    client.call("select", title=f"{title} lines")
+    lines = client.call("get_selected")["feature"]["world_rings"]
+    if not check(len(lines) == 5 + len(CRUST_CUT), f"five isochrons and three flowlines: {len(lines)}"):
+        return
+    # Halfway along the first stretch of the 75 and 50 Ma isochrons, and
+    # between the two, away from the flowlines and the equator.
+    on_75 = midpoint(lines[1][0], lines[1][1])
+    on_50 = midpoint(lines[2][0], lines[2][1])
+    between = midpoint(list(on_75), list(on_50))
+    client.call("select", title=None)
+    pixel = probe_unhovered(client, *between)
+    check(is_colour(pixel, CRUST_COLOR), f"{title} fills the band at {between}: {pixel}")
+    pixel = probe_unhovered(client, *on_75)
+    check(is_colour(pixel, CRUST_LINES_COLOR), f"and the isochron at {on_75} is drawn: {pixel}")
 
 
 # The children scenario: a range on the northern part of the crust scenario's

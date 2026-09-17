@@ -1615,7 +1615,7 @@ func set_field(field: String, value: Variant) -> String:
 			_commit_circle()
 		"closed":
 			if not closed_check.visible:
-				return "only a topology can be closed"
+				return "only a topology built from its sections can be closed"
 			closed_check.button_pressed = bool(value)
 		"plate":
 			if not plate_row.visible:
