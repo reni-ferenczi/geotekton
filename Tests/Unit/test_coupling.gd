@@ -799,3 +799,22 @@ func test_children_stop_at_a_loop() -> void:
 	nodes["One"].couplings.append(Coupling.create(500.0, 0.0, nodes["Two"].uuid))
 	nodes["Two"].couplings.append(Coupling.create(500.0, 0.0, nodes["One"].uuid))
 	assert_eq(_titles(Coupling.children_of(nodes["root"], nodes["One"].uuid, 100.0)), ["Two"])
+
+
+# A selected group stands for its leaves: their children together, with the
+# leaves themselves left out even where one follows another.
+func test_the_children_of_a_group_are_those_of_its_leaves() -> void:
+	var nodes := _children_tree(["West", "East", "Island", "Seamount", "Outside"])
+	var root: Feature = nodes["root"]
+	var plates := Feature.create_group("Plates")
+	for title in ["West", "East", "Island"]:
+		root.children.erase(nodes[title])
+		plates.children.append(nodes[title])
+	root.children.append(plates)
+	nodes["Island"].couplings.append(Coupling.create(500.0, 0.0, nodes["West"].uuid))
+	nodes["Seamount"].couplings.append(Coupling.create(500.0, 0.0, nodes["East"].uuid))
+	nodes["Outside"].couplings.append(Coupling.create(500.0, 0.0, nodes["Island"].uuid))
+	assert_eq(_titles(Coupling.children_of(root, plates.uuid, 100.0)), ["Outside", "Seamount"],
+		"the children of the group")
+	assert_eq(_titles(Coupling.children_of(root, root.uuid, 100.0)), [],
+		"the root holds every leaf, so nothing is left to follow it")

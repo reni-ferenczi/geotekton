@@ -146,19 +146,25 @@ static func reaches(nodes: Dictionary, start: Feature, target: Feature) -> bool:
 
 # Every child of the feature with `uuid` at a time, and the children of those in
 # turn: the couplings walked downward, the way reaches() walks them up. A child
-# of two parents counts once. The list never holds the feature
-# itself, even where a broken document loops back to it.
+# of two parents counts once. A group stands for every leaf under it. The list
+# never holds the feature or those leaves, even where a broken document loops
+# back to them.
 static func children_of(root: Feature, uuid: String, time: float) -> Array[Feature]:
+	var nodes := index(root)
 	var on := {}
-	for node: Feature in index(root).values():
+	for node: Feature in nodes.values():
 		var span: Coupling = null if node.is_group else span_at(node, time)
 		if span == null:
 			continue
 		for parent in span.parents():
 			on.get_or_add(parent, []).append(node)
 	var result: Array[Feature] = []
-	var seen := {uuid: true}
 	var queue: Array[String] = [uuid]
+	if nodes.has(uuid):
+		queue.assign(index(nodes[uuid]).keys())
+	var seen := {}
+	for start in queue:
+		seen[start] = true
 	while not queue.is_empty():
 		for child: Feature in on.get(queue.pop_back(), []):
 			if seen.has(child.uuid):
