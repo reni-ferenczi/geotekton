@@ -4093,7 +4093,10 @@ func _on_properties_edited() -> void:
 	features.reload()
 	var selected := features.feature_tree.get_selected_node()
 	_update_tool_buttons()
-	if not _tool_fits(selected):
+	# A feature just typed Hotspot waits for its place, so Draw is armed for it.
+	var unplaced_hotspot := selected != null and selected.is_hotspot() \
+		and not selected.has_geometry() and active_tool != Tool.DRAW
+	if not _tool_fits(selected) or unplaced_hotspot:
 		set_active_tool(_tool_for(selected))
 	elif not outline_vertices.is_empty():
 		_refresh_outline()
