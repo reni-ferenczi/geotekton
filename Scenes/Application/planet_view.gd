@@ -441,26 +441,6 @@ func _latlon_to_view(lat: float, lon: float) -> Variant:
 	return camera.unproject_position(world)
 
 
-# The direction from the middle of the planet out through a point on the globe,
-# in the frame the scene is laid out in, or null when the near side does not
-# reach that point. Only the globe has one: a map sheet is flat, so a point of
-# it says nothing about which way the planet faces there. The Light tool drags
-# along this, since the light is given as a direction in the scene.
-func globe_direction(lat: float, lon: float) -> Variant:
-	if planet.show_map:
-		return null
-	var scene = _latlon_to_scene(lat, lon)
-	return null if scene == null else (scene as Vector3).normalized()
-
-
-# Which point of the globe a direction in the scene points at, which is
-# globe_direction() the other way round.
-func direction_to_latlon(direction: Vector3) -> Vector2:
-	var local: Vector3 = planet.globe.transform.affine_inverse().basis * direction
-	var rad := Vector2(local.x, local.z).length()
-	return Vector2(rad_to_deg(atan2(local.y, rad)), rad_to_deg(atan2(-local.x, -local.z)))
-
-
 # Where a point of the planet sits in the scene, in the planet's own frame, or
 # null when what is being shown does not reach it.
 func _latlon_to_scene(lat: float, lon: float) -> Variant:

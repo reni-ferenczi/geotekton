@@ -38,6 +38,10 @@ signal pick_axis_requested()
 # pick too, and writes the place and the plate through the document.
 signal pick_hotspot_requested()
 
+# The Pick toggle of the section table was pressed or let go. The Application
+# arms the Topology tool for the topology shown, and ends it.
+signal pick_section_requested(on: bool)
+
 # The Load button on the Palette row was pressed. The Application owns the file
 # dialog and hands the path it gets back to load_palette().
 signal palette_file_requested()
@@ -58,7 +62,8 @@ const STYLE_TOOLTIP := ("Same as parent colors the features the way the group ab
 # way round it is walked.
 const SECTION_COLUMNS = ["Feature", "From", "To", "Way"]
 
-# The pointer on the Follow row, which picks the parent off the planet.
+# The pointer on the Follow row, which picks the parent off the planet, and on
+# the section table, which picks sections.
 const PICK_PARENT_ICON := "res://Assets/Icons/Pointer.svg"
 
 # A section whose feature can no longer be found, or cannot be followed at the
@@ -103,6 +108,7 @@ var delete_key_button: Button
 var sections: Tree
 var reverse_button: Button
 var remove_section_button: Button
+var pick_section_button: Button
 var closed_check: CheckBox
 var coupled_label: Label
 var decouple_button: Button
@@ -343,6 +349,15 @@ func _build_sections(box: VBoxContainer) -> void:
 	remove_section_button.tooltip_text = "Take the selected section out of the topology"
 	remove_section_button.pressed.connect(_on_remove_section_pressed)
 	buttons.add_child(remove_section_button)
+
+	pick_section_button = Button.new()
+	pick_section_button.name = "PickSection"
+	pick_section_button.toggle_mode = true
+	pick_section_button.icon = load(PICK_PARENT_ICON)
+	pick_section_button.tooltip_text = "Click a feature on the planet to add its part as a section"
+	pick_section_button.toggled.connect(
+		func(on: bool) -> void: pick_section_requested.emit(on))
+	buttons.add_child(pick_section_button)
 
 
 # The rows polar circles are built from: the first pole of the axis, the radius
@@ -590,8 +605,11 @@ func show_node(node_: Feature) -> void:
 		(row["label"] as Control).visible = shown
 		(row["control"] as Control).visible = shown
 	# A topology has sections, and no motion of its own: where it is comes from
-	# the features its sections run along. A group carries no motion either.
-	var is_topology := is_feature and node.geometry_kind == Feature.GeometryKind.TOPOLOGY
+	# the features its sections run along. A group carries no motion either. A
+	# feature typed Topology that holds no section yet shows the empty table, so
+	# its Pick toggle can add the first one.
+	var is_topology := is_feature and (node.geometry_kind == Feature.GeometryKind.TOPOLOGY
+		or node.feature_type == "topology")
 	for control in _topology_boxes:
 		control.visible = is_topology
 	# A hotspot is fixed in the world frame, so it has no motion either.
@@ -979,6 +997,12 @@ func picking_parent() -> bool:
 
 func show_picking(on: bool) -> void:
 	pick_parent_button.set_pressed_no_signal(on)
+
+
+# Whether the Topology tool is armed, which is what the section Pick toggle
+# shows. The tool is the Application's.
+func show_section_picking(on: bool) -> void:
+	pick_section_button.set_pressed_no_signal(on)
 
 
 # What the feature follows at the current time, and which buttons work there.
@@ -1380,6 +1404,7 @@ func to_json() -> Dictionary:
 	data["sections"] = _sections_to_json()
 	if closed_check.visible:
 		data["closed"] = closed_check.button_pressed
+		data["picking_sections"] = pick_section_button.button_pressed
 	if pick_axis_button.visible:
 		data["polar_circles"] = {
 			"axis": [axis_lat_spin.value, axis_lon_spin.value],

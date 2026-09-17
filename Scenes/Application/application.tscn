@@ -9,16 +9,13 @@
 [ext_resource type="Texture2D" uid="uid://drgl1h6nlsu3l" path="res://Assets/GodotIcons/Edit.svg" id="7_tooldraw"]
 [ext_resource type="Texture2D" uid="uid://cek62f1d17y64" path="res://Assets/GodotIcons/CurveEdit.svg" id="8_toolvertex"]
 [ext_resource type="Texture2D" uid="uid://ceybndew6vt08" path="res://Assets/GodotIcons/Ruler.svg" id="9_toolmeasure"]
-[ext_resource type="Texture2D" uid="uid://c8cem4qmabn4u" path="res://Assets/GodotIcons/Snap.svg" id="10_toolsnap"]
 [ext_resource type="Texture2D" uid="uid://bbx5oicbbars8" path="res://Assets/GodotIcons/CurveClose.svg" id="11_toolsplit"]
 [ext_resource type="Texture2D" uid="uid://dlgtg7jn7dvnj" path="res://Assets/GodotIcons/CircleShape2D.svg" id="12_toolcircle"]
-[ext_resource type="Texture2D" uid="uid://b511xsklgdqqf" path="res://Assets/GodotIcons/NavigationLink3D.svg" id="13_tooltopology"]
 [ext_resource type="Texture2D" uid="uid://366sx70lun28" path="res://Assets/GodotIcons/ZoomLess.svg" id="14_zoomless"]
 [ext_resource type="Texture2D" uid="uid://bher4w8tsqu8o" path="res://Assets/GodotIcons/ZoomMore.svg" id="15_zoommore"]
 [ext_resource type="Texture2D" uid="uid://c57mfqi8mb5ve" path="res://Assets/GodotIcons/RotateLeft.svg" id="17_rotateleft"]
 [ext_resource type="Texture2D" uid="uid://clt0hnssu7kmd" path="res://Assets/GodotIcons/RotateRight.svg" id="18_rotateright"]
 [ext_resource type="Texture2D" uid="uid://bu7s3wqnnfknb" path="res://Assets/GodotIcons/Reload.svg" id="19_reload"]
-[ext_resource type="Texture2D" uid="uid://pd4kwykj2jsn" path="res://Assets/GodotIcons/DirectionalLight3D.svg" id="20_toollight"]
 [ext_resource type="Texture2D" uid="uid://csahgmxw80sow" path="res://Assets/GodotIcons/ToolRotate.svg" id="23_toolrotate"]
 [ext_resource type="Texture2D" uid="uid://bsc43ulc3g5q7" path="res://Assets/GodotIcons/EditorPivot.svg" id="24_toolpole"]
 [ext_resource type="Script" uid="uid://slxddfcw6y2" path="res://Scenes/Application/kinematics_panel.gd" id="21_kinematics"]
@@ -90,7 +87,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Turn the selected feature about its own middle [R]"
+tooltip_text = "Rotate [R]"
 disabled = true
 toggle_mode = true
 icon = ExtResource("23_toolrotate")
@@ -100,7 +97,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Turn the selected feature about a pole placed with a click [P]"
+tooltip_text = "Pole Rotate [P]"
 disabled = true
 toggle_mode = true
 icon = ExtResource("24_toolpole")
@@ -120,7 +117,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Edit the vertices of the selected feature [V]"
+tooltip_text = "Edit Vertices [V]"
 disabled = true
 toggle_mode = true
 icon = ExtResource("8_toolvertex")
@@ -130,7 +127,7 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Measure distances on the planet [E]"
+tooltip_text = "Measure Distances [E]"
 toggle_mode = true
 icon = ExtResource("9_toolmeasure")
 expand_icon = true
@@ -139,46 +136,17 @@ expand_icon = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Draw a circle by its centre or through three points [C]"
+tooltip_text = "Circle [C]"
 disabled = true
 toggle_mode = true
 icon = ExtResource("12_toolcircle")
-expand_icon = true
-
-[node name="Topology" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(40, 40)
-layout_mode = 2
-tooltip_text = "Build a line topology by clicking the features it runs along [T]"
-disabled = true
-toggle_mode = true
-icon = ExtResource("13_tooltopology")
-expand_icon = true
-
-[node name="Light" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(40, 40)
-layout_mode = 2
-tooltip_text = "Drag the light around the globe [L]"
-toggle_mode = true
-icon = ExtResource("20_toollight")
-expand_icon = true
-
-[node name="Snap" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(40, 40)
-layout_mode = 2
-tooltip_text = "Snap a dragged vertex onto a nearby one"
-disabled = true
-toggle_mode = true
-icon = ExtResource("10_toolsnap")
 expand_icon = true
 
 [node name="Split" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
-tooltip_text = "Split the selected polygon along a line drawn across it [X]"
+tooltip_text = "Split [X]"
 disabled = true
 toggle_mode = true
 icon = ExtResource("11_toolsplit")

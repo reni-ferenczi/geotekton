@@ -113,10 +113,6 @@ def compare(a, b) -> float:
 
 def capture(client: AutomationClient, temp_dir: Path) -> dict[str, Path]:
     """Render every scene and return the path of each fresh screenshot."""
-    # The Paste button of the feature tree toolbar is greyed out by what the
-    # clipboard holds, so an unknown clipboard is a 40 by 40 difference in every
-    # scene. A run states what it is, at the cost of emptying it.
-    client.call("set_clipboard", text="")
     shots: dict[str, Path] = {}
     for name, sample, view, settings, steps in SCENES:
         # Loading clears the selection and puts the time at the oldest age the

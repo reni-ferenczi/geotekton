@@ -11,9 +11,6 @@ signal commands_changed()
 @onready var add_feature_button: Button = $PanelContainer/Buttons/AddFeature
 @onready var undo_button: Button = $PanelContainer/Buttons/Undo
 @onready var redo_button: Button = $PanelContainer/Buttons/Redo
-@onready var copy_button: Button = $PanelContainer/Buttons/Copy
-@onready var cut_button: Button = $PanelContainer/Buttons/Cut
-@onready var paste_button: Button = $PanelContainer/Buttons/Paste
 @onready var duplicate_button: Button = $PanelContainer/Buttons/Duplicate
 @onready var collapse_button: Button = $PanelContainer/Buttons/Collapse
 @onready var expand_button: Button = $PanelContainer/Buttons/Expand
@@ -81,15 +78,8 @@ func update_button_availability() -> void:
 	var is_root_selected := selected == null or selected.is_root
 	undo_button.disabled = not document.can_undo()
 	redo_button.disabled = not document.can_redo()
-	cut_button.disabled = is_root_selected
 	duplicate_button.disabled = is_root_selected
-	detect_clipboard_content()
 	commands_changed.emit()
-
-
-func detect_clipboard_content() -> void:
-	var clipboard := DisplayServer.clipboard_get()
-	paste_button.disabled = not (Document.APPLICATION in clipboard)
 
 
 ### Add group and feature
@@ -217,14 +207,16 @@ func duplicate_node(node: Feature) -> void:
 
 
 ### Copy / Cut / Paste
+#
+# Run from the Edit menu and its Ctrl+C, Ctrl+X and Ctrl+V.
 
 
-func _on_copy_pressed() -> void:
+func copy_selected() -> void:
 	var selected := feature_tree.get_selected_node()
 	copy(selected)
 
 
-func _on_cut_pressed() -> void:
+func cut_selected() -> void:
 	var selected := feature_tree.get_selected_node()
 	if selected == null or selected.is_root:
 		return
@@ -232,7 +224,7 @@ func _on_cut_pressed() -> void:
 	delete_node(selected)
 
 
-func _on_paste_pressed() -> void:
+func paste_at_selected() -> void:
 	var selected := feature_tree.get_selected_node()
 	if selected == null:
 		selected = root
@@ -254,8 +246,8 @@ func copy(node: Feature) -> void:
 	DisplayServer.clipboard_set(json)
 	update_button_availability()
 	# Windows can answer a read with the previous clipboard for a moment after a
-	# write, which would leave Paste greyed out on what was just copied, so ask
-	# again once this frame is over.
+	# write, which would leave Paste greyed out in the Edit menu on what was just
+	# copied, so ask again once this frame is over.
 	update_button_availability.call_deferred()
 
 

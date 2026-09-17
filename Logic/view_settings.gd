@@ -182,17 +182,6 @@ func light_vector() -> Vector3:
 		sin(azimuth) * cos_elevation, sin(elevation), cos(azimuth) * cos_elevation)
 
 
-# The elevation and azimuth of a direction in the scene, which is light_vector()
-# the other way round.
-static func light_from_vector(direction: Vector3) -> Vector2:
-	if direction.length_squared() < 1e-12:
-		return DEFAULT_LIGHT
-	var unit := direction.normalized()
-	return clamp_light(Vector2(
-		rad_to_deg(asin(clampf(unit.y, -1.0, 1.0))),
-		rad_to_deg(atan2(unit.x, unit.z))))
-
-
 # An elevation the light can actually be turned to, and an azimuth in the range
 # every other angle in the application is given in.
 static func clamp_light(direction: Vector2) -> Vector2:

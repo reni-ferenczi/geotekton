@@ -6,7 +6,8 @@ class_name AutomationPort
 # newline delimited JSON: one request object per line, one response object per line.
 # Requests are handled one at a time, in order.
 
-# The tool names a scripted run uses, matching the toolbar buttons.
+# The tool names a scripted run uses, matching the toolbar buttons. Topology has
+# no button; the section table's Pick toggle arms it.
 const TOOL_NAMES := {
 	Application.Tool.MOVE: "move",
 	Application.Tool.ROTATE: "rotate",
@@ -16,7 +17,6 @@ const TOOL_NAMES := {
 	Application.Tool.MEASURE: "measure",
 	Application.Tool.CIRCLE: "circle",
 	Application.Tool.TOPOLOGY: "topology",
-	Application.Tool.LIGHT: "light",
 	Application.Tool.SPLIT: "split",
 }
 
@@ -169,10 +169,12 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			await _frames(2)
 			return {"ok": true}
 
+		"get_clipboard":
+			return {"ok": true, "text": DisplayServer.clipboard_get()}
+
 		"set_clipboard":
-			# The feature tree toolbar greys its Paste button out by what the
-			# clipboard holds, so a run that wants the same window every time
-			# has to say what that is.
+			# The Edit menu greys Paste out by what the clipboard holds, so a run
+			# that checks it has to say what that is.
 			DisplayServer.clipboard_set(str(request.get("text", "")))
 			app.features.update_button_availability()
 			await _frames(2)
@@ -363,14 +365,18 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			var section_button: Button = {
 				"Reverse": app.properties.reverse_button,
 				"Remove": app.properties.remove_section_button,
+				"Pick": app.properties.pick_section_button,
 			}.get(str(request.get("button", "")))
-			if section_button == null:
+			if section_button == null or not section_button.is_visible_in_tree():
 				return {"ok": false, "error":
 					"no section button called %s" % request.get("button", "")}
 			if section_button.disabled:
 				return {"ok": false, "error":
 					"the %s button is disabled" % request.get("button", "")}
-			section_button.pressed.emit()
+			if section_button.toggle_mode:
+				section_button.button_pressed = not section_button.button_pressed
+			else:
+				section_button.pressed.emit()
 			await _frames(2)
 			return {"ok": true}
 
@@ -632,13 +638,19 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"segments_visible": app.segments_spin.is_visible_in_tree(),
 				"draw_enabled": not app.draw_button.disabled,
 				"circle_enabled": not app.circle_button.disabled,
-				"topology_enabled": not app.topology_button.disabled,
+				"topology_enabled": app._can_build_topology(
+					app.features.feature_tree.get_selected_node()),
+				# The names of what the tool strip holds, buttons and switches.
+				"tool_strip": app.move_button.get_parent().get_children().map(
+					func(child: Node) -> String: return str(child.name)),
 				"status_measure": app.status_measure.text}
 
 		"set_tool":
 			# Only what the toolbar itself allows: a tool is refused wherever its
-			# button is greyed out. Which kind the Draw and Circle tools produce
-			# comes from the selected feature's type, which set_property sets.
+			# button is greyed out, and Topology, which has no button, wherever
+			# the section table's Pick toggle would be refused. Which kind the
+			# Draw and Circle tools produce comes from the selected feature's
+			# type, which set_property sets.
 			var tool_name := str(request.get("tool", ""))
 			if tool_name == "draw":
 				if app.draw_button.disabled:
@@ -662,14 +674,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 					return {"ok": false, "error": "the Circle tool needs a feature selected"}
 				app.set_active_tool(Application.Tool.CIRCLE)
 			elif tool_name == "topology":
-				if app.topology_button.disabled:
+				if not app._can_build_topology(app.features.feature_tree.get_selected_node()):
 					return {"ok": false, "error":
 						"the Topology tool needs a feature that can be a topology"}
-				app.set_active_tool(Application.Tool.TOPOLOGY)
-			elif tool_name == "light":
-				if app.light_button.disabled:
-					return {"ok": false, "error": "the light is dragged on the globe"}
-				app.set_active_tool(Application.Tool.LIGHT)
+				app.start_section_pick(true)
 			elif tool_name == "split":
 				if app.split_button.disabled:
 					return {"ok": false, "error": "the Split tool needs a polygon selected"}
@@ -680,9 +688,6 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				return {"ok": false, "error": "unknown tool: %s" % tool_name}
 			if request.has("segments"):
 				app.segments_spin.value = float(request["segments"])
-			if request.has("snap"):
-				app.snap_button.button_pressed = bool(request["snap"])
-				app.snap_button.toggled.emit(app.snap_button.button_pressed)
 			if request.has("ridge"):
 				app.ridge_check.button_pressed = bool(request["ridge"])
 				app.ridge_check.toggled.emit(app.ridge_check.button_pressed)
@@ -1072,6 +1077,7 @@ func _menu_item(name: String) -> Array:
 		"delete": return [app.edit_menu, Application.EditItem.DELETE]
 		"copy_shape": return [app.edit_menu, Application.EditItem.COPY_SHAPE]
 		"paste_shape": return [app.edit_menu, Application.EditItem.PASTE_SHAPE]
+		"snap_to_vertices": return [app.edit_menu, Application.EditItem.SNAP]
 		"new": return [app.file_menu, Application.FileItem.NEW]
 		"open": return [app.file_menu, Application.FileItem.OPEN]
 		"save": return [app.file_menu, Application.FileItem.SAVE]
