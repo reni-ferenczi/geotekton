@@ -112,13 +112,13 @@ var circle_segments: int = Circle.DEFAULT_SEGMENTS
 var polar := false
 
 # What a Hotspot feature is built from: where the hotspot is, as (latitude,
-# longitude) in degrees in the world frame, the uuid of the feature it burns
-# through, empty for none, and how many million years apart the track is
-# sampled. No other type reads them; Hotspot.rebuild() makes the rings.
-const DEFAULT_TRACK_STEP := 5.0
-var hotspot := Vector2.ZERO
+# longitude) in degrees in the world frame, NO_HOTSPOT until the Draw tool
+# places it, and the uuid of the feature it burns through, empty for none. The
+# track is sampled at the timeline's Skip. No other type reads them;
+# Hotspot.rebuild() makes the rings.
+const NO_HOTSPOT := Vector2(INF, INF)
+var hotspot := NO_HOTSPOT
 var plate_uuid := ""
-var track_step: float = DEFAULT_TRACK_STEP
 
 # Triangles covering the polygon rings, 3 vertices each, wound so that they face
 # outwards. Derived from rings by rebuild_triangles(), never read from a file.
@@ -364,7 +364,6 @@ func clone() -> Feature:
 	node.polar = polar
 	node.hotspot = hotspot
 	node.plate_uuid = plate_uuid
-	node.track_step = track_step
 	for child in children:
 		node.children.append(child.clone())
 	return node
@@ -497,10 +496,12 @@ func to_json() -> Variant:
 			data["circle_segments"] = circle_segments
 			if polar:
 				data["polar"] = true
+		# A hotspot not placed yet writes no place, the way a circle not drawn
+		# yet writes no center.
 		if is_hotspot():
-			data["hotspot"] = [hotspot.x, hotspot.y]
+			if Hotspot.placed(self):
+				data["hotspot"] = [hotspot.x, hotspot.y]
 			data["plate"] = plate_uuid
-			data["track_step"] = track_step
 	return data
 
 
@@ -547,10 +548,10 @@ static func from_json(data: Variant) -> Feature:
 		node.radius = float(data.get("radius", DEFAULT_RADIUS))
 		node.circle_segments = int(data.get("circle_segments", Circle.DEFAULT_SEGMENTS))
 		node.polar = bool(data.get("polar", false))
-		var h: Array = data.get("hotspot", [0.0, 0.0])
-		node.hotspot = Vector2(h[0], h[1])
+		if data.has("hotspot"):
+			var h: Array = data["hotspot"]
+			node.hotspot = Vector2(h[0], h[1])
 		node.plate_uuid = str(data.get("plate", ""))
-		node.track_step = float(data.get("track_step", DEFAULT_TRACK_STEP))
 		# The parameters win over the rings the file holds. A hotspot's track
 		# needs the whole tree, so Hotspot.rebuild_all() redoes it before the
 		# geometry is collected.

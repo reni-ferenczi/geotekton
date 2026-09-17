@@ -216,8 +216,8 @@ func set_style(group: Feature, style: GroupStyle) -> String:
 #
 # Circles and hotspots build their own rings, so they are picked on a feature
 # holding nothing. A circle's rings come when it is drawn or given a center and
-# radius; a hotspot's are there as soon as the type is. A hotspot is fixed in the world frame, so it is not picked on a feature that
-# moves either.
+# radius, a hotspot's when the Draw tool places it. A hotspot is fixed in the
+# world frame, so it is not picked on a feature that moves either.
 func set_feature_type(feature: Feature, type_id: String) -> String:
 	if not FeatureType.CATALOG.has(type_id):
 		return "There is no feature type called %s." % type_id
@@ -235,7 +235,8 @@ func set_feature_type(feature: Feature, type_id: String) -> String:
 		feature.color = FeatureType.color(type_id)
 	feature.feature_type = type_id
 	if to_hotspot:
-		Hotspot.rebuild(root, feature, current_time)
+		feature.hotspot = Feature.NO_HOTSPOT
+		Hotspot.rebuild(root, feature, current_time, Config.get_skip_increment())
 	record()
 	return ""
 
@@ -273,24 +274,20 @@ func set_circle(feature: Feature, axis: Vector2, radius: float, segments: int,
 	return ""
 
 
-# Give a hotspot another place, plate or track step and rebuild its rings, in
-# one undo version. The place is in the world frame, where the hotspot is fixed.
-func set_hotspot(feature: Feature, hotspot: Vector2, plate_uuid: String,
-		track_step: float) -> String:
+# Give a hotspot another place or plate and rebuild its rings, in one undo
+# version. The place is in the world frame, where the hotspot is fixed, or
+# Feature.NO_HOTSPOT, so the plate can be picked before the hotspot is placed.
+func set_hotspot(feature: Feature, hotspot: Vector2, plate_uuid: String) -> String:
 	if feature == null or not feature.is_hotspot():
-		return "Only a hotspot has a place, a plate and a track step."
-	var problem := check_coordinates(hotspot)
+		return "Only a hotspot has a place and a plate."
+	var problem := "" if hotspot == Feature.NO_HOTSPOT else check_coordinates(hotspot)
 	if problem.is_empty():
 		problem = Hotspot.plate_problem(root, feature, plate_uuid)
 	if not problem.is_empty():
 		return problem
-	if track_step < Hotspot.MIN_STEP or track_step > Hotspot.MAX_STEP:
-		return "The track step is %s My, outside %s to %s My." % [
-			track_step, Hotspot.MIN_STEP, Hotspot.MAX_STEP]
 	feature.hotspot = hotspot
 	feature.plate_uuid = plate_uuid
-	feature.track_step = track_step
-	Hotspot.rebuild(root, feature, current_time)
+	Hotspot.rebuild(root, feature, current_time, Config.get_skip_increment())
 	record()
 	return ""
 
@@ -979,7 +976,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.21.0"):
+	if not _is_older_than(version, "0.22.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -1020,8 +1017,21 @@ static func migrate(data: Dictionary) -> Dictionary:
 	# is what every topology was before, so once more only the version moves.
 	if _is_older_than(version, "0.21.0"):
 		_to_0_21_0(data.get("features", {}))
-	data["version"] = "0.21.0"
+	if _is_older_than(version, "0.22.0"):
+		_to_0_22_0(data.get("features", {}))
+	data["version"] = "0.22.0"
 	return data
+
+
+# 0.22.0 samples a hotspot's track at the timeline's Skip, so a hotspot leaf
+# loses the track step it carried.
+static func _to_0_22_0(node: Variant) -> void:
+	if node is not Dictionary:
+		return
+	for child in node.get("children", []):
+		_to_0_22_0(child)
+	if str(node.get("feature_type", "")) == FeatureType.HOTSPOT:
+		node.erase("track_step")
 
 
 # 0.21.0 folded Polar circles into Circle. A polar circles leaf becomes a circle

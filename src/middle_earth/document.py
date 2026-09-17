@@ -29,7 +29,7 @@ EXTENSION = ".middle-earth"
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
-CURRENT_VERSION = "0.21.0"
+CURRENT_VERSION = "0.22.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.36, 0.60, 0.33, 1.0]

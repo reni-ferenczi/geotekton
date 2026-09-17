@@ -310,16 +310,19 @@ func _ready() -> void:
 		refresh_colors())
 	properties.rejected.connect(_show_error)
 	properties.pick_parent_requested.connect(
-		func(on: bool) -> void: start_parent_pick() if on else end_parent_pick())
+		func(on: bool) -> void: start_parent_pick() if on else end_pick())
+	properties.pick_plate_requested.connect(
+		func(on: bool) -> void: start_plate_pick() if on else end_pick())
 	properties.palette_file_requested.connect(choose_palette)
 	properties.pick_axis_requested.connect(start_axis_pick)
-	properties.pick_hotspot_requested.connect(start_hotspot_pick)
 	properties.pick_section_requested.connect(start_section_pick)
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
 	document.time_changed.connect(_on_time_changed)
 	timeline.attach(document)
 	timeline.configure_requested.connect(_show_animation_dialog)
+	# A hotspot's track has a sample at every skip, so a new one redraws it.
+	timeline.skip_changed.connect(refresh_motion)
 	kinematics.attach(document, timeline)
 	# The Edit menus follow the feature tree's own signal: the undo depth, the
 	# selection and the clipboard all reach it, which a copy that records no
@@ -1990,10 +1993,8 @@ func _on_cursor_moved(lat: float, lon: float) -> void:
 
 func set_active_tool(tool: Tool) -> void:
 	taken_back = PackedVector2Array()
-	# The axis and hotspot picks last one click of the Pole tool; any change of
-	# tool ends them.
+	# The axis pick lasts one click of the Pole tool; any change of tool ends it.
 	picking_axis = false
-	picking_hotspot = false
 	if active_tool == Tool.DRAW and tool != Tool.DRAW:
 		_outline_cancel()
 	if active_tool == Tool.VERTEX and tool != Tool.VERTEX:
@@ -2098,15 +2099,14 @@ func _on_feature_selected(node: Feature) -> void:
 	# Nothing selected does not: rebuilding the tree clears the selection for a
 	# moment before it puts it back, and a tool that gave up over that would
 	# not survive an undo.
-	# A hotspot cannot be turned, but its pick borrows the Pole tool.
-	var editable := node == null or _can_spin(node) or picking_hotspot
+	var editable := node == null or _can_spin(node)
 	if (active_tool == Tool.VERTEX or _spins(active_tool)) and not editable:
 		set_active_tool(Tool.MOVE)
 	if active_tool == Tool.VERTEX and node != null and not _can_edit_vertices(node):
 		set_active_tool(Tool.MOVE)
-	# The axis, hotspot or sections being picked belong to the feature that
-	# asked for them.
-	if (picking_axis or picking_hotspot or active_tool == Tool.TOPOLOGY) \
+	# The axis or sections being picked belong to the feature that asked for
+	# them.
+	if (picking_axis or active_tool == Tool.TOPOLOGY) \
 			and node != null and node.pnid != pick_pnid:
 		set_active_tool(Tool.MOVE)
 	if active_tool == Tool.SPLIT and node != null and not _can_split_along(node):
@@ -2233,10 +2233,11 @@ func drawing_kind() -> Feature.GeometryKind:
 
 # Which types the Draw tool draws. A Topology is picked together out of other
 # features instead. A Circle is drawn from two or three clicks rather than
-# vertex by vertex, which _drawing_circle() tells apart. A feature carrying no
-# type at all, which only a file written before 0.3.0 holds, is drawn like a
-# Polygon.
-const DRAW_TYPES := [FeatureType.NONE, "polygon", "line", "points", FeatureType.CIRCLE]
+# vertex by vertex, which _drawing_circle() tells apart, and a Hotspot is put
+# down with one click, which _drawing_hotspot() does. A feature carrying no type
+# at all, which only a file written before 0.3.0 holds, is drawn like a Polygon.
+const DRAW_TYPES := [FeatureType.NONE, "polygon", "line", "points", FeatureType.CIRCLE,
+	FeatureType.HOTSPOT]
 
 
 func _has_type(node: Feature, types: Array) -> bool:
@@ -2258,6 +2259,13 @@ func _drawing_circle() -> bool:
 		and _has_type(features.feature_tree.get_selected_node(), [FeatureType.CIRCLE])
 
 
+# Whether the Draw tool is placing a hotspot: it is armed and the selected
+# feature is a hotspot.
+func _drawing_hotspot() -> bool:
+	var selected := features.feature_tree.get_selected_node()
+	return active_tool == Tool.DRAW and selected != null and selected.is_hotspot()
+
+
 # Whether a feature can be edited vertex by vertex or turned about an axis. A
 # group carries no motion and no vertices, a topology borrows every vertex it
 # draws from the features it runs along, and a feature holding nothing has
@@ -2274,7 +2282,8 @@ func _can_edit_vertices(node: Feature) -> bool:
 
 # The tool the feature's type calls for, or Move when nothing draws it: a
 # feature that holds a shape already, a topology, whose sections are picked from
-# the Properties panel, a group, or nothing selected.
+# the Properties panel, a group, or nothing selected. A hotspot not placed yet
+# holds nothing, so it gets the Draw tool.
 func _tool_for(node: Feature) -> Tool:
 	if node == null or node.is_group or node.has_geometry():
 		return Tool.MOVE
@@ -2505,9 +2514,6 @@ func _place_pole(at: Vector2) -> void:
 	if picking_axis:
 		_finish_axis_pick(pole_at)
 		return
-	if picking_hotspot:
-		_finish_hotspot_pick(pole_at, at)
-		return
 	_refresh_selection_outline()
 	_show_measurement()
 
@@ -2553,48 +2559,6 @@ func _finish_axis_pick(world: Vector2) -> void:
 	refresh_geometry()
 
 
-### Picking a hotspot
-#
-# The Pick button of the hotspot rows arms the Pole tool for one click the way
-# Pick axis does. The click, snapped like any pole, is where the hotspot goes,
-# and a feature under the click that can be the plate becomes the plate. See
-# Docs/Editing.md#hotspots.
-
-var picking_hotspot: bool = false
-
-
-func start_hotspot_pick() -> void:
-	var feature := features.feature_tree.get_selected_node()
-	if feature == null or not feature.is_hotspot():
-		return
-	set_active_tool(Tool.POLE)
-	picking_hotspot = true
-	pick_pnid = feature.pnid
-	pole_at = feature.hotspot
-	_refresh_selection_outline()
-	_show_measurement()
-
-
-# The hotspot goes where the pole landed; the plate is looked for under the
-# click itself, before any snapping moved it.
-func _finish_hotspot_pick(world: Vector2, clicked: Vector2) -> void:
-	var feature := features.feature_tree.get_selected_node()
-	set_active_tool(Tool.MOVE)
-	if feature == null or not feature.is_hotspot():
-		return
-	var plate := feature.plate_uuid
-	var hit := Planet.hit_test(clicked.x, clicked.y, geometry)
-	if hit != null and Hotspot.plate_problem(features.root, feature, hit.uuid).is_empty():
-		plate = hit.uuid
-	var error := document.set_hotspot(feature, world, plate, feature.track_step)
-	if not error.is_empty():
-		_report(error)
-		return
-	features.reload()
-	_show_selection(features.feature_tree.get_selected_node())
-	refresh_geometry()
-
-
 # How far each arm of the cross marking the pole reaches, in degrees.
 const POLE_CROSS := 3.0
 
@@ -2627,8 +2591,8 @@ var outline_vertices := PackedVector2Array()
 # view's own, and it leaves them alone while a tool owns the clicks.
 func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 	# The pick mode takes the click ahead of every tool, whichever one is armed.
-	if picking_parent:
-		_on_pick_parent_input(lat, lon, event)
+	if picking != Pick.NONE:
+		_on_pick_input(lat, lon, event)
 		return
 	match active_tool:
 		Tool.ROTATE, Tool.POLE:
@@ -2746,6 +2710,10 @@ func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 	if selected.feature_type == FeatureType.CIRCLE:
 		_on_draw_circle_input(lat, lon, event)
 		return
+	if selected.is_hotspot():
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			_place_hotspot(selected, Vector2(lat, lon))
+		return
 
 	if event.button_index == MOUSE_BUTTON_LEFT:
 		var snap := _draw_snap(lat, lon)
@@ -2757,6 +2725,24 @@ func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 			_draw_points(PackedVector2Array([snap["point"]]), [snap])
 	elif event.button_index == MOUSE_BUTTON_RIGHT and not outline_vertices.is_empty():
 		undo()
+
+
+# Put the hotspot where the Draw tool was clicked, on the feature under the
+# click when that can be its plate, and stay in Draw, so the next click moves it.
+# Otherwise the plate it had is kept. One undo version, and nothing is held.
+func _place_hotspot(hotspot: Feature, at: Vector2) -> void:
+	var plate := hotspot.plate_uuid
+	var hit := Planet.hit_test(at.x, at.y, geometry)
+	if hit != null and Hotspot.plate_problem(features.root, hotspot, hit.uuid).is_empty():
+		plate = hit.uuid
+	var error := document.set_hotspot(hotspot, at, plate)
+	if not error.is_empty():
+		_report(error)
+		return
+	features.reload()
+	_show_selection(features.feature_tree.get_selected_node())
+	refresh_geometry()
+	_show_measurement()
 
 
 # What each held point of the drawing snapped to, side by side with
@@ -2905,15 +2891,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if event is not InputEventKey or not event.is_pressed():
 		return
 
-	# Escape ends the parent pick whatever the tool, since the mode is not one.
-	if picking_parent and event.keycode == KEY_ESCAPE:
-		end_parent_pick()
+	# Escape ends the pick whatever the tool, since the mode is not one.
+	if picking != Pick.NONE and event.keycode == KEY_ESCAPE:
+		end_pick()
 		get_viewport().set_input_as_handled()
 		return
 
 	match active_tool:
 		Tool.POLE:
-			if event.keycode == KEY_ESCAPE and (picking_axis or picking_hotspot):
+			if event.keycode == KEY_ESCAPE and picking_axis:
 				set_active_tool(Tool.MOVE)
 			elif event.keycode == KEY_ESCAPE:
 				_spin_cancel()
@@ -2923,7 +2909,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			else:
 				return
 		Tool.DRAW:
-			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+			# A hotspot holds no points to cancel, so Escape leaves the tool.
+			if event.keycode == KEY_ESCAPE and _drawing_hotspot():
+				set_active_tool(Tool.MOVE)
+			elif event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
 				if _drawing_circle():
 					_report(_circle_commit())
 				else:
@@ -3699,8 +3688,16 @@ func _show_measurement(error: String = "") -> void:
 		status_measure.text = error
 		return
 
-	if picking_parent:
+	if picking == Pick.PARENT:
 		status_measure.text = "Pick the feature to follow"
+		return
+	if picking == Pick.PLATE:
+		status_measure.text = "Pick the feature the hotspot burns through"
+		return
+
+	if _drawing_hotspot():
+		status_measure.text = "Click to place %s; click again to move it" % \
+			features.feature_tree.get_selected_node().title
 		return
 
 	if active_tool == Tool.TOPOLOGY:
@@ -3721,10 +3718,6 @@ func _show_measurement(error: String = "") -> void:
 
 	if picking_axis:
 		status_measure.text = "click the planet to put the axis of the circle there"
-		return
-
-	if picking_hotspot:
-		status_measure.text = "click the planet to put the hotspot there, on the plate it burns through"
 		return
 
 	if _spins(active_tool):
@@ -3826,53 +3819,65 @@ func _ring_on_screen(feature: Feature, part: int) -> PackedVector2Array:
 
 ### Picking the parent off the planet
 #
-# The pointer button on the Follow row of the Properties panel arms a one shot
-# pick: the next left click on the planet names the feature under it in the
-# picker, and nothing else about the application changes. The selection stays
-# where it is and so does the tool, so the planet's own clicks are held back
-# with `tool_handles_clicks` and given back once the mode is over. A click that
-# picks nothing the picker offers says why and leaves the mode on, so a miss
-# costs one more click. See Docs/Properties.md#coupling.
+# The pointer buttons on the Follow row and on a hotspot's Plate row of the
+# Properties panel arm a one shot pick: the next left click on the planet names
+# the feature under it in that row's picker, and nothing else about the
+# application changes. The selection stays where it is and so does the tool,
+# so the planet's own clicks are held back with `tool_handles_clicks` and given
+# back once the mode is over. A click that picks nothing the row takes says why
+# and leaves the mode on, so a miss costs one more click. See
+# Docs/Properties.md#coupling and Docs/Editing.md#hotspots.
 
-var picking_parent: bool = false
+# What the pick is for: nothing, the parent to follow or the plate of a hotspot.
+enum Pick { NONE, PARENT, PLATE }
+
+var picking := Pick.NONE
 
 
 func start_parent_pick() -> void:
-	if picking_parent:
-		return
-	picking_parent = true
+	_start_pick(Pick.PARENT)
+
+
+func start_plate_pick() -> void:
+	_start_pick(Pick.PLATE)
+
+
+func _start_pick(pick: Pick) -> void:
+	picking = pick
 	planet_view.tool_handles_clicks = true
-	properties.show_picking(true)
+	properties.show_picking(pick == Pick.PARENT, pick == Pick.PLATE)
 	_show_measurement()
 
 
-func end_parent_pick() -> void:
-	if not picking_parent:
+func end_pick() -> void:
+	if picking == Pick.NONE:
 		return
-	picking_parent = false
+	picking = Pick.NONE
 	# What _set_tool() would have left it as, rather than what it was when the
 	# mode started, so a tool picked while the pointer was armed still decides.
 	planet_view.tool_handles_clicks = active_tool != Tool.MOVE
-	properties.show_picking(false)
+	properties.show_picking(false, false)
 	_show_measurement()
 
 
-func _on_pick_parent_input(lat: float, lon: float, event: InputEvent) -> void:
+func _on_pick_input(lat: float, lon: float, event: InputEvent) -> void:
 	var button := event as InputEventMouseButton
 	if button == null or not button.is_pressed() or button.button_index != MOUSE_BUTTON_LEFT:
 		return
 	var hit := Planet.hit_test(lat, lon, geometry)
 	if hit == null:
-		_report("Click a feature to follow.")
+		_report("Click a feature to follow." if picking == Pick.PARENT
+			else "Click the feature the hotspot burns through.")
 		return
-	if hit.geometry_kind == Feature.GeometryKind.TOPOLOGY:
+	if picking == Pick.PARENT and hit.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		_report("A topology is not something to follow.")
 		return
-	var problem := properties.pick_parent_uuid(hit.uuid)
+	var problem := properties.pick_parent_uuid(hit.uuid) if picking == Pick.PARENT \
+		else properties.pick_plate_uuid(hit.uuid)
 	if not problem.is_empty():
 		_report(problem)
 		return
-	end_parent_pick()
+	end_pick()
 
 
 ### Craton interaction

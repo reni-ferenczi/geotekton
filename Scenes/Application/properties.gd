@@ -34,9 +34,9 @@ signal pick_parent_requested(on: bool)
 # Pole tool's click, and writes the axis through the document.
 signal pick_axis_requested()
 
-# The Pick button of the hotspot rows was pressed. The Application owns that
-# pick too, and writes the place and the plate through the document.
-signal pick_hotspot_requested()
+# The pointer button on the Plate row was pressed or let go. The Application
+# owns that pick as well, the same mode as the parent pick.
+signal pick_plate_requested(on: bool)
 
 # The Pick toggle of the section table was pressed or let go. The Application
 # arms the Topology tool for the topology shown, and ends it.
@@ -123,11 +123,9 @@ var axis_lon_spin: SpinBox
 var radius_spin: SpinBox
 var circle_segments_spin: SpinBox
 var pick_axis_button: Button
-var hotspot_lat_spin: SpinBox
-var hotspot_lon_spin: SpinBox
-var pick_hotspot_button: Button
+var plate_row: HBoxContainer
 var plate_selector: OptionButton
-var track_step_spin: SpinBox
+var pick_plate_button: Button
 
 # Every row of the form, each a label and the control beside it, and whether a
 # group and a feature have it.
@@ -406,26 +404,29 @@ func _build_circle(form: GridContainer) -> void:
 	_circle_boxes.append(pick_axis_button)
 
 
-# The rows a hotspot is built from: where it is, the button that picks that off
-# the planet, the plate it burns through and how finely its track is sampled.
-# Each edit is one undo version.
+# The row a hotspot takes its plate from: the picker and the pointer that
+# picks the plate off the planet. The Draw tool places the hotspot itself. Each
+# edit is one undo version.
 func _build_hotspot(form: GridContainer) -> void:
-	var commit := func(_value: float) -> void: _commit_hotspot()
-	hotspot_lat_spin = _param_spin("HotspotLatitude", -90.0, 90.0, 0.01, "°", commit)
-	hotspot_lon_spin = _param_spin("HotspotLongitude", -180.0, 180.0, 0.01, "°", commit)
-	pick_hotspot_button = Button.new()
-	pick_hotspot_button.name = "PickHotspot"
-	pick_hotspot_button.text = "Pick"
-	pick_hotspot_button.tooltip_text = "Click the planet to put the hotspot there, on the plate under the click"
-	pick_hotspot_button.pressed.connect(pick_hotspot_requested.emit)
+	plate_row = HBoxContainer.new()
+	plate_row.name = "PlateRow"
+	_row(form, "Plate", plate_row)
+	_hotspot_boxes.append(_rows.back()["label"])
+	_hotspot_boxes.append(plate_row)
+
 	plate_selector = _selector("Plate")
+	plate_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	plate_selector.item_selected.connect(func(_index: int) -> void: _commit_hotspot())
-	track_step_spin = _param_spin("TrackStep", Hotspot.MIN_STEP, Hotspot.MAX_STEP, 0.1, "", commit)
-	for entry: Array in [["Latitude", hotspot_lat_spin], ["Longitude", hotspot_lon_spin],
-			["", pick_hotspot_button], ["Plate", plate_selector], ["Step (My)", track_step_spin]]:
-		_row(form, entry[0], entry[1])
-		_hotspot_boxes.append(_rows.back()["label"])
-		_hotspot_boxes.append(entry[1])
+	plate_row.add_child(plate_selector)
+
+	pick_plate_button = Button.new()
+	pick_plate_button.name = "PickPlate"
+	pick_plate_button.toggle_mode = true
+	pick_plate_button.icon = load(PICK_PARENT_ICON)
+	pick_plate_button.tooltip_text = "Click a feature on the planet to burn through it"
+	pick_plate_button.toggled.connect(
+		func(on: bool) -> void: pick_plate_requested.emit(on))
+	plate_row.add_child(pick_plate_button)
 
 
 func _param_spin(spin_name: String, low: float, high: float, step: float,
@@ -613,6 +614,9 @@ func show_node(node_: Feature) -> void:
 	if node_ != node and pick_parent_button != null and pick_parent_button.button_pressed:
 		pick_parent_button.set_pressed_no_signal(false)
 		pick_parent_requested.emit(false)
+	if node_ != node and pick_plate_button != null and pick_plate_button.button_pressed:
+		pick_plate_button.set_pressed_no_signal(false)
+		pick_plate_requested.emit(false)
 	node = node_
 	var editable := node != null and not node.is_root
 	var is_feature := editable and not node.is_group
@@ -994,14 +998,29 @@ func pick_parent_uuid(uuid: String) -> String:
 	return "That feature is not one of the ones to follow."
 
 
+# Make the feature with that uuid the plate, which is what a click on the
+# planet comes back with. Returns why it cannot be, or an empty string once it is.
+func pick_plate_uuid(uuid: String) -> String:
+	var problem := Hotspot.plate_problem(document.root, node, uuid)
+	if not problem.is_empty():
+		return problem
+	for index in plate_selector.item_count:
+		if str(plate_selector.get_item_metadata(index)) == uuid:
+			plate_selector.select(index)
+	_commit_hotspot()
+	return ""
+
+
 # Whether the pick mode is on, which is what the button shows. The mode itself
 # is the Application's; see Docs/Properties.md#coupling.
 func picking_parent() -> bool:
 	return pick_parent_button.button_pressed
 
 
-func show_picking(on: bool) -> void:
-	pick_parent_button.set_pressed_no_signal(on)
+# Which pointer shows the pick mode as on: the Follow row's or the Plate row's.
+func show_picking(parent: bool, plate: bool) -> void:
+	pick_parent_button.set_pressed_no_signal(parent)
+	pick_plate_button.set_pressed_no_signal(plate)
 
 
 # Whether the Topology tool is armed, which is what the section Pick toggle
@@ -1160,9 +1179,6 @@ func _commit_circle() -> void:
 # Call while _filling. The plate list is every feature that can be the plate, in
 # tree order, after None.
 func _show_hotspot() -> void:
-	hotspot_lat_spin.value = node.hotspot.x
-	hotspot_lon_spin.value = node.hotspot.y
-	track_step_spin.value = node.track_step
 	plate_selector.clear()
 	plate_selector.add_item("None")
 	plate_selector.set_item_metadata(0, "")
@@ -1174,18 +1190,16 @@ func _show_hotspot() -> void:
 		plate_selector.set_item_metadata(plate_selector.item_count - 1, leaf.uuid)
 		if leaf.uuid == node.plate_uuid:
 			plate_selector.select(plate_selector.item_count - 1)
+	pick_plate_button.disabled = plate_selector.item_count < 2
 
 
 func _commit_hotspot() -> void:
 	if _filling or node == null or not node.is_hotspot():
 		return
-	var place := Vector2(_unrounded(hotspot_lat_spin, node.hotspot.x),
-		_unrounded(hotspot_lon_spin, node.hotspot.y))
 	var plate := str(plate_selector.get_item_metadata(plate_selector.selected))
-	var step := _unrounded(track_step_spin, node.track_step)
-	if place == node.hotspot and plate == node.plate_uuid and step == node.track_step:
+	if plate == node.plate_uuid:
 		return
-	var error := document.set_hotspot(node, place, plate, step)
+	var error := document.set_hotspot(node, node.hotspot, plate)
 	if not error.is_empty():
 		_filling = true
 		_show_hotspot()
@@ -1427,15 +1441,16 @@ func to_json() -> Dictionary:
 			"circle_segments": int(circle_segments_spin.value),
 			"pick_axis": not pick_axis_button.disabled,
 		}
-	if pick_hotspot_button.visible:
+	if plate_row.visible:
 		data["hotspot"] = {
-			"position": [hotspot_lat_spin.value, hotspot_lon_spin.value],
+			"position": [node.hotspot.x, node.hotspot.y] if Hotspot.placed(node) else null,
 			"plate": plate_selector.get_item_text(plate_selector.selected),
 			"plates": range(plate_selector.item_count).map(
 				func(index: int) -> String: return plate_selector.get_item_text(index)),
-			"track_step": track_step_spin.value,
-			"samples": Hotspot.track(document.root, node, document.current_time).size(),
-			"pick": not pick_hotspot_button.disabled,
+			"samples": Hotspot.track(document.root, node, document.current_time,
+				Config.get_skip_increment()).size(),
+			"pick": not pick_plate_button.disabled,
+			"picking": pick_plate_button.button_pressed,
 		}
 	return data
 
@@ -1573,22 +1588,13 @@ func set_field(field: String, value: Variant) -> String:
 			if not closed_check.visible:
 				return "only a topology can be closed"
 			closed_check.button_pressed = bool(value)
-		"hotspot", "plate", "track_step":
-			if not pick_hotspot_button.visible:
-				return "only a hotspot has %s" % field
-			if field == "plate":
-				var at := 0 if str(value).is_empty() else _item_text_index(plate_selector, str(value))
-				if at < 0:
-					return "the plate selector offers no %s" % value
-				plate_selector.select(at)
-			else:
-				_filling = true
-				if field == "hotspot":
-					hotspot_lat_spin.value = float(value[0])
-					hotspot_lon_spin.value = float(value[1])
-				else:
-					track_step_spin.value = float(value)
-				_filling = false
+		"plate":
+			if not plate_row.visible:
+				return "only a hotspot has a plate"
+			var at := 0 if str(value).is_empty() else _item_text_index(plate_selector, str(value))
+			if at < 0:
+				return "the plate selector offers no %s" % value
+			plate_selector.select(at)
 			_commit_hotspot()
 		_:
 			return "no such property: %s" % field

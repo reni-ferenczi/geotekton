@@ -201,7 +201,11 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				return {"ok": false, "error": "the Properties panel shows no button called %s" % wanted}
 			if (found as Button).disabled:
 				return {"ok": false, "error": "the %s button is disabled" % wanted}
-			(found as Button).pressed.emit()
+			# A toggle, such as a pointer, is flipped the way a click flips it.
+			if (found as Button).toggle_mode:
+				(found as Button).button_pressed = not (found as Button).button_pressed
+			else:
+				(found as Button).pressed.emit()
 			await _frames(2)
 			return {"ok": true}
 
@@ -394,7 +398,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				if bool(request["pick"]):
 					app.start_parent_pick()
 				else:
-					app.end_parent_pick()
+					app.end_pick()
 				await _frames(2)
 				return {"ok": true}
 			if request.has("parent"):
@@ -618,15 +622,16 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"tool": TOOL_NAMES[app.active_tool],
 				"drawing_vertices": app.outline_vertices.size(),
 				# What the Draw tool draws: "circle" on a feature typed Circle,
-				# otherwise the geometry kind it commits; null in any other tool.
+				# "hotspot" on a hotspot, otherwise the geometry kind it commits;
+				# null in any other tool.
 				"drawing": null if app.active_tool != Application.Tool.DRAW
 					else "circle" if app._drawing_circle()
+					else "hotspot" if app._drawing_hotspot()
 					else Feature.KIND_NAMES[app.drawing_kind()],
 				"vertex_enabled": not app.vertex_button.disabled,
 				"pole": null if app.pole_at == Application.NO_POLE
 					else [app.pole_at.x, app.pole_at.y],
 				"picking_axis": app.picking_axis,
-				"picking_hotspot": app.picking_hotspot,
 				"move_enabled": app.planet_view.move_enabled,
 				"snapping": app.snapping(),
 				"selected_vertex": _vertex_to_json(app.selected_vertex),

@@ -369,7 +369,7 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 static func collect_geometry(root: Feature, time: float = 0.0,
 		styling: Styling = null) -> Geometry:
 	Topology.rebuild_all(root, time)
-	Hotspot.rebuild_all(root, time)
+	Hotspot.rebuild_all(root, time, Config.get_skip_increment())
 	var geometry := Geometry.new()
 	geometry.nodes = Coupling.index(root)
 	var stack: Array[Feature] = [root]
