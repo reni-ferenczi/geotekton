@@ -59,9 +59,9 @@ static func path_length(points: PackedVector2Array, radius: float = EARTH_RADIUS
 # How far east from a to b, in degrees, the shorter way round: between -180 and
 # 180, negative to the west.
 #
-# An antipodal pair, exactly 180 degrees apart, has no shorter way. It goes
-# east, so the run is the same one whichever end it is read from rather than
-# whichever way the rounding fell.
+# An antipodal pair, exactly 180 degrees apart, has no shorter way round. It
+# goes east, so the run is a settled one rather than whichever half the
+# rounding of the subtraction happened to land on.
 static func _delta_lon(a: Vector2, b: Vector2) -> float:
 	var delta := fposmod(b.y - a.y, 360.0)
 	return delta if delta <= 180.0 else delta - 360.0
