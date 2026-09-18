@@ -669,7 +669,9 @@ A circle takes no part in [coupling](Time.md#coupling). The Properties panel
 shows no coupling rows for it, Couple is refused with "A circle follows
 nothing.", and a circle is not offered as a feature to follow: the picker
 leaves it out and a pick click on one says "A circle carries nothing." The
-keyframe row stays, since Move and Rotate still turn a circle.
+keyframe row stays, since Move and Rotate still turn a circle. A file written
+before 0.26.0 could couple a circle; the spans are dropped when it is opened,
+and the circle keeps everything else.
 
 The construction itself is in `Logic/circle.gd` and is tested without a
 window. How well three points settle a centre depends on how large the circle
@@ -737,6 +739,12 @@ hotspot. A hotspot never moves on its own: the keyframe and coupling rows are
 hidden, a Move drag does nothing, and the Vertex, Rotate and Pole tools are
 greyed out. Pasting a shape into it and the Python bridge's ring edit are
 refused.
+
+Like a circle, a hotspot takes no part in [coupling](Time.md#coupling) either.
+Couple is refused with "A hotspot follows its plate.", the picker does not offer
+a hotspot as a feature to follow, and a pick click on one says "A hotspot
+carries nothing." A file written before 0.26.0 could hold such a span; those are
+dropped when it is opened.
 
 The [Properties panel](Properties.md#the-hotspot-rows) picks the plate and
 takes the step, one undo version each time. The plate comes from its selector

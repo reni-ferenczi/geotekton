@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "features": { ... },
   "view": { ... }
 }
@@ -364,7 +364,9 @@ younger one where it ends, and `parent` the uuid of the feature followed, the
 way a section names its feature. Inside a span the keyframes are relative to
 the parent; see [Time](Time.md#coupling). Only a leaf has them, and spans on one
 feature do not overlap. A span whose parent is not in the file is kept as it
-stands, like a section whose feature is missing.
+stands, like a section whose feature is missing. A span naming a circle or a
+hotspot is not: neither takes part in coupling, and such a span is dropped when
+the file is opened; see [below](#0250-to-0260).
 
 A span may carry `parent_b`, a second uuid. Its frame is then midway between
 the two parents; see
@@ -664,6 +666,18 @@ loads with two, drawing the same bands, isochrons and flowlines.
 `time_step` of their own. Nothing but the version moves: a leaf from before has
 no key, which reads as 0, and 0 follows the timeline's Skip, which is what both
 did.
+
+#### 0.25.0 to 0.26.0
+
+0.26.0 took [circles](#circles) and [hotspots](#hotspots) out of
+[coupling](Time.md#coupling) altogether. Until 0.25.0 a file could still name
+one in a span, and the panel and the timeline marked such a span as broken. The
+step, `Document._to_0_26_0()`, drops every span whose child, `parent` or
+`parent_b` is a circle or a hotspot, and writes to the log how many it dropped.
+
+The features themselves stay, and so do their keyframes: a feature left without
+the span it had stops following whatever it followed and stands where its own
+keyframes put it. Every other span is kept as it was written.
 
 ## The config file
 

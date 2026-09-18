@@ -1492,8 +1492,8 @@ func to_json() -> Dictionary:
 			"key": not key_button.disabled,
 			"delete": not delete_key_button.disabled,
 		}
-	# A circle's spans, which only a file can give it, are still reported,
-	# marked as not shown.
+	# A circle keeps the keyframe row but not the coupling rows, so what those
+	# rows would hold is reported anyway, marked as not shown.
 	if coupled_label.get_parent().visible:
 		data["coupling"] = _coupling_to_json()
 		data["coupling"]["hidden"] = false
