@@ -73,7 +73,7 @@ const float LINE_FEATHER = 0.2;
 const vec3 CHILD_COLOR = vec3(1.0, 0.214041, 0.0);
 
 // Per feature state at the current time (filter_nearest for exact texel reads)
-// Layout: width = feature count, height = 6
+// Layout: width = one column per drawn feature, height = 6
 //   Row 0: (m00, m10, m20, hovered)  -- the first column of the rotation
 //   Row 1: (m01, m11, m21, visible)  -- the second
 //   Row 2: (m02, m12, m22, selected) -- the third
@@ -92,7 +92,9 @@ const vec3 CHILD_COLOR = vec3(1.0, 0.214041, 0.0);
 // halo and feather included: Feature.line_scale(). The line color is the
 // color for everything but a crust, whose bands are filled in its color and
 // whose isochrons and flowlines are drawn in the line color over them:
-// Feature.line_color().
+// Feature.line_color(). A crust also takes a column per band, each filled in
+// what the age ramp gives the crust in it, which is why this is a column
+// rather than a feature as far as the shader is concerned.
 uniform sampler2D feature_data : filter_nearest, repeat_disable;
 
 // Outline overlay data texture (filter_nearest for exact texel reads)

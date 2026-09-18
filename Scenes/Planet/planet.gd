@@ -354,7 +354,7 @@ static func _texels(primitive: Dictionary) -> Array[Color]:
 # color it is, which one the pointer rests on, which one is highlighted as
 # selected and which ones follow that one. This is the whole of what one step of an
 # animation, a change of color or a change of selection touches, so it is six
-# texels per feature rather than anything per triangle. Call geometry.resolve()
+# texels per column rather than anything per triangle. Call geometry.resolve()
 # for the wanted time first.
 func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 		selected_feature: Feature = null, related: Array[Feature] = []) -> void:
@@ -362,12 +362,12 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 	if count == 0:
 		return
 
-	# Data texture: width = feature count, height = 6, 32-bit float RGBA. The
-	# first three rows carry one column of the rotation each, with the hover,
-	# the visibility and the selection in the channels the rotation leaves over;
-	# the fourth is the color, the fifth says whether the feature is a child
-	# of the selected one and how wide its lines are, and the sixth is the color
-	# its lines come out in.
+	# Data texture: width = one column per drawn feature, a crust taking one per
+	# band, height = 6, 32-bit float RGBA. The first three rows carry one column
+	# of the rotation each, with the hover, the visibility and the selection in
+	# the channels the rotation leaves over; the fourth is the color, the fifth
+	# says whether the feature is a child of the selected one and how wide its
+	# lines are, and the sixth is the color its lines come out in.
 	var img := Image.create(count, 6, false, Image.FORMAT_RGBAF)
 	for i in range(count):
 		var m: Basis = geometry.bases[i]
