@@ -11,7 +11,8 @@ class_name Hotspot
 #
 # Like a topology, the track depends on another feature and on the time, so
 # Application rebuilds it whenever the tree, the current time or the timeline's
-# Skip changes. The track has a sample at every multiple of the Skip.
+# Skip changes. The track has a sample at every multiple of the hotspot's own
+# time step, or of the Skip when it carries none; see step_of().
 
 # The radius of the ring marking the hotspot itself, in degrees, and how many
 # segments it has.
@@ -21,6 +22,10 @@ const MARK_SEGMENTS := 24
 # The finest skip a track is sampled at. The timeline's Skip box goes much
 # lower, and a track at that would never finish.
 const MIN_SKIP := 0.1
+
+# The coarsest step a feature may carry of its own. Nothing samples over a
+# range longer than Document.MAX_TIME anyway.
+const MAX_STEP := 1000.0
 
 # How close two ages are to count as the same.
 const AGE_EPSILON := 1e-6
@@ -44,6 +49,15 @@ static func sample_ages(skip: float, oldest: float, time: float) -> PackedFloat6
 	return ages
 
 
+# How far apart in time the feature is sampled: the step it carries, or the
+# fallback when it carries none. The fallback is the timeline's Skip, which is
+# a setting of the machine, so a feature with a step of its own draws the same
+# wherever the file is opened. sample_ages() floors whichever it gets at
+# MIN_SKIP. See Docs/Time.md#the-time-control.
+static func step_of(node: Feature, skip: float) -> float:
+	return node.time_step if node.time_step > 0.0 else skip
+
+
 # Whether the hotspot has been put somewhere. A new one waits for the click of
 # the Draw tool that places it.
 static func placed(node: Feature) -> bool:
@@ -52,7 +66,8 @@ static func placed(node: Feature) -> bool:
 
 # The track at that time, in world coordinates, oldest first: one point for
 # each of sample_ages() over the hotspot's own time range, leaving out the ages
-# the plate is not there. Empty without a plate or a place.
+# the plate is not there. The skip is what step_of() uses when the hotspot
+# carries no step of its own. Empty without a plate or a place.
 #
 # ponytail: one world_basis per sample, so a 0.1 My skip over 2000 My is 20000
 # of them on every time change; cache the plate's bases if that ever shows.
@@ -62,7 +77,7 @@ static func track(root: Feature, node: Feature, time: float, skip: float) -> Pac
 	if plate == null or not placed(node):
 		return points
 	var now := Feature.world_basis(root, plate, time)
-	for t in sample_ages(skip, node.time_range.y, time):
+	for t in sample_ages(step_of(node, skip), node.time_range.y, time):
 		if plate.exists_at(t):
 			var carried := now * Feature.world_basis(root, plate, t).transposed()
 			points.append(Feature.apply_basis(PackedVector2Array([node.hotspot]), carried)[0])
@@ -97,7 +112,8 @@ static func samples(node: Feature) -> PackedVector2Array:
 
 
 # Rebuild every hotspot in the tree at that time and skip, beside
-# Topology.rebuild_all(). The skip is the timeline's, Config.get_skip_increment().
+# Topology.rebuild_all(). The skip is the timeline's,
+# Config.get_skip_increment(); a hotspot carrying a step of its own ignores it.
 static func rebuild_all(root: Feature, time: float, skip: float) -> void:
 	for node in _hotspots(root):
 		rebuild(root, node, time, skip)

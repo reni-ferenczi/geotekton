@@ -2155,6 +2155,7 @@ def run_hotspot_session(client: AutomationClient) -> None:
           f"the mark is drawn in orange red while selected: {pixel}")
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
     run_hotspot_skip_checks(client)
+    run_hotspot_step_checks(client)
 
     # A second click moves it and keeps the plate, since nothing is under it.
     depth = undo_depth(client)
@@ -2229,6 +2230,26 @@ def run_hotspot_skip_checks(client: AutomationClient) -> None:
     feature = client.call("get_selected")["feature"]
     check(len(feature["world_rings"]) == 1, "at the oldest age there is only the mark")
     client.call("set_time", time=0.0)
+    client.call("set_skip", skip=50.0)
+
+
+def run_hotspot_step_checks(client: AutomationClient) -> None:
+    """The Step row: the hotspot samples at its own step and stops following the Skip."""
+    depth = undo_depth(client)
+    client.call("set_property", field="time_step", value=20.0)
+    rows = hotspot_rows(client)
+    check(rows["time_step"] == 20.0 and rows["samples"] == 6,
+          f"a step of 20 gives 6 samples: {rows['time_step']}, {rows['samples']}")
+    check(undo_depth(client) == depth + 1, "and the Step row is one undo step")
+    client.call("set_skip", skip=10.0)
+    check(hotspot_rows(client)["samples"] == 6,
+          "the Skip no longer reaches a hotspot with a step of its own")
+    check(len(client.call("get_selected")["feature"]["world_rings"][1]) == 6,
+          "and the track on the globe has the six")
+    client.call("menu", item="undo")
+    rows = hotspot_rows(client)
+    check(rows["time_step"] == 0.0 and rows["samples"] == 11,
+          f"undo puts it back on the Skip, now 10 My: {rows['time_step']}, {rows['samples']}")
     client.call("set_skip", skip=50.0)
 
 
@@ -3965,9 +3986,31 @@ def run_crust_session(client: AutomationClient) -> None:
     panel = client.call("get_properties")["properties"]
     check(panel["crust_chunks"] == 2 and panel["topology_note"] == "Crust of Plate, 2 chunks",
           f"a skip of 50 gives two chunks: {panel.get('topology_note')!r}")
+    run_crust_step_checks(client)
     client.call("set_skip", skip=skip)
 
     run_closed_topology_checks(client)
+
+
+def run_crust_step_checks(client: AutomationClient) -> None:
+    """The Step row on a crust: its own step holds the band count against the Skip."""
+    depth = undo_depth(client)
+    client.call("set_property", field="time_step", value=CRUST_SKIP)
+    panel = client.call("get_properties")["properties"]
+    check(panel["crust_step"] == CRUST_SKIP and panel["crust_chunks"] == 4,
+          f"a step of {CRUST_SKIP:.0f} gives four chunks at a Skip of 50: {panel['crust_chunks']}")
+    check(undo_depth(client) == depth + 1, "and the Step row is one undo step")
+    client.call("set_skip", skip=10.0)
+    panel = client.call("get_properties")["properties"]
+    check(panel["crust_chunks"] == 4, "the Skip no longer reaches it")
+    client.call("select", title=CRUSTS[1])
+    check(client.call("get_properties")["properties"]["crust_chunks"] == 10,
+          "while the other half, left at 0, follows the Skip of 10")
+    client.call("select", title=CRUSTS[0])
+    client.call("menu", item="undo")
+    panel = client.call("get_properties")["properties"]
+    check(panel["crust_step"] == 0.0 and panel["crust_chunks"] == 10,
+          f"undo puts it back on the Skip: {panel['crust_step']}, {panel['crust_chunks']}")
 
 
 def run_crust_probes(client: AutomationClient, title: str) -> None:

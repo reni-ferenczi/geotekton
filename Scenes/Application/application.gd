@@ -2741,7 +2741,7 @@ func _place_hotspot(hotspot: Feature, at: Vector2) -> void:
 	var hit := Planet.hit_test(at.x, at.y, geometry)
 	if hit != null and Hotspot.plate_problem(features.root, hotspot, hit.uuid).is_empty():
 		plate = hit.uuid
-	var error := document.set_hotspot(hotspot, at, plate)
+	var error := document.set_hotspot(hotspot, at, plate, hotspot.time_step)
 	if not error.is_empty():
 		_report(error)
 		return

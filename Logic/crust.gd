@@ -8,14 +8,15 @@ class_name Crust
 # at the current time T the ridge of age a is at B(T) * B(a)^T * R(a), where B
 # is the half's rotation into the world and R(a) the ridge at a. The oldest
 # isochron, at the split age, is the half's side of the cut, and the youngest,
-# at T, is the ridge itself. The ages between are the multiples of the
-# timeline's Skip, as for a hotspot track.
+# at T, is the ridge itself. The ages between are the multiples of the crust's
+# own time step, or of the timeline's Skip when it carries none, as for a
+# hotspot track; see Hotspot.step_of().
 #
 # A flowline follows one vertex of the cut across every isochron, from the
 # continent to the ridge.
 #
 # Like a hotspot, a crust depends on other features, on the time and on the
-# Skip, so Application rebuilds it whenever any of them changes. It is a
+# step, so Application rebuilds it whenever any of them changes. It is a
 # topology without sections: Topology.holds_any() already makes a time move a
 # rebuild.
 
@@ -31,7 +32,7 @@ static func isochrons(root: Feature, node: Feature, time: float,
 	if half == null or ridge == null or not ridge.midway:
 		return result
 	var now := Feature.world_basis(root, half, time)
-	for age in Hotspot.sample_ages(skip, float(node.time_range.y), time):
+	for age in Hotspot.sample_ages(Hotspot.step_of(node, skip), float(node.time_range.y), time):
 		var ring := Ridge.ring_at(root, ridge, age)
 		if ring.is_empty():
 			result.clear()
@@ -100,7 +101,8 @@ static func describe(root: Feature, node: Feature) -> String:
 
 
 # Rebuild every crust in the tree at that time and skip, after the topologies,
-# since a crust reads the ridge. The skip is the timeline's.
+# since a crust reads the ridge. The skip is the timeline's; a crust carrying a
+# step of its own ignores it.
 static func rebuild_all(root: Feature, time: float, skip: float) -> void:
 	if root == null:
 		return

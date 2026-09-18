@@ -149,6 +149,7 @@ follows the feature tree selection, through
 | Segments   | Number             | no, Circle only |
 | Pick axis  | Button             | no, Circle only |
 | Plate      | Selector, pointer  | no, Hotspot only |
+| Step (My)  | Number             | no, Hotspot and crust only |
 | Keyframes  | Count, Key, Delete | no         |
 | Coupled to | Parent, Decouple   | no         |
 | Follow     | Picker, Couple, pointer | no    |
@@ -277,10 +278,10 @@ pressed.
 
 ### The hotspot rows
 
-A hotspot shows one more row under To (Ma) instead of the keyframe and
-coupling rows: Plate, a selector and a pointer toggle. The Draw tool places the
-hotspot itself and the track is sampled at the timeline's Skip (see
-[Hotspots](Editing.md#hotspots)), so neither has a row. The selector lists None
+A hotspot shows two more rows under To (Ma) instead of the keyframe and
+coupling rows: Plate, a selector and a pointer toggle, and
+[Step (My)](#the-step-row). The Draw tool places the hotspot itself, so where
+it is has no row; see [Hotspots](Editing.md#hotspots). The selector lists None
 first and then, in tree order, every leaf feature holding vertices of its own.
 The pointer, "Click a feature on the planet to burn through it", arms the same
 one shot pick as the Follow row's pointer: the next click on the planet makes
@@ -291,9 +292,28 @@ the rings and is one undo version. The automation port's `set_property` drives
 the selector as `plate` (a title it shows, or `None`), and `get_properties`
 reports the row under `hotspot`: the `position` (null until placed), the
 `plate` and the `plates` offered, the number of track `samples` at the current
-time and Skip, whether the pointer can be pressed (`pick`) and whether it is on
-(`picking`). The port's `properties` command flips the pointer by its node
-name, `PickPlate`.
+time and step, the `time_step` itself, whether the pointer can be pressed
+(`pick`) and whether it is on (`picking`). The port's `properties` command
+flips the pointer by its node name, `PickPlate`.
+
+### The step row
+
+**Step (My)** is how far apart in time the feature is sampled, and a hotspot
+and a [crust](Editing.md#the-crust) are the two that are sampled: the track has
+a vertex per step and the crust a band between each pair of steps. The box runs
+from 0 to 1000 in whole millions of years. 0, which is what a feature starts
+with, follows the timeline's [Skip](Time.md#the-time-control); the tooltip on
+the row says so. Anything above 0 is the feature's own step and the Skip no
+longer reaches it, so two hotspots in one document can be sampled differently
+and a file draws the same wherever it is opened.
+
+A hotspot's step goes through `Document.set_hotspot()` with its place and
+plate, a crust's through `Document.set_crust_step()`. Either way the rings are
+rebuilt and the edit is one undo version. A crust is generated rather than
+drawn, but the step is a setting on it, so this is the one row of a crust that
+can be edited. The automation port drives both as `set_property` field
+`time_step`; `get_properties` reports a hotspot's under `hotspot.time_step`
+and a crust's as `crust_step`, beside `crust_chunks`.
 
 ### The keyframe row
 
@@ -401,8 +421,10 @@ Closed switch. A line above the table says `Midway between two sections`, and
 Pick refuses a third section. A [crust](Editing.md#the-crust) has neither the
 switch nor the table, since it is built from its half and its ridge. The line
 says which half it lies beside and how many bands it has at the current time and
-Skip, as in `Crust of Laurentia, 4 chunks`. `get_properties` reports the line as
-`topology_note` and, on a crust, the count as `crust_chunks`.
+step, as in `Crust of Laurentia, 4 chunks`. Above the form a crust has the
+[Step (My)](#the-step-row) row, the one thing about it that is edited.
+`get_properties` reports the line as `topology_note` and, on a crust, the count
+as `crust_chunks` and the step as `crust_step`.
 
 ### Every edit goes through the document
 

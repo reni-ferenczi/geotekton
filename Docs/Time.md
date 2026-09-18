@@ -297,10 +297,19 @@ the keyboard, wherever the focus is except a text field, where they stay the
 text field's. The application reads them before the GUI pass, so a focused
 tree does not scroll on them instead. A skip never leaves the animation range.
 
-The skip is also how finely a [hotspot](Editing.md#hotspots) track is sampled:
-the track has a vertex at every multiple of the skip between the hotspot's
-From age and the current time, so a new value in the box redraws every track
-at once.
+The skip is also the fallback for how finely a [hotspot](Editing.md#hotspots)
+track and the bands of a [crust](Editing.md#the-crust) are sampled over time.
+It is the fallback rather than the rule: each of those features has a
+**Step (My)** row of its own in the
+[Properties panel](Properties.md#the-step-row), and a step above 0 there is
+what the feature is sampled at. A step of 0, which is how a feature starts,
+follows the skip, so a new value in the box redraws every hotspot and crust
+still on 0 and leaves the rest alone.
+
+The skip is a setting of the machine, kept in the configuration and not in the
+document, so the same file would otherwise draw a different number of track
+vertices and crust bands on someone else's computer. A step on the feature is
+saved with it, which is what makes the drawing travel with the file.
 
 **Space** starts the animation and stops it again, the one shortcut that is a
 key on its own. A key without a modifier is also a character, so Space belongs

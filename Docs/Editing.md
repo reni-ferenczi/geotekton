@@ -464,9 +464,10 @@ ridge and older crust is next to the continent.
 An **isochron** is a line of equal crust age: where the ridge was at that age,
 carried along with the half since. The oldest one, at the age of the cut, is the
 half's side of the cut, and the youngest, at the current time, is the ridge
-itself. Between them there is one at every multiple of the timeline's
-[Skip](Time.md#the-time-control), the same step a [hotspot](#hotspots) track is
-sampled at. A **flowline** follows one vertex of the cut across every isochron,
+itself. Between them there is one at every multiple of the crust's **Step
+(My)**, the same setting a [hotspot](#hotspots) track is sampled at, and at
+every multiple of the timeline's [Skip](Time.md#the-time-control) while the
+step is 0. A **flowline** follows one vertex of the cut across every isochron,
 from the continent to the ridge.
 
 Each half gets one feature, `Laurentia crust`, placed after the ridge with the
@@ -484,13 +485,21 @@ is left for later.
 
 At the age of the cut there is only the one isochron, so the crust draws
 nothing. As the time moves towards the present the halves drift and the bands
-open, one more at each Skip. `Logic/crust.gd` rebuilds the crust after the
-topologies whenever the tree, the time or the Skip changes, and keeps the bands
-in the feature's rings and the lines beside them, so only the bands are filled
-and measured. A crust is a topology with no sections: the Properties panel shows
-a line such as `Crust of Laurentia, 4 chunks` in place of the section table, and
-the Area row is the sum of its bands. Copy Shape takes the bands as a polygon of
-several parts. The crust is part of the split's one undo version.
+open, one more at each step. `Logic/crust.gd` rebuilds the crust after the
+topologies whenever the tree, the time, the step or the Skip changes, and keeps
+the bands in the feature's rings and the lines beside them, so only the bands
+are filled and measured. A crust is a topology with no sections: the Properties
+panel shows a line such as `Crust of Laurentia, 4 chunks` in place of the
+section table, and the Area row is the sum of its bands. Copy Shape takes the
+bands as a polygon of several parts. The crust is part of the split's one undo
+version.
+
+The crust starts with a **Step (My)** of 0, which follows the timeline's Skip,
+so the band count on a fresh split depends on how the Skip happens to be set.
+Typing a step into the [Step row](Properties.md#the-step-row) pins the sampling
+to the crust itself, where it is saved with the document. That is the one row
+of a crust anyone edits; everything else about it comes from its half and its
+ridge.
 
 The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
 operation with no points between the ends, and `GeometryEdit` works both out
@@ -663,20 +672,24 @@ The hotspot sits still in the world frame, which is the mantle frame; see
 [Time](Time.md#the-world-frame). The feature keeps two values: where the
 hotspot is, as a latitude and longitude, and the plate it burns through, which
 is any leaf feature holding vertices of its own. Its own time range says when
-the hotspot is active, from the From age to the To age. The track is sampled at
-the timeline's [Skip](Time.md#the-time-control), so it has a vertex for every Skip.
+the hotspot is active, from the From age to the To age. A third value, the
+**Step (My)**, says how far apart in time the track is sampled: 0, which is
+what a new hotspot has, follows the timeline's
+[Skip](Time.md#the-time-control), and anything above 0 is the hotspot's own
+step, saved with the feature, so two hotspots in one document can be sampled
+differently.
 
 `Hotspot.rebuild()` in `Logic/hotspot.gd` gives the feature up to two
 polylines:
 
 - the **mark**, a closed ring one degree around the hotspot, cut into 24
   segments, so the hotspot shows whatever the plate does;
-- the **track**, one vertex for every multiple of the Skip that is older than
+- the **track**, one vertex for every multiple of the step that is older than
   the current time and no older than the From age, oldest first, with the From
   age in front when it is not a multiple and the current time last. A 100 My
-  range at a Skip of 30 is sampled at 100, 90, 60, 30 and 0 Ma when the current
-  time is 0. A Skip below 0.1 My samples at 0.1 My. `Hotspot.sample_ages()`
-  works the ages out. The vertex for age `t` is the plate
+  range at a step of 30 is sampled at 100, 90, 60, 30 and 0 Ma when the current
+  time is 0. A step below 0.1 My samples at 0.1 My. `Hotspot.step_of()` picks
+  the step over the Skip and `Hotspot.sample_ages()` works the ages out. The vertex for age `t` is the plate
   point that was over the hotspot at `t`, carried with the plate to the current
   time: `B(T) * B(t)^T * H`, with `B` the plate's world rotation, `T` the
   current time and `H` the hotspot. Ages at which the plate does not exist are
@@ -686,9 +699,10 @@ The oldest vertex is the farthest from the hotspot and the youngest is on it.
 Both polylines are drawn at 0.35 of the feature line width, and every vertex
 of the track gets a dot of its own in the feature's color, so the samples show
 along the thin line.
-The track depends on the plate, the time and the Skip, so it is rebuilt the
+The track depends on the plate, the time and the step, so it is rebuilt the
 way a [topology](#topologies) is: before the geometry is collected, at every
-time change and whenever the Skip box takes a new value.
+time change and whenever the Skip box takes a new value. A new Skip redraws
+every track still on a step of 0 and leaves the rest as they are.
 
 Picking Hotspot in the Type selector of an empty feature arms the Draw tool
 and draws nothing yet. The status bar says "Click to place <title>; click
@@ -706,14 +720,14 @@ hidden, a Move drag does nothing, and the Vertex, Rotate and Pole tools are
 greyed out. Pasting a shape into it and the Python bridge's ring edit are
 refused.
 
-The [Properties panel](Properties.md#the-hotspot-rows) picks the plate, one
-undo version each time, from its selector or with its pointer, the way the
-Follow row picks a parent. The plate is not a parent the hotspot follows: the
+The [Properties panel](Properties.md#the-hotspot-rows) picks the plate and
+takes the step, one undo version each time. The plate comes from its selector
+or from its pointer, the way the Follow row picks a parent. The plate is not a parent the hotspot follows: the
 hotspot stays where it is in the mantle, and the track is the plate's motion
 over it.
 
-The file keeps the rings as well as the place and the plate, so an older
-reader and the Python side see two polylines. On load the values win and the
+The file keeps the rings as well as the place, the plate and the step, so an
+older reader and the Python side see two polylines. On load the values win and the
 track is rebuilt; see [Persistence](Persistence.md#hotspots).
 
 ## Topologies
