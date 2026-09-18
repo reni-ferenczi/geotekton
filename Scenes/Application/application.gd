@@ -145,6 +145,7 @@ const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
 @onready var ridge_check: CheckButton = %Ridge
 @onready var crust_check: CheckButton = %Crust
 @onready var children_check: CheckButton = %Children
+@onready var parallel_check: CheckButton = %Parallel
 @onready var projection_selector: OptionButton = %Projection
 @onready var zoom_spin: SpinBox = %Zoom
 @onready var zoom_in_button: Button = %ZoomIn
@@ -2007,6 +2008,9 @@ func set_active_tool(tool: Tool) -> void:
 		_let_every_vertex_go()
 	if active_tool == Tool.MEASURE and tool != Tool.MEASURE:
 		_measure_clear()
+		# The switch is the tool's own rather than a setting, so it starts off
+		# every time the tool is picked up.
+		parallel_check.button_pressed = false
 	if active_tool == Tool.SPLIT and tool != Tool.SPLIT:
 		split_points = PackedVector2Array()
 	if _spins(active_tool) and tool != active_tool:
@@ -2016,11 +2020,13 @@ func set_active_tool(tool: Tool) -> void:
 	for entry: Tool in tool_buttons:
 		tool_buttons[entry].button_pressed = entry == tool
 	properties.show_section_picking(tool == Tool.TOPOLOGY)
-	# Only the Split tool reads the Ridge and Crust switches. The segment count
-	# follows the selection as well, so _update_tool_buttons shows it.
+	# Only the Split tool reads the Ridge and Crust switches, and only the
+	# Measure tool the Parallel one. The segment count follows the selection as
+	# well, so _update_tool_buttons shows it.
 	ridge_check.visible = tool == Tool.SPLIT
 	crust_check.visible = tool == Tool.SPLIT
 	children_check.visible = tool == Tool.SPLIT
+	parallel_check.visible = tool == Tool.MEASURE
 	planet_view.tool_handles_clicks = tool != Tool.MOVE
 	_update_move_enabled()
 	_update_tool_buttons()
@@ -2683,7 +2689,9 @@ func _tool_points() -> PackedVector2Array:
 		Tool.DRAW:
 			return outline_vertices
 		Tool.MEASURE:
-			return measure_points
+			# A finished path holds nothing to take back, so Ctrl+Z reaches the
+			# document again; the next click throws the path away.
+			return PackedVector2Array() if measure_done else measure_points
 		Tool.SPLIT:
 			return split_points
 	return PackedVector2Array()
@@ -2938,7 +2946,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			else:
 				return
 		Tool.MEASURE:
-			if event.keycode == KEY_ESCAPE:
+			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				# The path and its numbers stay where they are; the next click
+				# starts a new one from where it falls.
+				measure_done = not measure_points.is_empty()
+				taken_back = PackedVector2Array()
+				_show_measurement()
+			elif event.keycode == KEY_ESCAPE:
 				_measure_clear()
 				_refresh_selection_outline()
 			else:
@@ -3665,30 +3679,93 @@ func _after_topology_edit() -> void:
 
 ### The Measure tool
 #
-# The points that have been clicked, and the great circle distance along them.
-# The radius they are read against is a preference; see
+# The points that have been clicked and the distance along them. A path takes
+# any number of points; Enter finishes it and the next click starts a new one.
+# The radius the distances are read against is a preference; see
 # Config.get_planet_radius().
 
 var measure_points := PackedVector2Array()
 
+# Whether the segment ending at each point runs along the parallel of the point
+# before it rather than along the great circle. Side by side with
+# measure_points; the first entry is never read, since no segment ends at the
+# first point.
+#
+# Held the way draw_snapped is, which is what keeps it in step with the shared
+# tool-points undo without a taken-back array of its own: a take back leaves the
+# entry past the end of the points alone, so Ctrl+Y finds the flag again, and a
+# new click cuts the list back to the points held before it appends.
+var measure_parallel: Array[bool] = []
 
-func _on_measure_input(_lat: float, _lon: float, event: InputEvent) -> void:
+# Whether Enter has finished the path. A finished path stays on the planet and
+# in the status bar; the next left click throws it away and starts a new one,
+# rather than taking its last point back.
+var measure_done := false
+
+# How finely a parallel segment is sampled for drawing, in degrees of longitude.
+const MEASURE_PARALLEL_STEP := 1.0
+
+
+func _on_measure_input(lat: float, lon: float, event: InputEvent) -> void:
 	if event is not InputEventMouseButton or not event.is_pressed():
 		return
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		# A measurement is one segment. A third click starts the next one from
-		# where it fell, so a run of measurements is click, click, click.
-		if measure_points.size() >= 2:
-			measure_points = PackedVector2Array()
-		_place_point(Vector2(_lat, _lon))
-	elif event.button_index == MOUSE_BUTTON_RIGHT and not measure_points.is_empty():
+		if measure_done:
+			_measure_clear()
+		var point := Vector2(lat, lon)
+		# With the switch on, the click lands on the parallel of the last point,
+		# so the segment it closes runs along that latitude. The first point of
+		# a path is placed where it was clicked whatever the switch says.
+		var parallel := parallel_check.button_pressed and not measure_points.is_empty()
+		if parallel:
+			point.x = measure_points[measure_points.size() - 1].x
+		measure_parallel.resize(measure_points.size())
+		measure_parallel.append(parallel)
+		_place_point(point)
+	elif event.button_index == MOUSE_BUTTON_RIGHT and not measure_done \
+			and not measure_points.is_empty():
 		undo()
+
+
+# Whether the segment ending at the given point follows the parallel. The flags
+# may run past the points, holding those of points taken back.
+func _measure_flag(index: int) -> bool:
+	return index < measure_parallel.size() and measure_parallel[index]
+
+
+# The flags of the points the tool holds, for the automation port.
+func measure_flags() -> Array[bool]:
+	var flags: Array[bool] = []
+	for i in range(measure_points.size()):
+		flags.append(_measure_flag(i))
+	return flags
 
 
 func _measure_clear() -> void:
 	measure_points = PackedVector2Array()
+	measure_parallel = []
+	measure_done = false
 	taken_back = PackedVector2Array()
 	_show_measurement()
+
+
+# What the Measure tool draws: the path with every parallel segment replaced by
+# the run of samples that follows the latitude, and the clicked points as
+# markers over it. The run is markerless, or every sample would wear a dot.
+func _measure_outline() -> Array:
+	if measure_points.is_empty():
+		return []
+	var run := PackedVector2Array([measure_points[0]])
+	for i in range(1, measure_points.size()):
+		if _measure_flag(i):
+			run.append_array(Measure.parallel_points(measure_points[i - 1],
+				measure_points[i], MEASURE_PARALLEL_STEP).slice(1))
+		else:
+			run.append(measure_points[i])
+	return [
+		{"vertices": run, "style": Planet.OutlineStyle.OPEN_LINE},
+		{"vertices": measure_points, "style": Planet.OutlineStyle.POINTS},
+	]
 
 
 # What the status bar says about distance: an error while there is one to
@@ -3742,16 +3819,25 @@ func _show_measurement(error: String = "") -> void:
 
 	var radius := Config.get_planet_radius()
 	if active_tool == Tool.MEASURE and measure_points.size() >= 2:
-		var distance := Measure.format_km(
-			Measure.distance(measure_points[0], measure_points[1], radius))
-		status_measure.text = distance
-		# The same number beside the line itself, at its midpoint.
-		var middle := Measure.along(measure_points[0], measure_points[1], 0.5)
-		planet_view.show_measurement(distance, middle.x, middle.y)
+		var last := measure_points.size() - 1
+		var total := Measure.format_km(
+			Measure.measured_length(measure_points, measure_parallel, radius))
+		# From the third point on the last segment is worth naming as well; with
+		# two points the total is that segment.
+		status_measure.text = total if last == 1 else "%s, last %s" % [total,
+			Measure.format_km(Measure.segment_length(measure_points[last - 1],
+				measure_points[last], _measure_flag(last), radius))]
+		# The total beside the line itself, at the midpoint of the last segment,
+		# so it stays near where the pointer is working.
+		var middle := Measure.along_parallel(measure_points[last - 1], measure_points[last], 0.5) \
+			if _measure_flag(last) \
+			else Measure.along(measure_points[last - 1], measure_points[last], 0.5)
+		planet_view.show_measurement(total, middle.x, middle.y)
 		return
 	planet_view.hide_measurement()
 	if active_tool == Tool.MEASURE:
-		status_measure.text = "click two points to measure"
+		status_measure.text = "click the next point   Enter finishes" \
+			if measure_points.size() == 1 else "click two points to measure"
 		return
 	if active_tool == Tool.SPLIT:
 		status_measure.text = "click across the polygon, from one edge to another" \
@@ -4045,11 +4131,7 @@ func _refresh_selection_outline() -> void:
 	# The Measure tool draws the path it has been given instead, so the points
 	# clicked and the line between them are visible while the distance is read.
 	if active_tool == Tool.MEASURE:
-		var path: Array = [] if measure_points.is_empty() else [{
-			"vertices": measure_points,
-			"style": Planet.OutlineStyle.OPEN,
-		}]
-		planet_view.planet.set_outline(_child_outline() + path)
+		planet_view.planet.set_outline(_child_outline() + _measure_outline())
 		return
 	# The pole the Pole tool turns about and the children are drawn along with
 	# the selection, so they are on the globe whatever else is.
