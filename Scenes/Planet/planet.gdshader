@@ -313,8 +313,8 @@ void fragment() {
 	// Precompute sphere position for the geometry and the outline
 	vec3 p = latlon_to_unit(vec2(lat, lon));
 
-	// Feature geometry. Every primitive of one feature follows the last, so the
-	// rotation and the color are fetched once per feature rather than once per
+	// Feature geometry. Every primitive of one column follows the last, so the
+	// rotation and the color are fetched once per column rather than once per
 	// primitive.
 	int loaded_feature = -1;
 	mat3 rotation = mat3(1.0);
