@@ -978,7 +978,7 @@ func _fill_coupling() -> void:
 		return
 	for leaf in _leaves(document.root, []):
 		if leaf == node or leaf.geometry_kind == Feature.GeometryKind.TOPOLOGY \
-				or leaf.feature_type == FeatureType.CIRCLE:
+				or leaf.is_circle() or leaf.is_hotspot():
 			continue
 		parent_selector.add_item(leaf.title)
 		parent_selector.set_item_metadata(parent_selector.item_count - 1, leaf.uuid)
@@ -1040,8 +1040,10 @@ func pick_parent_uuid(uuid: String) -> String:
 	if node != null and node.uuid == uuid:
 		return "A feature cannot follow itself."
 	var picked: Feature = Coupling.index(document.root).get(uuid)
-	if picked != null and picked.feature_type == FeatureType.CIRCLE:
+	if picked != null and picked.is_circle():
 		return Coupling.CIRCLE_PARENT_PROBLEM
+	if picked != null and picked.is_hotspot():
+		return Coupling.HOTSPOT_PARENT_PROBLEM
 	return "That feature is not one of the ones to follow."
 
 

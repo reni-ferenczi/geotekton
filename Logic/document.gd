@@ -805,6 +805,8 @@ func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 		return "Only a feature can follow another feature."
 	if child.feature_type == FeatureType.CIRCLE:
 		return Coupling.CIRCLE_CHILD_PROBLEM
+	if child.feature_type == FeatureType.HOTSPOT:
+		return Coupling.HOTSPOT_CHILD_PROBLEM
 	if child.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return "%s is a topology and has no motion of its own to couple." % child.title
 	if parent == null:
@@ -815,6 +817,8 @@ func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 		return "%s is a group; a feature follows another feature." % parent.title
 	if parent.feature_type == FeatureType.CIRCLE:
 		return Coupling.CIRCLE_PARENT_PROBLEM
+	if parent.feature_type == FeatureType.HOTSPOT:
+		return Coupling.HOTSPOT_PARENT_PROBLEM
 	if parent.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return "%s is a topology and has no motion of its own to follow." % parent.title
 	var nodes := Coupling.index(root)
@@ -1079,7 +1083,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.25.0"):
+	if not _is_older_than(version, "0.26.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -1129,8 +1133,42 @@ static func migrate(data: Dictionary) -> Dictionary:
 	# 0.25.0 gave a hotspot and a crust a time step of their own. A leaf without
 	# the key carries 0, which follows the timeline's Skip, and that is what both
 	# did before, so only the version moves.
-	data["version"] = "0.25.0"
+	if _is_older_than(version, "0.26.0"):
+		var dropped := _to_0_26_0(data.get("features", {}))
+		if dropped > 0:
+			push_warning(("%d coupling span%s on a circle or a hotspot %s dropped: "
+				+ "neither takes part in coupling.") % [dropped,
+				"" if dropped == 1 else "s", "was" if dropped == 1 else "were"])
+	data["version"] = "0.26.0"
 	return data
+
+
+# 0.26.0 took circles and hotspots out of coupling altogether, so every span
+# whose child or parent is one goes. The features stay and so do their
+# keyframes, so a child left without a span stops following but does not move.
+# Answers with how many spans were dropped. See Docs/Persistence.md.
+static func _to_0_26_0(features: Variant) -> int:
+	var leaves: Array = []
+	_leaves_of(features, leaves)
+	var apart := {}
+	for leaf: Dictionary in leaves:
+		var uuid := str(leaf.get("uuid", ""))
+		if not uuid.is_empty() and str(leaf.get("feature_type", "")) in \
+				[FeatureType.CIRCLE, FeatureType.HOTSPOT]:
+			apart[uuid] = true
+	var dropped := 0
+	for leaf: Dictionary in leaves:
+		var spans: Variant = leaf.get("couplings")
+		if spans is not Array or spans.is_empty():
+			continue
+		var kept: Array = []
+		if not apart.has(str(leaf.get("uuid", ""))):
+			kept = spans.filter(func(span: Variant) -> bool:
+				return span is not Dictionary or not (apart.has(str(span.get("parent", "")))
+					or apart.has(str(span.get("parent_b", "")))))
+		dropped += spans.size() - kept.size()
+		leaf["couplings"] = kept
+	return dropped
 
 
 # 0.24.0 put the isochrons and the flowlines into the crust feature itself, so

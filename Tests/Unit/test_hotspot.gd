@@ -320,7 +320,7 @@ func test_the_file_round_trips_the_place_and_the_plate() -> void:
 	var file := FileAccess.open(SCRATCH, FileAccess.READ)
 	var raw: Dictionary = JSON.parse_string(file.get_as_text())
 	file.close()
-	assert_eq(raw["version"], "0.25.0", "at the current version")
+	assert_eq(raw["version"], "0.26.0", "at the current version")
 	var leaf: Dictionary = raw["features"]["children"][1]
 	assert_close(Vector2(leaf["hotspot"][0], leaf["hotspot"][1]), Vector2(19.4, -155.3), 1e-4,
 		"the place is written")
