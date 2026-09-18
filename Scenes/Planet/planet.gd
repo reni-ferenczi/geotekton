@@ -166,12 +166,12 @@ class Geometry extends RefCounted:
 	var primitives: Array = []
 
 	# The feature each column of the arrays below belongs to, in the order they
-	# were first met, and the column each feature was first given. A feature
-	# takes one column, except a crust, which takes one per band so that the age
-	# ramp can give each band a colour of its own; `bands` then holds that
-	# band's age and where it falls in the ramp, 0 at the oldest and 1 at the
-	# youngest. Everything read per feature - where it sits, whether it is
-	# shown, what colour it is - is answered per column.
+	# were first met, and the column each feature was first given. Where a
+	# feature sits, whether it is shown and what colour it comes out are all
+	# answered per column. A feature takes one column, except a crust, which
+	# takes one per band so that the age ramp can colour each band on its own;
+	# `bands` then holds that band's age and where it falls in the ramp, 0 at
+	# the oldest and 1 at the youngest.
 	var features: Array[Feature] = []
 	var index_of := {}
 	var bands := {}
@@ -224,9 +224,10 @@ class Geometry extends RefCounted:
 	func index_for(feature: Feature) -> int:
 		return int(index_of[feature]) if index_of.has(feature) else column_for(feature)
 
-	# One more column for a feature drawn in more than one color, which is a
-	# crust and its bands. index_of keeps pointing at the first column the
-	# feature took, so everything that asks where a feature is finds it there.
+	# A column of the rows above, a new one on every call, which is what a
+	# feature drawn in more than one color needs: a crust, one per band.
+	# index_of keeps pointing at the first column the feature took, so
+	# everything that asks where a feature is finds it there.
 	func column_for(feature: Feature) -> int:
 		var index := features.size()
 		features.append(feature)
@@ -493,8 +494,8 @@ static func _collect_bands(geometry: Geometry, node: Feature, first: int) -> int
 	for k in count:
 		if k > 0:
 			index = geometry.column_for(node)
-		geometry.bands[index] = Vector2(float(ages[k]),
-			0.0 if span <= 0.0 else float((oldest - ages[k]) / span))
+		geometry.bands[index] = Vector2(ages[k],
+			0.0 if span <= 0.0 else (oldest - ages[k]) / span)
 		for _t in node.ring_triangles[k]:
 			geometry.primitives.append(_primitive(Primitive.TRIANGLE,
 				[verts[at], verts[at + 1], verts[at + 2]], node, index))
