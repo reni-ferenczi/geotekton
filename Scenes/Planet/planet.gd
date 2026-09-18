@@ -165,15 +165,22 @@ class Geometry extends RefCounted:
 	# the hit test look its rotation up once instead of once per primitive.
 	var primitives: Array = []
 
-	# The features the primitives belong to, in the order they were first met.
+	# The feature each column of the arrays below belongs to, in the order they
+	# were first met, and the column each feature was first given. A feature
+	# takes one column, except a crust, which takes one per band so that the age
+	# ramp can give each band a colour of its own; `bands` then holds that
+	# band's age and where it falls in the ramp, 0 at the oldest and 1 at the
+	# youngest. Everything read per feature - where it sits, whether it is
+	# shown, what colour it is - is answered per column.
 	var features: Array[Feature] = []
 	var index_of := {}
+	var bands := {}
 
 	# How many features were left out because MAX_PRIMITIVES was reached.
 	var dropped: int = 0
 
-	# Where each feature's primitives sit in the list, as a half open range.
-	# Every primitive of one feature is contiguous, so the hit test can walk one
+	# Where each column's primitives sit in the list, as a half open range.
+	# Every primitive of one column is contiguous, so the hit test can walk one
 	# feature or skip all of it.
 	var starts: Array[int] = []
 	var ends: Array[int] = []
@@ -191,17 +198,18 @@ class Geometry extends RefCounted:
 	var cap_cosines: Array[float] = []
 
 	# Where each feature is and whether it is there at all, at the time resolve()
-	# was last called for. One entry per feature, in the same order.
+	# was last called for. One entry per column, in the same order.
 	var bases: Array[Basis] = []
 	var shown: Array[bool] = []
 	var time: float = 0.0
 
-	# The color each feature is drawn in, as the active style gave it, in sRGB
-	# with the opacity in alpha. One entry per feature, in the same order.
+	# The color each column is drawn in, as the active style gave it, in sRGB
+	# with the opacity in alpha, a band of a crust through the age ramp. One
+	# entry per column, in the same order.
 	var colors: Array[Color] = []
 
 	# The color each feature's lines are drawn in, which is the color above for
-	# everything but a crust; see Feature.line_color(). One entry per feature,
+	# everything but a crust; see Feature.line_color(). One entry per column,
 	# in the same order.
 	var line_colors: Array[Color] = []
 
@@ -214,11 +222,16 @@ class Geometry extends RefCounted:
 	var nodes := {}
 
 	func index_for(feature: Feature) -> int:
-		if index_of.has(feature):
-			return int(index_of[feature])
+		return int(index_of[feature]) if index_of.has(feature) else column_for(feature)
+
+	# One more column for a feature drawn in more than one color, which is a
+	# crust and its bands. index_of keeps pointing at the first column the
+	# feature took, so everything that asks where a feature is finds it there.
+	func column_for(feature: Feature) -> int:
 		var index := features.size()
 		features.append(feature)
-		index_of[feature] = index
+		if not index_of.has(feature):
+			index_of[feature] = index
 		bases.append(Basis())
 		shown.append(true)
 		colors.append(feature.color)
@@ -272,15 +285,22 @@ class Geometry extends RefCounted:
 		if styling != null and styling.by_age:
 			recolor(styling)
 
-	# Work out the color of every feature again at the resolved time, without
+	# Work out the color of every column again at the resolved time, without
 	# touching the primitives. Without a styling each feature is drawn in the
-	# color it carries.
+	# color it carries. A band of a crust takes the color the age ramp gives it,
+	# which is why a change of color reaches the bands without the geometry
+	# being collected again.
 	func recolor(styling_: Styling) -> void:
 		styling = styling_
 		for index in features.size():
 			var node: Feature = features[index]
-			colors[index] = styling.color_of(node, time) if styling != null else node.color
-			line_colors[index] = node.line_color(colors[index])
+			var color: Color = styling.color_of(node, time) if styling != null else node.color
+			if bands.has(index):
+				var band: Vector2 = bands[index]
+				color = styling.band_color(node, color, band.x, band.y) if styling != null \
+					else Styling.lighter_band(color, band.y)
+			colors[index] = color
+			line_colors[index] = node.line_color(color)
 
 
 # Upload the feature geometry to the planet shader. Where the features sit, what
@@ -414,6 +434,8 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 		# A topology is drawn as a polyline: Topology.rebuild() has already put
 		# one run of resolved vertices per section into its rings.
 		match node.drawn_as():
+			Feature.GeometryKind.POLYGON when node.is_crust():
+				index = _collect_bands(geometry, node, index)
 			Feature.GeometryKind.POLYGON:
 				var verts := node.triangles
 				for j in range(0, verts.size() - 2, 3):
@@ -439,7 +461,8 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 							_primitive(Primitive.POINT, [v], node, index))
 		# A crust is filled by its bands above and drawn over by its isochrons
 		# and flowlines, which are segments of the same feature in its line
-		# color; see Logic/crust.gd.
+		# color; see Logic/crust.gd. Every band carries that one line color, so
+		# they go under the last band's column and stay contiguous with it.
 		for ring in node.crust_line_rings:
 			for j in range(ring.size() - 1):
 				geometry.primitives.append(_primitive(
@@ -449,6 +472,35 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 	geometry.resolve(root, time)
 	geometry.recolor(styling)
 	return geometry
+
+
+# The bands of a crust, each in a column of its own, so the age ramp can fill
+# each one in the color of the crust it holds; see Styling.band_color(). The
+# triangles of ring k are the k-th run of Feature.ring_triangles, and the ages
+# run oldest first, the oldest band lying against the continent. Answers with
+# the column the last band took, which the isochrons and the flowlines are then
+# drawn under.
+static func _collect_bands(geometry: Geometry, node: Feature, first: int) -> int:
+	var ages := node.band_ages
+	var count := mini(node.ring_triangles.size(), ages.size())
+	if count == 0:
+		return first
+	var oldest := ages[0]
+	var span := oldest - ages[count - 1]
+	var verts := node.triangles
+	var at := 0
+	var index := first
+	for k in count:
+		if k > 0:
+			index = geometry.column_for(node)
+		geometry.bands[index] = Vector2(float(ages[k]),
+			0.0 if span <= 0.0 else float((oldest - ages[k]) / span))
+		for _t in node.ring_triangles[k]:
+			geometry.primitives.append(_primitive(Primitive.TRIANGLE,
+				[verts[at], verts[at + 1], verts[at + 2]], node, index))
+			at += 3
+		geometry.ends[index] = geometry.primitives.size()
+	return index
 
 
 # How many primitives a feature is drawn with, without building them: a polygon

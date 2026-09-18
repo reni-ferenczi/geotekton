@@ -3795,9 +3795,12 @@ func _vertices_on_screen(only: Feature = null, without: Feature = null,
 	if only != null:
 		wanted.append(only)
 	else:
-		for index in geometry.features.size():
-			if geometry.shown[index]:
-				wanted.append(geometry.features[index])
+		# Each feature once rather than once per column of the geometry: a
+		# crust takes a column per band and would offer its vertices that
+		# many times over.
+		for feature: Feature in geometry.index_of:
+			if geometry.shown[geometry.index_of[feature]]:
+				wanted.append(feature)
 
 	for feature in wanted:
 		var m := Feature.world_basis(features.root, feature, document.current_time)

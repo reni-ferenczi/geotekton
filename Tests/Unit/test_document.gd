@@ -5,6 +5,9 @@ extends TestCase
 
 const SAMPLE := "res://Tests/Data/two_cratons.middle-earth"
 const SCRATCH := "user://test_document.middle-earth"
+# Where the crust colour preference is written while it is being tested, so the
+# real settings file is left alone.
+const CONFIG_SCRATCH := "user://test_document_config"
 
 
 func test_a_new_document_is_clean_and_untitled() -> void:
@@ -441,17 +444,17 @@ func test_the_crust_shape_is_its_bands() -> void:
 	assert_eq(shape["rings"].size(), crust.rings.size(), "of the bands")
 
 	# The bands are triangles and the isochrons and flowlines segments, all of
-	# the one feature, with the lines in a color of their own.
-	var at := geometry.index_for(crust)
+	# the one feature, over the column each band takes.
+	var columns := _columns_of(geometry, crust)
+	assert_eq(columns.size(), crust.rings.size(), "a column of the feature rows per band")
+	assert_eq(columns[0], geometry.index_for(crust), "the oldest band is where the crust is found")
 	var kinds := {}
-	for i in range(geometry.starts[at], geometry.ends[at]):
-		kinds[geometry.primitives[i]["kind"]] = true
+	for column: int in columns:
+		for i in range(geometry.starts[column], geometry.ends[column]):
+			kinds[geometry.primitives[i]["kind"]] = true
 	assert_eq(kinds.keys().size(), 2, "the crust draws two kinds of primitive")
 	assert_true(kinds.has(Planet.Primitive.TRIANGLE) and kinds.has(Planet.Primitive.SEGMENT),
 		"filled bands and drawn lines")
-	assert_eq(geometry.colors[at], FeatureType.color(FeatureType.CRUST), "the bands' colour")
-	assert_eq(geometry.line_colors[at], FeatureType.color(FeatureType.CRUST_LINES),
-		"and the lines' own")
 	shape = document.shape_of(document.root.children[2])
 	assert_eq(shape["kind"], Feature.GeometryKind.POLYLINE, "and a line from the ridge")
 	assert_eq(shape["rings"].size(), 1, "of one ring")
@@ -461,6 +464,99 @@ func test_the_crust_shape_is_its_bands() -> void:
 		"nor take a section")
 	assert_true(not document.add_section(document.root.children[2],
 		document.root.children[0], 0).is_empty(), "nor a ridge a third one")
+
+
+# The columns of the feature rows one feature was given, in order. Only a crust
+# takes more than one: one per band, so each can be colored on its own.
+func _columns_of(geometry: Planet.Geometry, feature: Feature) -> Array[int]:
+	var columns: Array[int] = []
+	for index in geometry.features.size():
+		if geometry.features[index] == feature:
+			columns.append(index)
+	return columns
+
+
+# A crust with a step of its own, so the bands do not follow the Skip of
+# whatever machine the test runs on, and the geometry collected from it.
+func _crust_geometry(document: Document, crust: Feature, styling: Styling = null) -> Planet.Geometry:
+	assert_eq(document.set_crust_step(crust, 25.0), "", "the crust samples every 25 My")
+	return Planet.collect_geometry(document.root, document.current_time, styling)
+
+
+# GP-0103: the bands are colored by the age of the crust in them. The oldest
+# band, the one lying against the continent, keeps the crust's own color, and
+# each younger band towards the ridge is a lighter shade of it.
+func test_the_bands_are_colored_by_the_age_of_the_crust() -> void:
+	var document := _split_square(true)
+	document.current_time = 0.0
+	var crust: Feature = document.root.children[3]
+	var geometry := _crust_geometry(document, crust)
+	assert_eq(Array(crust.band_ages), [100.0, 75.0, 50.0, 25.0],
+		"the band ages run oldest at the continent to youngest at the ridge")
+	assert_eq(crust.ring_triangles.size(), 4, "with every band triangulated on its own")
+
+	var columns := _columns_of(geometry, crust)
+	var base := FeatureType.color(FeatureType.CRUST)
+	assert_eq(columns.size(), 4, "a column of the feature rows per band")
+	assert_eq(geometry.colors[columns[0]], base, "the oldest band is the crust colour itself")
+	assert_eq(geometry.colors[columns[3]], base.lightened(Styling.YOUNGEST_LIGHTER),
+		"and the youngest the lightest shade of it")
+	for k in columns.size() - 1:
+		assert_true(geometry.colors[columns[k]].v < geometry.colors[columns[k + 1]].v,
+			"band %d is darker than the one nearer the ridge" % k)
+	for column: int in columns:
+		assert_eq(geometry.line_colors[column], FeatureType.color(FeatureType.CRUST_LINES),
+			"while the isochrons and the flowlines keep their own colour")
+
+
+# Under the age style each band is read from the palette at its own age, the way
+# an age grid is painted, rather than the whole crust at the age of the split.
+func test_the_age_style_paints_each_band_at_its_own_age() -> void:
+	var document := _split_square(true)
+	document.current_time = 0.0
+	var from := Color(1.0, 0.0, 0.0, 1.0)
+	var to := Color(0.0, 0.0, 1.0, 1.0)
+	document.root.style.mode = Styling.BY_AGE
+	document.root.style.palette = Palette.RAMP
+	document.root.style.ramp_colors = [from, to]
+	document.root.style.ramp_span = 200.0
+	var crust: Feature = document.root.children[3]
+	var geometry := _crust_geometry(document, crust,
+		Styling.of(ViewSettings.new(), document.root))
+	var columns := _columns_of(geometry, crust)
+	assert_eq(columns.size(), 4, "the four bands are drawn")
+	for k in columns.size():
+		var age: float = crust.band_ages[k]
+		assert_close(geometry.colors[columns[k]], from.lerp(to, age / 200.0), 1e-5,
+			"the band holding crust %s My old" % age)
+
+
+# The crust colour preference sets the old end of the ramp: a crust starts in
+# the colour the preference holds, and every band is a shade of that.
+func test_the_crust_colour_preference_moves_the_whole_ramp() -> void:
+	var kept := Config.directory_override
+	Config.directory_override = ProjectSettings.globalize_path(CONFIG_SCRATCH)
+	DirAccess.make_dir_recursive_absolute(Config.directory_override)
+	DirAccess.remove_absolute(Config.directory_override + "/config.json")
+	Config.forget()
+	var picked := Color(0.7, 0.3, 0.1, 1.0)
+	Config.set_feature_colors({FeatureType.CRUST: picked})
+
+	var document := _split_square(true)
+	document.current_time = 0.0
+	var crust: Feature = document.root.children[3]
+	var geometry := _crust_geometry(document, crust)
+	var columns := _columns_of(geometry, crust)
+	assert_eq(crust.color, picked, "the crust starts in the colour the preference holds")
+	assert_eq(columns.size(), 4, "in four bands")
+	for k in columns.size():
+		assert_eq(geometry.colors[columns[k]],
+			Styling.lighter_band(picked, float(k) / 3.0),
+			"band %d is a shade of the picked colour" % k)
+
+	DirAccess.remove_absolute(Config.directory_override + "/config.json")
+	Config.directory_override = kept
+	Config.forget()
 
 
 ### The children a split takes along

@@ -72,10 +72,26 @@ static func bands(lines: Array[PackedVector2Array]) -> Array[PackedVector2Array]
 	return rings
 
 
+# How old the crust in each band is at that time, oldest band first: the age of
+# the older of its two isochrons, counted from the time rather than from the
+# present, so the crust beside the ridge is new whenever it is looked at. The
+# ages come from the same sampling the isochrons do, so the k-th is the k-th
+# band's; `count` is how many bands there are.
+static func band_ages(node: Feature, time: float, skip: float,
+		count: int) -> PackedFloat64Array:
+	var sampled := Hotspot.sample_ages(Hotspot.step_of(node, skip),
+		float(node.time_range.y), time)
+	var ages := PackedFloat64Array()
+	for k in mini(count, sampled.size()):
+		ages.append(sampled[k] - time)
+	return ages
+
+
 # Give a crust its rings at that time, in its own frame: the bands as its rings,
 # which are what it fills, measures and hands to Copy Shape, and the isochrons
 # and the flowlines as its line rings, which Planet.collect_geometry() draws
-# over them in the crust lines color.
+# over them in the crust lines color. The age of the crust in each band goes
+# beside them, for the ramp that colors the bands.
 static func rebuild(root: Feature, node: Feature, time: float, skip: float) -> void:
 	var lines := isochrons(root, node, time, skip)
 	var into_local := Feature.world_basis(root, node, time).transposed()
@@ -84,6 +100,7 @@ static func rebuild(root: Feature, node: Feature, time: float, skip: float) -> v
 			return Feature.apply_basis(ring, into_local))
 	node.rings.assign(localize.call(bands(lines)))
 	node.crust_line_rings.assign(localize.call(flowlines(node, lines)))
+	node.band_ages = band_ages(node, time, skip, node.rings.size())
 	node.rebuild_triangles()
 
 
