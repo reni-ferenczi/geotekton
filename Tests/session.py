@@ -3017,9 +3017,19 @@ def run_light_settings_checks(client: AutomationClient) -> None:
     check(back == [0.0, 0.0], f"two undos put the light back where it was: {back}")
 
 
+# The grid put in a solid green for the probes below, over a planet wearing
+# nothing, so that which channel of a pixel is the largest says whether a line
+# is there. The light scales all three channels together, so that answer holds
+# wherever on the globe the probe lands. The longitude is half a cell of the 25
+# degree grid, which keeps both probes clear of the meridians.
+GRID_PROBE_COLOR = [0.0, 1.0, 0.0, 1.0]
+GRID_PROBE_LONGITUDE = 12.5
+
+
 def run_view_default_checks(client: AutomationClient, sample: Path) -> None:
     """What a new document starts from, and what a saved one brings with it."""
     client.call("set_view_settings", view_settings={"ambient": 0.45, "grid_spacing": 25.0})
+    run_grid_from_equator_checks(client)
     client.call("view", projection=3)
     client.call("set_view_settings", button="SaveAsDefault")
     preferences = client.call("get_preferences")["preferences"]
@@ -3064,6 +3074,35 @@ def run_view_default_checks(client: AutomationClient, sample: Path) -> None:
           and restored["view_defaults"]["raster_path"] == "",
           "the preferences are back to what a fresh installation holds")
     client.call("set_view", show_map=False)
+
+
+def run_grid_from_equator_checks(client: AutomationClient) -> None:
+    """A 25 degree grid draws the equator and nothing at 65 N (GP-0106).
+
+    The lines used to be counted from the north pole and the date line, so a
+    spacing that does not divide 90 drew a parallel at 65 N, another at 60 S
+    and none on the equator. The globe is turned to 30 N because its limb is
+    short of 62 degrees from the middle of the view, which is the only way both
+    places are in front of the camera at once.
+    """
+    client.call("set_view", show_map=False, lat=30.0, lon=0.0, angle=0.0, zoom=1.0)
+    was = client.call("get_view_settings")["view_settings"]["grid_color"]
+    client.call("set_view_settings",
+                view_settings={"grid_color": GRID_PROBE_COLOR, "raster_path": ""})
+
+    def probe(lat: float) -> list[float]:
+        screen = client.call(
+            "latlon_to_screen", lat=lat, lon=GRID_PROBE_LONGITUDE)["screen"]
+        return client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+
+    equator = probe(0.0)
+    check(equator[1] > equator[2], f"the 25 degree grid draws the equator: {equator}")
+    pole_side = probe(65.0)
+    check(pole_side[2] > pole_side[1],
+          f"and nothing at 65 N, where it counted from the pole before: {pole_side}")
+
+    client.call("set_view_settings", view_settings={"grid_color": was})
+    client.call("set_view", lat=0.0, lon=0.0)
 
 
 def luminance(color: list[float]) -> float:

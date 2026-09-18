@@ -291,11 +291,14 @@ void fragment() {
 	}
 
 	// Longitude and latitude grids, GRID_PIXELS wide on screen and antialiased,
-	// the same on the globe and the map. The derivative is taken before fract so
-	// the wrap of a line does not give its column a huge one. Meridians fade out
-	// where they would be denser than one per two pixels, which is how they
-	// converge on the globe's poles without flooding them; parallels never do.
-	vec2 uv = surface_uv * split;
+	// the same on the globe and the map. The middle of the sheet is taken off
+	// first, so the lines are counted from the equator and the prime meridian
+	// and land on every multiple of the spacing. The derivative is taken before
+	// fract so the wrap of a line does not give its column a huge one. Meridians
+	// fade out where they would be denser than one per two pixels, which is how
+	// they converge on the globe's poles without flooding them; parallels never
+	// do.
+	vec2 uv = (surface_uv - vec2(0.5)) * split;
 	vec2 d = fwidth(uv) * GRID_PIXELS;
 	vec2 f = abs(fract(uv + vec2(0.5)) - vec2(0.5));
 	float line_x = 1.0 - smoothstep(0.0, d.x, f.x);

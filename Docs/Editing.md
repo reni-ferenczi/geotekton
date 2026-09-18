@@ -896,7 +896,7 @@ shows what is being chosen.
 | Background | The colour behind the planet |
 | Star field | Whether the stars are drawn; they add their light to the background colour, so the colour shows between them |
 | Grid | The color of the longitude and latitude lines |
-| Grid spacing | How far apart its lines are, from 1 to 90 degrees |
+| Grid spacing | How far apart its lines are, from 1 to 90 degrees. A line falls on every multiple of the spacing, counted from the equator and the prime meridian |
 | Light elevation, light azimuth | Where the light comes from, away from the line of sight; `(0, 0)` shines from the camera |
 | Ambient light | How much light reaches the night side; 0 is a black night, 1 no night at all |
 | Planet color | The color of the planet where no raster covers it, ocean blue unless changed. The picker has no alpha, since the planet is never see-through |
