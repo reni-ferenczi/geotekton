@@ -684,11 +684,12 @@ the same for every vertex of a part:
 | 6 | Closed like 4, in `CHILD_COLOR`: the rings of a polygon that follows the selected feature | 1 |
 | 7 | Open like 0, at `BOLD_SCALE` (0.5) times `geometry_line_width` rather than at `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross | 1 |
 | 8 | Two vertices, a center and a point of the rim, drawn as the [circle](#circles) through that point, with no vertex markers: the circle being drawn | `OUTLINE_OPACITY` |
+| 9 | Open like 0, in the same white and at the same width, with no vertex markers: a run sampled too finely to mark, such as the [Measure tool](Editing.md#the-measure-tool)'s parallels | 1 |
 
 The vertex markers are opaque in every style that has them, so the dots of
 the Vertex tool stand out against the translucent ring of style 3.
 
-`Planet.OutlineStyle` names the same nine values.
+`Planet.OutlineStyle` names the same ten values.
 
 A style 8 part is read at its first vertex, which takes the radius from the
 second, so the preview is the same curve the finished circle is drawn as. The
@@ -697,7 +698,7 @@ Circle segments count does not reach it.
 ### Outline Math
 
 **Vertex dots**: the chord distance from the fragment to the nearest vertex,
-antialiased via `smoothstep` over the outer three tenths of the radius. Every vertex gets one except in styles 4, 6 and 7. Style 5
+antialiased via `smoothstep` over the outer three tenths of the radius. Every vertex gets one except in styles 4, 6, 7 and 9. Style 5
 divides the distance by `SELECTED_MARKER_SCALE`, which draws the same dot twice
 as large.
 
