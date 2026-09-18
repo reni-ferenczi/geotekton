@@ -348,21 +348,25 @@ stands.
 
 Two rows and a list, all about which feature this one
 [follows](Time.md#coupling). A Circle has none of them: it follows nothing and
-carries nothing, so the panel hides the rows and keeps only the keyframe row.
-A span a file already gives a circle still counts; `get_properties` reports it
-under `coupling` with `hidden: true`.
+carries nothing, so the panel hides the rows and keeps only the keyframe row,
+and `get_properties` reports what the hidden rows hold under `coupling` with
+`hidden: true`. A Hotspot has neither the coupling rows nor the keyframe row,
+since it never moves, so there is no `coupling` in what the panel reports at
+all.
 
 - **Coupled to** names the parent in effect at the current time, or says
   `nothing`. `Decouple` beside it ends that span at the current time and is
   greyed out while the feature follows nothing.
 - **Follow** is a picker of every feature this one could follow, in tree
-  order: every leaf but itself, the topologies and the circles. `Couple` starts a span on the
+  order: every leaf but itself, the topologies, the circles and the
+  hotspots. `Couple` starts a span on the
   picked feature at the current time and is greyed out while the feature
   already follows something then. The pointer button beside them fills the
   picker from the planet instead of from the list: press it and the next left
   click on the globe or the map names whatever it lands on. The status bar says
   `Pick the feature to follow` while it is armed. A click on the ocean, on the
-  feature itself, on a topology or on a circle says so in the status bar and leaves the
+  feature itself, on a topology, on a circle or on a hotspot says so in the
+  status bar and leaves the
   pointer armed, so only a click the picker can take ends it. So do Escape and
   pressing the button again. Nothing else moves: the selection, the current
   tool and the globe are where they were, and the picked parent is still
@@ -390,7 +394,9 @@ again. `Remove` is the exception and keeps them all.
 A span whose parent cannot be followed, because it was deleted, is kept in the
 list and drawn in the warning colour a broken section has, with the reason as
 its tooltip. The Coupled to row takes the same colour while the time is inside
-that span. Undo brings the parent back and the colour goes.
+that span. Undo brings the parent back and the colour goes. A span naming a
+circle or a hotspot is never marked this way, since a file holding one loses it
+when it is opened; see [Persistence](Persistence.md#0250-to-0260).
 
 A refused Couple, such as a parent that already follows this feature, shows
 the reason in an error dialog and changes nothing. The rows follow the current

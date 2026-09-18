@@ -2191,6 +2191,35 @@ def run_hotspot_session(client: AutomationClient) -> None:
     check(client.call("get_selected")["feature"]["feature_type"] == "polygon",
           "the plate stays a polygon")
 
+    run_hotspot_coupling_checks(client)
+
+
+def run_hotspot_coupling_checks(client: AutomationClient) -> None:
+    """A hotspot takes no part in coupling: it follows its plate and carries nothing."""
+    client.call("select", title="Hotspot")
+    panel = client.call("get_properties")["properties"]
+    check("coupling" not in panel, f"a hotspot has no coupling rows: {sorted(panel)}")
+    error = refusal(client, "coupling", button="Couple")
+    check(error == "A hotspot follows its plate.", f"coupling a hotspot is refused: {error!r}")
+
+    # A polygon beside it is not offered the hotspot to follow.
+    client.call("select", title=None)
+    client.call("toolbar", button="AddFeature")
+    coupling = client.call("get_properties")["properties"]["coupling"]
+    check("Hotspot" not in coupling["parents"],
+          f"and the picker leaves the hotspot out: {coupling['parents']}")
+    client.call("coupling", pick=True)
+    # The mark is a ring a degree around the hotspot, so the click goes on the ring.
+    screen = client.call("latlon_to_screen",
+                         lat=HOTSPOT_MOVED[0] + 1.0, lon=HOTSPOT_MOVED[1])["screen"]
+    if check(screen is not None, "the mark is on screen"):
+        client.call("click", x=screen[0], y=screen[1])
+        status = client.call("get_status")["status"]["measure"]
+        check(status == "A hotspot carries nothing.", f"nor is a click on its mark: {status!r}")
+        check(client.call("get_properties")["properties"]["coupling"]["picking"],
+              "which leaves the pointer armed")
+    client.call("key", key="Escape")
+
 
 def run_hotspot_skip_checks(client: AutomationClient) -> None:
     """The track of the placed hotspot has a sample at every Skip of its 100 My."""

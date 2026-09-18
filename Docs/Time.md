@@ -90,10 +90,16 @@ is a relation between two leaf features over a **span** of the timeline
 (`Logic/coupling.gd`): `from`, the older age where it starts, `to`, the younger
 age where it ends, and the parent, named by uuid. A feature can have several
 spans, which do not overlap, and a parent can carry any number of children. The
-feature tree plays no part in it. A Circle is neither a child nor a parent:
-coupling one is refused with "A circle follows nothing." and following one with
-"A circle carries nothing." A file that already couples a circle still loads
-and resolves as written, and a span that follows a circle is shown as broken.
+feature tree plays no part in it. A Circle and a Hotspot take no part in it at
+all: a circle is built from its center and radius and carries nothing of its
+own, and a hotspot stands still in the mantle while its plate drifts over it,
+which is the plate's motion and not a coupling. Coupling either is refused, with
+"A circle follows nothing." or "A hotspot follows its plate.", and so is
+following one, with "A circle carries nothing." or "A hotspot carries nothing."
+A file written before 0.26.0 could hold such a span; those are dropped when the
+file is opened, and the features and their keyframes are left alone, so a
+feature that followed a circle stops following it and does not move. See
+[Persistence](Persistence.md#0250-to-0260).
 
 In this documentation a *child* is a feature that follows another through a
 coupling. A group holds rows, not children, since groups carry no motion; a
@@ -205,9 +211,9 @@ stands still before that time.
 Deleting a parent leaves the span in place. The Properties panel draws it in a
 warning color, like a broken topology section, and the timeline bar turns the
 same color. Undo brings the parent back and mends the span. While the parent
-cannot be followed, whether missing, turned into something that cannot be
-followed, or looped back by a hand-written file, it counts as not turning, so
-the child's relative keyframes read as world rotations.
+cannot be followed, whether missing, a group, a topology, or looped back by a
+hand-written file, it counts as not turning, so the child's relative keyframes
+read as world rotations.
 
 ### Splitting a coupled feature
 

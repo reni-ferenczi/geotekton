@@ -56,7 +56,9 @@ new ones and adds the lines feature beside each crust; and 0.24.0 gave the
 crust its own isochrons and flowlines, which has a step that drops the leaf
 that used to hold them; and 0.25.0 gave a hotspot and a crust a time step of
 their own, and a leaf without one reads as 0, which is the timeline's Skip, so
-a 0.24.0 file is read as it stands.
+a 0.24.0 file is read as it stands; and 0.26.0 took circles and hotspots out of
+coupling, which has a step that drops every span naming one and says how many
+it dropped.
 
 The first public release will have major version 1.
 
