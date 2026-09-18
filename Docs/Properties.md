@@ -22,6 +22,14 @@ effect. That color is what a feature of the type starts in and goes back to
 below, and what the [Feature type](Styling.md#the-draw-styles) draw style
 paints.
 
+Two more colors are kept the same way under ids that are not types, `crust` and
+`crust_lines`: the steel blue a [crust](Editing.md#the-crust) starts in, which
+is the old end of the ramp its bands are colored by, and the light steel blue of
+its isochrons and flowlines. A crust is a Topology and takes the Topology color
+under the Feature type style; these two are its own. The dialog offers a picker
+per catalog type only, so either is changed by writing the `feature_colors` key
+of the [config file](Persistence.md#the-config-file).
+
 The first kind listed is the one the tools draw into an empty feature of the
 type. The kinds are written as the names the file uses, so the catalog needs nothing
 from `Feature` to be read and says the same words the `geometry_kind` field

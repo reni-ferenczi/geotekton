@@ -161,7 +161,7 @@ class Geometry extends RefCounted:
 	# "feature": Feature, "index": int into features }. A CIRCLE's verts are
 	# its center followed by its ring, which is what the cap is built from, and
 	# it carries "radius" in degrees as well. Every
-	# primitive of one feature is contiguous, which is what lets the shader and
+	# primitive of one column is contiguous, which is what lets the shader and
 	# the hit test look its rotation up once instead of once per primitive.
 	var primitives: Array = []
 
@@ -185,7 +185,7 @@ class Geometry extends RefCounted:
 	var starts: Array[int] = []
 	var ends: Array[int] = []
 
-	# A cap holding every primitive of one feature, in that feature's own frame:
+	# A cap holding every primitive of one column, in that feature's own frame:
 	# the centre of the cap, and the cosine of its angular radius. A point whose
 	# dot product with the centre falls under the cosine is outside everything
 	# that feature draws, so the hit test throws the feature away with one

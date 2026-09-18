@@ -477,11 +477,29 @@ it draws the isochrons and a flowline for each vertex of the cut over them, as
 thin lines in light steel blue. So the order in the tree is `Laurentia`,
 `Laurentia 2`, `Laurentia ridge`, `Laurentia crust` and `Laurentia 2 crust`.
 
+Each band is filled by the age of the crust in it, the way an age grid reads in
+GPlates: the band against the continent, which holds the crust laid down at the
+age of the cut, is the crust's own steel blue, and every band towards the ridge
+is a lighter shade of it, up to 55 percent of the way to white at the youngest.
+The age is the older of the band's two isochrons, counted from the current time,
+so the crust beside the ridge is new whatever time is being looked at. A crust
+in a group on the [Feature age](Styling.md#the-draw-styles) style is painted
+band by band from that style's palette instead, each band read at its own age
+rather than the whole crust at the age of the split. Either way the color a
+crust carries is what its oldest band comes out, so the crust color in the
+Feature colors section of [Preferences](Shell.md#preferences) sets the old end
+of the ramp and every band moves with it.
+
 A feature is drawn in one color, so a crust carries a second one for its lines:
 `Feature.line_color()` gives it the crust lines color and everything else its
 own, and the shader paints a feature's segments and markers in that color and
-its filled triangles in the first. Recoloring or hiding the lines on their own
-is left for later.
+its filled triangles in the first. Hiding the lines on their own is left for
+later. The bands themselves are drawn in as many colors as there are bands:
+each band takes a column of its own in the [per feature
+rows](Shader.md#per-feature-rotation) the shader already reads, so neither the
+shader nor the geometry texture carries a color or an age per band. `Crust`
+records the age of the crust in each band beside the rings and
+`Styling.band_color()` turns it into the color.
 
 At the age of the cut there is only the one isochron, so the crust draws
 nothing. As the time moves towards the present the halves drift and the bands

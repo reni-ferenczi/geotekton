@@ -415,9 +415,11 @@ switch. Both halves are keyed at the split and dragged apart at the present.
 The skip is then set to 25 My; the application reads the user's configuration,
 so the scenario puts the old skip back at the end. Each crust then has four
 chunks, an area, and four band rings of six vertices, two isochrons each. A pixel
-between the 75 and 50 Ma isochrons is the crust's steel blue and a pixel on the
-75 Ma isochron is its lines' light steel blue, with the pointer moved away so
-no hover highlight is read. A skip of 50 My leaves two chunks. A Step (My) of
+inside each band reads the age ramp: the band against the continent is the
+crust's steel blue, the one against the ridge is that lightened by 55 percent of
+the way to white, and each band between is lighter than the one before it. A
+pixel on the 75 Ma isochron is its lines' light steel blue. The pointer is moved
+away for all of them, so no hover highlight is read. A skip of 50 My leaves two chunks. A Step (My) of
 25 on the first crust, which is one undo version, brings its four bands back
 and holds them through a skip of 10, while the other half, still at 0, follows
 that skip to ten bands; undo puts the first one back on the skip. Last, a topology clicked together from two
