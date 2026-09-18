@@ -211,9 +211,9 @@ stands still before that time.
 Deleting a parent leaves the span in place. The Properties panel draws it in a
 warning color, like a broken topology section, and the timeline bar turns the
 same color. Undo brings the parent back and mends the span. While the parent
-cannot be followed, whether missing, turned into something that cannot be
-followed, or looped back by a hand-written file, it counts as not turning, so
-the child's relative keyframes read as world rotations.
+cannot be followed, whether missing, a group, a topology, or looped back by a
+hand-written file, it counts as not turning, so the child's relative keyframes
+read as world rotations.
 
 ### Splitting a coupled feature
 
