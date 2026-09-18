@@ -200,6 +200,11 @@ class Geometry extends RefCounted:
 	# with the opacity in alpha. One entry per feature, in the same order.
 	var colors: Array[Color] = []
 
+	# The color each feature's lines are drawn in, which is the color above for
+	# everything but a crust; see Feature.line_color(). One entry per feature,
+	# in the same order.
+	var line_colors: Array[Color] = []
+
 	# The styling the colors were last worked out with, kept so resolve() can
 	# work them out again when an age style makes them follow the time.
 	var styling: Styling = null
@@ -217,6 +222,7 @@ class Geometry extends RefCounted:
 		bases.append(Basis())
 		shown.append(true)
 		colors.append(feature.color)
+		line_colors.append(feature.line_color(feature.color))
 		starts.append(primitives.size())
 		ends.append(primitives.size())
 		cap_centres.append(Vector3.UP)
@@ -274,6 +280,7 @@ class Geometry extends RefCounted:
 		for index in features.size():
 			var node: Feature = features[index]
 			colors[index] = styling.color_of(node, time) if styling != null else node.color
+			line_colors[index] = node.line_color(colors[index])
 
 
 # Upload the feature geometry to the planet shader. Where the features sit, what
@@ -326,7 +333,7 @@ static func _texels(primitive: Dictionary) -> Array[Color]:
 # Upload where each feature sits, whether it is there at the current time, what
 # color it is, which one the pointer rests on, which one is highlighted as
 # selected and which ones follow that one. This is the whole of what one step of an
-# animation, a change of color or a change of selection touches, so it is five
+# animation, a change of color or a change of selection touches, so it is six
 # texels per feature rather than anything per triangle. Call geometry.resolve()
 # for the wanted time first.
 func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
@@ -335,12 +342,13 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 	if count == 0:
 		return
 
-	# Data texture: width = feature count, height = 5, 32-bit float RGBA. The
+	# Data texture: width = feature count, height = 6, 32-bit float RGBA. The
 	# first three rows carry one column of the rotation each, with the hover,
 	# the visibility and the selection in the channels the rotation leaves over;
-	# the fourth is the color and the fifth says whether the feature is a child
-	# of the selected one and how wide its lines are.
-	var img := Image.create(count, 5, false, Image.FORMAT_RGBAF)
+	# the fourth is the color, the fifth says whether the feature is a child
+	# of the selected one and how wide its lines are, and the sixth is the color
+	# its lines come out in.
+	var img := Image.create(count, 6, false, Image.FORMAT_RGBAF)
 	for i in range(count):
 		var m: Basis = geometry.bases[i]
 		var hovered := 1.0 if geometry.features[i] == hovered_feature else 0.0
@@ -356,6 +364,7 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 		img.set_pixel(i, 3, geometry.colors[i].srgb_to_linear())
 		img.set_pixel(i, 4, Color(1.0 if geometry.features[i] in related else 0.0,
 			geometry.features[i].line_scale(), 0.0))
+		img.set_pixel(i, 5, geometry.line_colors[i].srgb_to_linear())
 
 	var tex := ImageTexture.create_from_image(img)
 	for material in [globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
@@ -428,6 +437,13 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 					for v in ring:
 						geometry.primitives.append(
 							_primitive(Primitive.POINT, [v], node, index))
+		# A crust is filled by its bands above and drawn over by its isochrons
+		# and flowlines, which are segments of the same feature in its line
+		# color; see Logic/crust.gd.
+		for ring in node.crust_line_rings:
+			for j in range(ring.size() - 1):
+				geometry.primitives.append(_primitive(
+					Primitive.SEGMENT, [ring[j], ring[j + 1]], node, index))
 		geometry.ends[index] = geometry.primitives.size()
 	geometry.build_caps(2.0 * asin(maxf(LINE_HIT_WIDTH, POINT_HIT_RADIUS) * 0.5))
 	geometry.resolve(root, time)
@@ -438,9 +454,12 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 # How many primitives a feature is drawn with, without building them: a polygon
 # ring of n vertices is cut into n - 2 triangles, a polyline ring of n into
 # n - 1 segments, and a multipoint into one marker per vertex. A circle drawn
-# as curves is one primitive per ring. A hotspot's sample dots come on top.
+# as curves is one primitive per ring. A hotspot's sample dots and a crust's
+# isochrons and flowlines come on top.
 static func _primitive_count(node: Feature) -> int:
 	var total := Hotspot.samples(node).size()
+	for ring in node.crust_line_rings:
+		total += maxi(0, ring.size() - 1)
 	if node.draws_true_circles():
 		return node.rings.size()
 	match node.drawn_as():

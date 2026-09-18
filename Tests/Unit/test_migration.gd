@@ -31,7 +31,7 @@ func test_the_samples_keep_the_edges_their_triangles_left_on_the_boundary() -> v
 		var before: Array = []
 		_collect_leaves(raw["features"], before)
 		var migrated := Document.migrate(raw.duplicate(true))
-		assert_eq(str(migrated["version"]), "0.23.0", "%s is migrated to 0.23.0" % file_name)
+		assert_eq(str(migrated["version"]), "0.24.0", "%s is migrated to 0.24.0" % file_name)
 
 		var after: Array = []
 		_collect_leaves(migrated["features"], after)
@@ -129,7 +129,7 @@ func test_a_leaf_at_0_4_0_under_no_moving_group_is_left_alone() -> void:
 	var expected: Dictionary = data["features"].duplicate(true)
 	expected["feature_type"] = FeatureType.NONE
 	assert_eq(migrated["features"], expected, "the leaf is as it was, its type left to its geometry")
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 
 
 ### 0.7.0 to 0.8.0: groups stop carrying motion
@@ -222,7 +222,7 @@ func test_a_0_7_0_file_opens_each_old_type_as_one_of_the_five() -> void:
 	var migrated := Document.migrate({"version": "0.7.0",
 		"features": {"type": "Group", "title": "Planet", "children": children},
 		"view": {"hidden_classes": ["small_circles", "points"]}})
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	for i in OLD_TYPES.size():
 		assert_eq(root.children[i].feature_type, OLD_TYPES[i][2], root.children[i].title)
@@ -301,7 +301,7 @@ func test_a_0_9_0_file_keeps_its_types() -> void:
 		"type": "Group", "title": "Planet", "children": [
 			{"type": "Feature", "title": "Ring", "feature_type": "circle", "rings": []}]}})
 	assert_eq(migrated["features"]["children"][0]["feature_type"], "circle", "the circle stays one")
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 
 
 ### 0.12.0 to 0.13.0: the ramp's two ends become a list of colours
@@ -317,7 +317,7 @@ func test_a_0_12_0_ramp_becomes_a_list_of_its_two_ends() -> void:
 	var migrated := Document.migrate({"version": "0.12.0",
 		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style,
 			"children": []}})
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var written: Dictionary = migrated["features"]["style"]
 	assert_eq(written.get("ramp_colors"), [brown, grey], "the two ends are the two stops")
 	assert_true(not written.has("ramp_from") and not written.has("ramp_to"), "and the keys are gone")
@@ -334,7 +334,7 @@ func test_a_0_12_0_style_without_a_ramp_takes_the_new_default() -> void:
 		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style.duplicate(),
 			"children": []}})
 	assert_eq(migrated["features"]["style"], style, "the style is left as it was")
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	assert_eq(root.style.palette, "rainbow", "the palette it named")
 	assert_eq(root.style.ramp_colors, Palette.DEFAULT_RAMP_COLORS, "and the default ramp")
@@ -361,7 +361,7 @@ func test_a_0_13_0_leaf_reads_with_no_icon() -> void:
 	var migrated := Document.migrate({"version": "0.13.0", "features": {
 		"type": "Group", "is_group": true, "title": "Planet", "children": [
 			{"type": "Feature", "title": "Shield", "rings": []}]}})
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var leaf: Feature = Feature.from_json(migrated["features"]).children[0]
 	assert_eq(leaf.icon, FeatureIcon.NONE, "and the leaf carries no icon")
 
@@ -376,7 +376,7 @@ func test_a_0_14_0_span_reads_with_one_parent() -> void:
 		"type": "Group", "is_group": true, "title": "Planet", "children": [
 			{"type": "Feature", "title": "Shield", "rings": [],
 				"couplings": [{"from": 500.0, "to": 200.0, "parent": "a-uuid"}]}]}})
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var leaf: Feature = Feature.from_json(migrated["features"]).children[0]
 	assert_eq(leaf.couplings[0].parent, "a-uuid", "the parent it named")
 	assert_eq(leaf.couplings[0].parent_b, "", "and no second one")
@@ -398,7 +398,7 @@ const SCRATCH := "user://test_migration.middle-earth"
 
 func test_a_0_15_0_view_block_keeps_its_raster_and_grid() -> void:
 	var migrated := Document.migrate({"version": "0.15.0", "features": {}, "view": VIEW_0_15_0})
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var view: Dictionary = migrated["view"]
 	for old: String in Document.VIEW_KEYS_BEFORE_0_16_0:
 		assert_true(not view.has(old), "%s is gone" % old)
@@ -420,7 +420,7 @@ func test_a_0_15_0_view_block_keeps_its_raster_and_grid() -> void:
 func test_a_0_16_0_file_with_no_raster_gets_the_built_in_earth() -> void:
 	var view := {"raster_path": "", "raster_opacity": 0.3, "raster_visible": false, "ambient": 0.25}
 	var migrated := Document.migrate({"version": "0.16.0", "features": {}, "view": view})
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var settings := ViewSettings.from_json(migrated["view"])
 	assert_eq(settings.raster_path, ViewSettings.BUILT_IN_EARTH, "the built in Earth")
 	assert_close(settings.raster_opacity, 1.0, 1e-6, "fully opaque, as the Earth was")
@@ -477,9 +477,9 @@ func test_a_0_17_0_file_changes_only_its_version() -> void:
 	var raw := {"version": "0.17.0", "features": {"type": "Group", "title": "Root",
 		"children": [leaf]}, "view": {"raster_path": "art/earth.png"}}
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var expected := raw.duplicate(true)
-	expected["version"] = "0.23.0"
+	expected["version"] = "0.24.0"
 	assert_eq(migrated, expected, "and nothing else changed")
 	assert_eq(raw["version"], "0.17.0", "the data passed in is not changed")
 	var feature := Feature.from_json(migrated["features"]["children"][0])
@@ -500,9 +500,9 @@ func test_a_0_18_0_file_changes_only_its_version() -> void:
 	var raw := {"version": "0.18.0", "features": {"type": "Group", "title": "Root",
 		"children": [leaf]}, "view": {"raster_path": "art/earth.png"}}
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var expected := raw.duplicate(true)
-	expected["version"] = "0.23.0"
+	expected["version"] = "0.24.0"
 	expected["features"]["children"][0]["feature_type"] = "circle"
 	expected["features"]["children"][0]["polar"] = true
 	assert_eq(migrated, expected, "and nothing else changed")
@@ -524,9 +524,9 @@ func test_a_0_19_0_file_changes_only_its_version() -> void:
 	var raw := {"version": "0.19.0", "features": {"type": "Group", "title": "Root",
 		"children": [leaf]}, "view": {"raster_path": "art/earth.png"}}
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var expected := raw.duplicate(true)
-	expected["version"] = "0.23.0"
+	expected["version"] = "0.24.0"
 	assert_eq(migrated, expected, "and nothing else changed")
 	assert_eq(raw["version"], "0.19.0", "the data passed in is not changed")
 	var feature := Feature.from_json(migrated["features"]["children"][0])
@@ -540,7 +540,7 @@ func test_a_0_19_0_file_changes_only_its_version() -> void:
 func _load_0_20_0(leaf: Dictionary) -> Feature:
 	var raw := {"application": Document.APPLICATION, "version": "0.20.0",
 		"features": {"type": "Group", "title": "Root", "children": [leaf]}}
-	assert_eq(Document.migrate(raw)["version"], "0.23.0", "at the current version")
+	assert_eq(Document.migrate(raw)["version"], "0.24.0", "at the current version")
 	assert_eq(raw["version"], "0.20.0", "the data passed in is not changed")
 	var path := SCRATCH.get_base_dir().path_join("circle_0_20_0.middle-earth")
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -628,9 +628,9 @@ func test_a_0_21_0_hotspot_loses_its_track_step() -> void:
 	var raw := {"version": "0.21.0", "features": {"type": "Group", "title": "Root",
 		"children": [{"type": "Group", "title": "Group", "children": [hotspot]}, other]}}
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	var expected := raw.duplicate(true)
-	expected["version"] = "0.23.0"
+	expected["version"] = "0.24.0"
 	expected["features"]["children"][0]["children"][0].erase("track_step")
 	assert_eq(migrated, expected, "and only the hotspot's track step is gone")
 	assert_eq(raw["version"], "0.21.0", "the data passed in is not changed")
@@ -680,7 +680,7 @@ func _split_0_22_0() -> Dictionary:
 func test_a_0_22_0_ridge_becomes_a_midway_topology() -> void:
 	var raw := _split_0_22_0()
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.23.0", "at the current version")
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
 	assert_eq(raw["version"], "0.22.0", "the data passed in is not changed")
 	var ridge := Feature.from_json(migrated["features"]["children"][0]["children"][2])
 	assert_true(ridge.midway and ridge.geometry_kind == Feature.GeometryKind.TOPOLOGY,
@@ -697,36 +697,91 @@ func test_a_0_22_0_ridge_becomes_a_midway_topology() -> void:
 		"and no rings of its own")
 
 
-func test_a_0_22_0_crust_becomes_bands_with_lines_after_it() -> void:
+func test_a_0_22_0_crust_becomes_bands() -> void:
 	var migrated := Document.migrate(_split_0_22_0())
 	var plates: Array = migrated["features"]["children"][0]["children"]
 	assert_eq(plates.map(func(leaf: Dictionary) -> String: return leaf["title"]),
-		["West", "East", "West ridge", "West crust lines", "West crust", "East crust lines",
-			"East crust"], "a lines leaf before each crust")
-	for index in [4, 6]:
+		["West", "East", "West ridge", "West crust", "East crust"], "one crust per half")
+	for index in [3, 4]:
 		var crust := Feature.from_json(plates[index])
-		var lines := Feature.from_json(plates[index - 1])
-		var half := "west" if index == 4 else "east"
-		assert_true(crust.is_crust() and crust.closed and not crust.crust_lines,
-			"%s is a crust" % crust.title)
+		var half := "west" if index == 3 else "east"
+		assert_true(crust.is_crust() and crust.closed, "%s is a crust" % crust.title)
 		assert_eq([crust.crust_half, crust.crust_ridge, crust.crust_edge], [half, "ridge", 3],
 			"beside its half, opened by the ridge, along a cut of three")
 		assert_true(crust.sections.is_empty(), "with no sections")
 		assert_eq(crust.color, Color(0, 0, 1, 1), "keeping its colour")
-		assert_true(lines.is_crust() and lines.crust_lines and not lines.closed,
-			"%s holds the lines" % lines.title)
-		assert_eq([lines.crust_half, lines.crust_ridge, lines.crust_edge], [half, "ridge", 3],
-			"of the same crust")
-		assert_eq(lines.color, FeatureType.color(FeatureType.CRUST_LINES), "in their colour")
-		assert_eq(lines.time_range, crust.time_range, "over the same time")
-		assert_true(lines.uuid != crust.uuid and not lines.uuid.is_empty(), "with an id of its own")
+		assert_eq(crust.line_color(crust.color), FeatureType.color(FeatureType.CRUST_LINES),
+			"and drawing its lines in their own colour")
 	var other: Dictionary = migrated["features"]["children"][1]
 	assert_eq(other, _split_0_22_0()["features"]["children"][1],
 		"a closed topology along two plates is left alone")
 
 
-# The keys a 0.23.0 file writes are the ones it reads back.
-func test_a_0_22_0_file_round_trips() -> void:
+### 0.23.0 to 0.24.0: the crust draws its own isochrons and flowlines
+
+
+# What the Split tool left at 0.23.0: the two halves, the ridge, and a lines
+# leaf and a crust for each half. Built by migrating the 0.22.0 split, which is
+# what wrote those four rows.
+func _split_0_23_0() -> Dictionary:
+	var data := Document.migrate(_split_0_22_0())
+	var plates: Array = data["features"]["children"][0]["children"]
+	# Last one first, so inserting does not move the one still to come.
+	for index in [4, 3]:
+		var crust: Dictionary = plates[index]
+		var lines: Dictionary = crust.duplicate(true)
+		lines["uuid"] = "%s-lines" % crust["uuid"]
+		lines["title"] = "%s lines" % crust["title"]
+		lines.erase("closed")
+		lines["crust"]["lines"] = true
+		plates.insert(index, lines)
+	data["version"] = "0.23.0"
+	return data
+
+
+func test_a_0_23_0_crust_keeps_its_bands_and_drops_its_lines_leaf() -> void:
+	var raw := _split_0_23_0()
+	var before: Array = raw["features"]["children"][0]["children"]
+	assert_eq(before.map(func(leaf: Dictionary) -> String: return leaf["title"]),
+		["West", "East", "West ridge", "West crust lines", "West crust", "East crust lines",
+			"East crust"], "the four crust rows of 0.23.0")
+	var migrated := Document.migrate(raw)
+	assert_eq(migrated["version"], "0.24.0", "at the current version")
+	assert_eq(raw["version"], "0.23.0", "the data passed in is not changed")
+	var plates: Array = migrated["features"]["children"][0]["children"]
+	assert_eq(plates.map(func(leaf: Dictionary) -> String: return leaf["title"]),
+		["West", "East", "West ridge", "West crust", "East crust"],
+		"load with one crust per half")
+	# The crusts are the fifth and the seventh of the seven rows; nothing else
+	# about them moves.
+	for pair in [[3, 4], [4, 6]]:
+		var crust: Dictionary = plates[pair[0]]
+		assert_eq(crust, before[pair[1]], "%s is left as it was" % crust["title"])
+		assert_true(not (crust["crust"] as Dictionary).has("lines"),
+			"and carries no lines key")
+	var other: Dictionary = migrated["features"]["children"][1]
+	assert_eq(other, _split_0_22_0()["features"]["children"][1],
+		"a closed topology along two plates is still left alone")
+
+
+# The crust that survives the migration is a working one, drawing between them
+# what the two 0.23.0 rows drew: the bands, and the isochrons and the flowlines.
+func test_a_migrated_0_23_0_crust_draws_the_bands_and_the_lines() -> void:
+	var root := Feature.from_json(Document.migrate(_split_0_23_0())["features"])
+	root.is_root = true
+	var plates: Feature = root.children[0]
+	assert_eq(plates.children.size(), 5, "the split leaves five rows")
+	for index in [3, 4]:
+		var crust: Feature = plates.children[index]
+		Crust.rebuild(root, crust, 0.0, 25.0)
+		assert_eq(crust.rings.size(), 4, "%s: four bands from 100 Ma at 25 My" % crust.title)
+		assert_eq(Crust.chunks(crust), 4, "counted as four chunks")
+		assert_eq(crust.crust_line_rings.size(), 5 + 3,
+			"with five isochrons and three flowlines over them")
+
+
+# The keys a 0.24.0 file writes are the ones it reads back.
+func test_a_0_24_0_file_round_trips() -> void:
 	var document := Document.new()
 	document.view.planet_color = Color(0.5, 0.25, 0.1)
 	document.view.raster_path = "C:/pictures/earth.png"
@@ -757,20 +812,20 @@ func test_a_0_22_0_file_round_trips() -> void:
 	var file := FileAccess.open(SCRATCH, FileAccess.READ)
 	var raw: Dictionary = JSON.parse_string(file.get_as_text())
 	file.close()
-	assert_eq(raw["version"], "0.23.0", "at the current version")
-	assert_eq(Document.migrate(raw), raw, "migration leaves a 0.23.0 file as it is")
+	assert_eq(raw["version"], "0.24.0", "at the current version")
+	assert_eq(Document.migrate(raw), raw, "migration leaves a 0.24.0 file as it is")
 
 	var reloaded := Document.new()
 	assert_eq(reloaded.load_from_file(SCRATCH), "", "the written file loads back")
 	assert_eq(reloaded.view.to_json(), document.view.to_json(), "with the same view block")
-	for index in 11:
+	for index in 9:
 		assert_eq(reloaded.root.children[index].to_json(), document.root.children[index].to_json(),
 			"and the same %s" % document.root.children[index].title)
 	assert_true(not Hotspot.placed(reloaded.root.children[3]), "the waiting hotspot is not placed")
 	assert_true(reloaded.root.children[6].midway, "the ridge is midway")
-	assert_true(reloaded.root.children[9].crust_lines, "the second lines come before the crust")
-	assert_eq(reloaded.root.children[10].crust_ridge, reloaded.root.children[6].uuid,
-		"and the crust names the ridge")
+	for index in [7, 8]:
+		assert_eq(reloaded.root.children[index].crust_ridge, reloaded.root.children[6].uuid,
+			"one crust per half, each naming the ridge")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 
 

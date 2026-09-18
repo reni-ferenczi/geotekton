@@ -344,7 +344,9 @@ worked out once per feature and held in row 3 of
 [`feature_data`](#per-feature-rotation). The alpha of that color is the
 feature's opacity, which the shader lays the color over what is beneath by. At
 0 the planet shows through, and the feature is still hit tested. See
-[Styling](Styling.md).
+[Styling](Styling.md). A crust is the one feature with a second color, for the
+isochrons and flowlines it draws over its bands; it sits in row 5 and
+everything else has its own color there.
 
 ### Colour space
 
@@ -486,8 +488,9 @@ color per feature, and that is the whole of what a step of an animation or a
 change of color re-uploads, whatever the triangle count is.
 
 `feature_data` uses `FORMAT_RGBAF` with **width = feature count** and
-**height = 5 rows**, one column of the rotation per row in the first three, the
-color in the fourth and the child flag and the line scale in the fifth:
+**height = 6 rows**, one column of the rotation per row in the first three, the
+color in the fourth, the child flag and the line scale in the fifth and the
+line color in the sixth:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
@@ -496,6 +499,7 @@ color in the fourth and the child flag and the line scale in the fifth:
 | 2 | m02 | m12 | m22 | selected |
 | 3 | red (linear) | green (linear) | blue (linear) | opacity |
 | 4 | related | line scale | 0 | 0 |
+| 5 | red (linear) | green (linear) | blue (linear) | opacity |
 
 The color is what the draw style resolved for the feature, which is why it
 lives here rather than beside the vertices. The selection highlight of GP-0034
@@ -514,6 +518,12 @@ four rows have no channel left over, so the flag takes a row of its own. The
 line scale, `Feature.line_scale()`, is what the feature's segments are drawn at
 against `geometry_line_width`; see [Shader Uniforms](#shader-uniforms).
 Selecting another feature re-uploads this texture and nothing else.
+
+Row 5 is the color the feature's segments, circles and markers come out in,
+while row 3 stays the color of its filled triangles. The two are the same for
+every feature but a [crust](Editing.md#the-crust), whose bands are filled in
+the crust color and whose isochrons and flowlines are drawn over them in the
+crust lines color; `Feature.line_color()` decides which it is.
 
 The pointer is not the only thing that ends a hover. A change of the current
 time moves the features under a pointer that need not have moved at all, so
@@ -761,7 +771,7 @@ today; raising the limit is GP-0030 in the workspace ticket list.
 
 Playing costs almost nothing over standing still, which is the point of
 keeping the rotation in `feature_data`: what a frame of an animation changes is
-five texels per feature. The limit is the per-fragment loop over the triangles
+six texels per feature. The limit is the per-fragment loop over the triangles
 themselves, which the strategies below address.
 
 ### Optimization Strategies

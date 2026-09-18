@@ -400,10 +400,9 @@ A [midway topology](Editing.md#midway-topologies), such as a ridge, has no
 Closed switch. A line above the table says `Midway between two sections`, and
 Pick refuses a third section. A [crust](Editing.md#the-crust) has neither the
 switch nor the table, since it is built from its half and its ridge. The line
-says what it is and how many bands it has at the current time and Skip, as in
-`Crust of Laurentia, 4 chunks` or `Crust lines of Laurentia, 4 chunks`.
-`get_properties` reports the line as `topology_note` and, on a crust, the count
-as `crust_chunks`.
+says which half it lies beside and how many bands it has at the current time and
+Skip, as in `Crust of Laurentia, 4 chunks`. `get_properties` reports the line as
+`topology_note` and, on a crust, the count as `crust_chunks`.
 
 ### Every edit goes through the document
 

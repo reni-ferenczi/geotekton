@@ -3886,8 +3886,7 @@ CRUST_SKIP = 25.0
 # the colour of its isochrons and flowlines.
 CRUST_COLOR = [0.275, 0.510, 0.706]
 CRUST_LINES_COLOR = [0.690, 0.769, 0.871]
-CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust lines", "Plate crust",
-                "Plate 2 crust lines", "Plate 2 crust"]
+CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust", "Plate 2 crust"]
 CRUSTS = ["Plate crust", "Plate 2 crust"]
 
 # Two lines a hand built topology runs along, end to end, and a point inside the
@@ -3924,10 +3923,10 @@ def run_crust_session(client: AutomationClient) -> None:
     client.call("key", key="Enter")
     check(undo_depth(client) == depth + 1, "the split, the ridge and the crust are one version")
     titles = [f["title"] for f in client.call("get_features")["features"]]
-    check(titles[-7:] == CRUST_TITLES, f"the halves, the ridge and two crusts: {titles}")
+    check(titles[-5:] == CRUST_TITLES, f"the halves, the ridge and two crusts: {titles}")
     status = client.call("get_status")["status"]["measure"]
     check(all(title in status for title in CRUST_TITLES),
-          f"the status bar names all seven: {status!r}")
+          f"the status bar names all five: {status!r}")
     for title in CRUST_TITLES[3:]:
         client.call("select", title=title)
         crust = client.call("get_selected")["feature"]
@@ -3935,8 +3934,7 @@ def run_crust_session(client: AutomationClient) -> None:
               f"{title} is a topology from the split on: {crust['time_range']}")
         panel = client.call("get_properties")["properties"]
         half = "Plate 2" if "Plate 2" in title else "Plate"
-        kind = "Crust lines" if title.endswith("lines") else "Crust"
-        check(panel.get("topology_note") == f"{kind} of {half}, 0 chunks",
+        check(panel.get("topology_note") == f"Crust of {half}, 0 chunks",
               f"the panel says what it is: {panel.get('topology_note')!r}")
         check(panel["area_km2"] < 1.0 and panel["crust_chunks"] == 0,
               f"with no chunks at the split: {panel['area_km2']}, {panel['crust_chunks']}")
@@ -3978,14 +3976,15 @@ def run_crust_probes(client: AutomationClient, title: str) -> None:
     panel = client.call("get_properties")["properties"]
     check(panel["crust_chunks"] == 4 and panel["area_km2"] > 1e5,
           f"{title} has opened in four chunks: {panel['crust_chunks']}, {panel['area_km2']:.0f} km²")
-    client.call("select", title=f"{title} lines")
-    lines = client.call("get_selected")["feature"]["world_rings"]
-    if not check(len(lines) == 5 + len(CRUST_CUT), f"five isochrons and three flowlines: {len(lines)}"):
+    bands = client.call("get_selected")["feature"]["world_rings"]
+    if not check(len(bands) == 4 and all(len(band) == 2 * len(CRUST_CUT) for band in bands),
+                 f"four bands of two isochrons each: {[len(band) for band in bands]}"):
         return
-    # Halfway along the first stretch of the 75 and 50 Ma isochrons, and
-    # between the two, away from the flowlines and the equator.
-    on_75 = midpoint(lines[1][0], lines[1][1])
-    on_50 = midpoint(lines[2][0], lines[2][1])
+    # A band starts on its older isochron, so this is halfway along the first
+    # stretch of the 75 and the 50 Ma isochrons, and between the two, away from
+    # the flowlines and the equator.
+    on_75 = midpoint(bands[1][0], bands[1][1])
+    on_50 = midpoint(bands[2][0], bands[2][1])
     between = midpoint(list(on_75), list(on_50))
     client.call("select", title=None)
     pixel = probe_unhovered(client, *between)

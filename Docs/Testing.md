@@ -403,17 +403,16 @@ leave the one craton.
 
 `run_crust_session` draws a square at 100 Ma and picks the Split tool with
 Ridge off, where the Crust switch is shown but greyed out and refuses to be
-turned on. With both on, one cut leaves seven features in one undo version,
-the two halves, the ridge and each half's crust lines and crust, and the status
-bar names all seven. Each crust and lines feature is a topology from the split
-to the present whose panel line reads `Crust of Plate, 0 chunks` or
-`Crust lines of Plate, 0 chunks`, with no area, no section table and no Closed
+turned on. With both on, one cut leaves five features in one undo version,
+the two halves, the ridge and one crust per half, and the status bar names all
+five. Each crust is a topology from the split to the present whose panel line
+reads `Crust of Plate, 0 chunks`, with no area, no section table and no Closed
 switch. Both halves are keyed at the split and dragged apart at the present.
 The skip is then set to 25 My; the application reads the user's configuration,
-so the scenario puts the old skip back at the end. Each crust has four chunks
-and an area, and its lines feature five isochrons and three flowlines. A pixel
+so the scenario puts the old skip back at the end. Each crust then has four
+chunks, an area, and four band rings of six vertices, two isochrons each. A pixel
 between the 75 and 50 Ma isochrons is the crust's steel blue and a pixel on the
-75 Ma isochron is the lines' light steel blue, with the pointer moved away so
+75 Ma isochron is its lines' light steel blue, with the pointer moved away so
 no hover highlight is read. A skip of 50 My leaves two chunks. Last, a topology clicked together from two
 lines fills nothing until the Closed switch is set through `set_property`,
 which is one undo version, gives one ring of four, shows the Area row, which

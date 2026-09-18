@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "features": { ... },
   "view": { ... }
 }
@@ -340,10 +340,9 @@ object naming what it is built from:
 
 `half` is the uuid of the half of the split plate it lies beside, `ridge` the
 uuid of the midway topology it opened from, and `edge` how many vertices the
-cut had. The crust is closed and holds the bands; the feature holding the
-isochrons and flowlines is open and adds `"lines": true` to the object. Neither
-writes its rings: they are rebuilt from the half, the ridge, the time and the
-timeline's Skip before the geometry is collected.
+cut had. A crust is closed and holds the bands, with the isochrons and the
+flowlines drawn over them. It writes no rings: they are rebuilt from the half,
+the ridge, the time and the timeline's Skip before the geometry is collected.
 
 `keyframes` is where the feature is over time: a list of `{time, rotation}`,
 sorted with the youngest first, `time` an age in millions of years before
@@ -640,7 +639,17 @@ step, `Document._to_0_23_0()`, changes what the Split tool left at 0.22.0:
   inserted before it.
 
 Every other leaf, including closed topologies along anything else, is left
-alone.
+alone. The lines leaf this step inserts is what the next one takes away again;
+each step is written for the format of its own version.
+
+#### 0.23.0 to 0.24.0
+
+0.24.0 moved the isochrons and the flowlines into the
+[crust](Editing.md#the-crust) itself, so the leaf that held them alone is gone
+from the tree. The step, `Document._to_0_24_0()`, drops every leaf whose `crust`
+object carries `"lines": true` and leaves the crust beside it as it is, which
+already says what it is built from. A 0.23.0 split that had four crust rows
+loads with two, drawing the same bands, isochrons and flowlines.
 
 ## The config file
 

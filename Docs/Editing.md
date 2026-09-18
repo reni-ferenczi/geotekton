@@ -420,8 +420,8 @@ A cut is refused, with the reason in the status bar, when:
 A refused cut keeps its points, so the one at fault can be taken back with
 Ctrl+Z. A cut that is made records one undo version and goes back to the Move
 tool, with the first half selected. The status bar names what the cut left
-behind, `Split into Laurentia, Laurentia 2, Laurentia ridge, Laurentia crust
-lines, Laurentia crust, Laurentia 2 crust lines, Laurentia 2 crust`.
+behind, `Split into Laurentia, Laurentia 2, Laurentia ridge, Laurentia crust,
+Laurentia 2 crust`.
 
 Each half's ring starts with the cut: its first vertices are the two ends and
 the points between them, which is how the ridge names that stretch.
@@ -469,27 +469,28 @@ itself. Between them there is one at every multiple of the timeline's
 sampled at. A **flowline** follows one vertex of the cut across every isochron,
 from the continent to the ridge.
 
-Each half gets two features, placed after the ridge, both with the ridge's time
-range:
+Each half gets one feature, `Laurentia crust`, placed after the ridge with the
+ridge's time range. It holds the bands between two isochrons in a row, one
+filled part each, in steel blue, with the oldest band against the continent, and
+it draws the isochrons and a flowline for each vertex of the cut over them, as
+thin lines in light steel blue. So the order in the tree is `Laurentia`,
+`Laurentia 2`, `Laurentia ridge`, `Laurentia crust` and `Laurentia 2 crust`.
 
-- `Laurentia crust lines` holds the isochrons and a flowline for each vertex of
-  the cut, drawn as thin lines in light steel blue.
-- `Laurentia crust` holds the bands between two isochrons in a row, one filled
-  part each, in steel blue. The band against the continent is the oldest.
+A feature is drawn in one color, so a crust carries a second one for its lines:
+`Feature.line_color()` gives it the crust lines color and everything else its
+own, and the shader paints a feature's segments and markers in that color and
+its filled triangles in the first. Recoloring or hiding the lines on their own
+is left for later.
 
-The lines come before the bands in the tree because the first feature of a
-group is drawn on top, and the bands would hide them otherwise. So the order is
-`Laurentia`, `Laurentia 2`, `Laurentia ridge`, `Laurentia crust lines`,
-`Laurentia crust`, `Laurentia 2 crust lines` and `Laurentia 2 crust`.
-
-At the age of the cut there is only the one isochron, so neither feature draws
-anything. As the time moves towards the present the halves drift and the bands
-open, one more at each Skip. `Logic/crust.gd` rebuilds both features after the
-topologies whenever the tree, the time or the Skip changes. Both are topologies
-with no sections: the Properties panel shows a line such as
-`Crust of Laurentia, 4 chunks` in place of the section table, and the Area row of
-the crust is the sum of its bands. Copy Shape takes the bands as a polygon of
-several parts. Both are part of the split's one undo version.
+At the age of the cut there is only the one isochron, so the crust draws
+nothing. As the time moves towards the present the halves drift and the bands
+open, one more at each Skip. `Logic/crust.gd` rebuilds the crust after the
+topologies whenever the tree, the time or the Skip changes, and keeps the bands
+in the feature's rings and the lines beside them, so only the bands are filled
+and measured. A crust is a topology with no sections: the Properties panel shows
+a line such as `Crust of Laurentia, 4 chunks` in place of the section table, and
+the Area row is the sum of its bands. Copy Shape takes the bands as a polygon of
+several parts. The crust is part of the split's one undo version.
 
 The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
 operation with no points between the ends, and `GeometryEdit` works both out
