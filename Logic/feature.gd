@@ -104,26 +104,12 @@ var midway := false
 
 # What a crust is built from: the half of a split plate it lies beside, the
 # ridge it opened from and how many vertices the cut had. A crust is a topology
-# without sections; Crust.rebuild() gives it its rings, the bands of sea floor,
-# and its line rings, the isochrons and the flowlines it draws over them. The
-# line rings are kept apart from the rings so that only the bands are filled,
-# measured and triangulated.
+# without sections; Crust.rebuild() gives it its rings. The lines one holds the
+# isochrons and flowlines instead of the bands between them.
 var crust_half := ""
 var crust_ridge := ""
 var crust_edge := 0
-var crust_line_rings: Array[PackedVector2Array] = []
-
-# How old the crust in each band is, in the order of the rings, oldest band
-# first. Crust.rebuild() works them out from the isochron ages; the age ramp
-# that colors the bands reads them. Empty on everything that is not a crust.
-var band_ages := PackedFloat64Array()
-
-# How far apart in time a hotspot's track samples and a crust's isochrons are,
-# in My, and 0 for the timeline's Skip. Only those two read it, through
-# Hotspot.step_of(). It is saved with the feature, so a file samples the same
-# way on every machine, while the Skip is a setting of the machine. Since
-# 0.25.0; before that both followed the Skip alone.
-var time_step := 0.0
+var crust_lines := false
 
 # What a Circle is built from: its center, the point its axis comes out of, as
 # (latitude, longitude) in degrees in the feature's own frame, its radius in
@@ -148,11 +134,8 @@ var hotspot := NO_HOTSPOT
 var plate_uuid := ""
 
 # Triangles covering the polygon rings, 3 vertices each, wound so that they face
-# outwards, and how many of them each ring gave, so a caller that draws one ring
-# at a time can find its own. Derived from rings by rebuild_triangles(), never
-# read from a file.
+# outwards. Derived from rings by rebuild_triangles(), never read from a file.
 var triangles := PackedVector2Array()
-var ring_triangles := PackedInt32Array()
 
 # How the feature turns over time, sorted by time. An empty list means it does
 # not move at all. Only a leaf has any: a group is organization and carries no
@@ -286,12 +269,10 @@ func vertex_count() -> int:
 # other kinds are drawn and hit tested from their vertices directly.
 func rebuild_triangles() -> void:
 	triangles = PackedVector2Array()
-	ring_triangles = PackedInt32Array()
 	if drawn_as() != GeometryKind.POLYGON:
 		return
 
 	for ring in rings:
-		var before := triangles.size()
 		var corners := ear_clip(ring)
 		for i in range(0, corners.size() - 2, 3):
 			var a := corners[i]
@@ -304,7 +285,6 @@ func rebuild_triangles() -> void:
 			triangles.append(a)
 			triangles.append(b)
 			triangles.append(c)
-		ring_triangles.append((triangles.size() - before) / 3)
 
 
 # Whether a triangle is visible from outside the planet: its normal points away
@@ -371,12 +351,11 @@ func is_crust() -> bool:
 
 # How wide the feature's lines are drawn, against the shader's
 # geometry_line_width. A hotspot track is thin so the dots at its samples stand
-# out, and a circle is thinner than a line someone drew. A crust reads it for
-# its isochrons and flowlines; its bands are polygons and do not. A per feature
-# setting would go here.
+# out, and a circle is thinner than a line someone drew. A per feature setting
+# would go here.
 const HOTSPOT_LINE_SCALE := 0.35
 const CIRCLE_LINE_SCALE := 0.5
-const CRUST_LINE_SCALE := 0.5
+const CRUST_LINES_LINE_SCALE := 0.5
 
 
 func line_scale() -> float:
@@ -384,22 +363,9 @@ func line_scale() -> float:
 		return HOTSPOT_LINE_SCALE
 	if is_circle():
 		return CIRCLE_LINE_SCALE
-	if is_crust():
-		return CRUST_LINE_SCALE
+	if is_crust() and crust_lines:
+		return CRUST_LINES_LINE_SCALE
 	return 1.0
-
-
-# The color the feature's lines are drawn in, given the color its fill came out
-# of the draw style. Only a crust reads anything else: its bands are the fill
-# and its isochrons and flowlines are drawn in the crust lines color, at the
-# fill's opacity, so a group's opacity still reaches them. See
-# Docs/Editing.md#the-crust.
-func line_color(fill: Color) -> Color:
-	if not is_crust():
-		return fill
-	var lines := FeatureType.color(FeatureType.CRUST_LINES)
-	lines.a = fill.a
-	return lines
 
 
 ### Clone (preserves pnid) and Duplicate (new pnid)
@@ -425,15 +391,11 @@ func clone() -> Feature:
 	node.crust_half = crust_half
 	node.crust_ridge = crust_ridge
 	node.crust_edge = crust_edge
-	node.time_step = time_step
-	node.crust_line_rings.assign(crust_line_rings.map(
-		func(ring: PackedVector2Array) -> PackedVector2Array: return ring.duplicate()))
-	node.band_ages = band_ages.duplicate()
+	node.crust_lines = crust_lines
 	for ring in rings:
 		node.rings.append(ring.duplicate())
 	# Copied rather than recomputed: every undo step clones the whole tree.
 	node.triangles = triangles.duplicate()
-	node.ring_triangles = ring_triangles.duplicate()
 	node.keyframes = Keyframe.clone_list(keyframes)
 	node.couplings = Coupling.clone_list(couplings)
 	node.time_range = time_range
@@ -568,6 +530,8 @@ func to_json() -> Variant:
 				data["midway"] = true
 			if is_crust():
 				data["crust"] = {"half": crust_half, "ridge": crust_ridge, "edge": crust_edge}
+				if crust_lines:
+					data["crust"]["lines"] = true
 		else:
 			data["rings"] = rings_to_json(rings)
 		data["time_range"] = [time_range.x, time_range.y]
@@ -586,11 +550,6 @@ func to_json() -> Variant:
 			if Hotspot.placed(self):
 				data["hotspot"] = [hotspot.x, hotspot.y]
 			data["plate"] = plate_uuid
-		# 0.25.0, and written only when the feature carries a step of its own.
-		# A missing key reads as 0, which is the timeline's Skip, and that is
-		# what every hotspot and crust did before.
-		if time_step > 0.0:
-			data["time_step"] = time_step
 	return data
 
 
@@ -634,6 +593,7 @@ static func from_json(data: Variant) -> Feature:
 			node.crust_half = str(crust.get("half", ""))
 			node.crust_ridge = str(crust.get("ridge", ""))
 			node.crust_edge = int(crust.get("edge", 0))
+			node.crust_lines = bool(crust.get("lines", false))
 		node.rings = rings_from_json(data.get("rings", []))
 		node.rebuild_triangles()
 		var tr: Array = data.get("time_range", [0, 2000])
@@ -647,7 +607,6 @@ static func from_json(data: Variant) -> Feature:
 			var h: Array = data["hotspot"]
 			node.hotspot = Vector2(h[0], h[1])
 		node.plate_uuid = str(data.get("plate", ""))
-		node.time_step = float(data.get("time_step", 0.0))
 		# The parameters win over the rings the file holds. A hotspot's track
 		# needs the whole tree, so Hotspot.rebuild_all() redoes it before the
 		# geometry is collected.

@@ -420,8 +420,8 @@ A cut is refused, with the reason in the status bar, when:
 A refused cut keeps its points, so the one at fault can be taken back with
 Ctrl+Z. A cut that is made records one undo version and goes back to the Move
 tool, with the first half selected. The status bar names what the cut left
-behind, `Split into Laurentia, Laurentia 2, Laurentia ridge, Laurentia crust,
-Laurentia 2 crust`.
+behind, `Split into Laurentia, Laurentia 2, Laurentia ridge, Laurentia crust
+lines, Laurentia crust, Laurentia 2 crust lines, Laurentia 2 crust`.
 
 Each half's ring starts with the cut: its first vertices are the two ends and
 the points between them, which is how the ridge names that stretch.
@@ -464,60 +464,32 @@ ridge and older crust is next to the continent.
 An **isochron** is a line of equal crust age: where the ridge was at that age,
 carried along with the half since. The oldest one, at the age of the cut, is the
 half's side of the cut, and the youngest, at the current time, is the ridge
-itself. Between them there is one at every multiple of the crust's **Step
-(My)**, the same setting a [hotspot](#hotspots) track is sampled at, and at
-every multiple of the timeline's [Skip](Time.md#the-time-control) while the
-step is 0. A **flowline** follows one vertex of the cut across every isochron,
+itself. Between them there is one at every multiple of the timeline's
+[Skip](Time.md#the-time-control), the same step a [hotspot](#hotspots) track is
+sampled at. A **flowline** follows one vertex of the cut across every isochron,
 from the continent to the ridge.
 
-Each half gets one feature, `Laurentia crust`, placed after the ridge with the
-ridge's time range. It holds the bands between two isochrons in a row, one
-filled part each, in steel blue, with the oldest band against the continent, and
-it draws the isochrons and a flowline for each vertex of the cut over them, as
-thin lines in light steel blue. So the order in the tree is `Laurentia`,
-`Laurentia 2`, `Laurentia ridge`, `Laurentia crust` and `Laurentia 2 crust`.
+Each half gets two features, placed after the ridge, both with the ridge's time
+range:
 
-Each band is filled by the age of the crust in it, the way an age grid reads in
-GPlates: the band against the continent, which holds the crust laid down at the
-age of the cut, is the crust's own steel blue, and every band towards the ridge
-is a lighter shade of it, up to 55 percent of the way to white at the youngest.
-The age is the older of the band's two isochrons, counted from the current time,
-so the crust beside the ridge is new whatever time is being looked at. A crust
-in a group on the [Feature age](Styling.md#the-draw-styles) style is painted
-band by band from that style's palette instead, each band read at its own age
-rather than the whole crust at the age of the split. Either way the color a
-crust carries is what its oldest band comes out, so the crust color in the
-Feature colors section of [Preferences](Shell.md#preferences) sets the old end
-of the ramp and every band moves with it.
+- `Laurentia crust lines` holds the isochrons and a flowline for each vertex of
+  the cut, drawn as thin lines in light steel blue.
+- `Laurentia crust` holds the bands between two isochrons in a row, one filled
+  part each, in steel blue. The band against the continent is the oldest.
 
-A feature is drawn in one color, so a crust carries a second one for its lines:
-`Feature.line_color()` gives it the crust lines color and everything else its
-own, and the shader paints a feature's segments and markers in that color and
-its filled triangles in the first. Hiding the lines on their own is left for
-later. The bands themselves are drawn in as many colors as there are bands:
-each band takes a column of its own in the [per feature
-rows](Shader.md#per-feature-rotation) the shader already reads, so neither the
-shader nor the geometry texture carries a color or an age per band. `Crust`
-records the age of the crust in each band beside the rings and
-`Styling.band_color()` turns it into the color.
+The lines come before the bands in the tree because the first feature of a
+group is drawn on top, and the bands would hide them otherwise. So the order is
+`Laurentia`, `Laurentia 2`, `Laurentia ridge`, `Laurentia crust lines`,
+`Laurentia crust`, `Laurentia 2 crust lines` and `Laurentia 2 crust`.
 
-At the age of the cut there is only the one isochron, so the crust draws
-nothing. As the time moves towards the present the halves drift and the bands
-open, one more at each step. `Logic/crust.gd` rebuilds the crust after the
-topologies whenever the tree, the time, the step or the Skip changes, and keeps
-the bands in the feature's rings and the lines beside them, so only the bands
-are filled and measured. A crust is a topology with no sections: the Properties
-panel shows a line such as `Crust of Laurentia, 4 chunks` in place of the
-section table, and the Area row is the sum of its bands. Copy Shape takes the
-bands as a polygon of several parts. The crust is part of the split's one undo
-version.
-
-The crust starts with a **Step (My)** of 0, which follows the timeline's Skip,
-so the band count on a fresh split depends on how the Skip happens to be set.
-Typing a step into the [Step row](Properties.md#the-step-row) pins the sampling
-to the crust itself, where it is saved with the document. That is the one row
-of a crust anyone edits; everything else about it comes from its half and its
-ridge.
+At the age of the cut there is only the one isochron, so neither feature draws
+anything. As the time moves towards the present the halves drift and the bands
+open, one more at each Skip. `Logic/crust.gd` rebuilds both features after the
+topologies whenever the tree, the time or the Skip changes. Both are topologies
+with no sections: the Properties panel shows a line such as
+`Crust of Laurentia, 4 chunks` in place of the section table, and the Area row of
+the crust is the sum of its bands. Copy Shape takes the bands as a polygon of
+several parts. Both are part of the split's one undo version.
 
 The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
 operation with no points between the ends, and `GeometryEdit` works both out
@@ -669,9 +641,7 @@ A circle takes no part in [coupling](Time.md#coupling). The Properties panel
 shows no coupling rows for it, Couple is refused with "A circle follows
 nothing.", and a circle is not offered as a feature to follow: the picker
 leaves it out and a pick click on one says "A circle carries nothing." The
-keyframe row stays, since Move and Rotate still turn a circle. A file written
-before 0.26.0 could couple a circle; the spans are dropped when it is opened,
-and the circle keeps everything else.
+keyframe row stays, since Move and Rotate still turn a circle.
 
 The construction itself is in `Logic/circle.gd` and is tested without a
 window. How well three points settle a centre depends on how large the circle
@@ -692,24 +662,20 @@ The hotspot sits still in the world frame, which is the mantle frame; see
 [Time](Time.md#the-world-frame). The feature keeps two values: where the
 hotspot is, as a latitude and longitude, and the plate it burns through, which
 is any leaf feature holding vertices of its own. Its own time range says when
-the hotspot is active, from the From age to the To age. A third value, the
-**Step (My)**, says how far apart in time the track is sampled: 0, which is
-what a new hotspot has, follows the timeline's
-[Skip](Time.md#the-time-control), and anything above 0 is the hotspot's own
-step, saved with the feature, so two hotspots in one document can be sampled
-differently.
+the hotspot is active, from the From age to the To age. The track is sampled at
+the timeline's [Skip](Time.md#the-time-control), so it has a vertex for every Skip.
 
 `Hotspot.rebuild()` in `Logic/hotspot.gd` gives the feature up to two
 polylines:
 
 - the **mark**, a closed ring one degree around the hotspot, cut into 24
   segments, so the hotspot shows whatever the plate does;
-- the **track**, one vertex for every multiple of the step that is older than
+- the **track**, one vertex for every multiple of the Skip that is older than
   the current time and no older than the From age, oldest first, with the From
   age in front when it is not a multiple and the current time last. A 100 My
-  range at a step of 30 is sampled at 100, 90, 60, 30 and 0 Ma when the current
-  time is 0. A step below 0.1 My samples at 0.1 My. `Hotspot.step_of()` picks
-  the step over the Skip and `Hotspot.sample_ages()` works the ages out. The vertex for age `t` is the plate
+  range at a Skip of 30 is sampled at 100, 90, 60, 30 and 0 Ma when the current
+  time is 0. A Skip below 0.1 My samples at 0.1 My. `Hotspot.sample_ages()`
+  works the ages out. The vertex for age `t` is the plate
   point that was over the hotspot at `t`, carried with the plate to the current
   time: `B(T) * B(t)^T * H`, with `B` the plate's world rotation, `T` the
   current time and `H` the hotspot. Ages at which the plate does not exist are
@@ -719,10 +685,9 @@ The oldest vertex is the farthest from the hotspot and the youngest is on it.
 Both polylines are drawn at 0.35 of the feature line width, and every vertex
 of the track gets a dot of its own in the feature's color, so the samples show
 along the thin line.
-The track depends on the plate, the time and the step, so it is rebuilt the
+The track depends on the plate, the time and the Skip, so it is rebuilt the
 way a [topology](#topologies) is: before the geometry is collected, at every
-time change and whenever the Skip box takes a new value. A new Skip redraws
-every track still on a step of 0 and leaves the rest as they are.
+time change and whenever the Skip box takes a new value.
 
 Picking Hotspot in the Type selector of an empty feature arms the Draw tool
 and draws nothing yet. The status bar says "Click to place <title>; click
@@ -740,20 +705,14 @@ hidden, a Move drag does nothing, and the Vertex, Rotate and Pole tools are
 greyed out. Pasting a shape into it and the Python bridge's ring edit are
 refused.
 
-Like a circle, a hotspot takes no part in [coupling](Time.md#coupling) either.
-Couple is refused with "A hotspot follows its plate.", the picker does not offer
-a hotspot as a feature to follow, and a pick click on one says "A hotspot
-carries nothing." A file written before 0.26.0 could hold such a span; those are
-dropped when it is opened.
-
-The [Properties panel](Properties.md#the-hotspot-rows) picks the plate and
-takes the step, one undo version each time. The plate comes from its selector
-or from its pointer, the way the Follow row picks a parent. The plate is not a parent the hotspot follows: the
+The [Properties panel](Properties.md#the-hotspot-rows) picks the plate, one
+undo version each time, from its selector or with its pointer, the way the
+Follow row picks a parent. The plate is not a parent the hotspot follows: the
 hotspot stays where it is in the mantle, and the track is the plate's motion
 over it.
 
-The file keeps the rings as well as the place, the plate and the step, so an
-older reader and the Python side see two polylines. On load the values win and the
+The file keeps the rings as well as the place and the plate, so an older
+reader and the Python side see two polylines. On load the values win and the
 track is rebuilt; see [Persistence](Persistence.md#hotspots).
 
 ## Topologies
@@ -937,7 +896,7 @@ shows what is being chosen.
 | Background | The colour behind the planet |
 | Star field | Whether the stars are drawn; they add their light to the background colour, so the colour shows between them |
 | Grid | The color of the longitude and latitude lines |
-| Grid spacing | How far apart its lines are, from 1 to 90 degrees |
+| Grid spacing | How far apart its lines are, from 1 to 90 degrees. A line falls on every multiple of the spacing, counted from the equator and the prime meridian |
 | Light elevation, light azimuth | Where the light comes from, away from the line of sight; `(0, 0)` shines from the camera |
 | Ambient light | How much light reaches the night side; 0 is a black night, 1 no night at all |
 | Planet color | The color of the planet where no raster covers it, ocean blue unless changed. The picker has no alpha, since the planet is never see-through |

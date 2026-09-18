@@ -2155,7 +2155,6 @@ def run_hotspot_session(client: AutomationClient) -> None:
           f"the mark is drawn in orange red while selected: {pixel}")
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
     run_hotspot_skip_checks(client)
-    run_hotspot_step_checks(client)
 
     # A second click moves it and keeps the plate, since nothing is under it.
     depth = undo_depth(client)
@@ -2190,35 +2189,6 @@ def run_hotspot_session(client: AutomationClient) -> None:
         client.call("dialog", button="OK")
     check(client.call("get_selected")["feature"]["feature_type"] == "polygon",
           "the plate stays a polygon")
-
-    run_hotspot_coupling_checks(client)
-
-
-def run_hotspot_coupling_checks(client: AutomationClient) -> None:
-    """A hotspot takes no part in coupling: it follows its plate and carries nothing."""
-    client.call("select", title="Hotspot")
-    panel = client.call("get_properties")["properties"]
-    check("coupling" not in panel, f"a hotspot has no coupling rows: {sorted(panel)}")
-    error = refusal(client, "coupling", button="Couple")
-    check(error == "A hotspot follows its plate.", f"coupling a hotspot is refused: {error!r}")
-
-    # A polygon beside it is not offered the hotspot to follow.
-    client.call("select", title=None)
-    client.call("toolbar", button="AddFeature")
-    coupling = client.call("get_properties")["properties"]["coupling"]
-    check("Hotspot" not in coupling["parents"],
-          f"and the picker leaves the hotspot out: {coupling['parents']}")
-    client.call("coupling", pick=True)
-    # The mark is a ring a degree around the hotspot, so the click goes on the ring.
-    screen = client.call("latlon_to_screen",
-                         lat=HOTSPOT_MOVED[0] + 1.0, lon=HOTSPOT_MOVED[1])["screen"]
-    if check(screen is not None, "the mark is on screen"):
-        client.call("click", x=screen[0], y=screen[1])
-        status = client.call("get_status")["status"]["measure"]
-        check(status == "A hotspot carries nothing.", f"nor is a click on its mark: {status!r}")
-        check(client.call("get_properties")["properties"]["coupling"]["picking"],
-              "which leaves the pointer armed")
-    client.call("key", key="Escape")
 
 
 def run_hotspot_skip_checks(client: AutomationClient) -> None:
@@ -2259,26 +2229,6 @@ def run_hotspot_skip_checks(client: AutomationClient) -> None:
     feature = client.call("get_selected")["feature"]
     check(len(feature["world_rings"]) == 1, "at the oldest age there is only the mark")
     client.call("set_time", time=0.0)
-    client.call("set_skip", skip=50.0)
-
-
-def run_hotspot_step_checks(client: AutomationClient) -> None:
-    """The Step row: the hotspot samples at its own step and stops following the Skip."""
-    depth = undo_depth(client)
-    client.call("set_property", field="time_step", value=20.0)
-    rows = hotspot_rows(client)
-    check(rows["time_step"] == 20.0 and rows["samples"] == 6,
-          f"a step of 20 gives 6 samples: {rows['time_step']}, {rows['samples']}")
-    check(undo_depth(client) == depth + 1, "and the Step row is one undo step")
-    client.call("set_skip", skip=10.0)
-    check(hotspot_rows(client)["samples"] == 6,
-          "the Skip no longer reaches a hotspot with a step of its own")
-    check(len(client.call("get_selected")["feature"]["world_rings"][1]) == 6,
-          "and the track on the globe has the six")
-    client.call("menu", item="undo")
-    rows = hotspot_rows(client)
-    check(rows["time_step"] == 0.0 and rows["samples"] == 11,
-          f"undo puts it back on the Skip, now 10 My: {rows['time_step']}, {rows['samples']}")
     client.call("set_skip", skip=50.0)
 
 
@@ -3067,9 +3017,19 @@ def run_light_settings_checks(client: AutomationClient) -> None:
     check(back == [0.0, 0.0], f"two undos put the light back where it was: {back}")
 
 
+# The grid put in a solid green for the probes below, over a planet wearing
+# nothing, so that which channel of a pixel is the largest says whether a line
+# is there. The light scales all three channels together, so that answer holds
+# wherever on the globe the probe lands. The longitude is half a cell of the 25
+# degree grid, which keeps both probes clear of the meridians.
+GRID_PROBE_COLOR = [0.0, 1.0, 0.0, 1.0]
+GRID_PROBE_LONGITUDE = 12.5
+
+
 def run_view_default_checks(client: AutomationClient, sample: Path) -> None:
     """What a new document starts from, and what a saved one brings with it."""
     client.call("set_view_settings", view_settings={"ambient": 0.45, "grid_spacing": 25.0})
+    run_grid_from_equator_checks(client)
     client.call("view", projection=3)
     client.call("set_view_settings", button="SaveAsDefault")
     preferences = client.call("get_preferences")["preferences"]
@@ -3114,6 +3074,35 @@ def run_view_default_checks(client: AutomationClient, sample: Path) -> None:
           and restored["view_defaults"]["raster_path"] == "",
           "the preferences are back to what a fresh installation holds")
     client.call("set_view", show_map=False)
+
+
+def run_grid_from_equator_checks(client: AutomationClient) -> None:
+    """A 25 degree grid draws the equator and nothing at 65 N (GP-0106).
+
+    The lines used to be counted from the north pole and the date line, so a
+    spacing that does not divide 90 drew a parallel at 65 N, another at 60 S
+    and none on the equator. The globe is turned to 30 N because its limb is
+    short of 62 degrees from the middle of the view, which is the only way both
+    places are in front of the camera at once.
+    """
+    client.call("set_view", show_map=False, lat=30.0, lon=0.0, angle=0.0, zoom=1.0)
+    was = client.call("get_view_settings")["view_settings"]["grid_color"]
+    client.call("set_view_settings",
+                view_settings={"grid_color": GRID_PROBE_COLOR, "raster_path": ""})
+
+    def probe(lat: float) -> list[float]:
+        screen = client.call(
+            "latlon_to_screen", lat=lat, lon=GRID_PROBE_LONGITUDE)["screen"]
+        return client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+
+    equator = probe(0.0)
+    check(equator[1] > equator[2], f"the 25 degree grid draws the equator: {equator}")
+    pole_side = probe(65.0)
+    check(pole_side[2] > pole_side[1],
+          f"and nothing at 65 N, where it counted from the pole before: {pole_side}")
+
+    client.call("set_view_settings", view_settings={"grid_color": was})
+    client.call("set_view", lat=0.0, lon=0.0)
 
 
 def luminance(color: list[float]) -> float:
@@ -3933,13 +3922,11 @@ CRUST_AGE = 100.0
 CRUST_DRIFT = 12.0
 CRUST_SKIP = 25.0
 # Steel blue, the colour the Split tool gives the crust, and light steel blue,
-# the colour of its isochrons and flowlines. The band against the continent is
-# the crust colour itself and the one against the ridge is it lightened by
-# Styling.YOUNGEST_LIGHTER, with the bands between evenly spaced.
+# the colour of its isochrons and flowlines.
 CRUST_COLOR = [0.275, 0.510, 0.706]
 CRUST_LINES_COLOR = [0.690, 0.769, 0.871]
-YOUNGEST_LIGHTER = 0.55
-CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust", "Plate 2 crust"]
+CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust lines", "Plate crust",
+                "Plate 2 crust lines", "Plate 2 crust"]
 CRUSTS = ["Plate crust", "Plate 2 crust"]
 
 # Two lines a hand built topology runs along, end to end, and a point inside the
@@ -3976,10 +3963,10 @@ def run_crust_session(client: AutomationClient) -> None:
     client.call("key", key="Enter")
     check(undo_depth(client) == depth + 1, "the split, the ridge and the crust are one version")
     titles = [f["title"] for f in client.call("get_features")["features"]]
-    check(titles[-5:] == CRUST_TITLES, f"the halves, the ridge and two crusts: {titles}")
+    check(titles[-7:] == CRUST_TITLES, f"the halves, the ridge and two crusts: {titles}")
     status = client.call("get_status")["status"]["measure"]
     check(all(title in status for title in CRUST_TITLES),
-          f"the status bar names all five: {status!r}")
+          f"the status bar names all seven: {status!r}")
     for title in CRUST_TITLES[3:]:
         client.call("select", title=title)
         crust = client.call("get_selected")["feature"]
@@ -3987,7 +3974,8 @@ def run_crust_session(client: AutomationClient) -> None:
               f"{title} is a topology from the split on: {crust['time_range']}")
         panel = client.call("get_properties")["properties"]
         half = "Plate 2" if "Plate 2" in title else "Plate"
-        check(panel.get("topology_note") == f"Crust of {half}, 0 chunks",
+        kind = "Crust lines" if title.endswith("lines") else "Crust"
+        check(panel.get("topology_note") == f"{kind} of {half}, 0 chunks",
               f"the panel says what it is: {panel.get('topology_note')!r}")
         check(panel["area_km2"] < 1.0 and panel["crust_chunks"] == 0,
               f"with no chunks at the split: {panel['area_km2']}, {panel['crust_chunks']}")
@@ -4018,64 +4006,29 @@ def run_crust_session(client: AutomationClient) -> None:
     panel = client.call("get_properties")["properties"]
     check(panel["crust_chunks"] == 2 and panel["topology_note"] == "Crust of Plate, 2 chunks",
           f"a skip of 50 gives two chunks: {panel.get('topology_note')!r}")
-    run_crust_step_checks(client)
     client.call("set_skip", skip=skip)
 
     run_closed_topology_checks(client)
 
 
-def run_crust_step_checks(client: AutomationClient) -> None:
-    """The Step row on a crust: its own step holds the band count against the Skip."""
-    depth = undo_depth(client)
-    client.call("set_property", field="time_step", value=CRUST_SKIP)
-    panel = client.call("get_properties")["properties"]
-    check(panel["crust_step"] == CRUST_SKIP and panel["crust_chunks"] == 4,
-          f"a step of {CRUST_SKIP:.0f} gives four chunks at a Skip of 50: {panel['crust_chunks']}")
-    check(undo_depth(client) == depth + 1, "and the Step row is one undo step")
-    client.call("set_skip", skip=10.0)
-    panel = client.call("get_properties")["properties"]
-    check(panel["crust_chunks"] == 4, "the Skip no longer reaches it")
-    client.call("select", title=CRUSTS[1])
-    check(client.call("get_properties")["properties"]["crust_chunks"] == 10,
-          "while the other half, left at 0, follows the Skip of 10")
-    client.call("select", title=CRUSTS[0])
-    client.call("menu", item="undo")
-    panel = client.call("get_properties")["properties"]
-    check(panel["crust_step"] == 0.0 and panel["crust_chunks"] == 10,
-          f"undo puts it back on the Skip: {panel['crust_step']}, {panel['crust_chunks']}")
-
-
-def lighter_band(shade: float) -> list[float]:
-    """The crust colour as the age ramp lightens it, 0 at the oldest band and 1 at the youngest."""
-    return [c + (1.0 - c) * shade * YOUNGEST_LIGHTER for c in CRUST_COLOR]
-
-
 def run_crust_probes(client: AutomationClient, title: str) -> None:
-    """A crust at 0 Ma: four bands, the age ramp across them and the isochron colour on one."""
+    """A crust at 0 Ma: four bands, isochron colour on an isochron, crust colour between two."""
     client.call("select", title=title)
     panel = client.call("get_properties")["properties"]
     check(panel["crust_chunks"] == 4 and panel["area_km2"] > 1e5,
           f"{title} has opened in four chunks: {panel['crust_chunks']}, {panel['area_km2']:.0f} km²")
-    bands = client.call("get_selected")["feature"]["world_rings"]
-    if not check(len(bands) == 4 and all(len(band) == 2 * len(CRUST_CUT) for band in bands),
-                 f"four bands of two isochrons each: {[len(band) for band in bands]}"):
+    client.call("select", title=f"{title} lines")
+    lines = client.call("get_selected")["feature"]["world_rings"]
+    if not check(len(lines) == 5 + len(CRUST_CUT), f"five isochrons and three flowlines: {len(lines)}"):
         return
-    # A band runs along its older isochron and comes back along its younger one,
-    # so this is halfway between the first stretch of each, inside the band and
-    # away from the flowlines and the equator. The first band is the one against
-    # the continent and the last the one against the ridge.
-    inside = [midpoint(list(midpoint(band[0], band[1])), list(midpoint(band[-1], band[-2])))
-              for band in bands]
-    on_75 = midpoint(bands[1][0], bands[1][1])
+    # Halfway along the first stretch of the 75 and 50 Ma isochrons, and
+    # between the two, away from the flowlines and the equator.
+    on_75 = midpoint(lines[1][0], lines[1][1])
+    on_50 = midpoint(lines[2][0], lines[2][1])
+    between = midpoint(list(on_75), list(on_50))
     client.call("select", title=None)
-    shades = [probe_unhovered(client, *place) for place in inside]
-    check(is_colour(shades[0], CRUST_COLOR),
-          f"{title} fills the band against the continent in the crust colour: {shades[0]}")
-    check(is_colour(shades[-1], lighter_band(1.0)),
-          f"and the one against the ridge in the lightest shade of it: {shades[-1]}")
-    brightness = [sum(shade[:3]) for shade in shades]
-    check(all(a + 0.1 < b for a, b in zip(brightness, brightness[1:])),
-          f"lighter band by band from the continent to the ridge: {brightness}")
+    pixel = probe_unhovered(client, *between)
+    check(is_colour(pixel, CRUST_COLOR), f"{title} fills the band at {between}: {pixel}")
     pixel = probe_unhovered(client, *on_75)
     check(is_colour(pixel, CRUST_LINES_COLOR), f"and the isochron at {on_75} is drawn: {pixel}")
 

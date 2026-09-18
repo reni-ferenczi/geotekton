@@ -152,17 +152,17 @@ def test_a_ridge_reads_the_second_parent_it_follows(tmp_path):
 
 
 def test_a_ridge_and_a_crust_read_what_they_are_built_from(tmp_path):
-    """A midway topology and a crust keep their keys through a save."""
+    """A midway topology and a crust keep their 0.23.0 keys through a save."""
     document = Document.empty(CURRENT_VERSION)
     ridge = Feature.new_feature("Plate ridge", geometry_kind="topology")
     ridge.data["midway"] = True
-    crust = Feature.new_feature("Plate crust", geometry_kind="topology")
-    crust.data["crust"] = {"half": "plate", "ridge": ridge.uuid, "edge": 3}
+    lines = Feature.new_feature("Plate crust lines", geometry_kind="topology")
+    lines.data["crust"] = {"half": "plate", "ridge": ridge.uuid, "edge": 3, "lines": True}
     document.root.add(ridge)
-    document.root.add(crust)
+    document.root.add(lines)
     read = Document.load(document.save(tmp_path / "crust.middle-earth"))
     assert read.named("Plate ridge").midway
     assert read.named("Plate ridge").crust is None
-    assert read.named("Plate crust").crust == {
-        "half": "plate", "ridge": ridge.uuid, "edge": 3}
-    assert not read.named("Plate crust").midway
+    assert read.named("Plate crust lines").crust == {
+        "half": "plate", "ridge": ridge.uuid, "edge": 3, "lines": True}
+    assert not read.named("Plate crust lines").midway

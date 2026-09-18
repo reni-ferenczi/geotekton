@@ -384,10 +384,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			return {"ok": true}
 
 		"coupling":
-			# A circle and a hotspot have no coupling rows; the refusal is the one
-			# the document gives.
+			# A circle has no coupling rows; the refusal is the one the document
+			# gives.
 			var coupling_node: Feature = app.features.feature_tree.get_selected_node()
-			if coupling_node != null and (coupling_node.is_circle() or coupling_node.is_hotspot()):
+			if coupling_node != null and coupling_node.feature_type == FeatureType.CIRCLE:
 				return {"ok": false, "error": app.document.coupling_problem(
 					coupling_node, null, app.document.current_time)}
 			# Couple follows the picked parent and Decouple stops following, both at

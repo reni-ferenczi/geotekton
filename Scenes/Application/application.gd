@@ -2741,7 +2741,7 @@ func _place_hotspot(hotspot: Feature, at: Vector2) -> void:
 	var hit := Planet.hit_test(at.x, at.y, geometry)
 	if hit != null and Hotspot.plate_problem(features.root, hotspot, hit.uuid).is_empty():
 		plate = hit.uuid
-	var error := document.set_hotspot(hotspot, at, plate, hotspot.time_step)
+	var error := document.set_hotspot(hotspot, at, plate)
 	if not error.is_empty():
 		_report(error)
 		return
@@ -3795,12 +3795,9 @@ func _vertices_on_screen(only: Feature = null, without: Feature = null,
 	if only != null:
 		wanted.append(only)
 	else:
-		# Each feature once rather than once per column of the geometry: a
-		# crust takes a column per band and would offer its vertices that
-		# many times over.
-		for feature: Feature in geometry.index_of:
-			if geometry.shown[geometry.index_of[feature]]:
-				wanted.append(feature)
+		for index in geometry.features.size():
+			if geometry.shown[index]:
+				wanted.append(geometry.features[index])
 
 	for feature in wanted:
 		var m := Feature.world_basis(features.root, feature, document.current_time)

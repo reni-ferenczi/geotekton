@@ -80,13 +80,6 @@ works the colors out again whenever some feature is colored by age
 (`Styling.by_age`), and uploads them in `feature_data` with the rotations, so
 the geometry texture is not touched. See [Shader](Shader.md#per-feature-rotation).
 
-A [crust](Editing.md#the-crust) is the one feature drawn in more than one
-colour, since each of its bands holds crust of an age of its own. Under Feature
-age each band is read from the palette at that age, the way an age grid is
-painted; under every other style the colour the style gave the crust fills the
-band against the continent and is lightened band by band towards the ridge.
-`Styling.band_color()` is the whole of it.
-
 Picking a style changes nothing about the document's features. The colour a
 feature carries is still its own and still what the Properties panel edits; the
 style only says which colour is used to draw it.

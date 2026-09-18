@@ -25,6 +25,20 @@ const PLANET_PROBE := Vector2(7.5, 7.5)
 const GRID_STEP := ViewSettings.DEFAULT_GRID_SPACING
 const HALF_CELL := 7.5
 
+# A spacing that divides neither 90 nor 180, which is where the pole and the
+# date line the grid used to be counted from showed, and half a cell of it.
+const ODD_STEP := 25.0
+const ODD_HALF_CELL := 12.5
+
+# The grid in a solid green for those probes: brighter than the planet, so
+# assert_grid_line() can tell a line from the surface under it, and on another
+# channel than the planet's blue, so a probe can say no line is there.
+const ODD_GRID_COLOR := Color(0.0, 1.0, 0.0, 1.0)
+
+# Where the old shader drew its parallels at that spacing. Both are half a cell
+# from a meridian, so only a parallel could put a line there.
+const NO_PARALLEL: Array[Vector2] = [Vector2(65.0, 12.5), Vector2(-60.0, 12.5)]
+
 # Two planet colors far from each other and from the default.
 const PLANET_COLORS: Array[Color] = [Color(0.8, 0.3, 0.1), Color(0.2, 0.7, 0.3)]
 
@@ -199,6 +213,66 @@ func test_the_globe_pole_is_not_flooded_by_the_grid() -> void:
 			"(89.5, %s) is the planet color, not the grid color: %s" % [lon, pixel])
 	await use_settings({"grid_color": ViewSettings.DEFAULT_GRID_COLOR})
 
+
+# GP-0106: the lines are counted from the equator and the prime meridian, so a
+# spacing that does not divide 90 still draws the equator and the same
+# parallels on both hemispheres. The shader used to count from the north pole
+# and the date line, which at 25 degrees put a parallel at 65 N and another at
+# 60 S, and left out the equator and the prime meridian.
+func test_the_grid_is_counted_from_the_equator_and_the_prime_meridian() -> void:
+	await load_sample("empty.middle-earth")
+	await clear_raster()
+	await look_at_latlon(0.0, 0.0)
+	await use_settings({"grid_spacing": ODD_STEP, "grid_color": ODD_GRID_COLOR})
+
+	assert_odd_grid_lines(await capture())
+	# The limb of the globe is short of 62 degrees from the middle of the view,
+	# so neither 65 N nor 60 S is drawn while it looks at (0, 0). Each is turned
+	# to the front for its own probe.
+	for place: Vector2 in NO_PARALLEL:
+		await look_at_latlon(place.x, place.y)
+		assert_no_grid_line(await capture(), place)
+
+	await look_at_latlon(0.0, 0.0)
+	view().planet.show_map = true
+	view().planet.projection = MapProjection.Kind.RECTANGULAR
+	await frames(2)
+	var map := await capture()
+	assert_odd_grid_lines(map)
+	for place: Vector2 in NO_PARALLEL:
+		assert_no_grid_line(map, place)
+	view().planet.show_map = false
+	await frames(2)
+
+	await use_settings({
+		"grid_spacing": ViewSettings.DEFAULT_GRID_SPACING,
+		"grid_color": ViewSettings.DEFAULT_GRID_COLOR,
+	})
+
+
+# The equator, 25 N, 25 S, the prime meridian and 25 E are all drawn. A
+# parallel is probed half a cell from a meridian and a meridian half a cell
+# from a parallel, and each is held against the planet on the side away from
+# the middle of the view, which the light reaches no more than the line does.
+func assert_odd_grid_lines(image: Image) -> void:
+	for lat: float in [0.0, ODD_STEP, -ODD_STEP]:
+		var away := ODD_HALF_CELL if lat >= 0.0 else -ODD_HALF_CELL
+		assert_grid_line(image, lat, ODD_HALF_CELL, Vector2(away, 0.0))
+	for lon: float in [0.0, ODD_STEP]:
+		assert_grid_line(image, ODD_HALF_CELL, lon, Vector2(0.0, ODD_HALF_CELL))
+
+
+# Nothing is drawn at a place. The channels are held against each other rather
+# than against a level, because how much light a place gets scales all three of
+# them together, and a place this far from the middle of the globe gets little.
+func assert_no_grid_line(image: Image, place: Vector2) -> void:
+	var at = view().latlon_to_screen(place.x, place.y)
+	assert_true(at != null, "(%s, %s) is drawn at all" % [place.x, place.y])
+	if at == null:
+		return
+	var pixel := image.get_pixel(int(at.x), int(at.y))
+	assert_true(pixel.b > pixel.g,
+		"(%s, %s) shows the planet, not a grid line: %s" % [place.x, place.y, pixel])
 
 
 # GP-0085: a polygon round the south pole at 82 S fills the bottom of the

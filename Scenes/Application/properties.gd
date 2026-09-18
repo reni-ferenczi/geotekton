@@ -53,8 +53,6 @@ const TIME_LIMIT := int(Document.MAX_TIME)
 # age towards the present. `From` is the older end, which is `time_range.y`.
 const FROM_TOOLTIP := "The age the feature appears at, in millions of years ago; larger is older"
 const TO_TOOLTIP := "The age it disappears at; 0 is the present"
-const STEP_TOOLTIP := ("How far apart in time the track or the bands are sampled, "
-	+ "in millions of years; 0 follows the timeline's Skip")
 # On the group Style row. Same as parent is the one mode that decides nothing.
 const STYLE_TOOLTIP := ("Same as parent colors the features the way the group above does; "
 	+ "Feature colour and the others decide for themselves")
@@ -129,7 +127,6 @@ var pick_axis_button: Button
 var plate_row: HBoxContainer
 var plate_selector: OptionButton
 var pick_plate_button: Button
-var step_spin: SpinBox
 
 # Every row of the form, each a label and the control beside it, and whether a
 # group and a feature have it.
@@ -149,11 +146,8 @@ var _coupling_boxes: Array[Control] = []
 # The Axis circles switch and the axis, radius and segment rows, which only a
 # circle has.
 var _circle_boxes: Array[Control] = []
-# The Plate row, which only a hotspot has.
+# The place, plate and step rows, which only a hotspot has.
 var _hotspot_boxes: Array[Control] = []
-# The Step (My) row, which a hotspot and a crust both have: they are the two
-# that sample over time.
-var _step_boxes: Array[Control] = []
 
 
 func _ready() -> void:
@@ -304,7 +298,6 @@ func _build() -> void:
 
 	_build_circle(form)
 	_build_hotspot(form)
-	_build_step(form)
 	_build_keyframes(form)
 	_build_coupling(form, box)
 	_build_sections(box)
@@ -441,18 +434,6 @@ func _build_hotspot(form: GridContainer) -> void:
 	pick_plate_button.toggled.connect(
 		func(on: bool) -> void: pick_plate_requested.emit(on))
 	plate_row.add_child(pick_plate_button)
-
-
-# How far apart in time the feature is sampled. A hotspot and a crust are the
-# two that sample, and both take it here; 0 leaves them on the timeline's Skip.
-# One undo version per edit, through the document. See Docs/Time.md#the-time-control.
-func _build_step(form: GridContainer) -> void:
-	step_spin = _param_spin("TimeStep", 0.0, Hotspot.MAX_STEP, 1.0, "",
-		func(_value: float) -> void: _commit_step())
-	step_spin.tooltip_text = STEP_TOOLTIP
-	_row(form, "Step (My)", step_spin, false, true, STEP_TOOLTIP)
-	_step_boxes.append(_rows.back()["label"])
-	_step_boxes.append(step_spin)
 
 
 func _param_spin(spin_name: String, low: float, high: float, step: float,
@@ -680,8 +661,6 @@ func show_node(node_: Feature) -> void:
 		control.visible = is_circle
 	for control in _hotspot_boxes:
 		control.visible = is_hotspot
-	for control in _step_boxes:
-		control.visible = is_hotspot or is_crust
 
 	if not editable:
 		return
@@ -700,8 +679,6 @@ func show_node(node_: Feature) -> void:
 			_show_circle()
 		if is_hotspot:
 			_show_hotspot()
-		if is_hotspot or is_crust:
-			step_spin.value = node.time_step
 		closed_check.button_pressed = node.closed
 		_fill_sections()
 		_show_topology_note()
@@ -978,7 +955,7 @@ func _fill_coupling() -> void:
 		return
 	for leaf in _leaves(document.root, []):
 		if leaf == node or leaf.geometry_kind == Feature.GeometryKind.TOPOLOGY \
-				or leaf.is_circle() or leaf.is_hotspot():
+				or leaf.feature_type == FeatureType.CIRCLE:
 			continue
 		parent_selector.add_item(leaf.title)
 		parent_selector.set_item_metadata(parent_selector.item_count - 1, leaf.uuid)
@@ -1040,10 +1017,8 @@ func pick_parent_uuid(uuid: String) -> String:
 	if node != null and node.uuid == uuid:
 		return "A feature cannot follow itself."
 	var picked: Feature = Coupling.index(document.root).get(uuid)
-	if picked != null and picked.is_circle():
+	if picked != null and picked.feature_type == FeatureType.CIRCLE:
 		return Coupling.CIRCLE_PARENT_PROBLEM
-	if picked != null and picked.is_hotspot():
-		return Coupling.HOTSPOT_PARENT_PROBLEM
 	return "That feature is not one of the ones to follow."
 
 
@@ -1248,32 +1223,10 @@ func _commit_hotspot() -> void:
 	var plate := str(plate_selector.get_item_metadata(plate_selector.selected))
 	if plate == node.plate_uuid:
 		return
-	var error := document.set_hotspot(node, node.hotspot, plate, node.time_step)
+	var error := document.set_hotspot(node, node.hotspot, plate)
 	if not error.is_empty():
 		_filling = true
 		_show_hotspot()
-		_filling = false
-		rejected.emit(error)
-		return
-	edited.emit()
-
-
-# The Step (My) box, for whichever of the two carries it. A hotspot goes
-# through set_hotspot(), which holds its place and plate as well, and a crust
-# through set_crust_step(), the one edit it has.
-func _commit_step() -> void:
-	if _filling or node == null or step_spin.value == node.time_step:
-		return
-	var step := step_spin.value
-	var error := "Only a hotspot and a crust are sampled over time."
-	if node.is_hotspot():
-		error = document.set_hotspot(node, node.hotspot,
-			str(plate_selector.get_item_metadata(plate_selector.selected)), step)
-	elif node.is_crust():
-		error = document.set_crust_step(node, step)
-	if not error.is_empty():
-		_filling = true
-		step_spin.value = node.time_step
 		_filling = false
 		rejected.emit(error)
 		return
@@ -1492,8 +1445,8 @@ func to_json() -> Dictionary:
 			"key": not key_button.disabled,
 			"delete": not delete_key_button.disabled,
 		}
-	# A circle keeps the keyframe row but not the coupling rows, so what those
-	# rows would hold is reported anyway, marked as not shown.
+	# A circle's spans, which only a file can give it, are still reported,
+	# marked as not shown.
 	if coupled_label.get_parent().visible:
 		data["coupling"] = _coupling_to_json()
 		data["coupling"]["hidden"] = false
@@ -1509,7 +1462,6 @@ func to_json() -> Dictionary:
 		data["topology_note"] = topology_note.text
 	if node.is_crust():
 		data["crust_chunks"] = Crust.chunks(node)
-		data["crust_step"] = step_spin.value
 	if pick_axis_button.visible:
 		data["circle"] = {
 			"polar": axis_circles_check.button_pressed,
@@ -1528,7 +1480,6 @@ func to_json() -> Dictionary:
 				Config.get_skip_increment()).size(),
 			"pick": not pick_plate_button.disabled,
 			"picking": pick_plate_button.button_pressed,
-			"time_step": step_spin.value,
 		}
 	return data
 
@@ -1674,11 +1625,6 @@ func set_field(field: String, value: Variant) -> String:
 				return "the plate selector offers no %s" % value
 			plate_selector.select(at)
 			_commit_hotspot()
-		"time_step":
-			if not step_spin.visible:
-				return "only a hotspot and a crust are sampled over time"
-			step_spin.value = float(value)
-			_commit_step()
 		_:
 			return "no such property: %s" % field
 	return ""

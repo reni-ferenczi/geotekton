@@ -5,9 +5,6 @@ extends TestCase
 
 const SAMPLE := "res://Tests/Data/two_cratons.middle-earth"
 const SCRATCH := "user://test_document.middle-earth"
-# Where the crust colour preference is written while it is being tested, so the
-# real settings file is left alone.
-const CONFIG_SCRATCH := "user://test_document_config"
 
 
 func test_a_new_document_is_clean_and_untitled() -> void:
@@ -260,8 +257,8 @@ func test_an_import_that_cannot_be_read_says_so_and_changes_nothing() -> void:
 ### The ridge and crust a split leaves
 
 
-const CRUST_TITLES := ["Square", "Square 2", "Square ridge", "Square crust",
-	"Square 2 crust"]
+const CRUST_TITLES := ["Square", "Square 2", "Square ridge", "Square crust lines",
+	"Square crust", "Square 2 crust lines", "Square 2 crust"]
 
 
 # A square split at 100 Ma with Ridge and Crust on, the halves drifting apart
@@ -300,10 +297,10 @@ func _assert_same_ring(actual: PackedVector2Array, expected: PackedVector2Array,
 			"%s: vertex %d is %s, not %s" % [message, i, actual[i], expected[i]])
 
 
-func test_a_split_with_ridge_and_crust_leaves_five_features_in_order() -> void:
+func test_a_split_with_ridge_and_crust_leaves_seven_features_in_order() -> void:
 	var document := _split_square(false)
 	assert_eq(document.root.children.map(func(n: Feature) -> String: return n.title),
-		CRUST_TITLES, "the halves, the ridge and one crust for each half")
+		CRUST_TITLES, "the halves, the ridge, and the lines and a crust for each half")
 	var ridge: Feature = document.root.children[2]
 	assert_true(ridge.midway and ridge.geometry_kind == Feature.GeometryKind.TOPOLOGY,
 		"the ridge is a midway topology")
@@ -311,21 +308,23 @@ func test_a_split_with_ridge_and_crust_leaves_five_features_in_order() -> void:
 	assert_eq(ridge.keyframes.size() + ridge.couplings.size(), 0, "with no motion of its own")
 	assert_eq(ridge.sections.size(), 2, "between two sections")
 	assert_eq(ridge.time_range, Vector2i(0, 100), "from the split to the present")
-	for index in [3, 4]:
+	for index in [4, 6]:
 		var crust: Feature = document.root.children[index]
-		assert_true(crust.is_crust() and crust.closed, "a crust")
+		assert_true(crust.is_crust() and crust.closed and not crust.crust_lines, "a crust")
 		assert_eq(crust.color, FeatureType.color(FeatureType.CRUST), "in the crust colour")
-		assert_eq(crust.line_color(crust.color),
-			FeatureType.color(FeatureType.CRUST_LINES), "with its lines in theirs")
-		assert_eq(crust.line_scale(), Feature.CRUST_LINE_SCALE, "and drawn thin")
 		assert_eq(crust.time_range, Vector2i(0, 100), "over the ridge's time range")
 		assert_eq(crust.crust_ridge, ridge.uuid, "opened by the ridge")
-		assert_eq(crust.crust_half, document.root.children[index - 3].uuid, "beside its half")
+		assert_eq(crust.crust_half, document.root.children[(index - 4) / 2].uuid,
+			"beside its half")
 		assert_eq(crust.crust_edge, 3, "along a cut of three vertices")
+		var lines: Feature = document.root.children[index - 1]
+		assert_true(lines.is_crust() and lines.crust_lines and not lines.closed, "its lines")
+		assert_eq(lines.color, FeatureType.color(FeatureType.CRUST_LINES), "in their colour")
+		assert_eq(lines.line_scale(), Feature.CRUST_LINES_LINE_SCALE, "and drawn thin")
 	var data: Dictionary = document.root.children[3].to_json()
 	assert_eq(data.get("crust"), {"half": document.root.children[0].uuid, "ridge": ridge.uuid,
-		"edge": 3}, "a crust writes what it is built from")
-	assert_eq(Feature.from_json(data).crust_ridge, ridge.uuid, "and reads it back")
+		"edge": 3, "lines": true}, "the lines write what they are built from")
+	assert_true(Feature.from_json(data).crust_lines, "and read it back")
 	document.undo()
 	assert_eq(document.root.children.size(), 1, "one undo puts the square back")
 
@@ -348,19 +347,22 @@ func test_the_ridge_is_the_half_stage_line() -> void:
 func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
 	var document := _split_square(true)
 	var root := document.root
-	for index in [3, 4]:
+	for index in [4, 6]:
 		var crust: Feature = root.children[index]
+		var lines: Feature = root.children[index - 1]
 		var half: Feature = root.get_node_by_uuid(crust.crust_half)
 		Crust.rebuild(root, crust, 0.0, 25.0)
-		var lines := crust.crust_line_rings
+		Crust.rebuild(root, lines, 0.0, 25.0)
 		assert_eq(crust.rings.size(), 4, "%s: four bands from 100 Ma at 25 My" % crust.title)
 		assert_eq(Crust.chunks(crust), 4, "counted as four chunks")
 		assert_eq(crust.drawn_as(), Feature.GeometryKind.POLYGON, "drawn as a polygon")
-		assert_eq(lines.size(), 5 + 3, "with five isochrons and three flowlines over them")
+		assert_eq(lines.rings.size(), 5 + 3, "five isochrons and three flowlines")
+		assert_eq(Crust.chunks(lines), 4, "the lines count the same chunks")
+		assert_eq(lines.drawn_as(), Feature.GeometryKind.POLYLINE, "drawn as lines")
 
 		# The oldest band is against the continent: its outer isochron is the cut.
 		var cut := _world(document, half, half.rings[0].slice(0, 3), 0.0)
-		var outer := lines[0]
+		var outer := lines.rings[0]
 		var matches := outer.duplicate()
 		if outer[0].distance_to(cut[0]) > outer[0].distance_to(cut[2]):
 			matches.reverse()
@@ -368,21 +370,21 @@ func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
 		_assert_same_ring(crust.rings[0].slice(0, 3), outer, 1e-9,
 			"%s: the first band starts on it" % crust.title)
 		var ridge := Ridge.ring_at(root, root.children[2], 0.0)
-		_assert_same_ring(lines[4], ridge, 1e-3, "%s: the youngest is the ridge" % crust.title)
+		_assert_same_ring(lines.rings[4], ridge, 1e-3, "%s: the youngest is the ridge" % crust.title)
 		for i in 3:
-			assert_eq(lines[5 + i].size(), 5, "a flowline crosses every isochron")
-			assert_eq(lines[5 + i][0], outer[i], "from the continent")
-			assert_eq(lines[5 + i][4], lines[4][i], "to the ridge")
+			assert_eq(lines.rings[5 + i].size(), 5, "a flowline crosses every isochron")
+			assert_eq(lines.rings[5 + i][0], outer[i], "from the continent")
+			assert_eq(lines.rings[5 + i][4], lines.rings[4][i], "to the ridge")
 
 		# The bands tile the sea floor between the cut and the ridge, which is
 		# bounded by the flowlines of the cut's two ends.
 		var whole := Feature.create_feature("Whole")
 		var ring := outer.duplicate()
-		ring.append_array(lines[7].slice(1, 4))
-		var back := lines[4].duplicate()
+		ring.append_array(lines.rings[7].slice(1, 4))
+		var back := lines.rings[4].duplicate()
 		back.reverse()
 		ring.append_array(back)
-		var first_flowline := lines[5].slice(1, 4)
+		var first_flowline := lines.rings[5].slice(1, 4)
 		first_flowline.reverse()
 		ring.append_array(first_flowline)
 		whole.add_ring(ring, Feature.GeometryKind.POLYGON)
@@ -395,66 +397,18 @@ func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
 		for band in crust.rings:
 			assert_close(Measure.ring_area(band), 0.0, 1e-3, "no band has an area at the split")
 		assert_eq(Crust.chunks(crust), 0, "and there are none")
-		assert_eq(crust.crust_line_rings.size(), 1, "with the one isochron and no flowline")
 		Crust.rebuild(root, crust, 0.0, 50.0)
 		assert_eq(Crust.chunks(crust), 2, "a longer skip gives fewer chunks")
-
-
-# The step on the crust wins over the Skip the rebuild is handed, so the same
-# file opens with the same bands wherever the Skip happens to sit.
-func test_a_crust_samples_at_its_own_step() -> void:
-	var document := _split_square(true)
-	var root := document.root
-	document.current_time = 0.0
-	var crust: Feature = root.children[3]
-	var versions := document.applied
-	assert_eq(document.set_crust_step(crust, 25.0), "", "the crust takes a 25 My step")
-	assert_eq(document.applied, versions + 1, "as one undo version")
-	for skip: float in [1.0, 10.0, 50.0]:
-		Crust.rebuild_all(root, 0.0, skip)
-		assert_eq(Crust.chunks(crust), 4,
-			"four bands over the 100 My range at a skip of %s" % skip)
-		assert_eq(crust.crust_line_rings.size(), 5 + 3,
-			"with five isochrons and three flowlines")
-	# The other half is still on the Skip, so it follows it.
-	var other: Feature = root.children[4]
-	assert_eq(other.time_step, 0.0, "the other crust carries no step")
-	assert_eq(Crust.chunks(other), 2, "so a skip of 50 leaves it two bands")
-
-	assert_eq(document.set_crust_step(crust, 0.0), "", "back to the Skip")
-	Crust.rebuild_all(root, 0.0, 50.0)
-	assert_eq(Crust.chunks(crust), 2, "and it follows it again")
-	assert_true(not document.set_crust_step(root.children[2], 25.0).is_empty(),
-		"the ridge is no crust")
-	assert_true(not document.set_crust_step(crust, -1.0).is_empty(), "nor is -1 a step")
-
-	var data: Dictionary = crust.to_json()
-	assert_true(not data.has("time_step"), "a crust on the Skip writes no step")
-	document.set_crust_step(crust, 25.0)
-	assert_eq(Feature.from_json(crust.to_json()).time_step, 25.0, "one with a step round trips")
 
 
 func test_the_crust_shape_is_its_bands() -> void:
 	var document := _split_square(true)
 	document.current_time = 0.0
-	var geometry := Planet.collect_geometry(document.root, 0.0)
-	var crust: Feature = document.root.children[3]
+	Planet.collect_geometry(document.root, 0.0)
+	var crust: Feature = document.root.children[4]
 	var shape := document.shape_of(crust)
 	assert_eq(shape["kind"], Feature.GeometryKind.POLYGON, "Copy Shape takes a polygon")
 	assert_eq(shape["rings"].size(), crust.rings.size(), "of the bands")
-
-	# The bands are triangles and the isochrons and flowlines segments, all of
-	# the one feature, over the column each band takes.
-	var columns := _columns_of(geometry, crust)
-	assert_eq(columns.size(), crust.rings.size(), "a column of the feature rows per band")
-	assert_eq(columns[0], geometry.index_for(crust), "the oldest band is where the crust is found")
-	var kinds := {}
-	for column: int in columns:
-		for i in range(geometry.starts[column], geometry.ends[column]):
-			kinds[geometry.primitives[i]["kind"]] = true
-	assert_eq(kinds.keys().size(), 2, "the crust draws two kinds of primitive")
-	assert_true(kinds.has(Planet.Primitive.TRIANGLE) and kinds.has(Planet.Primitive.SEGMENT),
-		"filled bands and drawn lines")
 	shape = document.shape_of(document.root.children[2])
 	assert_eq(shape["kind"], Feature.GeometryKind.POLYLINE, "and a line from the ridge")
 	assert_eq(shape["rings"].size(), 1, "of one ring")
@@ -464,99 +418,6 @@ func test_the_crust_shape_is_its_bands() -> void:
 		"nor take a section")
 	assert_true(not document.add_section(document.root.children[2],
 		document.root.children[0], 0).is_empty(), "nor a ridge a third one")
-
-
-# The columns of the feature rows one feature was given, in order. Only a crust
-# takes more than one: one per band, so each can be colored on its own.
-func _columns_of(geometry: Planet.Geometry, feature: Feature) -> Array[int]:
-	var columns: Array[int] = []
-	for index in geometry.features.size():
-		if geometry.features[index] == feature:
-			columns.append(index)
-	return columns
-
-
-# A crust with a step of its own, so the bands do not follow the Skip of
-# whatever machine the test runs on, and the geometry collected from it.
-func _crust_geometry(document: Document, crust: Feature, styling: Styling = null) -> Planet.Geometry:
-	assert_eq(document.set_crust_step(crust, 25.0), "", "the crust samples every 25 My")
-	return Planet.collect_geometry(document.root, document.current_time, styling)
-
-
-# GP-0103: the bands are colored by the age of the crust in them. The oldest
-# band, the one lying against the continent, keeps the crust's own color, and
-# each younger band towards the ridge is a lighter shade of it.
-func test_the_bands_are_colored_by_the_age_of_the_crust() -> void:
-	var document := _split_square(true)
-	document.current_time = 0.0
-	var crust: Feature = document.root.children[3]
-	var geometry := _crust_geometry(document, crust)
-	assert_eq(Array(crust.band_ages), [100.0, 75.0, 50.0, 25.0],
-		"the band ages run oldest at the continent to youngest at the ridge")
-	assert_eq(crust.ring_triangles.size(), 4, "with every band triangulated on its own")
-
-	var columns := _columns_of(geometry, crust)
-	var base := FeatureType.color(FeatureType.CRUST)
-	assert_eq(columns.size(), 4, "a column of the feature rows per band")
-	assert_eq(geometry.colors[columns[0]], base, "the oldest band is the crust colour itself")
-	assert_eq(geometry.colors[columns[3]], base.lightened(Styling.YOUNGEST_LIGHTER),
-		"and the youngest the lightest shade of it")
-	for k in columns.size() - 1:
-		assert_true(geometry.colors[columns[k]].v < geometry.colors[columns[k + 1]].v,
-			"band %d is darker than the one nearer the ridge" % k)
-	for column: int in columns:
-		assert_eq(geometry.line_colors[column], FeatureType.color(FeatureType.CRUST_LINES),
-			"while the isochrons and the flowlines keep their own colour")
-
-
-# Under the age style each band is read from the palette at its own age, the way
-# an age grid is painted, rather than the whole crust at the age of the split.
-func test_the_age_style_paints_each_band_at_its_own_age() -> void:
-	var document := _split_square(true)
-	document.current_time = 0.0
-	var from := Color(1.0, 0.0, 0.0, 1.0)
-	var to := Color(0.0, 0.0, 1.0, 1.0)
-	document.root.style.mode = Styling.BY_AGE
-	document.root.style.palette = Palette.RAMP
-	document.root.style.ramp_colors = [from, to]
-	document.root.style.ramp_span = 200.0
-	var crust: Feature = document.root.children[3]
-	var geometry := _crust_geometry(document, crust,
-		Styling.of(ViewSettings.new(), document.root))
-	var columns := _columns_of(geometry, crust)
-	assert_eq(columns.size(), 4, "the four bands are drawn")
-	for k in columns.size():
-		var age: float = crust.band_ages[k]
-		assert_close(geometry.colors[columns[k]], from.lerp(to, age / 200.0), 1e-5,
-			"the band holding crust %s My old" % age)
-
-
-# The crust colour preference sets the old end of the ramp: a crust starts in
-# the colour the preference holds, and every band is a shade of that.
-func test_the_crust_colour_preference_moves_the_whole_ramp() -> void:
-	var kept := Config.directory_override
-	Config.directory_override = ProjectSettings.globalize_path(CONFIG_SCRATCH)
-	DirAccess.make_dir_recursive_absolute(Config.directory_override)
-	DirAccess.remove_absolute(Config.directory_override + "/config.json")
-	Config.forget()
-	var picked := Color(0.7, 0.3, 0.1, 1.0)
-	Config.set_feature_colors({FeatureType.CRUST: picked})
-
-	var document := _split_square(true)
-	document.current_time = 0.0
-	var crust: Feature = document.root.children[3]
-	var geometry := _crust_geometry(document, crust)
-	var columns := _columns_of(geometry, crust)
-	assert_eq(crust.color, picked, "the crust starts in the colour the preference holds")
-	assert_eq(columns.size(), 4, "in four bands")
-	for k in columns.size():
-		assert_eq(geometry.colors[columns[k]],
-			Styling.lighter_band(picked, float(k) / 3.0),
-			"band %d is a shade of the picked colour" % k)
-
-	DirAccess.remove_absolute(Config.directory_override + "/config.json")
-	Config.directory_override = kept
-	Config.forget()
 
 
 ### The children a split takes along

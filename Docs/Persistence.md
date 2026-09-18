@@ -65,7 +65,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "middle-earth",
-  "version": "0.26.0",
+  "version": "0.23.0",
   "features": { ... },
   "view": { ... }
 }
@@ -89,7 +89,7 @@ drawn the way its author chose:
 | `background_color`  | `[r, g, b, a]`    | black               | What is behind the planet |
 | `star_field`        | bool              | `true`              | Whether the star field is drawn on it |
 | `grid_color`        | `[r, g, b, a]`    | white at a third    | The color of the longitude and latitude lines |
-| `grid_spacing`      | degrees, 1 to 90  | `15`                | How far apart its lines are |
+| `grid_spacing`      | degrees, 1 to 90  | `15`                | How far apart its lines are; a line falls on every multiple of it, counted from the equator and the prime meridian |
 | `light_direction`   | `[elevation, azimuth]` in degrees | `[0, 0]` | Where the light comes from, away from the line of sight |
 | `ambient`           | 0 to 1            | `0`                 | How much light reaches the night side |
 | `planet_color`      | `[r, g, b, a]`    | ocean blue, `[0.16, 0.36, 0.60, 1]` | The color of the planet where no raster covers it; the alpha is read as 1 whatever the file says |
@@ -265,13 +265,13 @@ way the 0.21.0 migration reads one; see [below](#0200-to-0210).
 
 #### Hotspots
 
-A leaf of type `hotspot` also carries the values its rings are built from:
+A leaf of type `hotspot` also carries the two values its rings are built
+from:
 
 ```json
 "feature_type": "hotspot",
 "hotspot": [19.4, -155.3],
 "plate": "6f1c...",
-"time_step": 20.0,
 "geometry_kind": "polyline",
 "rings": [[...], [...]]
 ```
@@ -282,15 +282,10 @@ optional and written only for this type. A hotspot the Draw tool has not
 placed yet writes no `hotspot` and holds no rings, and a leaf without the key is read
 as one not placed. `rings` holds the mark and, when there is one, the track,
 for a reader that knows nothing about the type. On load the values win: the
-track is rebuilt from them before the geometry is collected. See
+track is rebuilt from them, at the timeline's Skip, before the geometry is
+collected. The Skip is a setting, not part of the file, so the same file can
+show a track with more or fewer vertices on another machine. See
 [Editing](Editing.md#hotspots).
-
-`time_step`, since 0.25.0, is how far apart in time the track is sampled, in
-millions of years. It is written only when it is above 0, and a leaf without it
-reads as 0, which follows the timeline's Skip. The Skip is a setting of the
-machine, not part of the file, so a hotspot left at 0 can show a track with
-more or fewer vertices on another machine, and one carrying a step of its own
-draws the same everywhere.
 
 #### Topologies
 
@@ -345,11 +340,10 @@ object naming what it is built from:
 
 `half` is the uuid of the half of the split plate it lies beside, `ridge` the
 uuid of the midway topology it opened from, and `edge` how many vertices the
-cut had. A crust is closed and holds the bands, with the isochrons and the
-flowlines drawn over them. It writes no rings: they are rebuilt from the half,
-the ridge, the time and the step before the geometry is collected, and so are
-the band ages the [age ramp](Editing.md#the-crust) colors them by. A crust
-carries the same optional `time_step` as a hotspot, with the same meaning.
+cut had. The crust is closed and holds the bands; the feature holding the
+isochrons and flowlines is open and adds `"lines": true` to the object. Neither
+writes its rings: they are rebuilt from the half, the ridge, the time and the
+timeline's Skip before the geometry is collected.
 
 `keyframes` is where the feature is over time: a list of `{time, rotation}`,
 sorted with the youngest first, `time` an age in millions of years before
@@ -364,9 +358,7 @@ younger one where it ends, and `parent` the uuid of the feature followed, the
 way a section names its feature. Inside a span the keyframes are relative to
 the parent; see [Time](Time.md#coupling). Only a leaf has them, and spans on one
 feature do not overlap. A span whose parent is not in the file is kept as it
-stands, like a section whose feature is missing. A span naming a circle or a
-hotspot is not: neither takes part in coupling, and such a span is dropped when
-the file is opened; see [below](#0250-to-0260).
+stands, like a section whose feature is missing.
 
 A span may carry `parent_b`, a second uuid. Its frame is then midway between
 the two parents; see
@@ -648,36 +640,7 @@ step, `Document._to_0_23_0()`, changes what the Split tool left at 0.22.0:
   inserted before it.
 
 Every other leaf, including closed topologies along anything else, is left
-alone. The lines leaf this step inserts is what the next one takes away again;
-each step is written for the format of its own version.
-
-#### 0.23.0 to 0.24.0
-
-0.24.0 moved the isochrons and the flowlines into the
-[crust](Editing.md#the-crust) itself, so the leaf that held them alone is gone
-from the tree. The step, `Document._to_0_24_0()`, drops every leaf whose `crust`
-object carries `"lines": true` and leaves the crust beside it as it is, which
-already says what it is built from. A 0.23.0 split that had four crust rows
-loads with two, drawing the same bands, isochrons and flowlines.
-
-#### 0.24.0 to 0.25.0
-
-0.25.0 gave a [hotspot](#hotspots) and a [crust](Editing.md#the-crust) a
-`time_step` of their own. Nothing but the version moves: a leaf from before has
-no key, which reads as 0, and 0 follows the timeline's Skip, which is what both
-did.
-
-#### 0.25.0 to 0.26.0
-
-0.26.0 took [circles](#circles) and [hotspots](#hotspots) out of
-[coupling](Time.md#coupling) altogether. Until 0.25.0 a file could still name
-one in a span, and the panel and the timeline marked such a span as broken. The
-step, `Document._to_0_26_0()`, drops every span whose child, `parent` or
-`parent_b` is a circle or a hotspot, and writes to the log how many it dropped.
-
-The features themselves stay, and so do their keyframes: a feature left without
-the span it had stops following whatever it followed and stands where its own
-keyframes put it. Every other span is kept as it was written.
+alone.
 
 ## The config file
 
@@ -696,7 +659,7 @@ more than the last change.
 | `kinematics_place` | Whether the kinematics panel graphs latitude and longitude above the rate. Off when the file says nothing |
 | `highlight_children` | Whether the children of the selected feature are highlighted. Off when the file says nothing. When the key is absent, `highlight_riders`, the name an older version wrote, is read instead |
 | `animation`                        | The playback range, the speed and the loop switch    |
-| `skip_increment`                   | How far the timeline's `<` and `>` buttons jump, in millions of years, and how finely a hotspot track and a crust are sampled when they carry no step of their own |
+| `skip_increment`                   | How far the timeline's `<` and `>` buttons jump, in millions of years, and how finely a hotspot track is sampled |
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |
 | `vertex_marker_scale`, `line_width_scale` | How large the outline overlay is drawn, as multiples of the shader defaults |
 | `snap_to_vertices`                 | Edit > Snap to vertices: whether a dragged vertex, a pole or a drawn point snaps onto a nearby vertex. On when the file says nothing |
