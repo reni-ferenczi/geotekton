@@ -133,7 +133,8 @@ the open file.
   window, which the view learns from its own `mouse_exited` rather than from the
   planet. The craton highlight under the pointer ends at the same moment.
 - The middle field is the tools'. The [Measure tool](Editing.md#the-measure-tool)
-  shows the last segment and the total along the path being measured; outside it
+  shows the total along the path being measured and, from the third point on,
+  the last segment after it, as in "2224.0 km, last 1112.0 km"; outside the tool
   the field shows the length along the selected feature's geometry. It is also
   where the [Vertex tool](Editing.md#the-vertex-tool) says why it refused
   something, so a deletion that would leave half a shape is answered in place

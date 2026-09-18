@@ -104,7 +104,9 @@ again, and the document's own undo stack is reached only once the outline is
 empty. Without this, Ctrl+Z halfway through a shape would undo the creation of
 the very feature being drawn on. The vertices taken back are forgotten by the
 next click, a commit, Escape or a change of tool. The points of a circle and
-those of the Measure tool are held the same way.
+those of the Measure tool are held the same way. A measurement finished with
+Enter is the one exception: it holds nothing left to take back, so Ctrl+Z
+reaches the document again and the next click throws the path away.
 
 Outside drawing, the selected feature is highlighted instead: a translucent
 white outline along the rings of a polygon, a white halo along a line, larger

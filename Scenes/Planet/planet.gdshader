@@ -103,8 +103,9 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 // follows the selected feature). 7 draws an open line BOLD_SCALE times as wide
 // as a feature line, geometry_line_width, with no markers (the pole cross). 8 is
 // a circle drawn like 3, from two vertices, its center and a point of its rim,
-// with no markers (the circle being drawn). Every style but 4, 6, 7 and 8 marks
-// each vertex.
+// with no markers (the circle being drawn). 9 is 0 with no markers, for a run
+// sampled finely enough that a dot per vertex would be a string of beads (the
+// Measure tool's parallels). Every style but 4, 6, 7, 8 and 9 marks each vertex.
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
 uniform float outline_line_width = 0.002;
@@ -454,7 +455,7 @@ void fragment() {
 				min_dot_dist = min(min_dot_dist, chord(a, p) / SELECTED_MARKER_SCALE);
 				continue;
 			}
-			if (style != 4 && style != 6 && style != 7) {
+			if (style != 4 && style != 6 && style != 7 && style != 9) {
 				min_dot_dist = min(min_dot_dist, chord(a, p));
 			}
 			if (style == 2) {
@@ -466,7 +467,7 @@ void fragment() {
 			int start = int(v.z + 0.5);
 			bool last = i + 1 >= outline_vertex_count
 				|| int(texelFetch(outline_data, ivec2(i + 1, 0), 0).z + 0.5) != start;
-			if (last && (style == 0 || style == 7 || i == start)) {
+			if (last && (style == 0 || style == 7 || style == 9 || i == start)) {
 				continue;
 			}
 

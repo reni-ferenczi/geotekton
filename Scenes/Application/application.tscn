@@ -181,6 +181,14 @@ layout_mode = 2
 tooltip_text = "Cut the features following the polygon along the same line; the pieces beyond it follow the second half"
 text = "Children"
 
+[node name="Parallel" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+tooltip_text = "Measure the next segment along the parallel of the last point"
+text = "Parallel"
+
 [node name="ViewPanel" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2

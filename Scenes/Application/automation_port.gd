@@ -648,7 +648,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"children": app.children_check.button_pressed,
 				"children_visible": app.children_check.is_visible_in_tree(),
 				"measure_points": _points_to_json(app.measure_points),
+				"measure_parallel": app.measure_flags(),
 				"measure_label": _measure_label_to_json(),
+				"parallel": app.parallel_check.button_pressed,
+				"parallel_visible": app.parallel_check.is_visible_in_tree(),
 				"circle_points": _points_to_json(app.circle_points()),
 				"circle": _circle_to_json(),
 				"segments": app.circle_segments(),
@@ -711,6 +714,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			if request.has("children"):
 				app.children_check.button_pressed = bool(request["children"])
 				app.children_check.toggled.emit(app.children_check.button_pressed)
+			if request.has("parallel"):
+				app.parallel_check.button_pressed = bool(request["parallel"])
 			await _frames(2)
 			return {"ok": true}
 
