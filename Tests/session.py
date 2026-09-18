@@ -2514,6 +2514,19 @@ MEASURE_POINTS = [(0.0, -10.0), (0.0, 10.0)]
 MEASURE_DEGREES = 20.0
 EARTH_RADIUS_KM = 6371.0
 
+# The third point of the path, fifteen degrees further east along the equator.
+MEASURE_THIRD = (0.0, 25.0)
+MEASURE_LAST_DEGREES = 15.0
+
+# The parallel measurement: a point at 60 north and a click ninety degrees of
+# longitude to the east of it, two degrees short in latitude so that the switch
+# is shown to pull it onto the parallel. The view is turned to the middle of
+# the run, since ninety degrees of longitude spans the whole visible hemisphere
+# from the prime meridian.
+MEASURE_PARALLEL_FROM = (60.0, 0.0)
+MEASURE_PARALLEL_CLICK = (58.0, 90.0)
+MEASURE_PARALLEL_VIEW = (60.0, 45.0)
+
 # A five vertex polygon, so a cut between two vertices leaves three on one side.
 SPLIT_POLYGON = [(-8.0, -8.0), (8.0, -8.0), (10.0, 4.0), (0.0, 10.0), (-8.0, 6.0)]
 
@@ -3481,12 +3494,19 @@ def run_draw_from_geometry_session(client: AutomationClient) -> None:
           f"and neither point moved onto a vertex: {ring[:2]}")
 
 
+def measured_km(shown: str) -> list[float]:
+    """The kilometre numbers the measure field shows, the total first."""
+    return [float(number) for number in re.findall(r"([\d.]+) km", shown)]
+
+
 def run_measure_session(client: AutomationClient) -> None:
-    """The Measure tool reports a distance in the status bar."""
+    """The Measure tool measures a path of clicks, and along a parallel."""
     start_new_document(client)
     client.call("set_tool", tool="measure")
     check(client.call("get_status")["status"]["measure"] == "click two points to measure",
           "the status bar asks for two points")
+    check(client.call("get_tool")["parallel_visible"],
+          "the Parallel switch is shown with the Measure tool")
 
     for lat, lon in MEASURE_POINTS:
         screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
@@ -3519,19 +3539,79 @@ def run_measure_session(client: AutomationClient) -> None:
     client.call("set_view", lat=0.0, lon=0.0)
     check(client.call("get_tool")["measure_label"]["visible"], "and back when it is in view")
 
-    # A third click is the start of the next measurement, not a longer path.
-    third = client.call("latlon_to_screen", lat=10.0, lon=0.0)["screen"]
-    client.call("click", x=third[0], y=third[1])
+    # A third click carries the path on. The status bar then names the last
+    # segment as well as the total, and the label follows the pointer to the
+    # midpoint of that segment.
+    draw(client, [MEASURE_THIRD])
     tool = client.call("get_tool")
-    check(len(tool["measure_points"]) == 1, f"a third click starts over: {tool['measure_points']}")
+    check(len(tool["measure_points"]) == 3,
+          f"a third click makes a path of three: {tool['measure_points']}")
+    check(tool["measure_parallel"] == [False, False, False],
+          f"with no segment along a parallel: {tool['measure_parallel']}")
+    total = math.radians(MEASURE_DEGREES + MEASURE_LAST_DEGREES) * EARTH_RADIUS_KM
+    last = math.radians(MEASURE_LAST_DEGREES) * EARTH_RADIUS_KM
+    shown = client.call("get_status")["status"]["measure"]
+    numbers = measured_km(shown)
+    check(len(numbers) == 2 and abs(numbers[0] - total) < 1.0 and abs(numbers[1] - last) < 1.0,
+          f"the status bar shows the total and the last segment, "
+          f"{total:.1f} km and {last:.1f} km: {shown}")
+
+    label = tool["measure_label"]
+    check(label["visible"] and measured_km(label["text"]) == numbers[:1],
+          f"the label beside the line shows the total: {label['text']!r}")
+    middle = screen_of(client, (0.0, (MEASURE_POINTS[1][1] + MEASURE_THIRD[1]) * 0.5))
+    dx, dy = label["screen"][0] - middle[0], label["screen"][1] - middle[1]
+    check(0.0 < dx < 40.0 and -60.0 < dy < 0.0,
+          f"at the midpoint of the last segment: {dx:.0f}, {dy:.0f}")
+
+    # Enter finishes the path, which stays where it is until the next click
+    # starts a new one.
+    client.call("key", key="Enter")
+    check(client.call("get_status")["status"]["measure"] == shown,
+          "Enter leaves the finished path and its numbers alone")
+    draw(client, [(10.0, 0.0)])
+    tool = client.call("get_tool")
+    check(len(tool["measure_points"]) == 1,
+          f"and the next click starts a new path: {tool['measure_points']}")
     check(not tool["measure_label"]["visible"], "with no segment to label yet")
-    for lat, lon in MEASURE_POINTS:
-        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
-        client.call("click", x=screen[0], y=screen[1])
+    check(client.call("get_status")["status"]["measure"] == "click the next point   Enter finishes",
+          "and the status bar asks for the next point")
+
+    client.call("key", key="Escape")
+    check(client.call("get_tool")["measure_points"] == [], "Escape empties the path")
+
+    # The Parallel switch pulls the click onto the parallel of the last point
+    # and measures the segment along it.
+    client.call("set_view", lat=MEASURE_PARALLEL_VIEW[0], lon=MEASURE_PARALLEL_VIEW[1])
+    client.call("set_tool", tool="measure", parallel=True)
+    check(client.call("get_tool")["parallel"], "the Parallel switch is on")
+    if draw(client, [MEASURE_PARALLEL_FROM, MEASURE_PARALLEL_CLICK]):
+        tool = client.call("get_tool")
+        landed = tool["measure_points"][-1]
+        check(worst_offset([landed], [(MEASURE_PARALLEL_FROM[0], MEASURE_PARALLEL_CLICK[1])])
+              < CLICK_TOLERANCE,
+              f"the click lands on the parallel of the first point: {landed}")
+        check(tool["measure_parallel"] == [False, True],
+              f"and the segment is flagged as a parallel run: {tool['measure_parallel']}")
+        # A quarter of the parallel at 60 north against the great circle, which
+        # bows towards the pole and is the shorter of the two.
+        run = math.pi * EARTH_RADIUS_KM * 0.25
+        arc = math.acos(math.sin(math.radians(60.0)) ** 2) * EARTH_RADIUS_KM
+        shown = client.call("get_status")["status"]["measure"]
+        numbers = measured_km(shown)
+        check(len(numbers) == 1 and abs(numbers[0] - run) < 1.0,
+              f"the status bar shows the parallel run, {run:.1f} km: {shown}")
+        check(abs(numbers[0] - arc) > 100.0,
+              f"which is not the great circle's {arc:.1f} km")
+
+    client.call("set_view", lat=0.0, lon=0.0)
     client.call("set_tool", tool="move")
     check(not client.call("get_tool")["measure_label"]["visible"],
           "leaving the tool takes the label away")
+    check(not client.call("get_tool")["parallel_visible"],
+          "and the Parallel switch with it")
     client.call("set_tool", tool="measure")
+    check(not client.call("get_tool")["parallel"], "which comes back off")
     for lat, lon in MEASURE_POINTS:
         screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
         client.call("click", x=screen[0], y=screen[1])
