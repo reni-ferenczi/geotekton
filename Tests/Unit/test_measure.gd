@@ -1,7 +1,7 @@
 extends TestCase
 
-# Great circle distances, and the points along an arc that inserting a vertex on
-# an edge needs.
+# Great circle distances, runs along a parallel, and the points along an arc
+# that inserting a vertex on an edge needs.
 
 # One part in ten thousand, the tolerance the phase asks the published values to
 # be met within.
@@ -80,6 +80,84 @@ func test_a_closed_path_adds_the_arc_back_to_the_start() -> void:
 func test_a_path_of_fewer_than_two_points_has_no_length() -> void:
 	assert_close(Measure.path_length(PackedVector2Array()), 0.0, 1e-9)
 	assert_close(Measure.path_length(PackedVector2Array([Vector2(3, 4)])), 0.0, 1e-9)
+
+
+### Along a parallel
+
+
+func test_a_quarter_of_a_parallel_at_sixty_north() -> void:
+	# cos(60) is a half exactly, so 90 degrees of that parallel is a quarter of
+	# a half of the great circle: a quarter of pi times the radius.
+	var got := Measure.parallel_distance(Vector2(60, 0), Vector2(60, 90))
+	_assert_relative(got, PI * Measure.EARTH_RADIUS_KM * 0.25, "a quarter of the parallel at 60 N")
+
+
+func test_a_parallel_run_bows_no_further_than_the_great_circle() -> void:
+	# The same two points, the arc against the parallel: 4605 km against 5004.
+	var arc := Measure.distance(Vector2(60, 0), Vector2(60, 90))
+	var run := Measure.parallel_distance(Vector2(60, 0), Vector2(60, 90))
+	assert_true(arc < run, "the great circle is the shorter of the two: %s against %s" % [arc, run])
+
+
+func test_on_the_equator_a_parallel_is_the_great_circle() -> void:
+	for lon in [1.0, 20.0, 179.0]:
+		var a := Vector2(0, 0)
+		var b := Vector2(0, lon)
+		assert_close(Measure.parallel_distance(a, b), Measure.distance(a, b), 1e-6,
+			"the equator is a great circle, at %s degrees" % lon)
+
+
+func test_a_parallel_across_the_date_line_takes_the_short_way() -> void:
+	# 170 E to 170 W is 20 degrees of the parallel, not the 340 the longitudes
+	# subtract to.
+	var got := Measure.parallel_distance(Vector2(45, 170), Vector2(45, -170))
+	var twenty := Measure.parallel_distance(Vector2(45, 0), Vector2(45, 20))
+	assert_close(got, twenty, 1e-6, "20 degrees of parallel across the date line")
+
+
+func test_an_antipodal_parallel_goes_east() -> void:
+	# Exactly 180 degrees apart there is no shorter way round; east is picked,
+	# so the point halfway is east of the start rather than west of it.
+	var middle := Measure.along_parallel(Vector2(30, 0), Vector2(30, 180), 0.5)
+	assert_close(middle.y, 90.0, 1e-9, "halfway round an antipodal parallel is east")
+
+
+func test_along_a_parallel_keeps_the_latitude() -> void:
+	# 170 E to 150 W is 40 degrees east across the date line, so halfway is
+	# 170 W and not the 10 E that subtracting the two longitudes would give.
+	var middle := Measure.along_parallel(Vector2(60, 170), Vector2(60, -150), 0.5)
+	assert_close(middle.x, 60.0, 1e-9, "the latitude is the one it started at")
+	assert_close(middle.y, -170.0, 1e-9, "and the longitude is halved the short way")
+
+
+func test_a_sampled_parallel_starts_and_ends_on_its_points() -> void:
+	var a := Vector2(60, 0)
+	var b := Vector2(60, 90)
+	var run := Measure.parallel_points(a, b, 1.0)
+	assert_eq(run.size(), 91, "91 points at one degree of longitude")
+	assert_close(run[0].distance_to(a), 0.0, 1e-12, "the run starts on a")
+	assert_close(run[run.size() - 1].distance_to(b), 0.0, 1e-12, "and ends on b")
+	for point in run:
+		assert_close(point.x, 60.0, 1e-9, "every sample is on the parallel")
+	# Sampled closely enough, the run of arcs is the length of the parallel.
+	assert_close(Measure.path_length(run) / Measure.parallel_distance(a, b), 1.0, 1e-4,
+		"the sampled run is as long as the parallel")
+
+
+func test_a_mixed_path_adds_an_arc_and_a_parallel_run() -> void:
+	var points := PackedVector2Array([Vector2(0, 0), Vector2(60, 0), Vector2(60, 90)])
+	var parallel: Array[bool] = [false, false, true]
+	var wanted := Measure.distance(points[0], points[1]) \
+		+ Measure.parallel_distance(points[1], points[2])
+	assert_close(Measure.measured_length(points, parallel), wanted, 1e-6,
+		"the arc up the meridian plus the run along the parallel")
+	# The same path all on great circles is shorter, since the second leg bows.
+	var flat: Array[bool] = [false, false, false]
+	assert_true(Measure.measured_length(points, flat) < wanted,
+		"and the same path measured on great circles is shorter")
+
+
+### Geometry
 
 
 func test_the_length_of_each_kind_of_geometry() -> void:

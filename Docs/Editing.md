@@ -872,28 +872,66 @@ and azimuth, and the ambient level. There is no tool for it.
 
 ## The Measure tool
 
-The Measure tool measures the great circle distance between two points.
+The Measure tool measures the distance along a path of clicked points.
 
 | Input | Action |
 |-------|--------|
-| **LMB** on the globe | The first point, then the second; a third starts the next measurement from where it fell |
+| **LMB** on the globe | Add a point to the path |
+| **Enter** | Finish the path; the next click starts a new one |
 | **RMB** or **Ctrl+Z** | Take the last point back |
 | **Ctrl+Y** | Put it back |
 | **Escape** | Start again with no points |
 
-A measurement is one segment: it is a measuring tool, not a drawing tool. With
-two points the distance is written in the status bar and beside the line
-itself, a little up and to the right of its midpoint, where it follows the
-camera and hides while the midpoint is round the back of the globe or off the
-map. With fewer than two the status bar says what to click. Outside the
-Measure tool the same field shows the length along the selected feature's
-geometry: around the outline of a polygon, along a polyline, and nothing for a
-multipoint, whose vertices are separate markers rather than a path. A polygon
-also gets its area, as in "4430.9 km around Laurentia, 1.23 million km²". The
-Area row of the [Properties panel](Properties.md) shows the same area.
+It is a measuring tool, not a drawing tool: nothing it holds reaches the
+document, whatever the path is made of. A path takes any number of points.
+With two or more the total is written in the status bar, and from the third
+point on the last segment follows it, as in "2224.0 km, last
+1112.0 km". The label beside the line shows the total, at the midpoint of the
+last segment, so it stays near where the pointer is working; it follows the
+camera and hides while that midpoint is round the back of the globe or off the
+map. With one point the status bar says what to click next.
 
-The two points and the line between them are drawn in the same white outline
+Enter finishes a measurement: the path and its numbers stay where they are,
+and the next left click throws the path away and starts a new one from where
+it fell. Escape clears the path at once.
+
+Outside the Measure tool the same status field shows the length along the
+selected feature's geometry: around the outline of a polygon, along a
+polyline, and nothing for a multipoint, whose vertices are separate markers
+rather than a path. A polygon also gets its area, as in "4430.9 km around
+Laurentia, 1.23 million km²". The Area row of the
+[Properties panel](Properties.md) shows the same area.
+
+The clicked points and the line along them are drawn in the same white outline
 overlay the Draw tool uses.
+
+### Along a parallel
+
+A **Parallel** switch sits in the tool strip beside the Split tool's switches
+and is shown for the Measure tool alone. It starts off and goes back off
+whenever the tool is left.
+
+With the switch on, a click lands at the latitude of the previous point and
+the longitude it was clicked at, and the segment it closes is measured and
+drawn along that parallel, the shorter way round in longitude. The first point
+of a path is placed where it was clicked whatever the switch says, since there
+is no parallel to follow yet. Flipping the switch between clicks mixes the two
+kinds of segment in one path.
+
+A run along the parallel at latitude φ, over Δλ of longitude, is
+`radius · cos φ · Δλ` with Δλ in radians: the parallel is a circle of radius
+`radius · cos φ` rather than a great circle. The great circle between the same
+two points is always the shorter of the two, because it bows towards the pole
+instead of holding the latitude. At 60° N over 90° of longitude the parallel
+runs 5004 km and the great circle 4605 km. Which number is wanted depends on
+the question: a ship holding a due east course sails the parallel, while the
+shortest way between the same two places is the great circle.
+
+A parallel segment reaches the planet as a run of points sampled every degree
+of longitude, drawn in the
+[`OPEN_LINE`](Shader.md#outline-data-texture-layout) style, which marks no
+vertex. The clicked points are drawn as markers over it, so the path shows
+where it was clicked and not where it was sampled.
 
 ### The planet radius
 
@@ -937,7 +975,7 @@ shows what is being chosen.
 | Background | The colour behind the planet |
 | Star field | Whether the stars are drawn; they add their light to the background colour, so the colour shows between them |
 | Grid | The color of the longitude and latitude lines |
-| Grid spacing | How far apart its lines are, from 1 to 90 degrees |
+| Grid spacing | How far apart its lines are, from 1 to 90 degrees. A line falls on every multiple of the spacing, counted from the equator and the prime meridian |
 | Light elevation, light azimuth | Where the light comes from, away from the line of sight; `(0, 0)` shines from the camera |
 | Ambient light | How much light reaches the night side; 0 is a black night, 1 no night at all |
 | Planet color | The color of the planet where no raster covers it, ocean blue unless changed. The picker has no alpha, since the planet is never see-through |

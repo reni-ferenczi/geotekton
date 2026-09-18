@@ -19,11 +19,20 @@ all of it works in latitude and longitude.
 ## The grid
 
 A grid line is `GRID_PIXELS` (1.5) screen pixels wide in both views, so the
-globe and the map draw the same lines at any zoom. The shader scales the
-place of a fragment by `split`, takes the screen derivative of that with
-`fwidth`, and fades each line out over `GRID_PIXELS` derivatives with
-`smoothstep`, which also antialiases it. The derivative is taken before
-`fract`, so a column where a line wraps round does not get a huge one.
+globe and the map draw the same lines at any zoom. The shader takes the middle
+of the sheet off the place of a fragment and scales what is left by `split`,
+takes the screen derivative of that with `fwidth`, and fades each line out over
+`GRID_PIXELS` derivatives with `smoothstep`, which also antialiases it. The
+derivative is taken before `fract`, so a column where a line wraps round does
+not get a huge one.
+
+Subtracting the middle first is what counts the lines from the equator and the
+prime meridian: a line falls wherever the latitude or the longitude is a
+multiple of the spacing, so the equator and the prime meridian are always drawn
+and the two hemispheres are mirror images of each other. A spacing that does
+not divide 90 therefore leaves no parallel at the pole, and one that does not
+divide 180 leaves no meridian on the date line, which is right: the pole is a
+point, and 25° draws 175° E and 175° W with nothing between them.
 
 Meridians converge towards the poles of the globe. Where they would be denser
 than one per two pixels they fade out, so the planet shows around the pole
@@ -698,11 +707,12 @@ the same for every vertex of a part:
 | 6 | Closed like 4, in `CHILD_COLOR`: the rings of a polygon that follows the selected feature | 1 |
 | 7 | Open like 0, at `BOLD_SCALE` (0.5) times `geometry_line_width` rather than at `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross | 1 |
 | 8 | Two vertices, a center and a point of the rim, drawn as the [circle](#circles) through that point, with no vertex markers: the circle being drawn | `OUTLINE_OPACITY` |
+| 9 | Open like 0, in the same white and at the same width, with no vertex markers: a run sampled too finely to mark, such as the [Measure tool](Editing.md#the-measure-tool)'s parallels | 1 |
 
 The vertex markers are opaque in every style that has them, so the dots of
 the Vertex tool stand out against the translucent ring of style 3.
 
-`Planet.OutlineStyle` names the same nine values.
+`Planet.OutlineStyle` names the same ten values.
 
 A style 8 part is read at its first vertex, which takes the radius from the
 second, so the preview is the same curve the finished circle is drawn as. The
@@ -711,7 +721,7 @@ Circle segments count does not reach it.
 ### Outline Math
 
 **Vertex dots**: the chord distance from the fragment to the nearest vertex,
-antialiased via `smoothstep` over the outer three tenths of the radius. Every vertex gets one except in styles 4, 6 and 7. Style 5
+antialiased via `smoothstep` over the outer three tenths of the radius. Every vertex gets one except in styles 4, 6, 7 and 9. Style 5
 divides the distance by `SELECTED_MARKER_SCALE`, which draws the same dot twice
 as large.
 

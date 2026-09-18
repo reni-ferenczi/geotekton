@@ -89,7 +89,7 @@ drawn the way its author chose:
 | `background_color`  | `[r, g, b, a]`    | black               | What is behind the planet |
 | `star_field`        | bool              | `true`              | Whether the star field is drawn on it |
 | `grid_color`        | `[r, g, b, a]`    | white at a third    | The color of the longitude and latitude lines |
-| `grid_spacing`      | degrees, 1 to 90  | `15`                | How far apart its lines are |
+| `grid_spacing`      | degrees, 1 to 90  | `15`                | How far apart its lines are; a line falls on every multiple of it, counted from the equator and the prime meridian |
 | `light_direction`   | `[elevation, azimuth]` in degrees | `[0, 0]` | Where the light comes from, away from the line of sight |
 | `ambient`           | 0 to 1            | `0`                 | How much light reaches the night side |
 | `planet_color`      | `[r, g, b, a]`    | ocean blue, `[0.16, 0.36, 0.60, 1]` | The color of the planet where no raster covers it; the alpha is read as 1 whatever the file says |

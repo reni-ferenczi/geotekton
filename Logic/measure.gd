@@ -56,6 +56,66 @@ static func path_length(points: PackedVector2Array, radius: float = EARTH_RADIUS
 	return total * radius
 
 
+# How far east from a to b, in degrees, the shorter way round: between -180 and
+# 180, negative to the west.
+#
+# An antipodal pair, exactly 180 degrees apart, has no shorter way round. It
+# goes east, so the run is a settled one rather than whichever half the
+# rounding of the subtraction happened to land on.
+static func _delta_lon(a: Vector2, b: Vector2) -> float:
+	var delta := fposmod(b.y - a.y, 360.0)
+	return delta if delta <= 180.0 else delta - 360.0
+
+
+# The distance from a to b along the parallel a sits on, the shorter way round
+# in longitude. At latitude phi the parallel is a circle of radius
+# radius * cos(phi), so the run is radius * cos(phi) * delta in radians.
+#
+# Only a's latitude is read: a parallel run keeps the latitude it starts at.
+# The Measure tool puts b on that parallel before it asks.
+static func parallel_distance(a: Vector2, b: Vector2, radius: float = EARTH_RADIUS_KM) -> float:
+	return deg_to_rad(absf(_delta_lon(a, b))) * cos(deg_to_rad(a.x)) * radius
+
+
+# The point a fraction of the way along that parallel: a's latitude throughout,
+# its longitude carried the shorter way round towards b's.
+static func along_parallel(a: Vector2, b: Vector2, t: float) -> Vector2:
+	return Vector2(a.x, wrapf(a.y + _delta_lon(a, b) * t, -180.0, 180.0))
+
+
+# The run along the parallel from a to b, sampled every step_degrees of
+# longitude with both ends exact. The planet draws great circle arcs between
+# whatever vertices it is given, so a parallel reaches it as a run of short
+# arcs close enough to the curve to pass for it.
+static func parallel_points(a: Vector2, b: Vector2,
+		step_degrees: float = 1.0) -> PackedVector2Array:
+	var steps := maxi(1, ceili(absf(_delta_lon(a, b)) / maxf(step_degrees, 0.001)))
+	var run := PackedVector2Array([a])
+	for i in range(1, steps):
+		run.append(along_parallel(a, b, float(i) / float(steps)))
+	run.append(b)
+	return run
+
+
+# The length of a measured path whose segments are flagged: the one ending at
+# point i runs along the parallel of point i - 1 where parallel[i] is true, and
+# along the great circle otherwise. The first flag is never read, since no
+# segment ends at the first point.
+static func measured_length(points: PackedVector2Array, parallel: Array[bool],
+		radius: float = EARTH_RADIUS_KM) -> float:
+	var total := 0.0
+	for i in range(1, points.size()):
+		total += segment_length(points[i - 1], points[i],
+			i < parallel.size() and parallel[i], radius)
+	return total
+
+
+# One segment of such a path, whichever kind it is.
+static func segment_length(a: Vector2, b: Vector2, parallel: bool,
+		radius: float = EARTH_RADIUS_KM) -> float:
+	return parallel_distance(a, b, radius) if parallel else distance(a, b, radius)
+
+
 # The distance along every part of a feature's geometry. A polygon is measured
 # around its outline, a polyline along it, and a multipoint has no length at all
 # because its vertices are separate markers rather than a path.
