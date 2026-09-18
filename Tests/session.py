@@ -3904,9 +3904,12 @@ CRUST_AGE = 100.0
 CRUST_DRIFT = 12.0
 CRUST_SKIP = 25.0
 # Steel blue, the colour the Split tool gives the crust, and light steel blue,
-# the colour of its isochrons and flowlines.
+# the colour of its isochrons and flowlines. The band against the continent is
+# the crust colour itself and the one against the ridge is it lightened by
+# Styling.YOUNGEST_LIGHTER, with the bands between evenly spaced.
 CRUST_COLOR = [0.275, 0.510, 0.706]
 CRUST_LINES_COLOR = [0.690, 0.769, 0.871]
+YOUNGEST_LIGHTER = 0.55
 CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust", "Plate 2 crust"]
 CRUSTS = ["Plate crust", "Plate 2 crust"]
 
@@ -4013,8 +4016,13 @@ def run_crust_step_checks(client: AutomationClient) -> None:
           f"undo puts it back on the Skip: {panel['crust_step']}, {panel['crust_chunks']}")
 
 
+def lighter_band(shade: float) -> list[float]:
+    """The crust colour as the age ramp lightens it, 0 at the oldest band and 1 at the youngest."""
+    return [c + (1.0 - c) * shade * YOUNGEST_LIGHTER for c in CRUST_COLOR]
+
+
 def run_crust_probes(client: AutomationClient, title: str) -> None:
-    """A crust at 0 Ma: four bands, isochron colour on an isochron, crust colour between two."""
+    """A crust at 0 Ma: four bands, the age ramp across them and the isochron colour on one."""
     client.call("select", title=title)
     panel = client.call("get_properties")["properties"]
     check(panel["crust_chunks"] == 4 and panel["area_km2"] > 1e5,
@@ -4023,15 +4031,22 @@ def run_crust_probes(client: AutomationClient, title: str) -> None:
     if not check(len(bands) == 4 and all(len(band) == 2 * len(CRUST_CUT) for band in bands),
                  f"four bands of two isochrons each: {[len(band) for band in bands]}"):
         return
-    # A band starts on its older isochron, so this is halfway along the first
-    # stretch of the 75 and the 50 Ma isochrons, and between the two, away from
-    # the flowlines and the equator.
+    # A band runs along its older isochron and comes back along its younger one,
+    # so this is halfway between the first stretch of each, inside the band and
+    # away from the flowlines and the equator. The first band is the one against
+    # the continent and the last the one against the ridge.
+    inside = [midpoint(list(midpoint(band[0], band[1])), list(midpoint(band[-1], band[-2])))
+              for band in bands]
     on_75 = midpoint(bands[1][0], bands[1][1])
-    on_50 = midpoint(bands[2][0], bands[2][1])
-    between = midpoint(list(on_75), list(on_50))
     client.call("select", title=None)
-    pixel = probe_unhovered(client, *between)
-    check(is_colour(pixel, CRUST_COLOR), f"{title} fills the band at {between}: {pixel}")
+    shades = [probe_unhovered(client, *place) for place in inside]
+    check(is_colour(shades[0], CRUST_COLOR),
+          f"{title} fills the band against the continent in the crust colour: {shades[0]}")
+    check(is_colour(shades[-1], lighter_band(1.0)),
+          f"and the one against the ridge in the lightest shade of it: {shades[-1]}")
+    brightness = [sum(shade[:3]) for shade in shades]
+    check(all(a + 0.1 < b for a, b in zip(brightness, brightness[1:])),
+          f"lighter band by band from the continent to the ridge: {brightness}")
     pixel = probe_unhovered(client, *on_75)
     check(is_colour(pixel, CRUST_LINES_COLOR), f"and the isochron at {on_75} is drawn: {pixel}")
 

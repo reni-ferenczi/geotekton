@@ -346,7 +346,9 @@ feature's opacity, which the shader lays the color over what is beneath by. At
 0 the planet shows through, and the feature is still hit tested. See
 [Styling](Styling.md). A crust is the one feature with a second color, for the
 isochrons and flowlines it draws over its bands; it sits in row 5 and
-everything else has its own color there.
+everything else has its own color there. A crust is also the one feature drawn
+in more than one color: each band takes a column of `feature_data` of its own,
+filled with what the [age ramp](Editing.md#the-crust) gives the crust in it.
 
 ### Colour space
 
@@ -487,10 +489,10 @@ changes only when the tree does; a second texture holds one rotation and one
 color per feature, and that is the whole of what a step of an animation or a
 change of color re-uploads, whatever the triangle count is.
 
-`feature_data` uses `FORMAT_RGBAF` with **width = feature count** and
-**height = 6 rows**, one column of the rotation per row in the first three, the
-color in the fourth, the child flag and the line scale in the fifth and the
-line color in the sixth:
+`feature_data` uses `FORMAT_RGBAF` with **width = one column per drawn
+feature** and **height = 6 rows**, one column of the rotation per row in the
+first three, the color in the fourth, the child flag and the line scale in the
+fifth and the line color in the sixth:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
@@ -505,6 +507,16 @@ The color is what the draw style resolved for the feature, which is why it
 lives here rather than beside the vertices. The selection highlight of GP-0034
 and the age colors of GP-0036 change it on every selection and every frame of
 an animation, and neither has to rebuild the geometry texture to do so.
+
+One feature takes one column, except a [crust](Editing.md#the-crust), which
+takes one per band so that each band can be filled in the color of the crust it
+holds. The columns carry the same rotation and the same flags, since they are
+the one feature, and `Geometry.index_of` points at the first of them, which is
+the oldest band. Nothing in the shader knows: a band is a feature as far as
+these rows go, which is what keeps the age ramp out of both this texture's
+layout and the geometry texture's. `Geometry.bands` holds each band's age and
+where it falls in the ramp, and `Geometry.recolor()` reads them, so a change of
+color moves the whole ramp without the geometry being collected again.
 
 `hovered` is 1 while the pointer rests on the feature, which brightens its
 fill. `visible` is 0 while the feature is outside its time range, so it is
@@ -537,8 +549,8 @@ The rotation is the feature's own, worked out for every feature at once by
 `Basis.x`, `.y` and `.z` are the three columns, and `mat3(f0.xyz, f1.xyz,
 f2.xyz)` in the shader is the same matrix.
 
-Every primitive of one feature is contiguous in the geometry texture, so the
-shader fetches the four rows once per feature rather than once per primitive:
+Every primitive of one column is contiguous in the geometry texture, so the
+shader fetches the four rows once per column rather than once per primitive:
 
 ```glsl
 int feature = int(row1.z + 0.5);
@@ -556,9 +568,10 @@ rotation of one point per feature instead of one per vertex.
 ### The bounding cap
 
 The hit test runs on every mouse motion, and walking every triangle of every
-feature to answer it is most of what it costs. Each feature therefore carries a
+feature to answer it is most of what it costs. Each column therefore carries a
 cap: a centre and an angular radius that hold every vertex it draws, worked out
-once by `Geometry.build_caps()` when the geometry is collected.
+once by `Geometry.build_caps()` when the geometry is collected. A crust gets one
+per band, each tighter than a cap around the whole sea floor would be.
 
 The cap is in the feature's own frame, like the vertices, so moving a feature
 never invalidates it and a step of an animation does not touch it. The point

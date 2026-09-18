@@ -347,7 +347,8 @@ object naming what it is built from:
 uuid of the midway topology it opened from, and `edge` how many vertices the
 cut had. A crust is closed and holds the bands, with the isochrons and the
 flowlines drawn over them. It writes no rings: they are rebuilt from the half,
-the ridge, the time and the step before the geometry is collected. A crust
+the ridge, the time and the step before the geometry is collected, and so are
+the band ages the [age ramp](Editing.md#the-crust) colors them by. A crust
 carries the same optional `time_step` as a hotspot, with the same meaning.
 
 `keyframes` is where the feature is over time: a list of `{time, rotation}`,

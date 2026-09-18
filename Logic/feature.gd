@@ -113,6 +113,11 @@ var crust_ridge := ""
 var crust_edge := 0
 var crust_line_rings: Array[PackedVector2Array] = []
 
+# How old the crust in each band is, in the order of the rings, oldest band
+# first. Crust.rebuild() works them out from the isochron ages; the age ramp
+# that colors the bands reads them. Empty on everything that is not a crust.
+var band_ages := PackedFloat64Array()
+
 # How far apart in time a hotspot's track samples and a crust's isochrons are,
 # in My, and 0 for the timeline's Skip. Only those two read it, through
 # Hotspot.step_of(). It is saved with the feature, so a file samples the same
@@ -143,8 +148,11 @@ var hotspot := NO_HOTSPOT
 var plate_uuid := ""
 
 # Triangles covering the polygon rings, 3 vertices each, wound so that they face
-# outwards. Derived from rings by rebuild_triangles(), never read from a file.
+# outwards, and how many of them each ring gave, so a caller that draws one ring
+# at a time can find its own. Derived from rings by rebuild_triangles(), never
+# read from a file.
 var triangles := PackedVector2Array()
+var ring_triangles := PackedInt32Array()
 
 # How the feature turns over time, sorted by time. An empty list means it does
 # not move at all. Only a leaf has any: a group is organization and carries no
@@ -278,10 +286,12 @@ func vertex_count() -> int:
 # other kinds are drawn and hit tested from their vertices directly.
 func rebuild_triangles() -> void:
 	triangles = PackedVector2Array()
+	ring_triangles = PackedInt32Array()
 	if drawn_as() != GeometryKind.POLYGON:
 		return
 
 	for ring in rings:
+		var before := triangles.size()
 		var corners := ear_clip(ring)
 		for i in range(0, corners.size() - 2, 3):
 			var a := corners[i]
@@ -294,6 +304,7 @@ func rebuild_triangles() -> void:
 			triangles.append(a)
 			triangles.append(b)
 			triangles.append(c)
+		ring_triangles.append((triangles.size() - before) / 3)
 
 
 # Whether a triangle is visible from outside the planet: its normal points away
@@ -417,10 +428,12 @@ func clone() -> Feature:
 	node.time_step = time_step
 	node.crust_line_rings.assign(crust_line_rings.map(
 		func(ring: PackedVector2Array) -> PackedVector2Array: return ring.duplicate()))
+	node.band_ages = band_ages.duplicate()
 	for ring in rings:
 		node.rings.append(ring.duplicate())
 	# Copied rather than recomputed: every undo step clones the whole tree.
 	node.triangles = triangles.duplicate()
+	node.ring_triangles = ring_triangles.duplicate()
 	node.keyframes = Keyframe.clone_list(keyframes)
 	node.couplings = Coupling.clone_list(couplings)
 	node.time_range = time_range
