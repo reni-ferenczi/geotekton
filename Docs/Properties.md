@@ -3,7 +3,7 @@
 ## The type catalog
 
 `Logic/feature_type.gd` holds the whole catalog as one constant dictionary.
-Middle Earth is a world building tool and does not carry the GPGIM over. The
+Geotekton is a world building tool and does not carry the GPGIM over. The
 catalog lists only what the program treats differently:
 
 | Id              | Name          | Geometry kinds    | Default color  |
@@ -109,12 +109,12 @@ starts with none.
 the icon: it changes what the row shows and no more. A group's row says whether
 the group is open, as before, and takes no icon of its own.
 
-An icon is one of the MiddleEarth icons, a PNG under `Assets/MiddleEarth Icons`
+An icon is one of the Geotekton icons, a PNG under `Assets/Geotekton Icons`
 at whatever size it was painted. It is shrunk to 32 by 32 pixels, the size of
 the group and rule icons beside it, the first time it is asked for. To add or
 replace one:
 
-1. Drop the PNG into `Assets/MiddleEarth Icons`. The default import is the
+1. Drop the PNG into `Assets/Geotekton Icons`. The default import is the
    right one, and Godot imports the file on the next launch.
 2. Name the id in `FeatureIcon.CATALOG`, with the name the Icon selector shows,
    and the file's stem against the id in `FeatureIcon.FILES`.
@@ -156,7 +156,7 @@ follows the feature tree selection, through
 | Couplings  | List, Remove       | no         |
 | Sections   | Table, Reverse, Remove, Pick | no |
 
-The panel lists no coordinates. Middle Earth is for building worlds, and a
+The panel lists no coordinates. Geotekton is for building worlds, and a
 vertex is placed, moved, inserted and deleted on the globe with the
 [Draw](Draw.md) and [Vertex](Editing.md#the-vertex-tool) tools. Nor does it
 count vertices or parts.

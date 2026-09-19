@@ -3,7 +3,7 @@
 Python drives the application from a console under the globe, from a script file
 run out of the File menu, and from scripts that live in a folder and turn up as
 menu entries of their own. The same package also reads and writes
-`.middle-earth` files on its own, with nothing running.
+`.geotekt` files on its own, with nothing running.
 
 The interpreter is a separate process. Nothing Python does can take the window
 down with it, the interpreter can be replaced or upgraded without rebuilding
@@ -135,22 +135,22 @@ watched from where the camera stands and comes out square. See
 
 ### Files without an application
 
-`Document` reads and writes `.middle-earth` files on their own. It keeps the
+`Document` reads and writes `.geotekt` files on their own. It keeps the
 JSON it parsed and the classes are views onto it, so a file that is read and
 written back comes out byte for byte as it went in, whatever format version it
 was written at — and this package does not carry a second copy of the migrations
 in `Logic/document.gd`. See [Persistence](Persistence.md).
 
 ```python
-from middle_earth import Document, Feature
+from geotekt import Document, Feature
 
-document = Document.load("cratons.middle-earth")
+document = Document.load("cratons.geotekt")
 for feature in document.features:
     print(feature.title, len(feature.keyframes))
 
 plates = document.root.add(Feature.new_group("Plates"))
 plates.add(Feature.new_feature("Craton", rings=[[(0, 0), (0, 10), (10, 0)]]))
-document.save("with-plates.middle-earth")
+document.save("with-plates.geotekt")
 ```
 
 The one place a round trip can differ is a float with no short decimal form:
@@ -270,12 +270,12 @@ interpreter that will not start and one that is killed mid session.
 
 | File                                     | What is in it                            |
 | ---------------------------------------- | ---------------------------------------- |
-| `src/middle_earth/document.py`           | The file format                           |
-| `src/middle_earth/api.py`                | `App`, the running document               |
-| `src/middle_earth/bridge.py`             | The server, the console session, completion |
-| `src/middle_earth/gplates.py`            | The GPlates conversion; see [Import](Import.md) |
-| `src/middle_earth/gproj.py`              | The GPlates project archive               |
-| `src/middle_earth/__main__.py`           | What the application starts               |
+| `src/geotekt/document.py`           | The file format                           |
+| `src/geotekt/api.py`                | `App`, the running document               |
+| `src/geotekt/bridge.py`             | The server, the console session, completion |
+| `src/geotekt/gplates.py`            | The GPlates conversion; see [Import](Import.md) |
+| `src/geotekt/gproj.py`              | The GPlates project archive               |
+| `src/geotekt/__main__.py`           | What the application starts               |
 | `Logic/script_catalog.gd`                | Reading docstrings out of script files    |
 | `Scenes/Application/python_bridge.gd`    | The application's half of the protocol    |
 | `Scenes/Application/console_panel.gd`    | The panel                                 |

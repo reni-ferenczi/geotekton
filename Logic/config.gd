@@ -22,7 +22,7 @@ static var _loaded: bool = false
 static func _get_config_dir() -> String:
 	if not directory_override.is_empty():
 		return directory_override
-	return OS.get_environment("APPDATA") + "/MiddleEarth"
+	return OS.get_environment("APPDATA") + "/Geotekton"
 
 
 static func _get_config_path() -> String:

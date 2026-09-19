@@ -9,7 +9,7 @@ extends RenderedCase
 
 
 func test_clicking_under_the_rows_while_renaming_keeps_the_tree() -> void:
-	await load_sample("two_cratons.middle-earth")
+	await load_sample("two_cratons.geotekt")
 
 	var feature_tree: FeatureTree = app.features.feature_tree
 	var expected := _node_count(app.document.root)
@@ -105,7 +105,7 @@ func test_a_leaf_dropped_below_a_sibling_lands_after_it() -> void:
 # An empty document holding two groups, the first with three leaves and the
 # second with one; `collapsed` closes the second group.
 func _build(collapsed: bool) -> Array[Feature]:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	var groups: Array[Feature] = []
 	for g in 2:
 		var group := Feature.create_group("Group %d" % g)

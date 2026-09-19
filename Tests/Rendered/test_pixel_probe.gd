@@ -18,20 +18,20 @@ const GREEN_TOLERANCE := 0.1
 
 
 func test_the_red_triangle_is_drawn_where_it_is_hit_tested() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await _check_probe(-3.0, 0.0, "red")
 	await _check_probe(5.0, 40.0, "")
 
 
 func test_three_cratons_are_drawn_in_their_own_colours() -> void:
-	await load_sample("two_cratons.middle-earth")
+	await load_sample("two_cratons.geotekt")
 	await _check_probe(-3.0, 0.0, "red")
 	await _check_probe(30.0, 45.0, "blue")
 	await _check_probe(-3.0, -60.0, "green")
 
 
 func test_a_polyline_and_a_multipoint_are_drawn_in_their_own_colours() -> void:
-	await load_sample("mixed_geometry.middle-earth")
+	await load_sample("mixed_geometry.geotekt")
 	# The line runs along the meridian at 40 degrees east from (-25, 40) to
 	# (25, 40), so it passes through (0, 40); the markers sit at (-30, -30)
 	# and (30, -30).
@@ -42,7 +42,7 @@ func test_a_polyline_and_a_multipoint_are_drawn_in_their_own_colours() -> void:
 
 
 func test_the_earth_shows_beside_a_line_and_a_marker() -> void:
-	await load_sample("mixed_geometry.middle-earth")
+	await load_sample("mixed_geometry.geotekt")
 	# Both points are a few degrees off, well beyond the width they are drawn
 	# with, and off the grid, which is on multiples of 15 degrees.
 	await _check_probe(3.0, 33.0, "")
@@ -50,7 +50,7 @@ func test_the_earth_shows_beside_a_line_and_a_marker() -> void:
 
 
 func test_an_empty_file_draws_no_craton() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await _check_probe(-3.0, 0.0, "")
 
 
@@ -61,7 +61,7 @@ func test_an_empty_file_draws_no_craton() -> void:
 # Earth itself is no use as the background, since its detail does not come out
 # the same from one frame to the next.
 func test_a_polygon_is_one_flat_color_up_to_its_boundary() -> void:
-	await load_sample("craton.middle-earth")
+	await load_sample("craton.geotekt")
 	var feature := _first_feature()
 	if feature == null:
 		return

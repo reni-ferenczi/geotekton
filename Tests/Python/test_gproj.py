@@ -2,7 +2,7 @@
 
 import pytest
 
-from middle_earth.gproj import SIGNATURE, Project, ProjectError, read_project
+from geotekt.gproj import SIGNATURE, Project, ProjectError, read_project
 
 from conftest import gplates_projects
 

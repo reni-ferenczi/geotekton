@@ -1,7 +1,7 @@
 extends TestCase
 
 # Round-trip of the feature tree through the JSON representation used by
-# the .middle-earth file format and the clipboard.
+# the .geotekt file format and the clipboard.
 
 
 func test_round_trip_keeps_every_field() -> void:

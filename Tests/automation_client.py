@@ -1,4 +1,4 @@
-"""Client for the Middle Earth automation port."""
+"""Client for the Geotekton automation port."""
 
 import json
 import os

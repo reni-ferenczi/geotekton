@@ -58,7 +58,7 @@ const EARTH_PROBES: Array[Vector2] = [
 # stars. The corner is read as the median of a patch rather than one pixel, so
 # a star landing on the probe does not decide the answer.
 func test_the_background_colour_reaches_the_corner_of_the_view() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await use_settings({"star_field": true})
 	assert_close(await corner_colour(), Color.BLACK, 0.02, "the default background")
 
@@ -72,7 +72,7 @@ func test_the_background_colour_reaches_the_corner_of_the_view() -> void:
 # A star is one bright pixel on a dark ground, so what is counted is how many of
 # them a patch of background holds rather than the colour at one place.
 func test_the_star_field_can_be_turned_off() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await use_settings({"star_field": true})
 	var with_stars := await count_bright_pixels()
 	await use_settings({"star_field": false})
@@ -86,7 +86,7 @@ func test_the_star_field_can_be_turned_off() -> void:
 # still stand out on a colour. On a light one the same star is a smaller step
 # up, so the margin it has to clear is smaller too.
 func test_the_stars_show_on_a_coloured_background() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await use_settings({"star_field": true})
 	for colour: Color in BACKGROUNDS:
 		await use_settings({"background_color": colour})
@@ -98,7 +98,7 @@ func test_the_stars_show_on_a_coloured_background() -> void:
 # The stars are worked out from where they are rather than drawn at random, so
 # the same view shows the same sky every time.
 func test_the_star_field_is_the_same_every_frame() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await use_settings({"star_field": true})
 	var first := await capture()
 	await frames(2)
@@ -109,7 +109,7 @@ func test_the_star_field_is_the_same_every_frame() -> void:
 # The stars give their own light, so where the planet's light comes from does
 # not change them.
 func test_the_light_does_not_reach_the_stars() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await use_settings({"star_field": true, "light_direction": ViewSettings.DEFAULT_LIGHT})
 	var facing := await count_bright_pixels()
 	await use_settings({"light_direction": Vector2(0.0, 150.0)})
@@ -123,7 +123,7 @@ func test_the_light_does_not_reach_the_stars() -> void:
 # the parallels and the meridians, which at that spacing are the equator and the
 # prime meridian.
 func test_the_grid_is_drawn_where_and_how_the_document_says() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await look_at_latlon(0.0, 0.0)
 	await use_settings({
 		"grid_spacing": 90.0,
@@ -146,7 +146,7 @@ func test_the_grid_is_drawn_where_and_how_the_document_says() -> void:
 # ViewSettings.grid_split()'s to say and is checked there; what is checked
 # here is that the number reaches the shader at all.
 func test_the_grid_spacing_moves_the_lines() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await look_at_latlon(0.0, 0.0)
 	await use_settings({"grid_spacing": 15.0})
 	var fifteen := await capture()
@@ -164,7 +164,7 @@ func test_the_grid_spacing_moves_the_lines() -> void:
 # two meridians every parallel, and within a pixel of each crossing there is a
 # pixel brighter than the planet half a cell away.
 func test_every_grid_line_shows_on_the_rectangular_map() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await clear_raster()
 	await look_at_latlon(0.0, 0.0)
 	view().planet.show_map = true
@@ -180,7 +180,7 @@ func test_every_grid_line_shows_on_the_rectangular_map() -> void:
 
 
 func test_every_meridian_in_front_shows_on_the_globe() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await clear_raster()
 	await look_at_latlon(0.0, 0.0)
 	var image := await capture()
@@ -201,7 +201,7 @@ func test_every_meridian_in_front_shows_on_the_globe() -> void:
 # Meridians converge on the poles. They fade out there instead of flooding the
 # cap with the grid color, so near the pole the planet shows.
 func test_the_globe_pole_is_not_flooded_by_the_grid() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await clear_raster()
 	await look_at_latlon(60.0, 0.0)
 	await use_settings({"grid_color": Color(1.0, 0.0, 0.0, 1.0)})
@@ -220,7 +220,7 @@ func test_the_globe_pole_is_not_flooded_by_the_grid() -> void:
 # and the date line, which at 25 degrees put a parallel at 65 N and another at
 # 60 S, and left out the equator and the prime meridian.
 func test_the_grid_is_counted_from_the_equator_and_the_prime_meridian() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await clear_raster()
 	await look_at_latlon(0.0, 0.0)
 	await use_settings({"grid_spacing": ODD_STEP, "grid_color": ODD_GRID_COLOR})
@@ -281,7 +281,7 @@ func assert_no_grid_line(image: Image, place: Vector2) -> void:
 # so the meridians run through the band. The vertices sit half way between
 # meridians, so the probes at their longitudes are clear of the grid.
 func test_a_polygon_round_the_pole_is_a_band_with_the_grid_through_it() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await clear_raster()
 	var ring := PackedVector2Array()
 	for i in range(12):
@@ -330,7 +330,7 @@ func assert_grid_line(image: Image, lat: float, lon: float, offset: Vector2) -> 
 # With the light off to one side, the other side of what is in view is in
 # shadow. Raising the ambient level is what puts light back on it.
 func test_the_ambient_level_lifts_the_night_side() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await look_at_latlon(0.0, 0.0)
 	await use_settings({"light_direction": Vector2(0.0, 60.0), "ambient": 0.0})
 	var night: Vector2 = view().latlon_to_screen(0.0, -55.0)
@@ -352,7 +352,7 @@ func test_the_ambient_level_lifts_the_night_side() -> void:
 # held against is the same place drawn under an opaque image of that one color,
 # which goes through the same light, and its dominant channel.
 func test_with_no_raster_the_planet_is_its_own_color() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await look_at_latlon(0.0, 0.0)
 	var here: Vector2 = view().latlon_to_screen(PLANET_PROBE.x, PLANET_PROBE.y)
 	await use_settings({"raster_path": ""})
@@ -366,7 +366,7 @@ func test_with_no_raster_the_planet_is_its_own_color() -> void:
 # The picker offers no alpha, and a color given with one anyway, as the
 # automation port can, comes out opaque in the document and on the planet.
 func test_a_planet_color_with_an_alpha_comes_back_opaque() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await look_at_latlon(0.0, 0.0)
 	await use_settings({"raster_path": ""})
 	var here: Vector2 = view().latlon_to_screen(PLANET_PROBE.x, PLANET_PROBE.y)
@@ -388,7 +388,7 @@ func test_a_planet_color_with_an_alpha_comes_back_opaque() -> void:
 # The Built in Earth button names the image that ships with the application, and
 # the planet is no longer one flat color.
 func test_the_built_in_earth_button_puts_the_earth_on_the_planet() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await look_at_latlon(0.0, 0.0)
 	await use_settings({"raster_path": ""})
 	app.show_view_settings()
@@ -415,7 +415,7 @@ func test_the_built_in_earth_button_puts_the_earth_on_the_planet() -> void:
 
 
 func test_an_image_is_drawn_on_the_planet_and_blended_at_half_opacity() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await look_at_latlon(0.0, 0.0)
 	var here: Vector2 = view().latlon_to_screen(30.0, -30.0)
 	await use_settings({"raster_path": ""})
@@ -439,7 +439,7 @@ func test_an_image_is_drawn_on_the_planet_and_blended_at_half_opacity() -> void:
 # A document naming an image that is not there still opens: the planet shows
 # its own color and the reason is there to be read.
 func test_an_image_that_is_not_there_falls_back_to_the_planet_color() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await look_at_latlon(0.0, 0.0)
 	var here: Vector2 = view().latlon_to_screen(30.0, -30.0)
 	await use_settings({"raster_path": ""})
@@ -469,7 +469,7 @@ const EXPORT_WIDTH := 200
 # fills the picture has no clear pixel at all. The star field is on, so a star
 # drawn into a corner would show as alpha above zero.
 func test_an_exported_picture_is_transparent_around_the_planet() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await use_settings({"star_field": true, "background_color": BACKGROUNDS[1]})
 	for kind: MapProjection.Kind in MapProjection.Kind.values():
 		view().planet.show_map = true
@@ -500,7 +500,7 @@ func test_an_exported_picture_is_transparent_around_the_planet() -> void:
 # A video frame keeps the background and the stars, since the encoder has no
 # alpha to carry.
 func test_an_opaque_export_keeps_the_background() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await use_settings({"star_field": true, "background_color": BACKGROUNDS[1]})
 	view().planet.show_map = true
 	view().planet.projection = MapProjection.Kind.MOLLWEIDE

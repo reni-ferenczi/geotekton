@@ -1,0 +1,132 @@
+{
+	"application": "geotekt",
+	"features": {
+		"children": [
+			{
+				"children": [
+					{
+						"color": [
+							1.0,
+							0.0,
+							0.0,
+							1.0
+						],
+						"enabled": true,
+						"feature_type": "marker",
+						"geometry_kind": "multipoint",
+						"is_group": false,
+						"keyframes": [],
+						"rings": [
+							[
+								[
+									0.0,
+									-40.0
+								],
+								[
+									0.0,
+									-25.0
+								],
+								[
+									0.0,
+									-10.0
+								]
+							]
+						],
+						"time_range": [
+							0,
+							2000
+						],
+						"title": "West Points",
+						"type": "Feature",
+						"uuid": "1a2b3c4d-0001-4a00-9000-000000000001"
+					},
+					{
+						"color": [
+							0.0,
+							0.0,
+							1.0,
+							1.0
+						],
+						"enabled": true,
+						"feature_type": "marker",
+						"geometry_kind": "multipoint",
+						"is_group": false,
+						"keyframes": [],
+						"rings": [
+							[
+								[
+									0.0,
+									10.0
+								],
+								[
+									0.0,
+									25.0
+								],
+								[
+									0.0,
+									40.0
+								]
+							]
+						],
+						"time_range": [
+							0,
+							2000
+						],
+						"title": "East Points",
+						"type": "Feature",
+						"uuid": "1a2b3c4d-0002-4a00-9000-000000000002"
+					}
+				],
+				"enabled": true,
+				"is_group": true,
+				"keyframes": [],
+				"title": "Plates",
+				"type": "Group",
+				"uuid": "1a2b3c4d-0004-4a00-9000-000000000004"
+			},
+			{
+				"color": [
+					0.0,
+					1.0,
+					0.0,
+					1.0
+				],
+				"enabled": true,
+				"feature_type": "topology",
+				"geometry_kind": "topology",
+				"is_group": false,
+				"keyframes": [],
+				"sections": [
+					{
+						"feature": "1a2b3c4d-0001-4a00-9000-000000000001",
+						"from": 0,
+						"part": 0,
+						"reversed": false,
+						"to": 2
+					},
+					{
+						"feature": "1a2b3c4d-0002-4a00-9000-000000000002",
+						"from": 0,
+						"part": 0,
+						"reversed": false,
+						"to": 2
+					}
+				],
+				"time_range": [
+					0,
+					2000
+				],
+				"title": "Boundary",
+				"type": "Feature",
+				"uuid": "1a2b3c4d-0003-4a00-9000-000000000003"
+			}
+		],
+		"enabled": true,
+		"is_group": true,
+		"keyframes": [],
+		"title": "Planet",
+		"type": "Group",
+		"uuid": "1a2b3c4d-0005-4a00-9000-000000000005"
+	},
+	"version": "0.5.0"
+}

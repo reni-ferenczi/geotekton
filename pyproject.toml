@@ -1,7 +1,7 @@
 [project]
-name = "middle-earth"
+name = "geotekt"
 version = "1.0.0"
-description = "Utility scripts for the Middle Earth project"
+description = "Utility scripts for the Geotekton project"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

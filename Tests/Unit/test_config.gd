@@ -71,11 +71,11 @@ func test_a_missing_key_falls_back_to_the_default() -> void:
 
 func test_the_recent_list_keeps_the_newest_first_without_duplicates() -> void:
 	_use_a_scratch_config()
-	Config.add_recent_file("a.middle-earth")
-	Config.add_recent_file("b.middle-earth")
-	Config.add_recent_file("a.middle-earth")
+	Config.add_recent_file("a.geotekt")
+	Config.add_recent_file("b.geotekt")
+	Config.add_recent_file("a.geotekt")
 	Config.forget()
-	assert_eq(Config.get_recent_files(), ["a.middle-earth", "b.middle-earth"],
+	assert_eq(Config.get_recent_files(), ["a.geotekt", "b.geotekt"],
 		"the reopened file moves to the front and is listed once")
 
 	Config.clear_recent_files()

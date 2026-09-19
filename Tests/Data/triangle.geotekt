@@ -1,0 +1,62 @@
+{
+	"application": "geotekt",
+	"features": {
+		"children": [
+			{
+				"children": [
+					{
+						"color": [
+							1.0,
+							0.0,
+							0.0,
+							1.0
+						],
+						"enabled": true,
+						"invert": false,
+						"is_group": false,
+						"repeat": false,
+						"resize": 0,
+						"rotation": [
+							0.0,
+							0.0,
+							0.0
+						],
+						"single": false,
+						"time_range": [
+							0,
+							2000
+						],
+						"title": "Red Triangle",
+						"type": "Feature",
+						"vertices": [
+							[
+								-10.0,
+								-10.0
+							],
+							[
+								10.0,
+								0.0
+							],
+							[
+								-10.0,
+								10.0
+							]
+						],
+						"wrap": false
+					}
+				],
+				"enabled": true,
+				"is_group": true,
+				"repeat": false,
+				"title": "Cratons",
+				"type": "Group"
+			}
+		],
+		"enabled": true,
+		"is_group": true,
+		"repeat": false,
+		"title": "Planet",
+		"type": "Group"
+	},
+	"version": "0.1.0"
+}

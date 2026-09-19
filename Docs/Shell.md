@@ -43,11 +43,11 @@ adding an item means adding an enum value and one `add_item` line.
 | File            | Shortcut       | What it does                                     |
 | --------------- | -------------- | ------------------------------------------------ |
 | New             | Ctrl+N         | Empty document, after asking about unsaved changes |
-| Open...         | Ctrl+O         | File dialog, then load                           |
+| Open...         | Ctrl+O         | File dialog listing `.geotekt` files, then load |
 | Open Recent     |                | The remembered files, newest first, and Clear    |
 | Import...       |                | Convert a GPlates project, or feature collection and rotation files, into a new document; see [Import](Import.md) |
 | Save            | Ctrl+S         | Write to the document path, asking for one only when it has none |
-| Save As...      | Ctrl+Shift+S   | Always ask for a path                            |
+| Save As...      | Ctrl+Shift+S   | Always ask for a path, appending `.geotekt` when it is missing |
 | Export Image... |                | Write the map at the current age to a PNG; greyed out on the globe |
 | Export Video... |                | Render the animation between two ages and encode it; the globe as well as a map |
 | Run Script...   |                | Pick a Python file and run it; see [Scripting](Scripting.md) |
@@ -269,11 +269,11 @@ The engine takes the arguments before a bare `--`, the application those after
 it:
 
 ```
-MiddleEarth -- --version
-MiddleEarth -- --help
-MiddleEarth -- --help-command=list_features
-MiddleEarth -- --no-python
-MiddleEarth -- --automation-port=45455
+Geotekton -- --version
+Geotekton -- --help
+Geotekton -- --help-command=list_features
+Geotekton -- --no-python
+Geotekton -- --automation-port=45455
 ```
 
 `Logic/cli.gd` holds the list of switches and builds the help text from it, so a

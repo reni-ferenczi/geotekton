@@ -105,7 +105,7 @@ def build_sample(path: Path, triangles: int, coupled: bool = False) -> int:
         })
 
     path.write_text(json.dumps({
-        "application": "middle-earth",
+        "application": "geotekt",
         "version": "0.4.0",
         "features": {
             "title": "Planet",
@@ -228,11 +228,11 @@ def main(argv: list[str]) -> int:
             print(USAGE, file=sys.stderr)
             return 2
 
-    folder = Path(tempfile.mkdtemp(prefix="middle-earth-performance-"))
-    sample = folder / "performance.middle-earth"
+    folder = Path(tempfile.mkdtemp(prefix="geotekt-performance-"))
+    sample = folder / "performance.geotekt"
     wanted = build_sample(sample, triangles)
     print(f"{wanted} triangles in {FEATURES} features written to {sample}")
-    coupled = folder / "performance-coupled.middle-earth"
+    coupled = folder / "performance-coupled.geotekt"
     build_sample(coupled, triangles, coupled=True)
 
     process = launch_app(port)

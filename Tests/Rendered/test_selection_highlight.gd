@@ -34,7 +34,7 @@ const TOLERANCE := 0.03
 # white, and none of them is white itself. At POLYGON_ZOOM the outline is solid
 # out to about five pixels from the edge.
 func test_a_selected_polygon_has_a_translucent_white_outline_along_its_edges() -> void:
-	var feature := await _load_with_raster("craton.middle-earth", "Old Shield")
+	var feature := await _load_with_raster("craton.geotekt", "Old Shield")
 	if feature == null:
 		return
 	var ring := _world_ring(feature)
@@ -78,7 +78,7 @@ func test_a_selected_polygon_has_a_translucent_white_outline_along_its_edges() -
 # radius off: a dot covers it and the outline does not reach it, since the
 # nearest point of either edge is the vertex itself.
 func test_a_selected_polygon_has_no_dots_except_in_the_vertex_tool() -> void:
-	var feature := await _load_with_raster("craton.middle-earth", "Old Shield")
+	var feature := await _load_with_raster("craton.geotekt", "Old Shield")
 	if feature == null:
 		return
 	var ring := _world_ring(feature)
@@ -116,7 +116,7 @@ func test_a_selected_polygon_has_no_dots_except_in_the_vertex_tool() -> void:
 # it and gone at one width, where the halo is at its whitest; the halo is gone
 # at HALO_SCALE widths.
 func test_a_selected_line_keeps_its_color_over_a_narrow_white_halo() -> void:
-	var feature := await _load_with_raster("mixed_geometry.middle-earth", "Blue Ridge")
+	var feature := await _load_with_raster("mixed_geometry.geotekt", "Blue Ridge")
 	if feature == null:
 		return
 	# Blue Ridge runs along the meridian at 40 degrees east. At latitude 5 the
@@ -166,7 +166,7 @@ func test_a_selected_line_keeps_its_color_over_a_narrow_white_halo() -> void:
 
 func test_a_selected_multipoint_keeps_its_markers_drawn_larger() -> void:
 	var feature := await _load_with_raster(
-		"mixed_geometry.middle-earth", "Green Stations", Color.BLUE)
+		"mixed_geometry.geotekt", "Green Stations", Color.BLUE)
 	if feature == null:
 		return
 	await look_at_latlon(-30.0, -30.0)
@@ -199,7 +199,7 @@ func test_a_selected_multipoint_keeps_its_markers_drawn_larger() -> void:
 # GP-0075: with View > Highlight children on, selecting a feature traces its
 # children in orange, next to its own white, and tints their rows.
 func test_a_polygon_following_the_selection_is_traced_orange() -> void:
-	var parent := await _load_with_raster("two_cratons.middle-earth", "Red Triangle", Color.BLACK)
+	var parent := await _load_with_raster("two_cratons.geotekt", "Red Triangle", Color.BLACK)
 	var child := _find("Blue Quad")
 	if parent == null or child == null:
 		return
@@ -236,7 +236,7 @@ func test_a_polygon_following_the_selection_is_traced_orange() -> void:
 # GP-0096: the planet traces the children whenever the tree tints them: in the
 # Vertex tool too, and for a selected group, which stands for its leaves.
 func test_children_are_traced_in_the_vertex_tool_and_for_a_group() -> void:
-	var parent := await _load_with_raster("two_cratons.middle-earth", "Red Triangle", Color.BLACK)
+	var parent := await _load_with_raster("two_cratons.geotekt", "Red Triangle", Color.BLACK)
 	var child := _find("Blue Quad")
 	var group := _find("Cratons")
 	if parent == null or child == null or group == null:
@@ -279,7 +279,7 @@ func test_children_are_traced_in_the_vertex_tool_and_for_a_group() -> void:
 
 
 func test_a_line_following_the_selection_is_drawn_orange_at_its_width() -> void:
-	var parent := await _load_with_raster("mixed_geometry.middle-earth", "Red Triangle")
+	var parent := await _load_with_raster("mixed_geometry.geotekt", "Red Triangle")
 	var child := _find("Blue Ridge")
 	if parent == null or child == null:
 		return

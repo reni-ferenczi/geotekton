@@ -74,7 +74,7 @@ from injected motion, so that test moves the system pointer with
 tests.
 
 `Tests/Python/test_*.py` is the `python` mode: plain pytest over
-`src/middle_earth`, with no engine involved. `pythonpath` and `testpaths` are set
+`src/geotekt`, with no engine involved. `pythonpath` and `testpaths` are set
 in `pyproject.toml`, so `uv run pytest` from the project root finds them.
 
 The [import](Import.md) tests are the one place a test reads something this
@@ -150,7 +150,7 @@ right click menu on the globe, and the Edit menu running the same commands;
 coupling, described below; and time, which moves a feature at two times and
 reads it back in between.
 
-The coupling scenario opens `two_cratons.middle-earth` and couples the blue quad
+The coupling scenario opens `two_cratons.geotekt` and couples the blue quad
 to the red triangle at 500 Ma. It checks the span, that the quad did not move,
 one undo version, the panel's rows, the bar on the timeline and that the planet
 stayed where it was. At 200 Ma it drags the triangle and checks that the quad
@@ -202,7 +202,7 @@ probe, and a right click on its swatch gives it blue. The `CatalogColors`
 button then puts green back in `get_preferences` and on the planet, which
 is also what leaves the preferences as a golden run expects them.
 
-The Edit menu scenario copies a feature, so a run puts a `.middle-earth` feature
+The Edit menu scenario copies a feature, so a run puts a `.geotekt` feature
 on the clipboard of whoever is running it. It then presses Ctrl+C and Ctrl+V
 with the feature tree focused and finds the pasted copy in the tree, and presses
 Ctrl+A and Ctrl+C in the focused Name field and reads the name, not the feature,
@@ -526,19 +526,19 @@ the stand-in scene is reached with `--scene=res://...`.
 
 ## Sample files
 
-`Tests/Data` holds hand-written `.middle-earth` files used as fixtures:
+`Tests/Data` holds hand-written `.geotekt` files used as fixtures:
 
 | File                      | Contents                                                   |
 | ------------------------- | ---------------------------------------------------------- |
-| `empty.middle-earth`      | The root group only, no features.                          |
-| `triangle.middle-earth`   | One red triangle around lat/lon (-3, 0).                   |
-| `craton.middle-earth`     | One blue outline of 21 vertices with a bay, a narrow neck and a close pair, facing the camera. Written in the current format. |
-| `topology.middle-earth`   | Two multipoints on the equator and a line topology running along both, with a gap between the two sections. Written in the current format. |
+| `empty.geotekt`           | The root group only, no features.                          |
+| `triangle.geotekt`   | One red triangle around lat/lon (-3, 0).                   |
+| `craton.geotekt`     | One blue outline of 21 vertices with a bay, a narrow neck and a close pair, facing the camera. Written in the current format. |
+| `topology.geotekt`   | Two multipoints on the equator and a line topology running along both, with a gap between the two sections. Written in the current format. |
 | `Rasters/quarters.*`      | The same four colored quarters as a PNG, a JPEG, a WebP and an SVG, for the raster. |
-| `two_cratons.middle-earth` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
-| `mixed_geometry.middle-earth` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
-| `group_styles.middle-earth` | The same three features under group styles: the polygon in a group on a single colour, the polyline in a group on own colours, and the markers straight under a root whose style in the file says feature type, which the loader pins to own colors. Written in 0.10.0. |
-| `motion.middle-earth`     | One red quad with three keyframes, which is the fixture for anything about motion over time. Written in the current format. |
+| `two_cratons.geotekt` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
+| `mixed_geometry.geotekt` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
+| `group_styles.geotekt` | The same three features under group styles: the polygon in a group on a single colour, the polyline in a group on own colours, and the markers straight under a root whose style in the file says feature type, which the loader pins to own colors. Written in 0.10.0. |
+| `motion.geotekt`     | One red quad with three keyframes, which is the fixture for anything about motion over time. Written in the current format. |
 | `Palettes/*.cpt`          | A continuous, a discrete, a categorical and a malformed colour palette table. |
 
 `Tests/Data/Rasters` holds a `.gdignore`, like `Tests/Golden`: the images
@@ -596,26 +596,26 @@ The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
 
 | Scene                | File                       | View                       |
 | -------------------- | -------------------------- | -------------------------- |
-| `triangle`           | `triangle.middle-earth`    | default                    |
-| `two_cratons`        | `two_cratons.middle-earth` | default                    |
-| `two_cratons_tilted` | `two_cratons.middle-earth` | latitude 30, longitude -45 |
-| `empty`              | `empty.middle-earth`       | default                    |
-| `mixed_geometry`     | `mixed_geometry.middle-earth` | default                 |
-| `craton`             | `craton.middle-earth`      | default                    |
-| `map_rectangular`    | `two_cratons.middle-earth` | the map, rectangular       |
-| `map_mercator`       | `two_cratons.middle-earth` | the map, Mercator          |
-| `map_mollweide`      | `two_cratons.middle-earth` | the map, Mollweide         |
-| `map_robinson`       | `two_cratons.middle-earth` | the map, Robinson          |
-| `map_orthographic`   | `two_cratons.middle-earth` | the map, orthographic      |
-| `scene_no_stars`     | `two_cratons.middle-earth` | the star field off, over a blue background |
-| `scene_light_east`   | `empty.middle-earth`       | the light 45° to the east  |
-| `scene_light_high`   | `empty.middle-earth`       | the light high to the west, with ambient |
-| `scene_raster`       | `empty.middle-earth`       | the raster at full opacity |
-| `scene_raster_half`  | `empty.middle-earth`       | the same image at half, over the planet color |
-| `planet_colour`      | `empty.middle-earth`       | no raster, the planet in a brown of its own |
-| `kinematics`         | `motion.middle-earth`      | default, with the kinematics panel up showing the rate row only, the feature selected and the time at 500 Ma |
+| `triangle`           | `triangle.geotekt`    | default                    |
+| `two_cratons`        | `two_cratons.geotekt` | default                    |
+| `two_cratons_tilted` | `two_cratons.geotekt` | latitude 30, longitude -45 |
+| `empty`              | `empty.geotekt`       | default                    |
+| `mixed_geometry`     | `mixed_geometry.geotekt` | default                 |
+| `craton`             | `craton.geotekt`      | default                    |
+| `map_rectangular`    | `two_cratons.geotekt` | the map, rectangular       |
+| `map_mercator`       | `two_cratons.geotekt` | the map, Mercator          |
+| `map_mollweide`      | `two_cratons.geotekt` | the map, Mollweide         |
+| `map_robinson`       | `two_cratons.geotekt` | the map, Robinson          |
+| `map_orthographic`   | `two_cratons.geotekt` | the map, orthographic      |
+| `scene_no_stars`     | `two_cratons.geotekt` | the star field off, over a blue background |
+| `scene_light_east`   | `empty.geotekt`       | the light 45° to the east  |
+| `scene_light_high`   | `empty.geotekt`       | the light high to the west, with ambient |
+| `scene_raster`       | `empty.geotekt`       | the raster at full opacity |
+| `scene_raster_half`  | `empty.geotekt`       | the same image at half, over the planet color |
+| `planet_colour`      | `empty.geotekt`       | no raster, the planet in a brown of its own |
+| `kinematics`         | `motion.geotekt`      | default, with the kinematics panel up showing the rate row only, the feature selected and the time at 500 Ma |
 
-`two_cratons.middle-earth` holds three features and no globe view shows all of
+`two_cratons.geotekt` holds three features and no globe view shows all of
 them: the default one has the green feature as a sliver at the limb, and the
 tilted one carries the blue one off the far side. The map scenes show all three,
 since a projection draws the whole planet at once. `Tests/Data/README.md` has
@@ -691,7 +691,7 @@ a round trip is also a wait for the screen to catch up.
 | Command                              | Answers with                                                     |
 | ------------------------------------ | ---------------------------------------------------------------- |
 | `ping`                               | `version`, the application version                               |
-| `load {path}`                        | loads a `.middle-earth` file, absolute path                      |
+| `load {path}`                        | loads a `.geotekt` file, absolute path                      |
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` and `row_icon`, the glyph id or else the file stem of the picture the row is showing, and for a feature `swatch`, the color its row's swatch shows |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
 | `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `keyframes`, `couplings`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a topology, its `sections` with what each one resolved to |

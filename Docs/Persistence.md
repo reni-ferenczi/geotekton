@@ -42,10 +42,12 @@ nothing. When the document has no path yet, Save asks for one first.
 | New     | Empty document, no path, empty undo stack                        |
 | Open    | Ask for a file and load it, replacing the tree and the undo stack |
 | Save    | Write to the document path; ask for one only when it has none    |
-| Save As | Always ask for a path, appending `.middle-earth` when it is missing |
+| Save As | Always ask for a path, appending `.geotekt` when it is missing        |
 
 There is no autosave: a document reaches the disk only when one of these
 commands writes it.
+
+Both dialogs offer one filter, `*.geotekt ; Geotekton Files`.
 
 The file dialogs are the ones the platform provides
 (`DisplayServer.file_dialog_show`), so nothing happens when one is cancelled.
@@ -54,7 +56,7 @@ opening a window; see [Testing](Testing.md#the-automation-port).
 
 ## File format
 
-- **Extension**: `.middle-earth` (used for all versions)
+- **Extension**: `.geotekt`
 - **Encoding**: UTF-8 without BOM
 - **Format**: Uncompressed JSON, tab-indented for readability
 
@@ -64,8 +66,8 @@ The file is a JSON object with four top-level keys:
 
 ```json
 {
-  "application": "middle-earth",
-  "version": "0.26.0",
+  "application": "geotekt",
+  "version": "0.27.0",
   "features": { ... },
   "view": { ... }
 }
@@ -73,7 +75,7 @@ The file is a JSON object with four top-level keys:
 
 | Key           | Description                                                        |
 |---------------|--------------------------------------------------------------------|
-| `application` | Always `"middle-earth"`. Used to validate the file on load.        |
+| `application` | Always `"geotekt"`; a file saying anything else is refused.       |
 | `version`     | The application version that produced this file.                   |
 | `features`    | The root group of the feature tree, serialized via `to_json()`.    |
 | `view`        | How the scene around the features is drawn. See [View settings](#view-settings). |
@@ -678,9 +680,17 @@ The features themselves stay, and so do their keyframes: a feature left without
 the span it had stops following whatever it followed and stands where its own
 keyframes put it. Every other span is kept as it was written.
 
+#### 0.26.0 to 0.27.0
+
+0.27.0 renamed the program to Geotekton, and with it the `application` field
+and the extension: a file is written with `"application": "geotekt"` under
+`.geotekt`. A file written under the old name and extension is not read; the
+features and the view are not touched, so `Document.migrate()` moves only the
+version.
+
 ## The config file
 
-`Logic/config.gd` keeps one JSON file per user, `%APPDATA%\MiddleEarth\config.json`,
+`Logic/config.gd` keeps one JSON file per user, `%APPDATA%\Geotekton\config.json`,
 outside the project. Every setter writes it immediately, so a crash cannot lose
 more than the last change.
 

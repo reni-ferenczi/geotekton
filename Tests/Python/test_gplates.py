@@ -1,4 +1,4 @@
-"""Converting a GPlates reconstruction into a Middle Earth document."""
+"""Converting a GPlates reconstruction into a Geotekton document."""
 
 import logging
 import math
@@ -7,7 +7,7 @@ import re
 import pygplates
 import pytest
 
-from middle_earth.gplates import (KIND_TYPES, MAX_PRIMITIVES, MAX_TIME,
+from geotekt.gplates import (KIND_TYPES, MAX_PRIMITIVES, MAX_TIME,
                                   decompose_rotation_degrees, import_files, import_project)
 
 from conftest import ROOT, geodata
@@ -81,7 +81,7 @@ def test_a_feature_without_geometry_is_left_out_and_said_so(tmp_path, caplog):
         a_feature(geometry=a_polygon(), name="Drawn"),
         a_feature(geometry=None, name="Nothing there"),
     ])
-    with caplog.at_level(logging.DEBUG, logger="middle_earth.gplates"):
+    with caplog.at_level(logging.DEBUG, logger="geotekt.gplates"):
         document = import_files([features])
     assert [feature.title for feature in document.features] == ["Drawn"]
     assert "Nothing there has no geometry of its own" in caplog.text
@@ -91,7 +91,7 @@ def test_a_file_that_cannot_be_read_is_reported_and_the_rest_imported(tmp_path, 
     features = write_features(tmp_path / "features.gpml", [a_feature(geometry=a_polygon())])
     rubbish = tmp_path / "notes.txt"
     rubbish.write_text("not a feature collection", encoding="utf-8")
-    with caplog.at_level(logging.WARNING, logger="middle_earth.gplates"):
+    with caplog.at_level(logging.WARNING, logger="geotekt.gplates"):
         document = import_files([rubbish, features])
     assert len(document.features) == 1
     assert "notes.txt could not be read" in caplog.text
@@ -130,7 +130,7 @@ def test_an_interior_ring_becomes_an_outline_of_its_own(tmp_path):
 
 
 def test_the_gpgim_types_map_onto_the_five_by_geometry(tmp_path):
-    """Whatever GPlates calls a feature, its Middle Earth type is its geometry's."""
+    """Whatever GPlates calls a feature, its Geotekton type is its geometry's."""
     line = pygplates.PolylineOnSphere([(0, 0), (10, 10)])
     points = pygplates.MultiPointOnSphere([(0, 0), (10, 10)])
     features = write_features(tmp_path / "features.gpml", [
@@ -328,7 +328,7 @@ def test_a_feature_stands_where_gplates_reconstructs_it_at_fifty(name):
         assert gap < 0.1
 
 
-### The Middle Earth side of the rotation, which the application does in GDScript
+### The Geotekton side of the rotation, which the application does in GDScript
 
 
 def rotation_at(keyframes, time):
@@ -398,7 +398,7 @@ def test_a_project_naming_a_file_that_is_gone_says_so_and_imports_the_rest(tmp_p
     project = tmp_path / "session.gproj"
     project.write_bytes(_project_bytes(str(project).replace("\\", "/"), [
         str(features).replace("\\", "/"), str(tmp_path / "gone.rot").replace("\\", "/")]))
-    with caplog.at_level(logging.WARNING, logger="middle_earth.gplates"):
+    with caplog.at_level(logging.WARNING, logger="geotekt.gplates"):
         document = import_project(project)
     assert len(document.features) == 1
     assert "gone.rot" in caplog.text

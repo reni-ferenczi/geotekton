@@ -95,7 +95,7 @@ func test_a_circle_is_half_as_wide_as_a_line() -> void:
 
 # The hotspot, the plain line and the circle, at the present, over a red raster.
 func _build() -> Array:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	var flat := Image.create(4, 2, false, Image.FORMAT_RGBA8)
 	flat.fill(Color.RED)
 	view().planet.set_raster(ImageTexture.create_from_image(flat), 1.0)

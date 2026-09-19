@@ -298,7 +298,7 @@ func test_a_root_style_in_a_file_is_read_and_then_pinned() -> void:
 	style.palette = "rainbow"
 	style.ramp_colors = [SINGLE, OTHER_SINGLE, SINGLE]
 	style.ramp_span = 450.0
-	var path := ProjectSettings.globalize_path("user://test_styling_pinned_root.middle-earth")
+	var path := ProjectSettings.globalize_path("user://test_styling_pinned_root.geotekt")
 	assert_eq(written.save_to_file(path), "", "the file is written")
 	var raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
 	assert_eq(raw["features"]["style"]["mode"], Styling.BY_SINGLE, "with the root on Single color")

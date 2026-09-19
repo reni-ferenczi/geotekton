@@ -214,7 +214,7 @@ func test_output_reaches_whatever_shows_it() -> void:
 
 
 func test_the_interpreter_can_ask_about_the_document() -> void:
-	await load_sample("motion.middle-earth")
+	await load_sample("motion.geotekt")
 	var wired: Array = await _connect_a_stub()
 	var stub: Stub = wired[0]
 	var bridge: PythonBridge = wired[1]
@@ -233,7 +233,7 @@ func test_the_interpreter_can_ask_about_the_document() -> void:
 
 
 func test_the_interpreter_can_edit_the_document() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	var wired: Array = await _connect_a_stub()
 	var stub: Stub = wired[0]
 	var bridge: PythonBridge = wired[1]

@@ -120,7 +120,7 @@ func test_the_line_width_preference_changes_what_is_drawn() -> void:
 # Returns [at one, at four], or an empty array when the setup could not be made.
 func _outline_reach(marker: bool) -> Array[int]:
 	var empty: Array[int] = []
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	var feature := _find("Red Triangle")
 	assert_true(feature != null, "the sample holds the Red Triangle")
 	if feature == null:
@@ -198,7 +198,7 @@ func _let_go() -> void:
 # Two features side by side, with the second selected and the Vertex tool on it.
 # Returns the selected one, or null when the setup could not be made.
 func _two_features() -> Feature:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	app.planet_view.planet.lat = 0.0
 	app.planet_view.planet.lon = 20.0
 	await frames(2)

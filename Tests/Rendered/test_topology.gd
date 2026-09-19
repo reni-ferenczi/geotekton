@@ -8,7 +8,7 @@ extends RenderedCase
 # drawn between two of them is the boundary, which is what makes the probe say
 # which feature painted the pixel rather than which one was painted last.
 
-const SAMPLE := "topology.middle-earth"
+const SAMPLE := "topology.geotekt"
 
 # Between two vertices of the western section, and of the eastern one. Both are
 # well away from the markers themselves and off the grid.

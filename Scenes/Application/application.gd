@@ -6,14 +6,14 @@ static var DEBUG: bool = true
 static var VERSION: String = ProjectSettings.get_setting("application/config/version")
 const ui_scale: float = 1.0
 
-const APPLICATION_NAME := "Middle Earth"
-const DOCUMENTATION_URL := "https://github.com/reni-ferenczi/middle-earth/tree/main/Docs"
+const APPLICATION_NAME := "Geotekton"
+const DOCUMENTATION_URL := "https://github.com/reni-ferenczi/geotekton/tree/main/Docs"
 # Where an isolated run keeps its settings, under the user data directory.
 const ISOLATED_SETTINGS_DIR := "isolated-settings"
 
 # The Earth texture credited in the About dialog, as listed in README.md.
 const EARTH_TEXTURE_URL := "https://wall.alphacoders.com/big.php?i=11433"
-static var FILE_FILTERS := PackedStringArray(["*%s ; Middle Earth Files" % Document.EXTENSION])
+static var FILE_FILTERS := PackedStringArray(["*%s ; %s Files" % [Document.EXTENSION, APPLICATION_NAME]])
 # What a raster may be, taken from the formats Raster reads rather
 # than listed a second time here.
 static var IMAGE_FILTERS := PackedStringArray(
@@ -50,7 +50,7 @@ static var IMPORT_FILTERS := PackedStringArray([
 
 # Where an import is written before it is opened. The document is cut loose
 # from it straight after, so this is scratch space rather than a save.
-const IMPORT_SCRATCH := "user://imported.middle-earth"
+const IMPORT_SCRATCH := "user://imported.geotekt"
 
 # Answers a file dialog without showing one. Set by the automation port so a
 # scripted run can drive Open and Save As; unset in a normal run.
@@ -496,7 +496,7 @@ func _build_menus() -> void:
 
 	help_menu = _add_menu("Help")
 	help_menu.add_item("Documentation", HelpItem.DOCUMENTATION, KEY_F1)
-	help_menu.add_item("About Middle Earth", HelpItem.ABOUT)
+	help_menu.add_item("About %s" % APPLICATION_NAME, HelpItem.ABOUT)
 	help_menu.id_pressed.connect(_on_help_menu_id_pressed)
 
 	_rebuild_recent_menu()
@@ -1227,12 +1227,12 @@ func _build_dialogs() -> void:
 
 	error_dialog = AcceptDialog.new()
 	error_dialog.name = "ErrorDialog"
-	error_dialog.title = "Middle Earth"
+	error_dialog.title = APPLICATION_NAME
 	add_child(error_dialog)
 
 	about_dialog = AcceptDialog.new()
 	about_dialog.name = "AboutDialog"
-	about_dialog.title = "About Middle Earth"
+	about_dialog.title = "About %s" % APPLICATION_NAME
 	about_dialog.add_child(_build_about_content())
 	add_child(about_dialog)
 
@@ -1464,7 +1464,7 @@ func _build_view_content() -> Control:
 	var earth := Button.new()
 	earth.name = "BuiltInEarth"
 	earth.text = "Built in Earth"
-	earth.tooltip_text = "Wear the Earth image that comes with Middle Earth"
+	earth.tooltip_text = "Wear the Earth image that comes with %s" % APPLICATION_NAME
 	earth.pressed.connect(func() -> void:
 		edit.text = ViewSettings.BUILT_IN_EARTH
 		_on_view_field_changed())

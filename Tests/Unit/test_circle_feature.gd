@@ -4,7 +4,7 @@ extends TestCase
 # count, with a second circle around the antipode when it is polar. See
 # Feature.rebuild_circle(), Document.set_circle() and Circle.fit().
 
-const SCRATCH := "user://test_circle_feature.middle-earth"
+const SCRATCH := "user://test_circle_feature.geotekt"
 
 # Off the poles and off the prime meridian, so a sign slip in the antipode shows.
 const AXIS := Vector2(80.7, -72.7)

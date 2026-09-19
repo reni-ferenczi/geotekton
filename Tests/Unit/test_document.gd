@@ -3,8 +3,8 @@ extends TestCase
 # The document owns the tree, the path and the dirty flag. The dirty flag comes
 # from the undo stack, so it has to survive undo, redo, save and load.
 
-const SAMPLE := "res://Tests/Data/two_cratons.middle-earth"
-const SCRATCH := "user://test_document.middle-earth"
+const SAMPLE := "res://Tests/Data/two_cratons.geotekt"
+const SCRATCH := "user://test_document.geotekt"
 # Where the crust colour preference is written while it is being tested, so the
 # real settings file is left alone.
 const CONFIG_SCRATCH := "user://test_document_config"
@@ -84,7 +84,7 @@ func test_loading_a_file_gives_a_clean_document_named_after_it() -> void:
 	assert_eq(document.load_from_file(SAMPLE), "", "the sample file loads")
 	assert_true(not document.is_dirty(), "a freshly loaded document is clean")
 	assert_eq(document.path, SAMPLE)
-	assert_eq(document.display_name(), "two_cratons.middle-earth")
+	assert_eq(document.display_name(), "two_cratons.geotekt")
 	assert_true(not document.can_undo(), "loading resets the undo stack")
 	assert_eq(document.root.children[0].child_count(), 3, "the three cratons are there")
 
@@ -98,6 +98,25 @@ func test_loading_a_file_that_is_not_one_reports_why() -> void:
 	assert_true(not document.is_dirty(), "a failed load leaves the document alone")
 
 
+# A file that names some other program in its application field is turned
+# away, and the message says whose file it is not.
+func test_a_file_naming_another_program_is_refused() -> void:
+	var document := Document.new()
+	var path := ProjectSettings.globalize_path(SCRATCH)
+	for application in [Document.APPLICATION, "some-other-program"]:
+		var file := FileAccess.open(path, FileAccess.WRITE)
+		file.store_string(JSON.stringify({"application": application, "version": "0.27.0",
+			"features": {"type": "Group", "is_group": true, "title": "Planet", "children": []}}))
+		file.close()
+		var error := document.load_from_file(path)
+		if application == Document.APPLICATION:
+			assert_eq(error, "", "a file saying geotekt opens")
+		else:
+			assert_true(error.contains("not a Geotekton file"),
+				"any other name is refused, naming the program: %s" % error)
+	DirAccess.remove_absolute(path)
+
+
 func test_saving_makes_it_clean_and_writes_what_loads_back() -> void:
 	var document := Document.new()
 	document.root.children.append(Feature.create_feature("Craton"))
@@ -106,7 +125,7 @@ func test_saving_makes_it_clean_and_writes_what_loads_back() -> void:
 	assert_eq(document.save_to_file(SCRATCH), "", "the document is written")
 	assert_true(not document.is_dirty(), "saving makes the document clean")
 	assert_eq(document.path, SCRATCH)
-	assert_eq(document.display_name(), "test_document.middle-earth")
+	assert_eq(document.display_name(), "test_document.geotekt")
 
 	var reloaded := Document.new()
 	assert_eq(reloaded.load_from_file(SCRATCH), "", "the written file loads back")
@@ -252,7 +271,7 @@ func test_an_import_that_cannot_be_read_says_so_and_changes_nothing() -> void:
 	document.root.children.append(Feature.create_feature("Craton"))
 	document.record()
 	var before := document.root.child_count()
-	assert_true(not document.load_imported("user://no_such_import.middle-earth").is_empty(),
+	assert_true(not document.load_imported("user://no_such_import.geotekt").is_empty(),
 		"a missing file is reported")
 	assert_eq(document.root.child_count(), before, "and the open document is untouched")
 

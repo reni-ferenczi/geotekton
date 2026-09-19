@@ -184,7 +184,7 @@ func test_the_times_a_node_turns_at_are_its_own_keyframe_times() -> void:
 
 func test_the_motion_sample_moves_faster_the_further_back_it_goes() -> void:
 	var document := Document.new()
-	var error := document.load_from_file("res://Tests/Data/motion.middle-earth")
+	var error := document.load_from_file("res://Tests/Data/motion.geotekt")
 	assert_eq(error, "", "the sample loads")
 	var feature := document.root.get_node_by_uuid("5e0c9a71-2f48-4d13-8b6a-7c0e42f1d95b")
 	assert_true(feature != null, "and holds the feature the graphs are drawn for")

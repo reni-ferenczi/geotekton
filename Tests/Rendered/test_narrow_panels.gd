@@ -11,7 +11,7 @@ const SLACK := 3.0
 
 
 func test_both_panels_go_down_to_their_floors() -> void:
-	await load_sample("mixed_geometry.middle-earth")
+	await load_sample("mixed_geometry.geotekt")
 	var original_left: int = app.left_splitter.split_offset
 	var original_right: int = app.right_splitter.split_offset
 	app.left_splitter.split_offset = LEFT_FLOOR

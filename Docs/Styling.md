@@ -64,7 +64,7 @@ show again.
 
 **Feature colour** is what every document is drawn in until someone picks
 another, and it is what every version before 0.7.0 drew. It stands in for the
-plate ID colouring GPlates does: Middle Earth has no plate IDs, and a feature's
+plate ID colouring GPlates does: Geotekton has no plate IDs, and a feature's
 own colour is the thing it identifies itself by.
 
 **Feature age** is how long the feature has existed at the current time: the
@@ -94,7 +94,7 @@ style only says which colour is used to draw it.
 ## Group styles
 
 GPlates colors a layer at once: by plate ID, one color, by age or by type, with
-a fill opacity per layer. Middle Earth has no layers, so groups take their
+a fill opacity per layer. Geotekton has no layers, so groups take their
 place. Every group carries a **style**:
 
 | Field | Values |

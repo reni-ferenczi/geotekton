@@ -5,11 +5,15 @@ without a window, a port or a second process.
 """
 
 import socket
+import subprocess
+import sys
 import threading
 
 import pytest
 
-from middle_earth.bridge import Bridge, Connection
+from geotekt.bridge import Bridge, Connection
+
+from conftest import ROOT
 
 
 class Peer:
@@ -213,15 +217,23 @@ def test_quit_ends_the_session(peer):
     assert not peer.bridge.running
 
 
+def test_the_package_starts_as_a_module():
+    """`python -m geotekt` is the bridge, and says so when given no port."""
+    run = subprocess.run([sys.executable, "-m", "geotekt"], cwd=ROOT / "src",
+                         capture_output=True, text=True, timeout=30)
+    assert run.returncode == 2
+    assert run.stderr.strip() == "usage: python -m geotekt --port=PORT"
+
+
 ### Importing a GPlates reconstruction
 
 
 def test_an_import_writes_a_document_and_says_what_it_found(peer, tmp_path):
-    from middle_earth.document import Document
+    from geotekt.document import Document
     from test_gplates import a_feature, a_polygon, write_features
 
     features = write_features(tmp_path / "features.gpml", [a_feature(geometry=a_polygon())])
-    output = tmp_path / "imported.middle-earth"
+    output = tmp_path / "imported.geotekt"
     reply = peer.request("import_gplates", sources=[str(features)], output=str(output))
     assert reply["ok"] and reply["features"] == 1
     assert [feature.title for feature in Document.load(output).features] == ["Somewhere"]
@@ -230,7 +242,7 @@ def test_an_import_writes_a_document_and_says_what_it_found(peer, tmp_path):
 
 def test_an_import_of_a_file_that_is_not_there_is_refused(peer, tmp_path):
     reply = peer.request("import_gplates", sources=[str(tmp_path / "gone.gpml")],
-                         output=str(tmp_path / "out.middle-earth"))
+                         output=str(tmp_path / "out.geotekt"))
     assert reply["ok"] and reply["features"] == 0
 
 
@@ -245,6 +257,6 @@ def test_an_import_that_cannot_write_says_why(peer, tmp_path):
 
     features = write_features(tmp_path / "features.gpml", [a_feature(geometry=a_polygon())])
     reply = peer.request("import_gplates", sources=[str(features)],
-                         output=str(tmp_path / "no" / "such" / "place.middle-earth"))
+                         output=str(tmp_path / "no" / "such" / "place.geotekt"))
     assert not reply["ok"]
     assert "FileNotFoundError" in reply["error"]

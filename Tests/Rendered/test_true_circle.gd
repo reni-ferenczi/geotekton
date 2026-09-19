@@ -97,7 +97,7 @@ func test_the_drawing_preview_is_the_curve() -> void:
 
 
 func _build() -> Feature:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	var flat := Image.create(4, 2, false, Image.FORMAT_RGBA8)
 	flat.fill(Color.RED)
 	view().planet.set_raster(ImageTexture.create_from_image(flat), 1.0)

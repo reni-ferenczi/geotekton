@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from middle_earth.document import CURRENT_VERSION, Document, Feature
+from geotekt.document import CURRENT_VERSION, Document, Feature
 
 from conftest import ROOT, SAMPLES, sample_paths
 
@@ -24,15 +24,21 @@ def test_a_file_that_is_not_a_document_is_refused(tmp_path):
         Document.load(other)
 
 
+def test_an_empty_file_loads():
+    document = Document.load(SAMPLES / "empty.geotekt")
+    assert document.features == []
+    assert Document.empty(CURRENT_VERSION).data["application"] == "geotekt"
+
+
 def test_the_tree_reads_as_features_and_groups():
-    document = Document.load(SAMPLES / "motion.middle-earth")
+    document = Document.load(SAMPLES / "motion.geotekt")
     assert document.version == "0.7.0"
     assert [feature.title for feature in document.features] == ["Drifting Craton"]
     assert [group.title for group in document.groups] == ["Planet", "Plates"]
 
 
 def test_a_feature_reads_its_geometry_and_motion():
-    document = Document.load(SAMPLES / "motion.middle-earth")
+    document = Document.load(SAMPLES / "motion.geotekt")
     craton = document.named("Drifting Craton")
     assert craton.geometry_kind == "polygon"
     assert craton.feature_type == "craton"
@@ -43,7 +49,7 @@ def test_a_feature_reads_its_geometry_and_motion():
 
 
 def test_find_answers_by_uuid():
-    document = Document.load(SAMPLES / "motion.middle-earth")
+    document = Document.load(SAMPLES / "motion.geotekt")
     craton = document.named("Drifting Craton")
     assert document.find(craton.uuid).title == "Drifting Craton"
     assert document.find("no-such-uuid") is None
@@ -78,7 +84,7 @@ def test_a_group_takes_children_and_a_feature_does_not():
 
 
 def test_editing_writes_through_to_what_is_saved(tmp_path):
-    document = Document.load(SAMPLES / "motion.middle-earth")
+    document = Document.load(SAMPLES / "motion.geotekt")
     craton = document.named("Drifting Craton")
     craton.title = "Renamed"
     craton.enabled = False
@@ -86,7 +92,7 @@ def test_editing_writes_through_to_what_is_saved(tmp_path):
     craton.time_range = (100, 900)
     craton.rings[0][0] = [-11.0, -12.0]
 
-    path = document.save(tmp_path / "edited.middle-earth")
+    path = document.save(tmp_path / "edited.geotekt")
     reloaded = Document.load(path)
     changed = reloaded.named("Renamed")
     assert not changed.enabled
@@ -97,17 +103,17 @@ def test_editing_writes_through_to_what_is_saved(tmp_path):
 
 def test_the_icon_round_trips_and_no_icon_writes_no_key(tmp_path):
     """The glyph a feature's tree row carries, which is left out when there is none."""
-    document = Document.load(SAMPLES / "motion.middle-earth")
+    document = Document.load(SAMPLES / "motion.geotekt")
     craton = document.named("Drifting Craton")
     assert craton.icon == ""
     assert "icon" not in craton.data
 
     craton.icon = "craton"
-    reloaded = Document.load(document.save(tmp_path / "iconed.middle-earth"))
+    reloaded = Document.load(document.save(tmp_path / "iconed.geotekt"))
     assert reloaded.named("Drifting Craton").icon == "craton"
 
     craton.icon = ""
-    bare = Document.load(document.save(tmp_path / "bare.middle-earth"))
+    bare = Document.load(document.save(tmp_path / "bare.geotekt"))
     assert bare.named("Drifting Craton").icon == ""
     assert "icon" not in bare.named("Drifting Craton").data
 
@@ -119,7 +125,7 @@ def test_saving_without_a_path_is_refused():
 
 def test_what_is_written_is_what_godot_writes(tmp_path):
     """The application's own writer is JSON with a tab indent and sorted keys."""
-    document = Document.load(SAMPLES / "craton.middle-earth")
+    document = Document.load(SAMPLES / "craton.geotekt")
     text = document.dumps()
     assert text == json.dumps(json.loads(text), indent="\t", sort_keys=True)
     assert not text.endswith("\n")
@@ -146,7 +152,7 @@ def test_a_ridge_reads_the_second_parent_it_follows(tmp_path):
     ridge.data["couplings"] = [
         {"from": 400.0, "to": 0.0, "parent": "half-one", "parent_b": "half-two"}]
     document.root.add(ridge)
-    read = Document.load(document.save(tmp_path / "ridge.middle-earth"))
+    read = Document.load(document.save(tmp_path / "ridge.geotekt"))
     span = read.named("Shield ridge").couplings[0]
     assert (span["parent"], span["parent_b"]) == ("half-one", "half-two")
 
@@ -160,7 +166,7 @@ def test_a_ridge_and_a_crust_read_what_they_are_built_from(tmp_path):
     crust.data["crust"] = {"half": "plate", "ridge": ridge.uuid, "edge": 3}
     document.root.add(ridge)
     document.root.add(crust)
-    read = Document.load(document.save(tmp_path / "crust.middle-earth"))
+    read = Document.load(document.save(tmp_path / "crust.geotekt"))
     assert read.named("Plate ridge").midway
     assert read.named("Plate ridge").crust is None
     assert read.named("Plate crust").crust == {

@@ -52,46 +52,46 @@ DEFAULT_VIEW = {
 RASTER = str(ROOT / "Tests" / "Data" / "Rasters" / "quarters.png")
 
 SCENES = [
-    ("triangle", "triangle.middle-earth", {}, {}, {}),
-    ("two_cratons", "two_cratons.middle-earth", {}, {}, {}),
-    ("two_cratons_tilted", "two_cratons.middle-earth", {"lat": 30.0, "lon": -45.0}, {}, {}),
-    ("empty", "empty.middle-earth", {}, {}, {}),
+    ("triangle", "triangle.geotekt", {}, {}, {}),
+    ("two_cratons", "two_cratons.geotekt", {}, {}, {}),
+    ("two_cratons_tilted", "two_cratons.geotekt", {"lat": 30.0, "lon": -45.0}, {}, {}),
+    ("empty", "empty.geotekt", {}, {}, {}),
     # The sample is laid out so that the polygon, the polyline and both markers
     # all fit the default view.
-    ("mixed_geometry", "mixed_geometry.middle-earth", {}, {}, {}),
+    ("mixed_geometry", "mixed_geometry.geotekt", {}, {}, {}),
     # The one outline shaped like something real, drawn facing the camera so
     # that its bay, its neck and its northern lobe are all in the reference and
     # none of it runs off the limb. See GP-0026.
-    ("craton", "craton.middle-earth", {}, {}, {}),
+    ("craton", "craton.geotekt", {}, {}, {}),
     # The grid and the features in each projection, which is what says the
     # inverse in the shader agrees with the one in MapProjection. The sample is
     # the one with features north, south and either side of the middle, so the
     # whole sheet has something on it.
-    ("map_rectangular", "two_cratons.middle-earth", {"show_map": True, "projection": 0}, {}, {}),
-    ("map_mercator", "two_cratons.middle-earth", {"show_map": True, "projection": 1}, {}, {}),
-    ("map_mollweide", "two_cratons.middle-earth", {"show_map": True, "projection": 2}, {}, {}),
-    ("map_robinson", "two_cratons.middle-earth", {"show_map": True, "projection": 3}, {}, {}),
-    ("map_orthographic", "two_cratons.middle-earth", {"show_map": True, "projection": 4}, {}, {}),
+    ("map_rectangular", "two_cratons.geotekt", {"show_map": True, "projection": 0}, {}, {}),
+    ("map_mercator", "two_cratons.geotekt", {"show_map": True, "projection": 1}, {}, {}),
+    ("map_mollweide", "two_cratons.geotekt", {"show_map": True, "projection": 2}, {}, {}),
+    ("map_robinson", "two_cratons.geotekt", {"show_map": True, "projection": 3}, {}, {}),
+    ("map_orthographic", "two_cratons.geotekt", {"show_map": True, "projection": 4}, {}, {}),
     # The scene around the features. Every other scene has the star field on and
     # the light straight from the camera, so those two are covered already; what
     # is left is the star field off, the light somewhere else, and the planet
     # wearing an image.
-    ("scene_no_stars", "two_cratons.middle-earth", {},
+    ("scene_no_stars", "two_cratons.geotekt", {},
         {"star_field": False, "background_color": [0.05, 0.02, 0.12, 1.0]}, {}),
-    ("scene_light_east", "empty.middle-earth", {}, {"light_direction": [0.0, 45.0]}, {}),
-    ("scene_light_high", "empty.middle-earth", {},
+    ("scene_light_east", "empty.geotekt", {}, {"light_direction": [0.0, 45.0]}, {}),
+    ("scene_light_high", "empty.geotekt", {},
         {"light_direction": [55.0, -35.0], "ambient": 0.25}, {}),
-    ("scene_raster", "empty.middle-earth", {}, {"raster_path": RASTER}, {}),
-    ("scene_raster_half", "empty.middle-earth", {},
+    ("scene_raster", "empty.geotekt", {}, {"raster_path": RASTER}, {}),
+    ("scene_raster_half", "empty.geotekt", {},
         {"raster_path": RASTER, "raster_opacity": 0.5}, {}),
     # The planet with no raster, in a color of its own.
-    ("planet_colour", "empty.middle-earth", {},
+    ("planet_colour", "empty.geotekt", {},
         {"raster_path": "", "planet_color": [0.55, 0.35, 0.2, 1.0]}, {}),
     # The kinematics panel, drawn for a feature that moves. The only scene that
     # shows that panel and the only one that selects anything: the graphs are
     # drawn for whatever the feature tree has selected, with the cursor on the
     # current time.
-    ("kinematics", "motion.middle-earth", {}, {},
+    ("kinematics", "motion.geotekt", {}, {},
         {"kinematics": True, "select": "Drifting Craton", "time": 500.0}),
 ]
 
@@ -156,7 +156,7 @@ def sample_with_settings(sample: str, settings: dict, temp_dir: Path, name: str)
     # Earth, so a scene stating its raster is written in the current format.
     if "raster_path" in settings:
         data["version"] = project_version()
-    path = temp_dir / f"{name}.middle-earth"
+    path = temp_dir / f"{name}.geotekt"
     path.write_text(json.dumps(data, indent="	"), encoding="utf-8")
     return path
 
@@ -228,7 +228,7 @@ def main(argv: list[str]) -> int:
     try:
         client.connect()
         connected = True
-        with tempfile.TemporaryDirectory(prefix="middle-earth-golden-") as temp:
+        with tempfile.TemporaryDirectory(prefix="geotekt-golden-") as temp:
             shots = capture(client, Path(temp))
             ok = check(shots) if command == "check" else update(shots)
     finally:

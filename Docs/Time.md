@@ -84,7 +84,7 @@ time along the chain, so it is drawn where it was at each of those times; see
 ## Coupling
 
 A feature can follow another feature for part of the animation and go its own
-way for the rest. This is the Middle Earth form of the GPlates rotation model,
+way for the rest. This is the Geotekton form of the GPlates rotation model,
 where a plate's fixed plate changes from one time span to the next. A coupling
 is a relation between two leaf features over a **span** of the timeline
 (`Logic/coupling.gd`): `from`, the older age where it starts, `to`, the younger

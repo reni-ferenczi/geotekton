@@ -7,7 +7,7 @@ extends RenderedCase
 
 
 func test_a_mouse_click_on_plus_adds_a_colour() -> void:
-	await load_sample("mixed_geometry.middle-earth")
+	await load_sample("mixed_geometry.geotekt")
 	var group := _group("Shapes")
 	assert_true(group != null, "the sample must contain the Shapes group")
 	if group == null:
@@ -25,7 +25,7 @@ func test_a_mouse_click_on_plus_adds_a_colour() -> void:
 
 
 func test_plus_clicked_while_a_ramp_picker_is_open() -> void:
-	await load_sample("mixed_geometry.middle-earth")
+	await load_sample("mixed_geometry.geotekt")
 	var group := _group("Shapes")
 	if group == null:
 		return
@@ -53,7 +53,7 @@ func test_plus_clicked_while_a_ramp_picker_is_open() -> void:
 
 
 func test_a_long_ramp_wraps_inside_the_panel() -> void:
-	await load_sample("mixed_geometry.middle-earth")
+	await load_sample("mixed_geometry.geotekt")
 	var group := _group("Shapes")
 	if group == null:
 		return

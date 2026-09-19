@@ -28,7 +28,7 @@ func check_rows(panel: KinematicsPanel, rows: int, what: String) -> void:
 
 func test_the_rate_only_by_default_and_the_place_rows_on_request() -> void:
 	var panel: KinematicsPanel = app.kinematics
-	await load_sample("motion.middle-earth")
+	await load_sample("motion.geotekt")
 	app._on_view_menu_id_pressed(Application.ViewItem.KINEMATICS)
 	app.features.feature_tree.select_node(app.document.root.children[0].children[0])
 	await frames(3)

@@ -17,7 +17,7 @@ const MOVED_POSITION := Vector2i(140, 90)
 # shows. The two are checked against each other here so they cannot part
 # company. test_narrow_panels.gd drags both panels down to their floors.
 func test_each_panel_is_the_width_its_splitter_asks_for() -> void:
-	await load_sample("two_cratons.middle-earth")
+	await load_sample("two_cratons.geotekt")
 	assert_eq(app.left_splitter.split_offset, app.features.size.x,
 		"the feature tree panel is as wide as its offset asks")
 	assert_eq(app.right_splitter.split_offset, -int(app.properties.size.x),

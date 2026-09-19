@@ -6,7 +6,7 @@ extends RenderedCase
 
 
 func test_clicking_a_craton_selects_it() -> void:
-	await load_sample("two_cratons.middle-earth")
+	await load_sample("two_cratons.geotekt")
 	await _click_latlon(30.0, 45.0)
 	assert_eq(_selected_title(), "Blue Quad")
 	await _click_latlon(-3.0, -60.0)
@@ -20,7 +20,7 @@ func test_clicking_a_craton_selects_it() -> void:
 
 
 func test_clicking_the_bare_globe_keeps_the_selection() -> void:
-	await load_sample("two_cratons.middle-earth")
+	await load_sample("two_cratons.geotekt")
 	await _click_latlon(-3.0, 0.0)
 	assert_eq(_selected_title(), "Red Triangle")
 	# (5, 40) is on the globe but on no craton, the selection only changes on a hit.

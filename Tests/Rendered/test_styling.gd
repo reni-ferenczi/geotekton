@@ -5,7 +5,7 @@ extends RenderedCase
 # reaches the pixel, and that a class switched off leaves the Earth showing
 # where it was.
 #
-# The fixture is mixed_geometry.middle-earth: a red polygon at (-3, 0), a blue
+# The fixture is mixed_geometry.geotekt: a red polygon at (-3, 0), a blue
 # polyline through (0, 40) and green markers at (-30, -30) and (30, -30), one
 # feature of each class the switches cover, all three in the Shapes group. The
 # styles are set on that group, since the root's style is pinned.
@@ -174,7 +174,7 @@ func test_a_color_change_uploads_only_the_feature_state() -> void:
 ### Group styles
 
 
-# group_styles.middle-earth: the root on the feature type style in the file,
+# group_styles.geotekt: the root on the feature type style in the file,
 # which the loader pins to own colors, Continental Crust on a single colour
 # holding the red polygon, Cratons on own colours holding the blue polyline,
 # and the green markers straight under the root.
@@ -182,7 +182,7 @@ const CRUST_COLOR := Color(0.1, 0.6, 0.9, 1.0)
 
 
 func test_a_group_on_a_single_colour_beside_a_group_on_own_colours() -> void:
-	await load_sample("group_styles.middle-earth")
+	await load_sample("group_styles.geotekt")
 	await _check(POLYGON, CRUST_COLOR, "the polygon in Continental Crust's single colour")
 	await _check(POLYLINE, Color.BLUE, "the polyline in its own colour under Cratons")
 	await _check(POINT, Color.GREEN, "the markers in their own color, whatever the root said")
@@ -191,7 +191,7 @@ func test_a_group_on_a_single_colour_beside_a_group_on_own_colours() -> void:
 # A group's opacity lays everything under it over the Earth, the way a feature's
 # own does.
 func test_a_group_opacity_lays_its_features_over_the_earth() -> void:
-	await load_sample("group_styles.middle-earth")
+	await load_sample("group_styles.geotekt")
 	var crust: Feature = app.document.root.children[0]
 	crust.enabled = false
 	app.refresh_geometry()
@@ -210,13 +210,13 @@ func test_a_group_opacity_lays_its_features_over_the_earth() -> void:
 # color.
 func test_a_0_7_0_file_in_a_single_colour_opens_in_the_feature_colors() -> void:
 	var raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(
-		"%s/%s" % [DATA_DIR, "group_styles.middle-earth"]))
+		"%s/%s" % [DATA_DIR, "group_styles.geotekt"]))
 	var crust: Dictionary = raw["features"]["children"][0]
 	crust.erase("style")
 	raw["features"].erase("style")
 	raw["version"] = "0.7.0"
 	raw["view"] = {"draw_style": "single", "single_color": [0.9, 0.5, 0.1, 1.0]}
-	var path := ProjectSettings.globalize_path("user://test_styling_0_7_0.middle-earth")
+	var path := ProjectSettings.globalize_path("user://test_styling_0_7_0.geotekt")
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(JSON.stringify(raw, "\t"))
 	file.close()
@@ -240,7 +240,7 @@ func test_a_0_7_0_file_in_a_single_colour_opens_in_the_feature_colors() -> void:
 # the way the automation port answers it. The discrete fixture is three flat
 # slices, so the age picks one outright.
 func test_a_palette_loaded_on_the_palette_row_colors_the_group() -> void:
-	await load_sample("mixed_geometry.middle-earth")
+	await load_sample("mixed_geometry.geotekt")
 	var path := ProjectSettings.globalize_path("res://Tests/Data/Palettes/discrete.cpt")
 	var shapes := _shapes()
 	var red := _feature_at(POLYGON)
@@ -273,7 +273,7 @@ func test_a_palette_loaded_on_the_palette_row_colors_the_group() -> void:
 
 
 func test_the_root_shows_no_palette_row() -> void:
-	await load_sample("mixed_geometry.middle-earth")
+	await load_sample("mixed_geometry.geotekt")
 	app.features.feature_tree.select_node(app.document.root)
 	await frames(2)
 	var button := app.properties.find_child("LoadPalette", true, false) as Button
@@ -286,7 +286,7 @@ func test_the_root_shows_no_palette_row() -> void:
 # Load the fixture and give the document the styling the case is about: the
 # switches in the view block and the style on the Shapes group.
 func _load_styled(block: Dictionary) -> void:
-	await load_sample("mixed_geometry.middle-earth")
+	await load_sample("mixed_geometry.geotekt")
 	var settings := ViewSettings.new()
 	for class_id in block.get("hidden_classes", []):
 		settings.hide_class(str(class_id), true)
@@ -300,7 +300,7 @@ func _load_styled(block: Dictionary) -> void:
 	await frames(2)
 
 
-# The group of mixed_geometry.middle-earth that holds all three features.
+# The group of mixed_geometry.geotekt that holds all three features.
 func _shapes() -> Feature:
 	return app.document.root.children[0]
 

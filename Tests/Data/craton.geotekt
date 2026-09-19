@@ -1,0 +1,132 @@
+{
+	"application": "geotekt",
+	"features": {
+		"children": [
+			{
+				"children": [
+					{
+						"color": [
+							0.0,
+							0.0,
+							1.0,
+							1.0
+						],
+						"enabled": true,
+						"feature_type": "craton",
+						"geometry_kind": "polygon",
+						"is_group": false,
+						"keyframes": [],
+						"rings": [
+							[
+								[
+									-20.0,
+									-26.0
+								],
+								[
+									-8.0,
+									-20.0
+								],
+								[
+									2.0,
+									-22.0
+								],
+								[
+									12.0,
+									-18.0
+								],
+								[
+									9.0,
+									-6.0
+								],
+								[
+									12.5,
+									4.0
+								],
+								[
+									17.0,
+									-4.0
+								],
+								[
+									24.0,
+									2.0
+								],
+								[
+									22.0,
+									14.0
+								],
+								[
+									16.0,
+									10.0
+								],
+								[
+									11.0,
+									8.0
+								],
+								[
+									13.0,
+									18.0
+								],
+								[
+									10.4,
+									25.3
+								],
+								[
+									10.0,
+									25.0
+								],
+								[
+									6.0,
+									23.0
+								],
+								[
+									0.0,
+									6.0
+								],
+								[
+									-2.0,
+									24.0
+								],
+								[
+									-14.0,
+									26.0
+								],
+								[
+									-21.0,
+									16.0
+								],
+								[
+									-18.0,
+									2.0
+								],
+								[
+									-22.0,
+									-12.0
+								]
+							]
+						],
+						"time_range": [
+							0,
+							2000
+						],
+						"title": "Old Shield",
+						"type": "Feature",
+						"uuid": "b74a0d36-91c5-4e28-8f13-6a2d5c9e0417"
+					}
+				],
+				"enabled": true,
+				"is_group": true,
+				"keyframes": [],
+				"title": "Cratons",
+				"type": "Group",
+				"uuid": "8c1e7a52-6b33-4d0f-a5e9-71c2b4d8e930"
+			}
+		],
+		"enabled": true,
+		"is_group": true,
+		"keyframes": [],
+		"title": "Planet",
+		"type": "Group",
+		"uuid": "3f9d2c10-5a44-4b7e-9c21-0d8e6f1a2b30"
+	},
+	"version": "0.5.0"
+}
