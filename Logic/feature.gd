@@ -707,22 +707,43 @@ static func rings_from_json(data: Array) -> Array[PackedVector2Array]:
 # A ring whose longitude winds a full turn goes round a pole, and has no shape
 # in that plane to clip: it becomes a fan of triangles from the pole on the
 # side most of the ring lies on, which the pole is added to as a vertex.
+#
+# A vertex that repeats the one before it, or a last vertex that repeats the
+# first, is left out: it has no edge of its own, and the zero area corner it
+# makes stalls the clipping short of the corner next to it. Such rings do come
+# in: a file saved before a double click was caught holds its last vertex
+# twice, and GML and the Shapefile format close a ring by repeating its first
+# vertex.
 static func ear_clip(polygon: PackedVector2Array) -> PackedVector2Array:
 	var result := PackedVector2Array()
-	var n := polygon.size()
+	var corners := distinct_corners(polygon)
+	var n := corners.size()
 	if n >= 3 and absf(_longitude_winding(polygon)) > 180.0:
 		var latitude_sum := 0.0
-		for v in polygon:
-			latitude_sum += v.x
+		for i in corners:
+			latitude_sum += polygon[i].x
 		var pole := Vector2(-90.0 if latitude_sum < 0.0 else 90.0, 0.0)
 		for i in range(n):
 			result.append(pole)
-			result.append(polygon[i])
-			result.append(polygon[(i + 1) % n])
+			result.append(polygon[corners[i]])
+			result.append(polygon[corners[(i + 1) % n]])
 		return result
 
 	for index in ear_clip_indices(polygon):
 		result.append(polygon[index])
+	return result
+
+
+# The indices of the vertices of a ring that are corners of its shape: each one
+# that differs from the vertex before it, without a last one that repeats the
+# first.
+static func distinct_corners(ring: PackedVector2Array) -> PackedInt32Array:
+	var result := PackedInt32Array()
+	for i in range(ring.size()):
+		if i == 0 or ring[i] != ring[i - 1]:
+			result.append(i)
+	if result.size() > 1 and ring[result[result.size() - 1]] == ring[0]:
+		result.remove_at(result.size() - 1)
 	return result
 
 
@@ -738,27 +759,30 @@ static func _longitude_winding(ring: PackedVector2Array) -> float:
 # The same triangulation as vertex indices into the ring, three per triangle.
 # The longitudes are unwrapped first, so that each step from one vertex to the
 # next is under 180 degrees and a ring across the date line keeps its shape.
+# A repeated vertex is never among the indices, see ear_clip.
 static func ear_clip_indices(ring: PackedVector2Array) -> PackedInt32Array:
-	var n := ring.size()
 	var result := PackedInt32Array()
+	var corners := distinct_corners(ring)
+	var n := corners.size()
 	if n < 3:
 		return result
 
 	var polygon := ring.duplicate()
-	for i in range(1, n):
+	for i in range(1, ring.size()):
 		var step := wrapf(ring[i].y - ring[i - 1].y, -180.0, 180.0)
 		polygon[i] = Vector2(ring[i].x, polygon[i - 1].y + step)
 
 	# Build mutable index list
 	var idx: Array[int] = []
-	for i in range(n):
+	for i in corners:
 		idx.append(i)
 
 	# Determine winding direction using signed area (shoelace formula)
 	var area := 0.0
 	for i in range(n):
-		var j := (i + 1) % n
-		area += polygon[i].x * polygon[j].y - polygon[j].x * polygon[i].y
+		var a := polygon[idx[i]]
+		var b := polygon[idx[(i + 1) % n]]
+		area += a.x * b.y - b.x * a.y
 	var winding_sign := 1.0 if area > 0.0 else -1.0
 
 	var max_iterations := n * n
