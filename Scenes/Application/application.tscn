@@ -15,15 +15,15 @@
 [ext_resource type="Texture2D" uid="uid://c57mfqi8mb5ve" path="res://Assets/GodotIcons/RotateLeft.svg" id="17_rotateleft"]
 [ext_resource type="Texture2D" uid="uid://clt0hnssu7kmd" path="res://Assets/GodotIcons/RotateRight.svg" id="18_rotateright"]
 [ext_resource type="Texture2D" uid="uid://bu7s3wqnnfknb" path="res://Assets/GodotIcons/Reload.svg" id="19_reload"]
-[ext_resource type="Texture2D" uid="uid://csahgmxw80sow" path="res://Assets/GodotIcons/ToolRotate.svg" id="23_toolrotate"]
-[ext_resource type="Texture2D" uid="uid://bsc43ulc3g5q7" path="res://Assets/GodotIcons/EditorPivot.svg" id="24_toolpole"]
 [ext_resource type="Script" uid="uid://slxddfcw6y2" path="res://Scenes/Application/kinematics_panel.gd" id="21_kinematics"]
 [ext_resource type="Script" uid="uid://duylqjxos6ufm" path="res://Scenes/Application/console_panel.gd" id="22_console"]
+[ext_resource type="Texture2D" uid="uid://csahgmxw80sow" path="res://Assets/GodotIcons/ToolRotate.svg" id="23_toolrotate"]
+[ext_resource type="Texture2D" uid="uid://bsc43ulc3g5q7" path="res://Assets/GodotIcons/EditorPivot.svg" id="24_toolpole"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ub1o7"]
 bg_color = Color(0.4, 0.4, 0.4, 1)
 
-[node name="Application" type="VBoxContainer"]
+[node name="Application" type="VBoxContainer" unique_id=1517017685]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -31,26 +31,26 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_nny64")
 
-[node name="Menu" type="PanelContainer" parent="."]
+[node name="Menu" type="PanelContainer" parent="." unique_id=741003080]
 custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
 
-[node name="MenuBar" type="MenuBar" parent="Menu"]
+[node name="MenuBar" type="MenuBar" parent="Menu" unique_id=1077043986]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="LeftSplitter" type="HSplitContainer" parent="."]
+[node name="LeftSplitter" type="HSplitContainer" parent="." unique_id=248779994]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 split_offsets = PackedInt32Array(576)
 split_offset = 576
 
-[node name="Features" parent="LeftSplitter" instance=ExtResource("2_jkixm")]
+[node name="Features" parent="LeftSplitter" unique_id=616863246 instance=ExtResource("2_jkixm")]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="RightSplitter" type="HSplitContainer" parent="LeftSplitter"]
+[node name="RightSplitter" type="HSplitContainer" parent="LeftSplitter" unique_id=426421241]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -58,21 +58,21 @@ size_flags_vertical = 3
 split_offsets = PackedInt32Array(-320)
 split_offset = -320
 
-[node name="Center" type="VBoxContainer" parent="LeftSplitter/RightSplitter"]
+[node name="Center" type="VBoxContainer" parent="LeftSplitter/RightSplitter" unique_id=1902009729]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="PanelContainer" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
+[node name="PanelContainer" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center" unique_id=695927207]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 
-[node name="Tools" type="HBoxContainer" parent="LeftSplitter/RightSplitter/Center/PanelContainer"]
+[node name="Tools" type="HBoxContainer" parent="LeftSplitter/RightSplitter/Center/PanelContainer" unique_id=1935992296]
 layout_mode = 2
 size_flags_vertical = 0
 theme_override_constants/separation = 2
 
-[node name="Move" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Move" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1503213457]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -82,7 +82,7 @@ button_pressed = true
 icon = ExtResource("6_toolmove")
 expand_icon = true
 
-[node name="Rotate" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Rotate" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=293319545]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -92,7 +92,7 @@ toggle_mode = true
 icon = ExtResource("23_toolrotate")
 expand_icon = true
 
-[node name="Pole" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Pole" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=285434640]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -102,7 +102,7 @@ toggle_mode = true
 icon = ExtResource("24_toolpole")
 expand_icon = true
 
-[node name="Draw" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Draw" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=27650856]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -112,7 +112,7 @@ toggle_mode = true
 icon = ExtResource("7_tooldraw")
 expand_icon = true
 
-[node name="Vertex" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Vertex" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1335997096]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -122,7 +122,7 @@ toggle_mode = true
 icon = ExtResource("8_toolvertex")
 expand_icon = true
 
-[node name="Measure" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Measure" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=675041594]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -131,7 +131,7 @@ toggle_mode = true
 icon = ExtResource("9_toolmeasure")
 expand_icon = true
 
-[node name="Split" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Split" type="Button" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=95170136]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -141,7 +141,7 @@ toggle_mode = true
 icon = ExtResource("11_toolsplit")
 expand_icon = true
 
-[node name="SegmentsLabel" type="Label" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="SegmentsLabel" type="Label" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=654569188]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
@@ -150,14 +150,14 @@ mouse_filter = 1
 text = "Circle segments"
 vertical_alignment = 1
 
-[node name="Segments" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Segments" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=2110128691]
 unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 tooltip_text = "Segments of a circle: how many the Draw tool cuts a circle into when it commits"
 
-[node name="Ridge" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Ridge" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=828624841]
 unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(0, 40)
@@ -165,7 +165,7 @@ layout_mode = 2
 tooltip_text = "Leave a ridge along the cut, a line following both halves at one half"
 text = "Ridge"
 
-[node name="Crust" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Crust" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=459171555]
 unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(0, 40)
@@ -173,7 +173,7 @@ layout_mode = 2
 tooltip_text = "Leave oceanic crust between the ridge and each half, two closed topologies that open as the halves drift apart"
 text = "Crust"
 
-[node name="Children" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Children" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1820998871]
 unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(0, 40)
@@ -181,7 +181,7 @@ layout_mode = 2
 tooltip_text = "Cut the features following the polygon along the same line; the pieces beyond it follow the second half"
 text = "Children"
 
-[node name="Parallel" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools"]
+[node name="Parallel" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1565507366]
 unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(0, 40)
@@ -189,25 +189,25 @@ layout_mode = 2
 tooltip_text = "Measure the next segment along the parallel of the last point"
 text = "Parallel"
 
-[node name="ViewPanel" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
+[node name="ViewPanel" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center" unique_id=1731180353]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 
-[node name="ViewTools" type="HBoxContainer" parent="LeftSplitter/RightSplitter/Center/ViewPanel"]
+[node name="ViewTools" type="HBoxContainer" parent="LeftSplitter/RightSplitter/Center/ViewPanel" unique_id=1721322761]
 layout_mode = 2
 size_flags_vertical = 0
 
-[node name="Projection" type="OptionButton" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="Projection" type="OptionButton" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=30617657]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 40)
 layout_mode = 2
 tooltip_text = "What the planet is drawn as"
 
-[node name="ZoomSeparator" type="VSeparator" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="ZoomSeparator" type="VSeparator" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=1667743642]
 layout_mode = 2
 
-[node name="ZoomOut" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="ZoomOut" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=356019991]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -215,7 +215,7 @@ tooltip_text = "Zoom out"
 icon = ExtResource("14_zoomless")
 expand_icon = true
 
-[node name="ZoomIn" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="ZoomIn" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=310563828]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -223,40 +223,41 @@ tooltip_text = "Zoom in"
 icon = ExtResource("15_zoommore")
 expand_icon = true
 
-[node name="Zoom" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="Zoom" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=1067187857]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(96, 40)
 layout_mode = 2
 tooltip_text = "How far the view is zoomed in"
-min_value = 100
-max_value = 10000
-step = 10
+min_value = 100.0
+max_value = 10000.0
+step = 10.0
+value = 100.0
 suffix = "%"
 
-[node name="CameraSeparator" type="VSeparator" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="CameraSeparator" type="VSeparator" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=295195378]
 layout_mode = 2
 
-[node name="CameraLatitude" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="CameraLatitude" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=1457177088]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(106, 40)
 layout_mode = 2
 tooltip_text = "The latitude the view is centred on"
-min_value = -90
-max_value = 90
-step = 5
+min_value = -90.0
+max_value = 90.0
+step = 5.0
 suffix = "° lat"
 
-[node name="CameraLongitude" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="CameraLongitude" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=1567466594]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(106, 40)
 layout_mode = 2
 tooltip_text = "The longitude the view is centred on"
-min_value = -180
-max_value = 180
-step = 5
+min_value = -180.0
+max_value = 180.0
+step = 5.0
 suffix = "° lon"
 
-[node name="RotateAnticlockwise" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="RotateAnticlockwise" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=1877872899]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -264,7 +265,7 @@ tooltip_text = "Turn the view anticlockwise"
 icon = ExtResource("17_rotateleft")
 expand_icon = true
 
-[node name="RotateClockwise" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="RotateClockwise" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=791510224]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -272,7 +273,7 @@ tooltip_text = "Turn the view clockwise"
 icon = ExtResource("18_rotateright")
 expand_icon = true
 
-[node name="CameraReset" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools"]
+[node name="CameraReset" type="Button" parent="LeftSplitter/RightSplitter/Center/ViewPanel/ViewTools" unique_id=58755235]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
@@ -280,64 +281,63 @@ tooltip_text = "Point the view back at the middle, the right way up"
 icon = ExtResource("19_reload")
 expand_icon = true
 
-
-[node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("3_hn1gi")]
+[node name="PlanetView" parent="LeftSplitter/RightSplitter/Center" unique_id=522438197 instance=ExtResource("3_hn1gi")]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="Kinematics" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
+[node name="Kinematics" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center" unique_id=64551456]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 script = ExtResource("21_kinematics")
 
-[node name="Console" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center"]
+[node name="Console" type="PanelContainer" parent="LeftSplitter/RightSplitter/Center" unique_id=1413879292]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 script = ExtResource("22_console")
 
-[node name="Timeline" parent="LeftSplitter/RightSplitter/Center" instance=ExtResource("4_ew82s")]
+[node name="Timeline" parent="LeftSplitter/RightSplitter/Center" unique_id=1257491777 instance=ExtResource("4_ew82s")]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Properties" parent="LeftSplitter/RightSplitter" instance=ExtResource("5_83lrd")]
+[node name="Properties" parent="LeftSplitter/RightSplitter" unique_id=1750961633 instance=ExtResource("5_83lrd")]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="StatusBar" type="PanelContainer" parent="."]
+[node name="StatusBar" type="PanelContainer" parent="." unique_id=1000803733]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 26)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 
-[node name="Fields" type="HBoxContainer" parent="StatusBar"]
+[node name="Fields" type="HBoxContainer" parent="StatusBar" unique_id=568023480]
 layout_mode = 2
 
-[node name="StatusCoordinates" type="Label" parent="StatusBar/Fields"]
+[node name="StatusCoordinates" type="Label" parent="StatusBar/Fields" unique_id=633095117]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
 vertical_alignment = 1
 
-[node name="StatusMeasure" type="Label" parent="StatusBar/Fields"]
+[node name="StatusMeasure" type="Label" parent="StatusBar/Fields" unique_id=808536371]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
 vertical_alignment = 1
 
-[node name="StatusFile" type="Label" parent="StatusBar/Fields"]
+[node name="StatusFile" type="Label" parent="StatusBar/Fields" unique_id=843647232]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 vertical_alignment = 1
 text_overrun_behavior = 3
 
-[node name="FullScreenOverlay" type="CanvasLayer" parent="."]
+[node name="FullScreenOverlay" type="CanvasLayer" parent="." unique_id=777354738]
 visible = false
 
-[node name="LeaveFullScreen" type="Button" parent="FullScreenOverlay"]
+[node name="LeaveFullScreen" type="Button" parent="FullScreenOverlay" unique_id=922587664]
 unique_name_in_owner = true
 anchors_preset = 5
 anchor_left = 0.5
