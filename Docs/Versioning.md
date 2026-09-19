@@ -58,10 +58,13 @@ that used to hold them; and 0.25.0 gave a hotspot and a crust a time step of
 their own, and a leaf without one reads as 0, which is the timeline's Skip, so
 a 0.24.0 file is read as it stands; and 0.26.0 took circles and hotspots out of
 coupling, which has a step that drops every span naming one and says how many
-it dropped.
+it dropped; and 0.27.0 renamed the program to Geotekton, so the `application`
+field says `geotekt` and the extension is `.geotekt`, which has a step that
+accepts the old `middle-earth` value and writes the new one, while the Open
+dialog still lists `.middle-earth` files.
 
 The first public release will have major version 1.
 
 ## Public releases (major version 1+)
 
-Once version 1.0.0 is reached, a migration must be added to `Document.migrate()` whenever the file format changes. The `version` field stored in each `.middle-earth` file identifies which application version produced it, allowing the migration function to apply the necessary transformations on load.
+Once version 1.0.0 is reached, a migration must be added to `Document.migrate()` whenever the file format changes. The `version` field stored in each `.geotekt` file identifies which application version produced it, allowing the migration function to apply the necessary transformations on load.

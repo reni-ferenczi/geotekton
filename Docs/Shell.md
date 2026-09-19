@@ -269,11 +269,11 @@ The engine takes the arguments before a bare `--`, the application those after
 it:
 
 ```
-MiddleEarth -- --version
-MiddleEarth -- --help
-MiddleEarth -- --help-command=list_features
-MiddleEarth -- --no-python
-MiddleEarth -- --automation-port=45455
+Geotekton -- --version
+Geotekton -- --help
+Geotekton -- --help-command=list_features
+Geotekton -- --no-python
+Geotekton -- --automation-port=45455
 ```
 
 `Logic/cli.gd` holds the list of switches and builds the help text from it, so a

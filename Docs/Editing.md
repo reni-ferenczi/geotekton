@@ -980,7 +980,7 @@ shows what is being chosen.
 | Ambient light | How much light reaches the night side; 0 is a black night, 1 no night at all |
 | Planet color | The color of the planet where no raster covers it, ocean blue unless changed. The picker has no alpha, since the planet is never see-through |
 | Raster shown, Raster opacity | Whether the image is drawn and how much of the planet color it covers |
-| Raster | The image the planet wears, in PNG, JPEG, WebP or SVG. The field reads None when there is no image. **Browse...** picks a file, **Built in Earth** picks the Earth image that ships with Middle Earth, and **Clear** takes the image away |
+| Raster | The image the planet wears, in PNG, JPEG, WebP or SVG. The field reads None when there is no image. **Browse...** picks a file, **Built in Earth** picks the Earth image that ships with Geotekton, and **Clear** takes the image away |
 
 A new document has no raster, so its planet is the flat planet color. A file
 saved before 0.17.0 that named no image opens wearing the built in Earth, which
@@ -1008,7 +1008,7 @@ starts from. **Restore defaults** puts the open document back to them. An
 opened file always wins over the default: what the file says is what that
 document looks like.
 
-An image that cannot be read — moved, renamed, or in a format Middle Earth does
+An image that cannot be read — moved, renamed, or in a format Geotekton does
 not read — is not an error the document has to be repaired from. The planet
 shows its own color and the reason appears under the path.
 

@@ -42,10 +42,16 @@ nothing. When the document has no path yet, Save asks for one first.
 | New     | Empty document, no path, empty undo stack                        |
 | Open    | Ask for a file and load it, replacing the tree and the undo stack |
 | Save    | Write to the document path; ask for one only when it has none    |
-| Save As | Always ask for a path, appending `.middle-earth` when it is missing |
+| Save As | Always ask for a path, appending `.geotekt` when it is missing. A name typed with the old `.middle-earth` extension keeps it |
 
 There is no autosave: a document reaches the disk only when one of these
 commands writes it.
+
+The Open and Save dialogs offer two filters, `*.geotekt ; Geotekton Files`
+first and `*.middle-earth ; Middle Earth Files` second, so a file written up to
+0.26.0, when the program was Middle Earth, is still found. A document opened
+from a `.middle-earth` file is written back to that path, with that extension,
+by plain Save, the way any other path is kept; Save As proposes `.geotekt`.
 
 The file dialogs are the ones the platform provides
 (`DisplayServer.file_dialog_show`), so nothing happens when one is cancelled.
@@ -54,7 +60,7 @@ opening a window; see [Testing](Testing.md#the-automation-port).
 
 ## File format
 
-- **Extension**: `.middle-earth` (used for all versions)
+- **Extension**: `.geotekt` from 0.27.0; `.middle-earth` up to 0.26.0, which is still read
 - **Encoding**: UTF-8 without BOM
 - **Format**: Uncompressed JSON, tab-indented for readability
 
@@ -64,8 +70,8 @@ The file is a JSON object with four top-level keys:
 
 ```json
 {
-  "application": "middle-earth",
-  "version": "0.26.0",
+  "application": "geotekt",
+  "version": "0.27.0",
   "features": { ... },
   "view": { ... }
 }
@@ -73,7 +79,7 @@ The file is a JSON object with four top-level keys:
 
 | Key           | Description                                                        |
 |---------------|--------------------------------------------------------------------|
-| `application` | Always `"middle-earth"`. Used to validate the file on load.        |
+| `application` | `"geotekt"` from 0.27.0, `"middle-earth"` up to 0.26.0; a file saying either is read, anything else is refused. Every file written says `"geotekt"`. |
 | `version`     | The application version that produced this file.                   |
 | `features`    | The root group of the feature tree, serialized via `to_json()`.    |
 | `view`        | How the scene around the features is drawn. See [View settings](#view-settings). |
@@ -678,11 +684,30 @@ The features themselves stay, and so do their keyframes: a feature left without
 the span it had stops following whatever it followed and stands where its own
 keyframes put it. Every other span is kept as it was written.
 
+#### 0.26.0 to 0.27.0
+
+0.27.0 renamed the program from Middle Earth to Geotekton, and with it the
+`application` field and the extension: a file is written with
+`"application": "geotekt"` under `.geotekt`. `Document.load_from_file()`
+accepts `"middle-earth"` as well, so nothing on disk stops opening, and the
+next save writes the new name; the features and the view are not touched, so
+`Document.migrate()` moves only the version. `src/geotekt/document.py` accepts
+both values the same way and, as with every other field, writes back what it
+read.
+
+`Tests/Data/empty.middle-earth` is kept under the old name and the old field as
+the standing check that such a file still opens.
+
 ## The config file
 
-`Logic/config.gd` keeps one JSON file per user, `%APPDATA%\MiddleEarth\config.json`,
+`Logic/config.gd` keeps one JSON file per user, `%APPDATA%\Geotekton\config.json`,
 outside the project. Every setter writes it immediately, so a crash cannot lose
 more than the last change.
+
+Up to 0.26.0 the file was `%APPDATA%\MiddleEarth\config.json`. While the new
+directory has no `config.json`, `Config` reads the old one, so the preferences
+are there on the first run after the rename; the next save writes them to the
+new directory, and the old one is left as it is.
 
 | Key                                | What it holds                                       |
 | ---------------------------------- | --------------------------------------------------- |

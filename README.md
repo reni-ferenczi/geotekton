@@ -1,6 +1,9 @@
-# Middle Earth
+# Geotekton
 
-Plate tectonics editor.
+Plate tectonics editor. The program is Geotekton, `geotekt` is the short form
+that goes wherever a name is typed or parsed (the `.geotekt` file extension, the
+`geotekt` Python package, the executable), and Geotek is what people say and
+appears nowhere in code.
 
 ## Documentation
 

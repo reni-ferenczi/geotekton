@@ -1,13 +1,13 @@
 # Importing a GPlates reconstruction
 
 **File > Import...** takes a GPlates project, or the feature collections and
-rotation files a project would name, and turns them into a Middle Earth
+rotation files a project would name, and turns them into a Geotekton
 document. Nothing goes the other way: the import is one way, and what comes out
 is an ordinary document that is edited, saved and animated like any other.
 
 The conversion is Python's. The application picks the files and hands them to the
 interpreter over the [scripting bridge](Scripting.md#the-protocol); the
-interpreter reads the GPlates files with `pygplates`, writes a `.middle-earth`
+interpreter reads the GPlates files with `pygplates`, writes a `.geotekt`
 file and says where it is. What opens is **Untitled and unsaved**, because an
 import has no file of its own yet, so Save asks where to put it and the GPlates
 files are never written to.
@@ -26,7 +26,7 @@ The dialog takes several files at once, because a feature collection on its own
 has no motion: the rotation file that moves its plates is picked with it.
 
 A project file is a GPlates Scribe binary archive. It holds no geometry: it
-names the files the session had loaded, and `middle_earth/gproj.py` reads that
+names the files the session had loaded, and `geotekt/gproj.py` reads that
 list out of it. The paths in it are absolute and belong to the machine the
 project was saved on, so each file is looked for where it says first and then
 in the same place relative to the project file — which is what finds the data
@@ -43,7 +43,7 @@ rotation model and one holding both is used as both.
 ## The tree that comes out
 
 GPlates keeps motion in two places: a feature names the plate it follows, and
-a rotation file says where every plate was at every time. Middle Earth keeps
+a rotation file says where every plate was at every time. Geotekton keeps
 motion on each feature, and a group carries none (see
 [Time](Time.md#groups-do-not-move)). So the import builds:
 
@@ -82,7 +82,7 @@ where the model turns fastest. A finer step is `import_files(paths, step=...)`
 from the [console](Scripting.md); the menu takes the default.
 
 The two programs use different frames — GPlates puts z through the north pole,
-Middle Earth puts y there — so a rotation is carried across by swapping the
+Geotekton puts y there — so a rotation is carried across by swapping the
 last two axes in both the rows and the columns of its matrix, and the result is
 decomposed into the three angles a keyframe holds. Three coastlines are checked
 against `pygplates` at fifty million years in `Tests/Python/test_gplates.py`,
@@ -98,11 +98,11 @@ another [draw style](Styling.md#the-draw-styles) is chosen.
 
 ### Feature types
 
-A Middle Earth [type](Properties.md#the-type-catalog) follows the geometry a
+A Geotekton [type](Properties.md#the-type-catalog) follows the geometry a
 feature holds, so the GPGIM type has no say in it. Whatever GPlates calls a
 feature, it imports as one of three:
 
-| Geometry in GPlates | Middle Earth |
+| Geometry in GPlates | Geotekton |
 | ------------------- | ------------ |
 | Polygon             | Polygon      |
 | Polyline            | Line         |
@@ -110,11 +110,11 @@ feature, it imports as one of three:
 
 A Coastline outline and a Craton are both Polygons, and a MidOceanRidge drawn
 as a line is a Line. Nothing imports as a Circle, a type picked by hand
-before Draw draws one. The table is `KIND_TYPES` in `src/middle_earth/gplates.py`.
+before Draw draws one. The table is `KIND_TYPES` in `src/geotekt/gplates.py`.
 
 ### Time
 
-A feature's GPlates valid time becomes its Middle Earth time range. Both count
+A feature's GPlates valid time becomes its Geotekton time range. Both count
 the same way, an age in millions of years before present, but GPlates allows
 fractions and both infinities where the file format here holds two whole
 numbers. The ends are rounded outwards, so a feature is never shown for less
@@ -138,7 +138,7 @@ Importing one region rather than the whole planet is what works today.
 
 | Dropped                      | Why                                                   |
 | ---------------------------- | ------------------------------------------------------ |
-| Topological features         | Their geometry is resolved from other features rather than held, and Middle Earth resolves [line topologies](Editing.md#topologies) of its own instead |
+| Topological features         | Their geometry is resolved from other features rather than held, and Geotekton resolves [line topologies](Editing.md#topologies) of its own instead |
 | Rasters, scalar coverages, deformation networks | No geometry of their own to convert  |
 | A polygon's holes            | Interior rings come in as further outlines, since several rings on one polygon are separate outlines here rather than holes; see [Draw](Draw.md#data-model) |
 | A feature's second geometry kind | A feature holds rings of one kind, so a feature mixing a line and a polygon keeps the kind of its first geometry |
@@ -151,9 +151,9 @@ console, rather than stopping the import.
 
 | File                                 | What is in it                              |
 | ------------------------------------ | ------------------------------------------- |
-| `src/middle_earth/gproj.py`          | The project archive: the file list and where the files went |
-| `src/middle_earth/gplates.py`        | The conversion                              |
-| `src/middle_earth/bridge.py`         | The `import_gplates` command                |
+| `src/geotekt/gproj.py`          | The project archive: the file list and where the files went |
+| `src/geotekt/gplates.py`        | The conversion                              |
+| `src/geotekt/bridge.py`         | The `import_gplates` command                |
 | `Scenes/Application/application.gd`  | File > Import and opening the result         |
 
 Tested by `Tests/Python/test_gproj.py` and `Tests/Python/test_gplates.py`,
