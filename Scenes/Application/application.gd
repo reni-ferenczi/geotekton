@@ -13,11 +13,12 @@ const ISOLATED_SETTINGS_DIR := "isolated-settings"
 
 # The Earth texture credited in the About dialog, as listed in README.md.
 const EARTH_TEXTURE_URL := "https://wall.alphacoders.com/big.php?i=11433"
-# The Open dialog offers the old extension second, so a file written before
-# 0.27.0 is still found; Save As proposes the new one. See Docs/Persistence.md.
-static var FILE_FILTERS := PackedStringArray([
-	"*%s ; Geotekton Files" % Document.EXTENSION,
-	"*%s ; Middle Earth Files" % Document.OLD_EXTENSION])
+static var FILE_FILTERS := PackedStringArray(["*%s ; Geotekton Files" % Document.EXTENSION])
+# The Open dialog also offers the old extension, so a file written before
+# 0.27.0 is still found. Nothing else does: a file is only ever written under
+# the new one. See Docs/Persistence.md.
+static var OPEN_FILTERS := FILE_FILTERS + PackedStringArray(
+	["*%s ; Middle Earth Files" % Document.OLD_EXTENSION])
 # What a raster may be, taken from the formats Raster reads rather
 # than listed a second time here.
 static var IMAGE_FILTERS := PackedStringArray(
@@ -775,9 +776,9 @@ func save_document(after: Callable = Callable()) -> void:
 
 func save_document_as(after: Callable = Callable()) -> void:
 	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_SAVE_FILE, "Save As", func(path: String) -> void:
-		# A name typed with the old extension keeps it, the way the file it
-		# was opened from does under plain Save.
-		if not (path.ends_with(Document.EXTENSION) or path.ends_with(Document.OLD_EXTENSION)):
+		# A name typed with the old extension is saved under the new one.
+		path = path.trim_suffix(Document.OLD_EXTENSION)
+		if not path.ends_with(Document.EXTENSION):
 			path += Document.EXTENSION
 		_write_to(path, after))
 
@@ -1099,7 +1100,7 @@ func import_paths(paths: PackedStringArray) -> void:
 
 
 func _ask_open_path() -> void:
-	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Open", _load_path)
+	_ask_for_path(DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, "Open", _load_path, OPEN_FILTERS)
 
 
 func _load_path(path: String) -> void:

@@ -42,16 +42,16 @@ nothing. When the document has no path yet, Save asks for one first.
 | New     | Empty document, no path, empty undo stack                        |
 | Open    | Ask for a file and load it, replacing the tree and the undo stack |
 | Save    | Write to the document path; ask for one only when it has none    |
-| Save As | Always ask for a path, appending `.geotekt` when it is missing. A name typed with the old `.middle-earth` extension keeps it |
+| Save As | Always ask for a path, appending `.geotekt` when it is missing; a name typed with the old `.middle-earth` extension is saved under `.geotekt` instead |
 
 There is no autosave: a document reaches the disk only when one of these
 commands writes it.
 
-The Open and Save dialogs offer two filters, `*.geotekt ; Geotekton Files`
-first and `*.middle-earth ; Middle Earth Files` second, so a file written up to
-0.26.0, when the program was Middle Earth, is still found. A document opened
-from a `.middle-earth` file is written back to that path, with that extension,
-by plain Save, the way any other path is kept; Save As proposes `.geotekt`.
+The Open dialog offers two filters, `*.geotekt ; Geotekton Files` first and
+`*.middle-earth ; Middle Earth Files` second, so a file written up to 0.26.0,
+when the program was Middle Earth, is still found. The Save dialog offers only
+the first, and nothing writes a file under the old extension except plain Save
+on a document opened from one, which keeps its path the way any other is kept.
 
 The file dialogs are the ones the platform provides
 (`DisplayServer.file_dialog_show`), so nothing happens when one is cancelled.
