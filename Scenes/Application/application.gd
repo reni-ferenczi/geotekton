@@ -13,7 +13,7 @@ const ISOLATED_SETTINGS_DIR := "isolated-settings"
 
 # The Earth texture credited in the About dialog, as listed in README.md.
 const EARTH_TEXTURE_URL := "https://wall.alphacoders.com/big.php?i=11433"
-static var FILE_FILTERS := PackedStringArray(["*%s ; Geotekton Files" % Document.EXTENSION])
+static var FILE_FILTERS := PackedStringArray(["*%s ; %s Files" % [Document.EXTENSION, APPLICATION_NAME]])
 # The Open dialog also offers the old extension, so a file written before
 # 0.27.0 is still found. Nothing else does: a file is only ever written under
 # the new one. See Docs/Persistence.md.
@@ -501,7 +501,7 @@ func _build_menus() -> void:
 
 	help_menu = _add_menu("Help")
 	help_menu.add_item("Documentation", HelpItem.DOCUMENTATION, KEY_F1)
-	help_menu.add_item("About Geotekton", HelpItem.ABOUT)
+	help_menu.add_item("About %s" % APPLICATION_NAME, HelpItem.ABOUT)
 	help_menu.id_pressed.connect(_on_help_menu_id_pressed)
 
 	_rebuild_recent_menu()
@@ -1234,12 +1234,12 @@ func _build_dialogs() -> void:
 
 	error_dialog = AcceptDialog.new()
 	error_dialog.name = "ErrorDialog"
-	error_dialog.title = "Geotekton"
+	error_dialog.title = APPLICATION_NAME
 	add_child(error_dialog)
 
 	about_dialog = AcceptDialog.new()
 	about_dialog.name = "AboutDialog"
-	about_dialog.title = "About Geotekton"
+	about_dialog.title = "About %s" % APPLICATION_NAME
 	about_dialog.add_child(_build_about_content())
 	add_child(about_dialog)
 
@@ -1471,7 +1471,7 @@ func _build_view_content() -> Control:
 	var earth := Button.new()
 	earth.name = "BuiltInEarth"
 	earth.text = "Built in Earth"
-	earth.tooltip_text = "Wear the Earth image that comes with Geotekton"
+	earth.tooltip_text = "Wear the Earth image that comes with %s" % APPLICATION_NAME
 	earth.pressed.connect(func() -> void:
 		edit.text = ViewSettings.BUILT_IN_EARTH
 		_on_view_field_changed())

@@ -51,7 +51,8 @@ static func handle(args: PackedStringArray) -> int:
 
 
 static func usage_text() -> String:
-	var lines := ["Geotekton %s" % Application.VERSION, "", "Usage: Geotekton [-- OPTIONS]", "", "Options:"]
+	var lines := ["%s %s" % [Application.APPLICATION_NAME, Application.VERSION], "",
+		"Usage: %s [-- OPTIONS]" % Application.APPLICATION_NAME, "", "Options:"]
 	for switch in SWITCHES:
 		lines.append("  %-24s %s" % [switch[0], switch[1]])
 	return "\n".join(lines)
