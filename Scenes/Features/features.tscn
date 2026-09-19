@@ -25,12 +25,5 @@ layout_mode = 2
 [node name="FeatureTree" parent="." instance=ExtResource("1_4lkpf")]
 layout_mode = 2
 
-[connection signal="pressed" from="PanelContainer/Buttons/AddGroup" to="." method="_on_add_group_pressed"]
-[connection signal="pressed" from="PanelContainer/Buttons/AddFeature" to="." method="_on_add_feature_pressed"]
-[connection signal="pressed" from="PanelContainer/Buttons/Undo" to="." method="_on_undo_pressed"]
-[connection signal="pressed" from="PanelContainer/Buttons/Redo" to="." method="_on_redo_pressed"]
-[connection signal="pressed" from="PanelContainer/Buttons/Duplicate" to="." method="_on_duplicate_pressed"]
-[connection signal="pressed" from="PanelContainer/Buttons/Collapse" to="." method="_on_collapse_pressed"]
-[connection signal="pressed" from="PanelContainer/Buttons/Expand" to="." method="_on_expand_pressed"]
 [connection signal="feature_selected" from="FeatureTree" to="." method="_on_feature_tree_feature_selected"]
 [connection signal="program_changed" from="FeatureTree" to="." method="_on_feature_tree_program_changed"]
