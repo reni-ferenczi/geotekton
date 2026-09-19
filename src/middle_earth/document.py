@@ -29,7 +29,7 @@ EXTENSION = ".middle-earth"
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
-CURRENT_VERSION = "0.23.0"
+CURRENT_VERSION = "0.26.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.36, 0.60, 0.33, 1.0]
@@ -179,11 +179,22 @@ class Feature:
     def crust(self) -> dict | None:
         """What a crust is built from since 0.23.0, or None for anything else.
 
-        That is the `half` and `ridge` uuids, the `edge` vertex count of the
-        cut, and `lines` when the feature holds the isochrons and flowlines
-        rather than the bands between them.
+        That is the `half` and `ridge` uuids and the `edge` vertex count of the
+        cut. Up to 0.23.0 a second crust leaf carried `lines` and held the
+        isochrons and the flowlines; since 0.24.0 the crust draws them itself.
         """
         return self.data.get("crust")
+
+    @property
+    def time_step(self) -> float:
+        """How far apart in time a hotspot or a crust is sampled, since 0.25.0.
+
+        In My, and 0 for the timeline's Skip, which is what both followed
+        before and what a leaf without the key still does. Read only: the
+        application rebuilds the track or the bands from it, so it is set
+        through the automation port rather than in the file.
+        """
+        return float(self.data.get("time_step", 0.0))
 
     @property
     def keyframes(self) -> list[Keyframe]:

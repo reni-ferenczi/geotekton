@@ -262,21 +262,25 @@ func test_a_circle_neither_follows_nor_carries() -> void:
 	assert_true(circle.couplings.is_empty() and child.couplings.is_empty(), "nothing was coupled")
 
 
-# A span a file gives a circle still resolves. One that follows a circle
-# resolves too, and the panel marks it as broken with the reason.
-func test_a_coupling_a_file_gives_a_circle_still_resolves() -> void:
+# A hotspot is refused the same way: it sits still in the mantle while its plate
+# drifts over it, which is not a coupling, and it carries nothing either.
+func test_a_hotspot_neither_follows_nor_carries() -> void:
 	var document := _document()
 	var parent := _named(document, "Mountain")
 	var child := _named(document, "Child")
-	assert_eq(document.couple(child, parent, 500.0), "")
-	var before := _world(document, child, 300.0)
-	parent.feature_type = FeatureType.CIRCLE
-	child.feature_type = FeatureType.CIRCLE
+	# A hotspot holds the polylines Hotspot.rebuild() gives it, its mark and its
+	# track, so one holding a polygon would read back as a plain polygon.
+	var hotspot := Feature.create_feature("Hawaii")
+	hotspot.add_ring(PackedVector2Array([Vector2(0, 0), Vector2(1, 0), Vector2(0, 1)]),
+		Feature.GeometryKind.POLYLINE)
+	hotspot.feature_type = FeatureType.HOTSPOT
+	document.root.children.append(hotspot)
+	document.record()
 
-	_assert_basis(_world(document, child, 300.0), before, "the child still follows")
-	var nodes := Coupling.index(document.root)
-	assert_eq(Coupling.parent_problem(nodes, child, child.couplings[0]),
-		"A circle carries nothing.")
+	assert_eq(document.couple(hotspot, parent, 500.0), "A hotspot follows its plate.")
+	assert_eq(document.couple(child, hotspot, 500.0), "A hotspot carries nothing.")
+	assert_true(hotspot.couplings.is_empty() and child.couplings.is_empty(),
+		"nothing was coupled")
 
 
 ### A coupling edit is a cut in time

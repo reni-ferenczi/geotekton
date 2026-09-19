@@ -259,23 +259,32 @@ shown in a dialog, and `set_property` refuses `polar` on it.
 The hotspot scenario draws a plate at 100 Ma, keys it at 30 Ma and drags it
 east at the present, then draws a second plate that never moves. A new feature
 typed Hotspot, with the Move tool armed, holds nothing, arms the Draw tool, and
-the status bar tells the user to click. It shows the Plate row, offering both
-plates and the pointer, without the keyframe, coupling and Area rows. One click
+the status bar tells the user to click. It shows the Plate and Step (My) rows,
+offering both plates and the pointer, without the keyframe, coupling and Area
+rows. One click
 on the moved plate is one undo version that places the hotspot there and makes
 that plate its plate, Draw stays armed, and the mark is a ring a degree around
 the click whose pixel is probed for the type's color. At a Skip of 50 the
 100 My track has three samples; `set_skip` to 20 gives six and to 10 twice
 as many steps, eleven samples, the oldest as far from the hotspot as the plate
 moved. A color set through the panel is what a pixel on the track shows while
-the hotspot is still selected. At 10 Ma the track has ten vertices, and at
+the hotspot is still selected. A Step (My) of 20 set through `set_property` is
+one undo version and leaves six samples whatever the Skip is set to after it,
+on the globe as well as in the panel; undo puts the step back to 0 and the
+count follows the Skip again. At 10 Ma the track has ten vertices, and at
 100 Ma there is no track. A second click, off both plates, is one more version
 that moves the hotspot and keeps its plate, and Escape leaves Draw. The Vertex,
 Rotate and Pole tools are refused on it, a Move drag leaves it where it is and
 Paste Shape says why it will not. The Plate row's pointer arms the pick, a
 click on nothing leaves it on, and a click on the second plate makes that the
 plate in one version and ends the pick; Escape ends it too. Taking the plate
-away is one version, undo brings it back, and `set_property` no longer takes
-`track_step`. The first plate cannot become a hotspot.
+away is one version, undo brings it back, and `set_property` still refuses the
+`track_step` that 0.22.0 took away. The first plate cannot become a hotspot.
+Last it checks that the hotspot takes no part in coupling: the panel reports no
+coupling at all, `coupling` is refused with "A hotspot follows its plate.", a
+polygon added beside it is not offered the hotspot in its picker, and a pick
+click on the mark says "A hotspot carries nothing." and leaves the pointer
+armed.
 
 The projection scenario asks each of the six views — the globe and the five
 map projections — where the red triangle is, probes the pixel there, reads the
@@ -409,18 +418,22 @@ leave the one craton.
 
 `run_crust_session` draws a square at 100 Ma and picks the Split tool with
 Ridge off, where the Crust switch is shown but greyed out and refuses to be
-turned on. With both on, one cut leaves seven features in one undo version,
-the two halves, the ridge and each half's crust lines and crust, and the status
-bar names all seven. Each crust and lines feature is a topology from the split
-to the present whose panel line reads `Crust of Plate, 0 chunks` or
-`Crust lines of Plate, 0 chunks`, with no area, no section table and no Closed
+turned on. With both on, one cut leaves five features in one undo version,
+the two halves, the ridge and one crust per half, and the status bar names all
+five. Each crust is a topology from the split to the present whose panel line
+reads `Crust of Plate, 0 chunks`, with no area, no section table and no Closed
 switch. Both halves are keyed at the split and dragged apart at the present.
 The skip is then set to 25 My; the application reads the user's configuration,
-so the scenario puts the old skip back at the end. Each crust has four chunks
-and an area, and its lines feature five isochrons and three flowlines. A pixel
-between the 75 and 50 Ma isochrons is the crust's steel blue and a pixel on the
-75 Ma isochron is the lines' light steel blue, with the pointer moved away so
-no hover highlight is read. A skip of 50 My leaves two chunks. Last, a topology clicked together from two
+so the scenario puts the old skip back at the end. Each crust then has four
+chunks, an area, and four band rings of six vertices, two isochrons each. A pixel
+inside each band reads the age ramp: the band against the continent is the
+crust's steel blue, the one against the ridge is that lightened by 55 percent of
+the way to white, and each band between is lighter than the one before it. A
+pixel on the 75 Ma isochron is its lines' light steel blue. The pointer is moved
+away for all of them, so no hover highlight is read. A skip of 50 My leaves two chunks. A Step (My) of
+25 on the first crust, which is one undo version, brings its four bands back
+and holds them through a skip of 10, while the other half, still at 0, follows
+that skip to ten bands; undo puts the first one back on the skip. Last, a topology clicked together from two
 lines fills nothing until the Closed switch is set through `set_property`,
 which is one undo version, gives one ring of four, shows the Area row, which
 the open topology did not have, and fills the square between the lines in the Topology
@@ -682,10 +695,10 @@ a round trip is also a wait for the screen to catch up.
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` and `row_icon`, the file stem of the picture the row is showing, and for a feature `swatch`, the color its row's swatch shows |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |
 | `get_selected`                       | `feature` with `pnid`, `uuid`, `title`, `enabled`, `feature_type`, `time_range`, `color`, `rotation`, `keyframes`, `couplings`, `geometry_kind`, `rings`, `world_rings`, the derived `triangles` and, on a topology, its `sections` with what each one resolved to |
-| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers, the `icon` the feature carries and the `icons` the selector offers, whether the colour picker is open (`color_picker_open`) and the `color_presets` it offers, the `time_range` in the file's order, the `time_from` and `time_to` the two boxes show with their `tooltips`, the `area_km2` the feature's polygon encloses (0 for anything else) and, while the Area row is shown, its two line text as `area`, and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed, and `coupling`: the `caption` of the row with the picker, what it is `coupled_to` now, the `parents` the picker offers and the `parent` it shows, whether `couple`, `decouple`, `remove` and the `pick` pointer can be pressed, whether the pointer is `picking`, and the `spans` listed with whether each is `broken`, and `hidden`, true on a Circle, whose panel shows no coupling rows but still lists the spans a file gave it. A Circle adds `circle`: whether Axis circles is ticked (`polar`), the `axis`, `radius` and `circle_segments` the rows show and whether `pick_axis` can be pressed. A topology, or a feature typed Topology, adds `closed`, whether its Closed switch is on, and `picking_sections`, whether its section Pick toggle is pressed. A hotspot adds `hotspot`: the `position`, the `plate` and the `plates` offered, the number of track `samples` at the current time and Skip, whether the Plate pointer can be pressed (`pick`) and whether it is on (`picking`); `position` is null until the Draw tool places the hotspot. On the root, the `placeholder` sentence and the `planet_area_km2`. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100, `palette`, `ramp_colors` and `ramp_span`), the `style_label` the Style selector shows and its `tooltips` entry `style`, and the `styles` and `palettes` its selectors offer |
-| `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `icon` (a glyph id or empty for none), `color`, `opacity` (0 to 100), `enabled`, `time_from` (the older end of the time range) and `time_to` (the younger one), on a Circle `polar` (the Axis circles box), `axis` (`[lat, lon]`), `radius` and `circle_segments`, on a hotspot `plate` (a title, or `None`), on a topology `closed`, and on a group `style`, `palette`, `ramp_colors` (a list of two colours or more) and `ramp_span`, where `color` and `opacity` are the style's |
+| `get_properties`                     | `properties`, what the Properties panel is showing and how wide it is, read off its widgets, with the `types` the type selector offers, the `icon` the feature carries and the `icons` the selector offers, whether the colour picker is open (`color_picker_open`) and the `color_presets` it offers, the `time_range` in the file's order, the `time_from` and `time_to` the two boxes show with their `tooltips`, the `area_km2` the feature's polygon encloses (0 for anything else) and, while the Area row is shown, its two line text as `area`, and, on a feature with motion, `keyframes`: the `count` and whether `key` and `delete` can be pressed, and `coupling`: the `caption` of the row with the picker, what it is `coupled_to` now, the `parents` the picker offers and the `parent` it shows, whether `couple`, `decouple`, `remove` and the `pick` pointer can be pressed, whether the pointer is `picking`, and the `spans` listed with whether each is `broken`, and `hidden`, true on a Circle, whose panel shows no coupling rows. A Hotspot has no keyframe row either, so nothing is reported under `coupling` for one at all. A Circle adds `circle`: whether Axis circles is ticked (`polar`), the `axis`, `radius` and `circle_segments` the rows show and whether `pick_axis` can be pressed. A topology, or a feature typed Topology, adds `closed`, whether its Closed switch is on, and `picking_sections`, whether its section Pick toggle is pressed. A hotspot adds `hotspot`: the `position`, the `plate` and the `plates` offered, the number of track `samples` at the current time and step, the `time_step` the Step row shows, whether the Plate pointer can be pressed (`pick`) and whether it is on (`picking`); `position` is null until the Draw tool places the hotspot. A crust adds `crust_chunks`, how many bands it has, and `crust_step`, the same Step row. On the root, the `placeholder` sentence and the `planet_area_km2`. On a group, its `style` (`mode`, `color`, `opacity` 0 to 100, `palette`, `ramp_colors` and `ramp_span`), the `style_label` the Style selector shows and its `tooltips` entry `style`, and the `styles` and `palettes` its selectors offer |
+| `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `icon` (a glyph id or empty for none), `color`, `opacity` (0 to 100), `enabled`, `time_from` (the older end of the time range) and `time_to` (the younger one), on a Circle `polar` (the Axis circles box), `axis` (`[lat, lon]`), `radius` and `circle_segments`, on a hotspot `plate` (a title, or `None`), on a hotspot or a crust `time_step` (0 to 1000 My, 0 for the timeline's Skip), on a topology `closed`, and on a group `style`, `palette`, `ramp_colors` (a list of two colours or more) and `ramp_span`, where `color` and `opacity` are the style's |
 | `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
-| `coupling {button, parent, index, pick}` | presses `Couple` with the `parent` picked by title, `Decouple`, both at the current time, or `Remove` on the span at `index` in the panel's list. `pick: true` arms the pointer instead, so the next `click` on the planet names the parent, and `pick: false` puts it away. Refused on a feature typed Circle with "A circle follows nothing." |
+| `coupling {button, parent, index, pick}` | presses `Couple` with the `parent` picked by title, `Decouple`, both at the current time, or `Remove` on the span at `index` in the panel's list. `pick: true` arms the pointer instead, so the next `click` on the planet names the parent, and `pick: false` puts it away. Refused on a feature typed Circle with "A circle follows nothing." and on one typed Hotspot with "A hotspot follows its plate." |
 | `sections {button, index}`            | selects a section row of a topology and presses `Reverse` or `Remove` in the panel, or flips the `Pick` toggle, which arms or ends the Topology tool; refused while the panel does not show the button |
 | `get_tool`                           | `tool` (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `topology` or `split`), the node names of what the tool strip holds (`tool_strip`), the Pole tool's `pole` as `[lat, lon]` or null, whether that click is picking the axis of a circle (`picking_axis`), whether the Move tool drags the selection (`move_enabled`), how many vertices the shape being drawn holds (`drawing_vertices`), what the Draw tool draws (`drawing`: `"circle"` on a feature typed Circle, `"hotspot"` on a hotspot, otherwise the kind it commits, `polygon`, `polyline` or `multipoint`; null in any other tool), which of the two drawing tools the selected feature's type offers (`draw_enabled`, `topology_enabled`), the Vertex tool's `selected_vertex`, `split_from`, `snapping` (Edit > Snap to vertices), `can_split` (whether its `S` would split now), whether the Split tool is offered (`split_enabled`), its `split_points`, its `ridge` switch and whether that switch is shown (`ridge_visible`), its `crust` switch, whether that one is shown (`crust_visible`) and whether it can be pressed (`crust_enabled`), its `children` switch and whether that one is shown (`children_visible`), the Measure tool's `measure_points`, the `measure_parallel` flag of each of them, saying whether the segment ending there follows a parallel, its `measure_label` (text, visibility and window position), its `parallel` switch and whether that switch is shown (`parallel_visible`), and, for a circle being drawn, its `circle_points` (empty otherwise), the `segments` count, whether that box is shown (`segments_visible`) and the `circle` the clicks describe |
 | `set_tool {tool, segments, ridge, crust, children, parallel}` | picks the tool (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `topology` or `split`; any other name is refused as an unknown tool), the segment count, the Split tool's Ridge, Crust and Children switches, Crust refused while Ridge is off, and the Measure tool's Parallel switch, refusing what the toolbar itself would not allow. `topology` has no button: it is refused unless a feature typed Topology is selected, and arms the tool the way the section Pick toggle does. Snapping is switched with `menu item=snap_to_vertices`. What the Draw tool produces, a circle included, comes from the feature's type, which `set_property` sets |

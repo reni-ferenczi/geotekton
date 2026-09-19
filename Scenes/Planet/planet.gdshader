@@ -73,22 +73,28 @@ const float LINE_FEATHER = 0.2;
 const vec3 CHILD_COLOR = vec3(1.0, 0.214041, 0.0);
 
 // Per feature state at the current time (filter_nearest for exact texel reads)
-// Layout: width = feature count, height = 5
+// Layout: width = one column per drawn feature, height = 6
 //   Row 0: (m00, m10, m20, hovered)  -- the first column of the rotation
 //   Row 1: (m01, m11, m21, visible)  -- the second
 //   Row 2: (m02, m12, m22, selected) -- the third
 //   Row 3: (r, g, b, a)              -- the color, linear, alpha the opacity
 //   Row 4: (related, line_scale, 0, 0)
+//   Row 5: (r, g, b, a)              -- the color of its lines, likewise
 // Keeping the rotation and the color here rather than beside the vertices is
 // what makes a step of an animation or a change of color cheap: only these
-// five texels per feature are re-uploaded, whatever the triangle count is.
+// six texels per feature are re-uploaded, whatever the triangle count is.
 // `visible` is 0 while the feature is outside its time range, `hovered` is 1
 // while the pointer rests on it, `selected` is 1 on the feature whose
 // segments get a white halo, and `related` is 1 on a child of the
 // selected feature, whose lines and markers are drawn orange. A related
 // polygon keeps its fill; the outline overlay traces it instead. `line_scale`
 // is what the feature's segments are drawn at against geometry_line_width,
-// halo and feather included: Feature.line_scale().
+// halo and feather included: Feature.line_scale(). The line color is the
+// color for everything but a crust, whose bands are filled in its color and
+// whose isochrons and flowlines are drawn in the line color over them:
+// Feature.line_color(). A crust also takes a column per band, each filled in
+// what the age ramp gives the crust in it, which is why this is a column
+// rather than a feature as far as the shader is concerned.
 uniform sampler2D feature_data : filter_nearest, repeat_disable;
 
 // Outline overlay data texture (filter_nearest for exact texel reads)
@@ -311,8 +317,8 @@ void fragment() {
 	// Precompute sphere position for the geometry and the outline
 	vec3 p = latlon_to_unit(vec2(lat, lon));
 
-	// Feature geometry. Every primitive of one feature follows the last, so the
-	// rotation and the color are fetched once per feature rather than once per
+	// Feature geometry. Every primitive of one column follows the last, so the
+	// rotation and the color are fetched once per column rather than once per
 	// primitive.
 	int loaded_feature = -1;
 	mat3 rotation = mat3(1.0);
@@ -322,6 +328,7 @@ void fragment() {
 	bool feature_related = false;
 	float line_scale = 1.0;
 	vec4 feature_color = vec4(1.0);
+	vec4 feature_line_color = vec4(1.0);
 	// The selected feature's segments are laid down after the loop, halo first
 	// and the line over it, from the distance to the nearest of them. Drawing
 	// each segment's halo in turn would paint over the line of the one before
@@ -351,6 +358,7 @@ void fragment() {
 			vec4 f4 = texelFetch(feature_data, ivec2(feature, 4), 0);
 			feature_related = f4.r > 0.5;
 			line_scale = f4.g;
+			feature_line_color = texelFetch(feature_data, ivec2(feature, 5), 0);
 		}
 		if (!feature_visible) {
 			continue;
@@ -360,8 +368,10 @@ void fragment() {
 		int kind = int(row1.w + 0.5);
 
 		// How much of this fragment the primitive covers, and in what color.
+		// Everything but a triangle is a line or a marker and takes the
+		// feature's line color, which is its own color unless it is a crust.
 		float coverage = 0.0;
-		vec4 paint = feature_color;
+		vec4 paint = kind == 0 ? feature_color : feature_line_color;
 
 		if (kind == 0) {
 			vec3 b = rotation * latlon_to_unit(row0.zw);
@@ -377,7 +387,7 @@ void fragment() {
 				: circle_distance(a, row0.z, p);
 			if (feature_selected) {
 				selected_line_dist = min(selected_line_dist, d / line_scale);
-				selected_paint = feature_color;
+				selected_paint = paint;
 				selected_hovered = hovered;
 				continue;
 			}

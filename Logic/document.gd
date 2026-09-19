@@ -278,21 +278,48 @@ func set_circle(feature: Feature, axis: Vector2, radius: float, segments: int,
 	return ""
 
 
-# Give a hotspot another place or plate and rebuild its rings, in one undo
-# version. The place is in the world frame, where the hotspot is fixed, or
+# Give a hotspot another place, plate or time step and rebuild its rings, in one
+# undo version. The place is in the world frame, where the hotspot is fixed, or
 # Feature.NO_HOTSPOT, so the plate can be picked before the hotspot is placed.
-func set_hotspot(feature: Feature, hotspot: Vector2, plate_uuid: String) -> String:
+func set_hotspot(feature: Feature, hotspot: Vector2, plate_uuid: String,
+		time_step: float) -> String:
 	if feature == null or not feature.is_hotspot():
-		return "Only a hotspot has a place and a plate."
+		return "Only a hotspot has a place, a plate and a time step."
 	var problem := "" if hotspot == Feature.NO_HOTSPOT else check_coordinates(hotspot)
 	if problem.is_empty():
 		problem = Hotspot.plate_problem(root, feature, plate_uuid)
+	if problem.is_empty():
+		problem = check_time_step(time_step)
 	if not problem.is_empty():
 		return problem
 	feature.hotspot = hotspot
 	feature.plate_uuid = plate_uuid
+	feature.time_step = time_step
 	Hotspot.rebuild(root, feature, current_time, Config.get_skip_increment())
 	record()
+	return ""
+
+
+# Give a crust its own time step and rebuild its bands, in one undo version. A
+# crust is generated, but the step is a setting on it, like the step of a
+# hotspot, so this is the one thing about a crust anybody edits.
+func set_crust_step(feature: Feature, time_step: float) -> String:
+	if feature == null or not feature.is_crust():
+		return "Only a crust has a time step of its own."
+	var problem := check_time_step(time_step)
+	if not problem.is_empty():
+		return problem
+	feature.time_step = time_step
+	Crust.rebuild(root, feature, current_time, Config.get_skip_increment())
+	record()
+	return ""
+
+
+# Why that time step cannot be, or an empty string when it can. 0 is the
+# timeline's Skip; anything above it is the feature's own step.
+func check_time_step(time_step: float) -> String:
+	if time_step < 0.0 or time_step > Hotspot.MAX_STEP:
+		return "The time step is %s My, outside 0 to %s My." % [time_step, Hotspot.MAX_STEP]
 	return ""
 
 
@@ -597,29 +624,23 @@ func _add_ridge(parent: Feature, first: Feature, second: Feature, part: int,
 	return ridge
 
 
-# The sea floor a ridge opens: for each half, a feature holding the isochrons
-# and flowlines and a crust of bands between them, inserted after the ridge with
-# its time range. The lines come first, since the first feature of a group is
-# drawn on top and the bands would hide them. Their rings follow the time and
-# the timeline's Skip, so Crust.rebuild_all() gives them their rings. Part of the
-# split's own undo version.
+# The sea floor a ridge opens: one crust per half, inserted after the ridge with
+# its time range, holding the bands between the isochrons and the isochrons and
+# flowlines drawn over them. Its rings follow the time and the timeline's Skip,
+# so Crust.rebuild_all() gives them to it. Part of the split's own undo version.
 func _add_crust(parent: Feature, ridge: Feature, halves: Array, edge_size: int) -> void:
 	var at := parent.find_child(ridge)
 	for half: Feature in halves:
-		for lines in [true, false]:
-			var title := "%s crust%s" % [half.title, " lines" if lines else ""]
-			var crust := Feature.create_feature(Feature.clamp_title(title),
-				FeatureType.color(FeatureType.CRUST_LINES if lines else FeatureType.CRUST),
-				ridge.time_range)
-			crust.feature_type = "topology"
-			crust.geometry_kind = Feature.GeometryKind.TOPOLOGY
-			crust.closed = not lines
-			crust.crust_half = half.uuid
-			crust.crust_ridge = ridge.uuid
-			crust.crust_edge = edge_size
-			crust.crust_lines = lines
-			at += 1
-			parent.children.insert(at, crust)
+		var crust := Feature.create_feature(Feature.clamp_title("%s crust" % half.title),
+			FeatureType.color(FeatureType.CRUST), ridge.time_range)
+		crust.feature_type = "topology"
+		crust.geometry_kind = Feature.GeometryKind.TOPOLOGY
+		crust.closed = true
+		crust.crust_half = half.uuid
+		crust.crust_ridge = ridge.uuid
+		crust.crust_edge = edge_size
+		at += 1
+		parent.children.insert(at, crust)
 
 
 ### Topologies
@@ -784,6 +805,8 @@ func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 		return "Only a feature can follow another feature."
 	if child.feature_type == FeatureType.CIRCLE:
 		return Coupling.CIRCLE_CHILD_PROBLEM
+	if child.feature_type == FeatureType.HOTSPOT:
+		return Coupling.HOTSPOT_CHILD_PROBLEM
 	if child.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return "%s is a topology and has no motion of its own to couple." % child.title
 	if parent == null:
@@ -794,6 +817,8 @@ func coupling_problem(child: Feature, parent: Feature, time: float) -> String:
 		return "%s is a group; a feature follows another feature." % parent.title
 	if parent.feature_type == FeatureType.CIRCLE:
 		return Coupling.CIRCLE_PARENT_PROBLEM
+	if parent.feature_type == FeatureType.HOTSPOT:
+		return Coupling.HOTSPOT_PARENT_PROBLEM
 	if parent.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 		return "%s is a topology and has no motion of its own to follow." % parent.title
 	var nodes := Coupling.index(root)
@@ -1058,7 +1083,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.23.0"):
+	if not _is_older_than(version, "0.26.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -1103,8 +1128,62 @@ static func migrate(data: Dictionary) -> Dictionary:
 		_to_0_22_0(data.get("features", {}))
 	if _is_older_than(version, "0.23.0"):
 		_to_0_23_0(data.get("features", {}))
-	data["version"] = "0.23.0"
+	if _is_older_than(version, "0.24.0"):
+		_to_0_24_0(data.get("features", {}))
+	# 0.25.0 gave a hotspot and a crust a time step of their own. A leaf without
+	# the key carries 0, which follows the timeline's Skip, and that is what both
+	# did before, so only the version moves.
+	if _is_older_than(version, "0.26.0"):
+		var dropped := _to_0_26_0(data.get("features", {}))
+		if dropped > 0:
+			push_warning(("%d coupling span%s on a circle or a hotspot %s dropped: "
+				+ "neither takes part in coupling.") % [dropped,
+				"" if dropped == 1 else "s", "was" if dropped == 1 else "were"])
+	data["version"] = "0.26.0"
 	return data
+
+
+# 0.26.0 took circles and hotspots out of coupling altogether, so every span
+# whose child or parent is one goes. The features stay and so do their
+# keyframes, so a child left without a span stops following but does not move.
+# Answers with how many spans were dropped. See Docs/Persistence.md.
+static func _to_0_26_0(features: Variant) -> int:
+	var leaves: Array = []
+	_leaves_of(features, leaves)
+	var apart := {}
+	for leaf: Dictionary in leaves:
+		var uuid := str(leaf.get("uuid", ""))
+		if not uuid.is_empty() and str(leaf.get("feature_type", "")) in \
+				[FeatureType.CIRCLE, FeatureType.HOTSPOT]:
+			apart[uuid] = true
+	var dropped := 0
+	for leaf: Dictionary in leaves:
+		var spans: Variant = leaf.get("couplings")
+		if spans is not Array or spans.is_empty():
+			continue
+		var kept: Array = []
+		if not apart.has(str(leaf.get("uuid", ""))):
+			kept = spans.filter(func(span: Variant) -> bool:
+				return span is not Dictionary or not (apart.has(str(span.get("parent", "")))
+					or apart.has(str(span.get("parent_b", "")))))
+		dropped += spans.size() - kept.size()
+		leaf["couplings"] = kept
+	return dropped
+
+
+# 0.24.0 put the isochrons and the flowlines into the crust feature itself, so
+# the leaf that held them alone goes. A crust leaf carrying "lines": true is
+# dropped; the crust beside it is already what it should be. See
+# Docs/Persistence.md.
+static func _to_0_24_0(node: Variant) -> void:
+	if node is not Dictionary or node.get("children") is not Array:
+		return
+	var children: Array = node["children"]
+	for child in children:
+		_to_0_24_0(child)
+	children.assign(children.filter(func(child: Variant) -> bool:
+		return child is not Dictionary or child.get("crust") is not Dictionary \
+			or not bool((child["crust"] as Dictionary).get("lines", false))))
 
 
 # 0.23.0 made the ridge a midway topology and the crust bands between isochrons.
