@@ -1200,10 +1200,13 @@ func _feature_colors() -> Dictionary:
 	return colors
 
 
+# A glyph is named after its id; anything else is a file, named after its stem.
 func _row_icon(node: Feature) -> String:
 	var item: TreeItem = app.features.feature_tree.items.get(node.pnid)
 	var icon := item.get_icon(0) if item != null else null
-	return icon.resource_path.get_file().get_basename() if icon != null else ""
+	if icon == null:
+		return ""
+	return icon.resource_name if not icon.resource_name.is_empty() else icon.resource_path.get_file().get_basename()
 
 
 # The colour a feature row's swatch shows, read from the swatch's own picture.

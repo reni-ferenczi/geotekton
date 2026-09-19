@@ -3,16 +3,18 @@ class_name FeatureIcon
 # The built in glyphs a feature's tree row can carry, so that a mountain range
 # and a coastline are told apart at a glance. See Docs/Properties.md.
 #
-# What a glyph has to be: an SVG with width="32" height="32" on its root, so it
-# rasterizes to 32 by 32 like the group and rule icons beside it, drawn in white
-# strokes on transparent so the tree can tint it. The viewBox is free. The file
-# goes into Assets/Icons/Features with the default import (svg/scale=1.0) and
-# its stem is named in CATALOG below.
+# A glyph is one of the MiddleEarth icons, a PNG under DIR at whatever size it
+# was painted. It is shrunk to SIZE on first use, the size of the group and
+# rule icons beside it, so the tree and the selector draw it as is. FILES names
+# the picture behind each id in CATALOG.
 #
-# A feature stores the id, which is also the file stem and what the file holds.
-# Nothing else in the program reads it: the icon is for whoever is looking.
+# A feature stores the id. Nothing else in the program reads it: the icon is
+# for whoever is looking.
 
-const DIR := "res://Assets/Icons/Features"
+const DIR := "res://Assets/MiddleEarth Icons"
+
+# The width and height a glyph is shown at.
+const SIZE := 32
 
 # No icon at all, which is what every feature carries until one is picked. The
 # tree row then shows the rule icon, as it did before there were any.
@@ -20,22 +22,32 @@ const NONE := ""
 
 # Id to name, in the order the Icon selector lists them.
 const CATALOG := {
-	"continent": "Continent",
-	"craton": "Craton",
-	"island": "Island",
-	"ocean": "Ocean",
-	"sea": "Sea",
+	"antarctica": "Antarctica",
+	"africa": "Africa",
+	"australia": "Australia",
+	"eurasia": "Eurasia",
+	"north_america": "North America",
 	"mountain": "Mountain",
 	"volcano": "Volcano",
-	"rift": "Rift",
-	"ridge": "Ridge",
-	"trench": "Trench",
-	"plateau": "Plateau",
-	"basin": "Basin",
-	"river": "River",
-	"ice": "Ice",
-	"crater": "Crater",
-	"marker": "Marker",
+	"heart": "Heart",
+	"moon": "Moon",
+	"shield": "Shield",
+	"star": "Star",
+}
+
+# Id to the stem of its picture under DIR.
+const FILES := {
+	"antarctica": "Icons1-Features",
+	"africa": "Icons1-Africa",
+	"australia": "Icons1-Australia",
+	"eurasia": "Icons1-Eurasia",
+	"north_america": "Icons1-NorthAmerica",
+	"mountain": "Icons1-Mountain",
+	"volcano": "Icons1-Volcano",
+	"heart": "Icons1-Heart",
+	"moon": "Icons1-Moon",
+	"shield": "Icons1-Shield",
+	"star": "Icons1-Star",
 }
 
 static var _textures: Dictionary[String, Texture2D] = {}
@@ -52,5 +64,26 @@ static func texture(id: String) -> Texture2D:
 	if not CATALOG.has(id):
 		return null
 	if not _textures.has(id):
-		_textures[id] = load("%s/%s.svg" % [DIR, id]) as Texture2D
+		_textures[id] = _shrunk(id)
 	return _textures[id]
+
+
+# A picture under DIR shrunk to SIZE: done once, in software, rather than by
+# the tree and the selector each time they draw it, which would come out ragged
+# from a picture painted this much larger. It also keeps whatever is built from
+# a row's icon, such as the drag preview, at SIZE. The texture is named as the
+# caller says, which is how the automation port tells a row what it is showing.
+static func shrunk(stem: String, name: String) -> Texture2D:
+	var source := load("%s/%s.png" % [DIR, stem]) as Texture2D
+	var image := source.get_image()
+	if image.is_compressed():
+		image.decompress()
+	image.resize(SIZE, SIZE, Image.INTERPOLATE_LANCZOS)
+	var texture := ImageTexture.create_from_image(image)
+	texture.resource_name = name
+	return texture
+
+
+# A glyph, named after its id.
+static func _shrunk(id: String) -> Texture2D:
+	return shrunk(FILES[id], id)

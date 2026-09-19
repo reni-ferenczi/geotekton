@@ -86,46 +86,38 @@ does through an undo that takes the geometry off again.
 
 ## The icon
 
-A feature's tree row can carry one of sixteen built in glyphs, so that a
-mountain range, a coastline and a rift are told apart at a glance. The Icon row
-of the Properties panel lists them with their pictures, None first, and a
-feature starts with none.
+A feature's tree row can carry one of eleven built in glyphs, so that a
+mountain range and a continent are told apart at a glance. The Icon row of the
+Properties panel lists them with their pictures, None first, and a feature
+starts with none.
 
-| Id          | Name      | What it draws                          |
-| ----------- | --------- | -------------------------------------- |
-| `continent` | Continent | A landmass outline                     |
-| `craton`    | Craton    | A shield                               |
-| `island`    | Island    | A small landmass over water            |
-| `ocean`     | Ocean     | Three waves                            |
-| `sea`       | Sea       | An enclosed water body                 |
-| `mountain`  | Mountain  | Two peaks, which is also an orogeny    |
-| `volcano`   | Volcano   | A cone with a plume                    |
-| `rift`      | Rift      | Two walls pulling apart                |
-| `ridge`     | Ridge     | A ridge offset by a transform          |
-| `trench`    | Trench    | A line with subduction teeth           |
-| `plateau`   | Plateau   | A flat topped mesa                     |
-| `basin`     | Basin     | Two contours of a depression           |
-| `river`     | River     | A meander                              |
-| `ice`       | Ice       | A snowflake                            |
-| `crater`    | Crater    | A rim and a floor                      |
-| `marker`    | Marker    | A map pin, for anything else           |
+| Id              | Name          | What it shows                          |
+| --------------- | ------------- | -------------------------------------- |
+| `antarctica`    | Antarctica    | The continent, also the rule icon      |
+| `africa`        | Africa        | The continent                          |
+| `australia`     | Australia     | The continent                          |
+| `eurasia`       | Eurasia       | The continent                          |
+| `north_america` | North America | The continent                          |
+| `mountain`      | Mountain      | Peaks, which is also an orogeny        |
+| `volcano`       | Volcano       | A cone with a plume                    |
+| `heart`         | Heart         | A heart                                |
+| `moon`          | Moon          | A crescent                             |
+| `shield`        | Shield        | A heraldic shield                      |
+| `star`          | Star          | A star                                 |
 
-`Logic/feature_icon.gd` holds the catalog. Each id is the stem of an SVG under
-`Assets/Icons/Features`. Nothing else in the program reads the icon: it changes
-what the row shows and no more. A group's row says whether the group is open,
-as before, and takes no icon of its own.
+`Logic/feature_icon.gd` holds the catalog. Nothing else in the program reads
+the icon: it changes what the row shows and no more. A group's row says whether
+the group is open, as before, and takes no icon of its own.
 
-An icon is an SVG drawn at 32 by 32 pixels, the size of the group and rule
-icons beside it, in white strokes on a transparent background so the tree can
-tint it the way it tints the rule icon. To add or replace one:
+An icon is one of the MiddleEarth icons, a PNG under `Assets/MiddleEarth Icons`
+at whatever size it was painted. It is shrunk to 32 by 32 pixels, the size of
+the group and rule icons beside it, the first time it is asked for. To add or
+replace one:
 
-1. Put `width="32" height="32"` on the root `<svg>` element. The `viewBox` can
-   be anything; the built in glyphs draw on a 16 unit grid scaled up to 32.
-2. Drop the file into `Assets/Icons/Features`. The default import,
-   `svg/scale=1.0`, is the right one, and Godot imports the file on the next
-   launch.
-3. Name its stem in `FeatureIcon.CATALOG`, with the name the Icon selector
-   shows.
+1. Drop the PNG into `Assets/MiddleEarth Icons`. The default import is the
+   right one, and Godot imports the file on the next launch.
+2. Name the id in `FeatureIcon.CATALOG`, with the name the Icon selector shows,
+   and the file's stem against the id in `FeatureIcon.FILES`.
 
 A file written by hand can name an icon this version does not know. Such a
 feature keeps the name, shows the rule icon on its row, and the Icon row of the

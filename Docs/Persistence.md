@@ -224,8 +224,7 @@ A `circle` is written as a `polyline` whose last vertex repeats its first. A
 `circle` holding a `polygon` still reads as a Circle, filled, so both kinds are
 valid for the type; see [Circles](#circles) for the keys it adds.
 `icon` is the glyph the feature's tree row carries, an id from
-`Logic/feature_icon.gd` and the stem of the file under
-`Assets/Icons/Features`. It is written only when there is one, and a feature
+`Logic/feature_icon.gd`. It is written only when there is one, and a feature
 without it shows the same row icon it showed before there were any. Nothing but
 the row reads it; see [Properties](Properties.md#the-icon).
 `geometry_kind` is `"polygon"`,

@@ -13,8 +13,15 @@ const COLOR_BUTTON := 1
 const ENABLE_BUTTON := 2
 
 @onready var empty_icon := preload("res://Assets/Icons/Generated/Empty.png")
-@onready var group_icon := [preload("res://Assets/Icons/Generated/GroupDisabled.png"), preload("res://Assets/Icons/Generated/GroupEnabled.png")]
-@onready var rule_icon := [preload("res://Assets/Icons/Generated/RuleDisabled.png"), preload("res://Assets/Icons/Generated/RuleEnabled.png")]
+# The group and rule pictures, shrunk to the glyph size the way the glyphs are,
+# so that a row's icon is that size wherever it is read from: the drag preview
+# is built from it, and would otherwise come out at the size the picture was
+# painted. Each is named after its file, which is what the port reports.
+@onready var group_icon := FeatureIcon.shrunk("Icons1-Group", "Icons1-Group")
+@onready var rule_icon := FeatureIcon.shrunk("Icons1-Features", "Icons1-Features")
+
+# What a row's icon is drawn at: the size every picture above comes in.
+const ICON_WIDTH := FeatureIcon.SIZE
 
 # What a row is greyed out to while its feature is not there at the current
 # time, which is when the globe leaves it out as well.
@@ -60,7 +67,9 @@ func load_group(parent: TreeItem, group: Feature, enabled: bool):
 	item.collapsed = group.collapsed
 	item.set_metadata(0, group)
 	item.set_text(0, group.title)
-	item.set_icon(0, group_icon[int(group.enabled)])
+	item.set_icon(0, group_icon)
+	item.set_icon_max_width(0, ICON_WIDTH)
+	item.set_icon_modulate(0, Color.WHITE if group.enabled else ABSENT_COLOR)
 
 	if Application.DEBUG:
 		item.set_tooltip_text(0, "[%d]" % group.pnid)
@@ -86,11 +95,12 @@ func load_feature(parent: TreeItem, feature: Feature):
 	item.set_metadata(0, feature)
 	item.set_text(0, feature.title)
 	# The feature's own glyph when it has one, else the rule icon as before.
-	# A glyph comes in one form only, so a disabled row greys it the way an
-	# absent feature is greyed rather than showing a second picture.
+	# Each comes in one form only, so a disabled row greys it the way an absent
+	# feature is greyed rather than showing a second picture.
 	var glyph := FeatureIcon.texture(feature.icon)
-	item.set_icon(0, glyph if glyph != null else rule_icon[int(feature.enabled)])
-	item.set_icon_modulate(0, Color.WHITE if feature.enabled or glyph == null else ABSENT_COLOR)
+	item.set_icon(0, glyph if glyph != null else rule_icon)
+	item.set_icon_max_width(0, ICON_WIDTH)
+	item.set_icon_modulate(0, Color.WHITE if feature.enabled else ABSENT_COLOR)
 
 	if Application.DEBUG:
 		item.set_tooltip_text(0, "[%d]" % feature.pnid)

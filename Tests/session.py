@@ -1228,8 +1228,12 @@ def refusal(client: AutomationClient, cmd: str, **params) -> str:
     return ""
 
 
+# What a feature's row shows while it has no glyph: the stem of the rule icon.
+RULE_ICON = "Icons1-Features"
+
+
 def row_icon(client: AutomationClient, title: str) -> str:
-    """The file stem of the picture the feature's tree row is showing."""
+    """The glyph id, or the file stem of the picture, the feature's tree row is showing."""
     for feature in client.call("get_features")["features"]:
         if feature["title"] == title:
             return feature["row_icon"]
@@ -1244,7 +1248,7 @@ def run_icon_checks(client: AutomationClient, folder: Path) -> None:
     check(panel["icon"] == "", f"a feature starts with no icon: {panel['icon']}")
     check(panel["icons"][0] == "" and "mountain" in panel["icons"],
           f"the selector offers None first and the glyphs after it: {panel['icons']}")
-    check(row_icon(client, "Red Triangle") == "RuleEnabled",
+    check(row_icon(client, "Red Triangle") == RULE_ICON,
           "and its row shows the rule icon, as it did before there were any")
 
     check(refusal(client, "set_property", field="icon", value="sombrero") != "",
@@ -1269,16 +1273,16 @@ def run_icon_checks(client: AutomationClient, folder: Path) -> None:
           "and the panel shows it again")
 
     client.call("set_property", field="icon", value="")
-    check(row_icon(client, "Red Triangle") == "RuleEnabled",
+    check(row_icon(client, "Red Triangle") == RULE_ICON,
           "None puts the rule icon back")
-    for item, wanted in (("undo", "mountain"), ("redo", "RuleEnabled"), ("undo", "mountain")):
+    for item, wanted in (("undo", "mountain"), ("redo", RULE_ICON), ("undo", "mountain")):
         client.call("menu", item=item)
         got = row_icon(client, "Red Triangle")
         check(got == wanted, f"{item} gives the row {wanted}: {got}")
 
     # A group's row says whether the group is open, whatever is under it.
     client.call("select", title="Shapes")
-    check(refusal(client, "set_property", field="icon", value="ocean") != "",
+    check(refusal(client, "set_property", field="icon", value="star") != "",
           "a group has no icon")
 
 
