@@ -11,7 +11,7 @@ class_name PythonBridge
 # without rebuilding anything.
 #
 # The interpreter listens and this side connects, so the server lives in
-# src/middle_earth/bridge.py; that file describes the messages. One connection
+# src/geotekt/bridge.py; that file describes the messages. One connection
 # carries both directions: requests going out are numbered upwards from one,
 # requests coming in are numbered downwards from minus one by the interpreter,
 # and an output event carries no number at all.
@@ -24,7 +24,7 @@ class_name PythonBridge
 
 # What the interpreter is asked to run. It puts its own folder on the import
 # path, so the package does not have to be installed into the interpreter.
-const ENTRY_POINT := "res://src/middle_earth/__main__.py"
+const ENTRY_POINT := "res://src/geotekt/__main__.py"
 
 # How long the interpreter has to come up and connect before it is given up on,
 # and how often connecting is tried again in the meantime.

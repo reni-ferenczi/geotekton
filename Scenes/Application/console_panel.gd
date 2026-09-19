@@ -281,7 +281,7 @@ func complete() -> Array:
 
 # The dotted word the text ends with, which is what the interpreter completed.
 # The same pattern the interpreter uses, so both ends agree on where a word
-# begins; see WORD in src/middle_earth/bridge.py.
+# begins; see WORD in src/geotekt/bridge.py.
 static func _word(source: String) -> String:
 	var found := RegEx.create_from_string("[\\w.]*$").search(source)
 	return found.get_string() if found != null else ""

@@ -6,7 +6,7 @@ class_name FeatureType
 # from a center and a radius, or two around an axis and its antipode, and a
 # Hotspot the track it burns into a plate and a ring marking it. Once the
 # feature holds a shape, a type that does not hold that kind gives way to the
-# kind's own. Middle Earth is a world building tool and does not carry the GPGIM
+# kind's own. Geotekton is a world building tool and does not carry the GPGIM
 # over. See Docs/Properties.md.
 #
 # A type is stored by its id, which is also what the file holds. The kinds are

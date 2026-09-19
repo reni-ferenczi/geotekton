@@ -1,14 +1,14 @@
 [gd_scene load_steps=10 format=3 uid="uid://crxenmj8yvnva"]
 
-[ext_resource type="Texture2D" uid="uid://dhiuqa658v4ug" path="res://Assets/MiddleEarth Icons/Icons1-AddGroup.png" id="1_mu6rg"]
-[ext_resource type="Texture2D" uid="uid://70ve0u768gv3" path="res://Assets/MiddleEarth Icons/Icons1-Feature.png" id="2_i4d38"]
-[ext_resource type="Texture2D" uid="uid://ftqq3drpee70" path="res://Assets/MiddleEarth Icons/Icons1-Undo.png" id="3_tmb3n"]
-[ext_resource type="Texture2D" uid="uid://dh5w38fpjhjvc" path="res://Assets/MiddleEarth Icons/Icons1-Redo.png" id="4_jhuml"]
-[ext_resource type="Texture2D" uid="uid://e1qv6solmhi1" path="res://Assets/MiddleEarth Icons/Icons1-DuplicatFixed.png" id="8_h7ike"]
-[ext_resource type="Texture2D" uid="uid://d17cx8n88it48" path="res://Assets/MiddleEarth Icons/Icons1-MinusCircle.png" id="9_dqyk1"]
-[ext_resource type="Texture2D" uid="uid://dfcbbtmsi4aab" path="res://Assets/MiddleEarth Icons/Icons1-PlusCircle.png" id="10_san2g"]
-[ext_resource type="Texture2D" uid="uid://ds3ky52lhjp10" path="res://Assets/MiddleEarth Icons/Icons1-Load.png" id="11_phrkv"]
-[ext_resource type="Texture2D" uid="uid://b3jj3to88wj3b" path="res://Assets/MiddleEarth Icons/Icons1-Save.png" id="12_qnfi0"]
+[ext_resource type="Texture2D" uid="uid://dhiuqa658v4ug" path="res://Assets/Geotekton Icons/Icons1-AddGroup.png" id="1_mu6rg"]
+[ext_resource type="Texture2D" uid="uid://70ve0u768gv3" path="res://Assets/Geotekton Icons/Icons1-Feature.png" id="2_i4d38"]
+[ext_resource type="Texture2D" uid="uid://ftqq3drpee70" path="res://Assets/Geotekton Icons/Icons1-Undo.png" id="3_tmb3n"]
+[ext_resource type="Texture2D" uid="uid://dh5w38fpjhjvc" path="res://Assets/Geotekton Icons/Icons1-Redo.png" id="4_jhuml"]
+[ext_resource type="Texture2D" uid="uid://e1qv6solmhi1" path="res://Assets/Geotekton Icons/Icons1-DuplicatFixed.png" id="8_h7ike"]
+[ext_resource type="Texture2D" uid="uid://d17cx8n88it48" path="res://Assets/Geotekton Icons/Icons1-MinusCircle.png" id="9_dqyk1"]
+[ext_resource type="Texture2D" uid="uid://dfcbbtmsi4aab" path="res://Assets/Geotekton Icons/Icons1-PlusCircle.png" id="10_san2g"]
+[ext_resource type="Texture2D" uid="uid://ds3ky52lhjp10" path="res://Assets/Geotekton Icons/Icons1-Load.png" id="11_phrkv"]
+[ext_resource type="Texture2D" uid="uid://b3jj3to88wj3b" path="res://Assets/Geotekton Icons/Icons1-Save.png" id="12_qnfi0"]
 
 [node name="Buttons" type="HFlowContainer"]
 offset_right = 526.0

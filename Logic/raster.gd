@@ -31,7 +31,7 @@ static func load_from(path: String) -> Raster:
 		return result
 	var extension := path.get_extension().to_lower()
 	if not EXTENSIONS.has(extension):
-		result.error = "%s is not an image Middle Earth reads (%s)" % [
+		result.error = "%s is not an image Geotekton reads (%s)" % [
 			path.get_file(), ", ".join(EXTENSIONS)]
 		return result
 	if path.begins_with("res://"):

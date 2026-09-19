@@ -3,7 +3,7 @@ class_name FeatureIcon
 # The built in glyphs a feature's tree row can carry, so that a mountain range
 # and a coastline are told apart at a glance. See Docs/Properties.md.
 #
-# A glyph is one of the MiddleEarth icons, a PNG under DIR at whatever size it
+# A glyph is one of the Geotekton icons, a PNG under DIR at whatever size it
 # was painted. It is shrunk to SIZE on first use, the size of the group and
 # rule icons beside it, so the tree and the selector draw it as is. FILES names
 # the picture behind each id in CATALOG.
@@ -11,7 +11,7 @@ class_name FeatureIcon
 # A feature stores the id. Nothing else in the program reads it: the icon is
 # for whoever is looking.
 
-const DIR := "res://Assets/MiddleEarth Icons"
+const DIR := "res://Assets/Geotekton Icons"
 
 # The width and height a glyph is shown at.
 const SIZE := 32

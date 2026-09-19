@@ -10,8 +10,8 @@ config_version=5
 
 [application]
 
-config/name="MiddleEarth"
-config/version="0.26.0"
+config/name="Geotekton"
+config/version="0.27.0"
 run/main_scene="uid://c5ur4nn07xtr1"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"

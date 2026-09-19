@@ -9,8 +9,12 @@ extends RefCounted
 # exactly while the stack sits on the version that was last written to or read
 # from a file, so undoing back to that point makes it clean again.
 
-const APPLICATION := "middle-earth"
-const EXTENSION := ".middle-earth"
+const APPLICATION := "geotekt"
+const EXTENSION := ".geotekt"
+# What the program was called up to 0.26.0. A file saying so is still read;
+# see Docs/Persistence.md.
+const OLD_APPLICATION := "middle-earth"
+const OLD_EXTENSION := ".middle-earth"
 const UNTITLED := "Untitled"
 const MAX_UNDO_STEPS := 100
 
@@ -974,9 +978,9 @@ func load_from_file(file_path: String) -> String:
 
 	var data: Variant = json.data
 	if data is not Dictionary:
-		return "%s is not a Middle Earth file: the root is not an object" % file_path
-	if data.get("application", "") != APPLICATION:
-		return "%s is not a Middle Earth file" % file_path
+		return "%s is not a Geotekton file: the root is not an object" % file_path
+	if data.get("application", "") not in [APPLICATION, OLD_APPLICATION]:
+		return "%s is not a Geotekton file" % file_path
 
 	var migrated := migrate(data)
 	var loaded := Feature.from_json(migrated["features"])
@@ -1002,7 +1006,7 @@ func load_from_file(file_path: String) -> String:
 
 # Read a document that was converted from something else. It is loaded like any
 # other file and then cut loose from the one it was read out of: an import has
-# no `.middle-earth` file of its own yet, so it opens Untitled and dirty and
+# no `.geotekt` file of its own yet, so it opens Untitled and dirty and
 # Save asks where to put it. See Docs/Import.md.
 func load_imported(file_path: String) -> String:
 	var error := load_from_file(file_path)
@@ -1083,7 +1087,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.26.0"):
+	if not _is_older_than(version, "0.27.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -1139,7 +1143,11 @@ static func migrate(data: Dictionary) -> Dictionary:
 			push_warning(("%d coupling span%s on a circle or a hotspot %s dropped: "
 				+ "neither takes part in coupling.") % [dropped,
 				"" if dropped == 1 else "s", "was" if dropped == 1 else "were"])
-	data["version"] = "0.26.0"
+	# 0.27.0 renamed the program, so a file now says geotekt in its application
+	# field. load_from_file() accepts middle-earth as well, and the next save
+	# writes the new name; nothing else in the file changed, so only the
+	# version moves.
+	data["version"] = "0.27.0"
 	return data
 
 

@@ -3,7 +3,7 @@ class_name Cli
 # Command line switches. Godot swallows its own options, so the application's
 # switches come after a bare "--" and arrive through OS.get_cmdline_user_args():
 #
-#   MiddleEarth -- --version
+#   Geotekton -- --version
 
 # Every supported switch, as name and description. The help text is built from
 # this list, so a new switch shows up in --help by adding it here.
@@ -51,7 +51,7 @@ static func handle(args: PackedStringArray) -> int:
 
 
 static func usage_text() -> String:
-	var lines := ["MiddleEarth %s" % Application.VERSION, "", "Usage: MiddleEarth [-- OPTIONS]", "", "Options:"]
+	var lines := ["Geotekton %s" % Application.VERSION, "", "Usage: Geotekton [-- OPTIONS]", "", "Options:"]
 	for switch in SWITCHES:
 		lines.append("  %-24s %s" % [switch[0], switch[1]])
 	return "\n".join(lines)
