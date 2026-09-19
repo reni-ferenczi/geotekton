@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from middle_earth.document import Document, Feature
+from geotekt.document import Document, Feature
 
 
 class AppError(RuntimeError):

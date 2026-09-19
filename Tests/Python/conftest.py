@@ -8,8 +8,9 @@ SAMPLES = ROOT / "Tests" / "Data"
 
 
 def sample_paths() -> list[Path]:
-    """Every sample document, in a fixed order so the ids do not move."""
-    return sorted(SAMPLES.glob("*.middle-earth"))
+    """Every sample document, the one kept under the old name included, in a
+    fixed order so the ids do not move."""
+    return sorted([*SAMPLES.glob("*.geotekt"), *SAMPLES.glob("*.middle-earth")])
 
 
 ### The data an installed GPlates brings with it

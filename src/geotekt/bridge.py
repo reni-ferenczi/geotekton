@@ -35,8 +35,8 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable
 
-from middle_earth.api import App
-from middle_earth.document import Document, Feature, Keyframe
+from geotekt.api import App
+from geotekt.document import Document, Feature, Keyframe
 
 # How long to wait for the application to connect before giving up. An
 # interpreter whose application died before it could connect would otherwise
@@ -220,12 +220,12 @@ class Bridge:
         if not sources or not output:
             return {"ok": False, "error": "an import needs sources and an output path"}
         try:
-            from middle_earth.gplates import import_files, import_project
+            from geotekt.gplates import import_files, import_project
         except ImportError as error:
             return {"ok": False, "error": "the GPlates import needs pygplates: %s" % error}
 
         # An import takes seconds, so what it finds is said while it runs.
-        logger = logging.getLogger("middle_earth.gplates")
+        logger = logging.getLogger("geotekt.gplates")
         handler = logging.StreamHandler(OutputStream(self._emit, "stdout"))
         handler.setFormatter(logging.Formatter("%(message)s"))
         logger.addHandler(handler)
@@ -300,7 +300,7 @@ def main(argv: list[str]) -> int:
             print("unknown option: %s" % argument, file=sys.stderr)
             return 2
     if port <= 0:
-        print("usage: python -m middle_earth --port=PORT", file=sys.stderr)
+        print("usage: python -m geotekt --port=PORT", file=sys.stderr)
         return 2
 
     with socket.create_server(("127.0.0.1", port)) as server:

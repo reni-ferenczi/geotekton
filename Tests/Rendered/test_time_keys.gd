@@ -60,7 +60,7 @@ func test_page_keys_leave_the_time_alone_in_the_console() -> void:
 # Load the motion sample, set the skip and put the time in the middle of the
 # animation, so a skip either way stays inside it.
 func _start() -> float:
-	await load_sample("motion.middle-earth")
+	await load_sample("motion.geotekt")
 	app.timeline.skip_spin.value = SKIP
 	var middle := roundf((app.timeline.oldest() + app.timeline.youngest()) / 2.0)
 	app.document.set_time(middle)

@@ -54,7 +54,7 @@ func test_an_image_that_is_not_there_says_so() -> void:
 
 
 func test_a_format_that_is_not_an_image_says_so() -> void:
-	var raster := Raster.load_from("res://Tests/Data/craton.middle-earth")
+	var raster := Raster.load_from("res://Tests/Data/craton.geotekt")
 	assert_eq(raster.texture, null, "there is no texture")
 	assert_true(raster.error.contains("not an image"),
 		"and the reason names the formats: %s" % raster.error)

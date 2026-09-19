@@ -5,6 +5,7 @@ extends TestCase
 # free of duplicates and bounded.
 
 const SCRATCH := "user://test_config"
+const OLD_SCRATCH := "user://test_config_old"
 
 
 func _use_a_scratch_config() -> void:
@@ -62,6 +63,37 @@ func test_view_defaults_saved_before_0_16_0_keep_their_values() -> void:
 	_restore_the_real_config()
 
 
+# 0.27.0 renamed the settings directory with the program. On the first run
+# after it the preferences are still where 0.26.0 left them, so they are read
+# from there while the new directory has no file, and the first save writes
+# them to the new one. The old file is left as it was.
+func test_settings_left_under_the_old_name_are_read_until_the_first_save() -> void:
+	_use_a_scratch_config()
+	Config.old_directory_override = ProjectSettings.globalize_path(OLD_SCRATCH)
+	DirAccess.make_dir_recursive_absolute(Config.old_directory_override)
+	var old_path := Config.old_directory_override + "/config.json"
+	var old := FileAccess.open(old_path, FileAccess.WRITE)
+	old.store_string(JSON.stringify({"last_directory": "C:/Old Maps"}))
+	old.close()
+	Config.forget()
+
+	assert_eq(Config.get_last_directory(), "C:/Old Maps", "the old file is read")
+	assert_true(not FileAccess.file_exists(Config.directory_override + "/config.json"),
+		"reading writes nothing")
+	Config.set_value("splitter_left", 300)
+	assert_true(FileAccess.file_exists(Config.directory_override + "/config.json"),
+		"the first save lands in the new directory")
+	Config.forget()
+	assert_eq(Config.get_last_directory(), "C:/Old Maps", "with the value carried over")
+	assert_eq(int(Config.get_value("splitter_left", 0)), 300, "and the new one")
+	assert_eq(FileAccess.get_file_as_string(old_path), JSON.stringify({"last_directory": "C:/Old Maps"}),
+		"the old file is left as it was")
+
+	DirAccess.remove_absolute(old_path)
+	Config.old_directory_override = ""
+	_restore_the_real_config()
+
+
 func test_a_missing_key_falls_back_to_the_default() -> void:
 	_use_a_scratch_config()
 	assert_eq(Config.get_value("never_written", "fallback"), "fallback")
@@ -71,11 +103,11 @@ func test_a_missing_key_falls_back_to_the_default() -> void:
 
 func test_the_recent_list_keeps_the_newest_first_without_duplicates() -> void:
 	_use_a_scratch_config()
-	Config.add_recent_file("a.middle-earth")
-	Config.add_recent_file("b.middle-earth")
-	Config.add_recent_file("a.middle-earth")
+	Config.add_recent_file("a.geotekt")
+	Config.add_recent_file("b.geotekt")
+	Config.add_recent_file("a.geotekt")
 	Config.forget()
-	assert_eq(Config.get_recent_files(), ["a.middle-earth", "b.middle-earth"],
+	assert_eq(Config.get_recent_files(), ["a.geotekt", "b.geotekt"],
 		"the reopened file moves to the front and is listed once")
 
 	Config.clear_recent_files()

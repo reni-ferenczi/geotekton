@@ -7,8 +7,8 @@ which request each call sends and what it makes of the reply.
 
 import pytest
 
-from middle_earth.api import App, AppError
-from middle_earth.document import Document, Feature
+from geotekt.api import App, AppError
+from geotekt.document import Document, Feature
 
 
 class FakeApplication:
@@ -210,8 +210,8 @@ def test_selection_reads_and_writes(app, fake):
 
 
 def test_saving_passes_the_path_through(app, fake):
-    app.save("C:/tmp/out.middle-earth")
-    assert fake.saved_to == "C:/tmp/out.middle-earth"
+    app.save("C:/tmp/out.geotekt")
+    assert fake.saved_to == "C:/tmp/out.geotekt"
 
 
 def test_a_refusal_from_the_application_is_raised(app):

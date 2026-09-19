@@ -1,4 +1,4 @@
-"""The Middle Earth file format, read and written as the application writes it.
+"""The Geotekton file format, read and written as the application writes it.
 
 A document is kept as the JSON it was parsed from, and the classes here are
 views onto that JSON rather than a second copy of it. Reading a file and
@@ -23,13 +23,18 @@ import json
 from pathlib import Path
 from typing import Any, Iterator
 
-APPLICATION = "middle-earth"
-EXTENSION = ".middle-earth"
+APPLICATION = "geotekt"
+EXTENSION = ".geotekt"
+
+# What the program was called up to 0.26.0. A file saying so is read like any
+# other and written back unchanged, the way every other field is; only the
+# application renames it on save. See Docs/Persistence.md.
+OLD_APPLICATION = "middle-earth"
 
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
-CURRENT_VERSION = "0.26.0"
+CURRENT_VERSION = "0.27.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.36, 0.60, 0.33, 1.0]
@@ -304,7 +309,7 @@ class Feature:
 
 
 class Document:
-    """A `.middle-earth` file: the feature tree and the view settings."""
+    """A `.geotekt` file: the feature tree and the view settings."""
 
     def __init__(self, data: dict) -> None:
         self.data = data
@@ -320,9 +325,9 @@ class Document:
     def loads(cls, text: str) -> Document:
         data = json.loads(text)
         if not isinstance(data, dict):
-            raise ValueError("not a Middle Earth file: the root is not an object")
-        if data.get("application") != APPLICATION:
-            raise ValueError("not a Middle Earth file")
+            raise ValueError("not a Geotekton file: the root is not an object")
+        if data.get("application") not in (APPLICATION, OLD_APPLICATION):
+            raise ValueError("not a Geotekton file")
         return cls(data)
 
     @classmethod

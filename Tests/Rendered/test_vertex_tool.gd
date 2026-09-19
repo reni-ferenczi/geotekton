@@ -120,7 +120,7 @@ func test_the_line_width_preference_changes_what_is_drawn() -> void:
 # Returns [at one, at four], or an empty array when the setup could not be made.
 func _outline_reach(marker: bool) -> Array[int]:
 	var empty: Array[int] = []
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	var feature := _find("Red Triangle")
 	assert_true(feature != null, "the sample holds the Red Triangle")
 	if feature == null:

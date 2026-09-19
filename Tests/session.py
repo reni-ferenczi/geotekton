@@ -86,7 +86,7 @@ def run_session(client: AutomationClient) -> None:
     version = project_version()
     check(client.call("ping")["version"] == version, f"ping reports version {version}")
 
-    sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+    sample = ROOT / "Tests" / "Data" / "two_cratons.geotekt"
     client.call("load", path=str(sample))
     titles = [f["title"] for f in client.call("get_features")["features"]]
     for title in ("Red Triangle", "Blue Quad", "Green Moved"):
@@ -143,10 +143,10 @@ def run_session(client: AutomationClient) -> None:
 
 def run_document_session(client: AutomationClient, folder: Path) -> None:
     """Drive New, Open, Save, Save As and the unsaved changes prompt."""
-    first = folder / "first.middle-earth"
-    second = folder / "second.middle-earth"
-    shutil.copy(ROOT / "Tests" / "Data" / "two_cratons.middle-earth", first)
-    shutil.copy(ROOT / "Tests" / "Data" / "triangle.middle-earth", second)
+    first = folder / "first.geotekt"
+    second = folder / "second.geotekt"
+    shutil.copy(ROOT / "Tests" / "Data" / "two_cratons.geotekt", first)
+    shutil.copy(ROOT / "Tests" / "Data" / "triangle.geotekt", second)
 
     # Open asks for a path; the port answers it in place of the native dialog.
     client.call("expect_file_dialog", path=str(first))
@@ -154,7 +154,7 @@ def run_document_session(client: AutomationClient, folder: Path) -> None:
     document = client.call("get_document")["document"]
     check(document["path"] == str(first), f"Open loads the chosen file: {document['path']}")
     check(not document["dirty"], "a freshly opened document is clean")
-    check(document["title"] == "first.middle-earth — Middle Earth",
+    check(document["title"] == "first.geotekt — Geotekton",
           f"the window title names the file: {document['title']}")
     check_opens_at_the_oldest_age(client, "an opened document")
 
@@ -169,7 +169,7 @@ def run_document_session(client: AutomationClient, folder: Path) -> None:
     client.call("menu", item="new")
     dialog = client.call("get_dialog")["dialog"]
     if check(dialog is not None, "New on a dirty document asks about the changes"):
-        check("first.middle-earth" in dialog["text"], f"the prompt names the file: {dialog['text']}")
+        check("first.geotekt" in dialog["text"], f"the prompt names the file: {dialog['text']}")
         check(sorted(b.lower() for b in dialog["buttons"]) == ["cancel", "discard", "save"],
               f"the prompt offers Save, Discard and Cancel: {dialog['buttons']}")
         client.call("dialog", button="Cancel")
@@ -241,7 +241,7 @@ def run_document_session(client: AutomationClient, folder: Path) -> None:
     client.call("menu", item="new")
     document = client.call("get_document")["document"]
     check(document["path"] == "" and not document["dirty"], "New starts an empty document")
-    check(document["title"] == "Untitled — Middle Earth", f"the title says Untitled: {document['title']}")
+    check(document["title"] == "Untitled — Geotekton", f"the title says Untitled: {document['title']}")
     check_opens_at_the_oldest_age(client, "a new document")
 
     # Save on a document that has never been written asks where to put it.
@@ -445,7 +445,7 @@ def run_escape_session(client: AutomationClient) -> None:
         client.call("key", key="Escape")
 
 
-MIXED = ROOT / "Tests" / "Data" / "mixed_geometry.middle-earth"
+MIXED = ROOT / "Tests" / "Data" / "mixed_geometry.geotekt"
 
 # Inside Red Triangle in mixed_geometry, beside the centroid Tests/Data/README.md
 # lists, and off the grid, which is drawn over the features.
@@ -726,7 +726,7 @@ def run_keyframe_row_session(client: AutomationClient) -> None:
     check(refused != "", f"so pressing it again is refused: {refused}")
 
 
-COUPLING_SAMPLE = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+COUPLING_SAMPLE = ROOT / "Tests" / "Data" / "two_cratons.geotekt"
 COUPLED_AT = 500.0
 DECOUPLED_AT = 200.0
 # Inside the span, where the child is dragged on its own.
@@ -1044,7 +1044,7 @@ def run_coupling_round_trip(client: AutomationClient, folder: Path) -> None:
     """Save, load, undo and redo keep the spans."""
     client.call("select", title="Blue Quad")
     spans = client.call("get_selected")["feature"]["couplings"]
-    saved = folder / "coupled.middle-earth"
+    saved = folder / "coupled.geotekt"
     client.call("expect_file_dialog", path=str(saved))
     client.call("menu", item="save_as")
     client.call("load", path=str(saved))
@@ -1125,7 +1125,7 @@ def presets(client: AutomationClient) -> list[tuple[float, float, float]]:
 
 def run_color_picker_checks(client: AutomationClient) -> None:
     """The tree row's swatch opens the picker the Colour row carries."""
-    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.middle-earth"))
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.geotekt"))
     # Something else selected to begin with, so the swatch has to select the
     # feature before the panel can open its picker.
     client.call("select", title="Cratons")
@@ -1262,7 +1262,7 @@ def run_icon_checks(client: AutomationClient, folder: Path) -> None:
           f"and the tree row shows it: {row_icon(client, 'Red Triangle')}")
     check(undo_depth(client) == versions + 1, "in one undo step")
 
-    saved = folder / "iconed.middle-earth"
+    saved = folder / "iconed.geotekt"
     client.call("expect_file_dialog", path=str(saved))
     client.call("menu", item="save_as")
     client.call("load", path=str(saved))
@@ -2587,7 +2587,7 @@ SPLIT_POLYGON = [(-8.0, -8.0), (8.0, -8.0), (10.0, 4.0), (0.0, 10.0), (-8.0, 6.0
 
 def run_projection_session(client: AutomationClient) -> None:
     """The five map projections, the zoom and the camera, driven from the toolbar."""
-    sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+    sample = ROOT / "Tests" / "Data" / "two_cratons.geotekt"
     client.call("load", path=str(sample))
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0, zoom=1.0, show_map=False, projection=0)
 
@@ -2719,7 +2719,7 @@ def run_export_session(client: AutomationClient, folder: Path) -> None:
     """File > Export Image: the whole sheet, nothing else, the same size every time."""
     from PIL import Image
 
-    sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+    sample = ROOT / "Tests" / "Data" / "two_cratons.geotekt"
     client.call("load", path=str(sample))
     client.call("select", title=None)
 
@@ -2866,7 +2866,7 @@ def run_video_session(client: AutomationClient, folder: Path) -> None:
     """File > Export Video: one frame per age, encoded when an ffmpeg is found."""
     from PIL import Image
 
-    sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+    sample = ROOT / "Tests" / "Data" / "two_cratons.geotekt"
     client.call("load", path=str(sample))
     # Nothing in the sample moves, so the green craton is given an age to
     # appear at instead: what the frames have to show is the time moving.
@@ -2980,7 +2980,7 @@ LIGHT_PROBE_LATITUDE = 40.0
 
 def run_scene_session(client: AutomationClient, folder: Path) -> None:
     """The scene settings: saved with the document, dragged on the globe, defaulted."""
-    sample = ROOT / "Tests" / "Data" / "two_cratons.middle-earth"
+    sample = ROOT / "Tests" / "Data" / "two_cratons.geotekt"
     # The image goes beside the project, which is what makes the path in the
     # file a relative one.
     image = folder / "quarters.png"
@@ -3006,7 +3006,7 @@ def run_scene_session(client: AutomationClient, folder: Path) -> None:
     check(client.call("get_view_settings")["raster_error"] == "",
           "and the raster it names loads")
 
-    saved = folder / "scene.middle-earth"
+    saved = folder / "scene.geotekt"
     client.call("expect_file_dialog", path=str(saved))
     client.call("menu", item="save_as")
     check(not client.call("get_document")["document"]["dirty"],
@@ -3809,7 +3809,7 @@ SPLIT_PROBES = {"Old Shield": (-10.0, -16.0), "Old Shield 2": (-10.0, -2.0)}
 
 def run_split_tool_session(client: AutomationClient) -> None:
     """The Split tool cutting the sample craton along a drawn line."""
-    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.middle-earth"))
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.geotekt"))
     client.call("select", title="Old Shield")
     whole = client.call("get_selected")["feature"]
     depth = undo_depth(client)
@@ -3947,7 +3947,7 @@ def run_third_section_check(client: AutomationClient) -> None:
 
 def run_ridge_session(client: AutomationClient) -> None:
     """The Split tool leaving a ridge that stays midway between the halves."""
-    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.middle-earth"))
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.geotekt"))
     client.call("set_view", show_map=False, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
     client.call("set_time", time=RIDGE_CUT_AT)
     client.call("select", title="Old Shield")
@@ -4344,7 +4344,7 @@ def world_offset(first: list[list[float]], second: list[list[float]]) -> float:
 
 def run_copy_shape_session(client: AutomationClient) -> None:
     """Copy the shape of one feature into another and edit it there."""
-    client.call("load", path=str(ROOT / "Tests" / "Data" / "two_cratons.middle-earth"))
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "two_cratons.geotekt"))
     client.call("set_time", time=0.0)
     client.call("set_view", show_map=False, lat=QUAD_MIDDLE[0], lon=QUAD_MIDDLE[1],
                 angle=0.0, zoom=1.0)
@@ -4497,7 +4497,7 @@ def look_at(client: AutomationClient, place: tuple[float, float]) -> None:
 
 def run_rotate_session(client: AutomationClient) -> None:
     """Turning the sample craton in place and about a pole."""
-    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.middle-earth"))
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.geotekt"))
     client.call("set_time", time=0.0)
     client.call("select", title="Old Shield")
     middle = world_centroid(client)
@@ -4667,7 +4667,7 @@ def probe_at(client: AutomationClient, lat: float, lon: float) -> list[float]:
     return client.call("get_pixel", x=screen[0], y=screen[1])["color"]
 
 
-# The three features of mixed_geometry.middle-earth, one of each class the
+# The three features of mixed_geometry.geotekt, one of each class the
 # visibility switches cover, at the off-grid probe points Tests/Data/README.md lists.
 STYLE_PROBES = {"polygons": (-3.0, 3.0), "polylines": (5.0, 40.0), "points": (-29.5, -29.5)}
 
@@ -4684,7 +4684,7 @@ STYLE_FIELDS = ["draw_style", "single_color", "opacity", "palette", "ramp_colors
 
 
 def select_shapes(client: AutomationClient) -> None:
-    """Select the group of mixed_geometry.middle-earth that holds all three features."""
+    """Select the group of mixed_geometry.geotekt that holds all three features."""
     client.call("select", title="Shapes")
 
 
@@ -4716,7 +4716,7 @@ def run_styling_session(client: AutomationClient, folder: Path) -> None:
     check(not client.call("get_document")["document"]["dirty"],
           "the refused fields left the document as it was")
 
-    sample = ROOT / "Tests" / "Data" / "mixed_geometry.middle-earth"
+    sample = ROOT / "Tests" / "Data" / "mixed_geometry.geotekt"
     client.call("load", path=str(sample))
     client.call("mouse_move", x=10, y=10)
     select_shapes(client)
@@ -4868,7 +4868,7 @@ def run_styling_round_trip(client: AutomationClient, folder: Path) -> None:
     check(client.call("get_document")["document"]["dirty"],
           "picking a style offers the document for saving")
 
-    saved = folder / "styled.middle-earth"
+    saved = folder / "styled.geotekt"
     client.call("expect_file_dialog", path=str(saved))
     client.call("menu", item="save_as")
     written = json.loads(saved.read_text(encoding="utf-8"))
@@ -4901,7 +4901,7 @@ def run_styling_round_trip(client: AutomationClient, folder: Path) -> None:
 ### The kinematics scenario
 
 
-MOTION = ROOT / "Tests" / "Data" / "motion.middle-earth"
+MOTION = ROOT / "Tests" / "Data" / "motion.geotekt"
 
 # The span the graphs are drawn over during the scenario, and the time the
 # cursor is moved to inside it. The scenario states the animation range itself:
@@ -5104,7 +5104,7 @@ def run_python_session(client: AutomationClient) -> None:
 
 def run_export_from_console(client: AutomationClient) -> None:
     """app.export_image writes a picture of the map and answers its size."""
-    folder = Path(tempfile.mkdtemp(prefix="middle-earth-console-export-"))
+    folder = Path(tempfile.mkdtemp(prefix="geotekt-console-export-"))
     try:
         path = folder / "console.png"
         client.call("set_view", show_map=True, projection=0,
@@ -5307,7 +5307,7 @@ def run_import_session(client: AutomationClient, folder: Path) -> None:
     import pygplates
 
     sys.path.insert(0, str(ROOT / "src"))
-    from middle_earth.gplates import plate_color
+    from geotekt.gplates import plate_color
 
     sources = write_gplates_files(folder)
 
@@ -5387,7 +5387,7 @@ def main(argv: list[str]) -> int:
         client.connect()
         connected = True
         run_session(client)
-        folder = Path(tempfile.mkdtemp(prefix="middle-earth-session-"))
+        folder = Path(tempfile.mkdtemp(prefix="geotekt-session-"))
         try:
             run_document_session(client, folder)
         finally:
@@ -5397,13 +5397,13 @@ def main(argv: list[str]) -> int:
         run_escape_session(client)
         run_properties_session(client)
         run_keyframe_row_session(client)
-        folder = Path(tempfile.mkdtemp(prefix="middle-earth-coupling-"))
+        folder = Path(tempfile.mkdtemp(prefix="geotekt-coupling-"))
         try:
             run_coupling_session(client, folder)
         finally:
             shutil.rmtree(folder, ignore_errors=True)
         run_colour_session(client)
-        folder = Path(tempfile.mkdtemp(prefix="middle-earth-icons-"))
+        folder = Path(tempfile.mkdtemp(prefix="geotekt-icons-"))
         try:
             run_icon_checks(client, folder)
         finally:
@@ -5412,22 +5412,22 @@ def main(argv: list[str]) -> int:
         run_edit_menu_session(client)
         run_time_session(client)
         run_projection_session(client)
-        folder = Path(tempfile.mkdtemp(prefix="middle-earth-export-"))
+        folder = Path(tempfile.mkdtemp(prefix="geotekt-export-"))
         try:
             run_export_session(client, folder)
         finally:
             shutil.rmtree(folder, ignore_errors=True)
-        folder = Path(tempfile.mkdtemp(prefix="middle-earth-video-"))
+        folder = Path(tempfile.mkdtemp(prefix="geotekt-video-"))
         try:
             run_video_session(client, folder)
         finally:
             shutil.rmtree(folder, ignore_errors=True)
-        folder = Path(tempfile.mkdtemp(prefix="middle-earth-scene-"))
+        folder = Path(tempfile.mkdtemp(prefix="geotekt-scene-"))
         try:
             run_scene_session(client, folder)
         finally:
             shutil.rmtree(folder, ignore_errors=True)
-        folder = Path(tempfile.mkdtemp(prefix="middle-earth-styling-"))
+        folder = Path(tempfile.mkdtemp(prefix="geotekt-styling-"))
         try:
             run_styling_session(client, folder)
         finally:
@@ -5451,12 +5451,12 @@ def main(argv: list[str]) -> int:
         run_topology_session(client)
         run_kinematics_session(client)
         run_python_session(client)
-        folder = Path(tempfile.mkdtemp(prefix="middle-earth-import-"))
+        folder = Path(tempfile.mkdtemp(prefix="geotekt-import-"))
         try:
             run_import_session(client, folder)
         finally:
             shutil.rmtree(folder, ignore_errors=True)
-        folder = Path(tempfile.mkdtemp(prefix="middle-earth-scripts-"))
+        folder = Path(tempfile.mkdtemp(prefix="geotekt-scripts-"))
         try:
             run_script_menu_session(client, folder)
         finally:

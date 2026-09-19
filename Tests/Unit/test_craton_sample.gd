@@ -10,7 +10,7 @@ extends TestCase
 # probe checks in test_sample_files.gd while testing much less than it looks.
 # See GP-0026 and Tests/Data/README.md.
 
-const SAMPLE := "res://Tests/Data/craton.middle-earth"
+const SAMPLE := "res://Tests/Data/craton.geotekt"
 
 # How many vertices make it worth calling an outline rather than a shape.
 const ENOUGH_VERTICES := 12

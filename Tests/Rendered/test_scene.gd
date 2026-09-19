@@ -58,7 +58,7 @@ const EARTH_PROBES: Array[Vector2] = [
 # stars. The corner is read as the median of a patch rather than one pixel, so
 # a star landing on the probe does not decide the answer.
 func test_the_background_colour_reaches_the_corner_of_the_view() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await use_settings({"star_field": true})
 	assert_close(await corner_colour(), Color.BLACK, 0.02, "the default background")
 
@@ -72,7 +72,7 @@ func test_the_background_colour_reaches_the_corner_of_the_view() -> void:
 # A star is one bright pixel on a dark ground, so what is counted is how many of
 # them a patch of background holds rather than the colour at one place.
 func test_the_star_field_can_be_turned_off() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await use_settings({"star_field": true})
 	var with_stars := await count_bright_pixels()
 	await use_settings({"star_field": false})
@@ -86,7 +86,7 @@ func test_the_star_field_can_be_turned_off() -> void:
 # still stand out on a colour. On a light one the same star is a smaller step
 # up, so the margin it has to clear is smaller too.
 func test_the_stars_show_on_a_coloured_background() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await use_settings({"star_field": true})
 	for colour: Color in BACKGROUNDS:
 		await use_settings({"background_color": colour})
@@ -98,7 +98,7 @@ func test_the_stars_show_on_a_coloured_background() -> void:
 # The stars are worked out from where they are rather than drawn at random, so
 # the same view shows the same sky every time.
 func test_the_star_field_is_the_same_every_frame() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await use_settings({"star_field": true})
 	var first := await capture()
 	await frames(2)
@@ -109,7 +109,7 @@ func test_the_star_field_is_the_same_every_frame() -> void:
 # The stars give their own light, so where the planet's light comes from does
 # not change them.
 func test_the_light_does_not_reach_the_stars() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await use_settings({"star_field": true, "light_direction": ViewSettings.DEFAULT_LIGHT})
 	var facing := await count_bright_pixels()
 	await use_settings({"light_direction": Vector2(0.0, 150.0)})

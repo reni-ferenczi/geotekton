@@ -3,8 +3,8 @@ extends TestCase
 # The view settings block: how the scene around the features is drawn, saved
 # with the document rather than with the person looking at it.
 
-const SCRATCH := "user://test_view_settings.middle-earth"
-const OLD_SAMPLE := "res://Tests/Data/two_cratons.middle-earth"
+const SCRATCH := "user://test_view_settings.geotekt"
+const OLD_SAMPLE := "res://Tests/Data/two_cratons.geotekt"
 
 
 func test_a_fresh_block_is_the_scene_as_it_was_always_drawn() -> void:
@@ -129,11 +129,11 @@ func test_a_file_written_before_the_block_existed_gets_the_defaults() -> void:
 # An image beside the project, or under it, is stored relative, so the two can
 # be moved together. Anything else is stored as it stands.
 func test_an_image_beside_the_project_is_stored_relative() -> void:
-	assert_eq(Document.relative_raster("C:/maps/world/earth.png", "C:/maps/world/atlas.middle-earth"),
+	assert_eq(Document.relative_raster("C:/maps/world/earth.png", "C:/maps/world/atlas.geotekt"),
 		"earth.png", "beside the project")
-	assert_eq(Document.relative_raster("C:/maps/world/art/earth.png", "C:/maps/world/atlas.middle-earth"),
+	assert_eq(Document.relative_raster("C:/maps/world/art/earth.png", "C:/maps/world/atlas.geotekt"),
 		"art/earth.png", "in a folder under it")
-	assert_eq(Document.relative_raster("C:/pictures/earth.png", "C:/maps/world/atlas.middle-earth"),
+	assert_eq(Document.relative_raster("C:/pictures/earth.png", "C:/maps/world/atlas.geotekt"),
 		"C:/pictures/earth.png", "somewhere else entirely")
 	assert_eq(Document.relative_raster("C:/maps/world/earth.png", ""),
 		"C:/maps/world/earth.png", "a document with no path of its own")
@@ -142,9 +142,9 @@ func test_an_image_beside_the_project_is_stored_relative() -> void:
 func test_a_relative_image_is_found_beside_the_project_wherever_it_is() -> void:
 	var document := Document.new()
 	document.view.raster_path = "art/earth.png"
-	document.path = "C:/maps/world/atlas.middle-earth"
+	document.path = "C:/maps/world/atlas.geotekt"
 	assert_eq(document.resolve_raster(), "C:/maps/world/art/earth.png", "where it was saved")
-	document.path = "D:/moved/atlas.middle-earth"
+	document.path = "D:/moved/atlas.geotekt"
 	assert_eq(document.resolve_raster(), "D:/moved/art/earth.png", "and after the folder moved")
 
 
@@ -161,7 +161,7 @@ func test_saving_beside_the_image_stores_the_path_relative() -> void:
 	var document := Document.new()
 	document.view.raster_path = image
 	document.view_edited()
-	var path := folder.path_join("test_view_settings_relative.middle-earth")
+	var path := folder.path_join("test_view_settings_relative.geotekt")
 	assert_eq(document.save_to_file(path), "", "the document is written beside it")
 	assert_eq(document.view.raster_path, "test_view_settings_image.png",
 		"and the path it stored is relative to it")
@@ -173,7 +173,7 @@ func test_saving_beside_the_image_stores_the_path_relative() -> void:
 
 func test_an_absolute_image_is_left_where_it_points() -> void:
 	var document := Document.new()
-	document.path = "C:/maps/world/atlas.middle-earth"
+	document.path = "C:/maps/world/atlas.geotekt"
 	document.view.raster_path = "C:/pictures/earth.png"
 	assert_eq(document.resolve_raster(), "C:/pictures/earth.png", "an absolute path")
 	document.view.raster_path = ""
@@ -185,10 +185,10 @@ func test_an_absolute_image_is_left_where_it_points() -> void:
 # is saved.
 func test_the_built_in_earth_is_stored_and_found_as_it_is() -> void:
 	var earth := ViewSettings.BUILT_IN_EARTH
-	assert_eq(Document.relative_raster(earth, "C:/maps/world/atlas.middle-earth"), earth,
+	assert_eq(Document.relative_raster(earth, "C:/maps/world/atlas.geotekt"), earth,
 		"stored as it is")
 	var document := Document.new()
-	document.path = "C:/maps/world/atlas.middle-earth"
+	document.path = "C:/maps/world/atlas.geotekt"
 	document.view.raster_path = earth
 	assert_eq(document.resolve_raster(), earth, "and found as it is")
 

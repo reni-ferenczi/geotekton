@@ -1,14 +1,17 @@
 # Sample files
 
-Hand-made `.middle-earth` files used as fixtures by the tests. They are written in the
+Hand-made `.geotekt` files used as fixtures by the tests. They are written in the
 exact format `Document.save_to_file` produces: tab-indented JSON, keys sorted.
-See `Docs/Persistence.md` for the formats themselves.
+See `Docs/Persistence.md` for the formats themselves. All but one say
+`"application": "geotekt"`, whatever format version they are written in;
+`empty.middle-earth` keeps the name and the field the program wrote up to
+0.26.0, as the standing check that such a file still opens, so leave it as it is.
 
 Four of the eight are fixtures for the older formats. Three are still written in
 **0.1.0**, where a feature stored a flat list of
 triangles and no geometry kind. They are the fixtures for `Document.migrate()`, which
 recovers the outline those triangles covered, so leave them as they are.
-`mixed_geometry.middle-earth` is written in **0.2.0**. None of those four carries
+`mixed_geometry.geotekt` is written in **0.2.0**. None of those four carries
 a `feature_type`, so all four are fixtures for what 0.3.0 does with an older
 file: every feature in one takes its type from its geometry. None of them carries `keyframes`
 either, so all four are fixtures for 0.4.0 as well: the one `rotation` a leaf
@@ -26,15 +29,15 @@ and a feature read without a color comes out in it.
 
 The other four are written in a format recent enough to need no geometry
 migration.
-`group_styles.middle-earth` is the one written in **0.10.0**, the fixture for
+`group_styles.geotekt` is the one written in **0.10.0**, the fixture for
 group styles.
-`craton.middle-earth` is the fixture for a file the application saved rather
+`craton.geotekt` is the fixture for a file the application saved rather
 than one it had to recover: rings, a geometry kind, a feature type, a keyframe
-list and a uuid on every node. `motion.middle-earth` is the one whose keyframe
+list and a uuid on every node. `motion.geotekt` is the one whose keyframe
 list holds more than one keyframe, which is what makes it the fixture for
 motion over time.
 
-`topology.middle-earth` is the fixture for a
+`topology.geotekt` is the fixture for a
 [line topology](../../Docs/Editing.md#topologies): two multipoints on the
 equator, `West Points` in red at 40, 25 and 10 degrees west and `East Points` in
 blue at 10, 25 and 40 degrees east, with a green `Boundary` running along all of
@@ -89,7 +92,7 @@ feature's color read beside the listed points, off the lines: (-3, 3) in
 `Red Triangle`, (5, 40) on `Blue Ridge`, (-29.5, -29.5) in the western marker of
 `Green Stations` and (32.5, 47.5) in `Blue Quad`.
 
-### triangle.middle-earth (0.1.0)
+### triangle.geotekt (0.1.0)
 
 Root group `Planet` > group `Cratons` > `Red Triangle`.
 
@@ -98,7 +101,7 @@ Root group `Planet` > group `Cratons` > `Red Triangle`.
 | (-3, 0)   | Red Triangle     | red, `[1, 0, 0, 1]` |
 | (5, 40)   | nothing          | not red             |
 
-### two_cratons.middle-earth (0.1.0)
+### two_cratons.geotekt (0.1.0)
 
 **Three** features, despite the name: the same red triangle plus two more in the
 `Cratons` group. It was two when it was written and gained the third before the
@@ -141,9 +144,10 @@ written here.
 
 ### empty.middle-earth (0.1.0)
 
-Root group `Planet` only, no features. Every probe hits nothing.
+Root group `Planet` only, no features. Every probe hits nothing. The one sample
+under the old extension, with `"application": "middle-earth"`; see above.
 
-### topology.middle-earth (0.5.0)
+### topology.geotekt (0.5.0)
 
 Root group `Planet` > group `Plates` > `West Points`, `East Points`, and
 `Boundary` beside the group.
@@ -162,7 +166,7 @@ sections, off the grid, and shows the Earth: the sections are not joined
 up. The two on the markers are at vertices the boundary also runs through, and
 the marker wins there, so they say the features are still drawn under it.
 
-### craton.middle-earth (0.5.0)
+### craton.geotekt (0.5.0)
 
 Root group `Planet` > group `Cratons` > `Old Shield`, the one outline in the
 suite shaped like something real rather than a triangle or a quad on whole
@@ -206,7 +210,7 @@ that middle carries the outline off it: it lies 3.7° inside the outline before
 the turn and 4.1° outside it after, which is what `run_rotate_session` reads off
 the pixel there.
 
-### motion.middle-earth (0.7.0)
+### motion.geotekt (0.7.0)
 
 Root group `Planet` > group `Plates` > `Drifting Craton`, the fixture for
 anything about motion over time: the only sample whose feature has more than one
@@ -237,7 +241,7 @@ what the file is for is derived rather than written down here.
 The probes are at the present, where the first keyframe leaves the quad
 unrotated. At any other time it has moved.
 
-### mixed_geometry.middle-earth (0.2.0)
+### mixed_geometry.geotekt (0.2.0)
 
 Root group `Planet` > group `Shapes`, holding one feature of each geometry kind.
 They are laid out so that all of them fit the default view at once, which is what
@@ -256,9 +260,9 @@ arc really passes through (0, 40) and a probe can sit there. The rendered tests 
 read (3, 33) beside the line and (-27, -33) beside a marker, both far enough off to
 show the Earth.
 
-### group_styles.middle-earth (0.10.0)
+### group_styles.geotekt (0.10.0)
 
-The three features of `mixed_geometry.middle-earth`, at the same places, spread
+The three features of `mixed_geometry.geotekt`, at the same places, spread
 over group styles: root group `Planet` on the feature type style > group
 `Continental Crust` on a single colour, `[0.1, 0.6, 0.9, 1]`, holding
 `Red Triangle`; group `Cratons` on own colours holding `Blue Ridge`; and

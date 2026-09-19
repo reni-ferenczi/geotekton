@@ -9,7 +9,7 @@ extends RenderedCase
 
 
 func test_clicking_under_the_rows_while_renaming_keeps_the_tree() -> void:
-	await load_sample("two_cratons.middle-earth")
+	await load_sample("two_cratons.geotekt")
 
 	var feature_tree: FeatureTree = app.features.feature_tree
 	var expected := _node_count(app.document.root)

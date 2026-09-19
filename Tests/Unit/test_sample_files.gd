@@ -11,7 +11,7 @@ const DATA_DIR := "res://Tests/Data"
 #                titles: every title in the tree, in depth-first order,
 #                hits: probe point (latitude, longitude) -> expected feature title or "" }
 const EXPECTED := {
-	"triangle.middle-earth": {
+	"triangle.geotekt": {
 		"version": "0.1.0",
 		"titles": ["Planet", "Cratons", "Red Triangle"],
 		"hits": [
@@ -19,7 +19,7 @@ const EXPECTED := {
 			[Vector2(5, 40), ""],
 		],
 	},
-	"two_cratons.middle-earth": {
+	"two_cratons.geotekt": {
 		"version": "0.1.0",
 		"titles": ["Planet", "Cratons", "Red Triangle", "Blue Quad", "Green Moved"],
 		"hits": [
@@ -37,7 +37,7 @@ const EXPECTED := {
 			[Vector2(5, 40), ""],
 		],
 	},
-	"craton.middle-earth": {
+	"craton.geotekt": {
 		"version": "0.5.0",
 		"titles": ["Planet", "Cratons", "Old Shield"],
 		"hits": [
@@ -48,7 +48,7 @@ const EXPECTED := {
 			[Vector2(-3, -37), ""],
 		],
 	},
-	"topology.middle-earth": {
+	"topology.geotekt": {
 		"version": "0.5.0",
 		"titles": ["Planet", "Plates", "West Points", "East Points", "Boundary"],
 		"hits": [
@@ -59,7 +59,7 @@ const EXPECTED := {
 			[Vector2(0, 40), "East Points"],
 		],
 	},
-	"motion.middle-earth": {
+	"motion.geotekt": {
 		"version": "0.7.0",
 		"titles": ["Planet", "Plates", "Drifting Craton"],
 		"hits": [
@@ -67,7 +67,7 @@ const EXPECTED := {
 			[Vector2(5, 40), ""],
 		],
 	},
-	"group_styles.middle-earth": {
+	"group_styles.geotekt": {
 		"version": "0.10.0",
 		"titles": ["Planet", "Continental Crust", "Red Triangle", "Cratons", "Blue Ridge",
 			"Green Stations"],
@@ -78,7 +78,7 @@ const EXPECTED := {
 			[Vector2(5, 17), ""],
 		],
 	},
-	"mixed_geometry.middle-earth": {
+	"mixed_geometry.geotekt": {
 		"version": "0.2.0",
 		"titles": ["Planet", "Shapes", "Red Triangle", "Blue Ridge", "Green Stations"],
 		"hits": [
@@ -99,7 +99,7 @@ func test_every_sample_file_is_covered() -> void:
 		return
 	var found: Array[String] = []
 	for file_name in dir.get_files():
-		if file_name.ends_with(".middle-earth"):
+		if file_name.ends_with(Document.EXTENSION) or file_name.ends_with(Document.OLD_EXTENSION):
 			found.append(file_name)
 	found.sort()
 	var expected: Array[String] = []
@@ -153,7 +153,7 @@ func test_every_node_of_every_sample_has_a_uuid_of_its_own() -> void:
 # it is the fixture for a uuid that came out of a file rather than out of the
 # loader.
 func test_the_craton_sample_keeps_the_uuids_the_file_names() -> void:
-	var path := "%s/craton.middle-earth" % DATA_DIR
+	var path := "%s/craton.geotekt" % DATA_DIR
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		fail("cannot read %s" % path)
@@ -177,7 +177,7 @@ func _assert_uuids_come_from(data: Variant, node: Feature, path: String) -> void
 
 
 func test_the_craton_sample_keeps_the_type_and_colour_it_names() -> void:
-	var root := _load("%s/craton.middle-earth" % DATA_DIR)
+	var root := _load("%s/craton.geotekt" % DATA_DIR)
 	if root == null:
 		return
 	var shield := _find(root, "Old Shield")
@@ -203,7 +203,7 @@ func _find(root: Feature, title: String) -> Feature:
 
 func test_the_moved_craton_sits_where_the_rotation_puts_it() -> void:
 	# The README documents the green probe point; it is the red one rotated by 60 degrees.
-	var root := _load("%s/two_cratons.middle-earth" % DATA_DIR)
+	var root := _load("%s/two_cratons.geotekt" % DATA_DIR)
 	if root == null:
 		return
 	var green: Feature = null
@@ -243,14 +243,14 @@ func test_every_triangle_derived_from_a_sample_faces_outwards() -> void:
 
 
 func test_the_kinds_the_samples_hold() -> void:
-	var root := _load("%s/mixed_geometry.middle-earth" % DATA_DIR)
+	var root := _load("%s/mixed_geometry.geotekt" % DATA_DIR)
 	if root == null:
 		return
 	var kinds: Array[String] = []
 	for node in root.children[0].children:
 		kinds.append(str(Feature.KIND_NAMES[node.geometry_kind]))
 	assert_eq(", ".join(kinds), "polygon, polyline, multipoint",
-		"mixed_geometry.middle-earth covers all three kinds")
+		"mixed_geometry.geotekt covers all three kinds")
 
 
 # Mirrors the checks in Document.load_from_file, migration included.
@@ -269,8 +269,8 @@ func _load(path: String) -> Feature:
 	if data is not Dictionary:
 		fail("%s does not hold a dictionary" % path)
 		return null
-	if data.get("application", "") != "middle-earth":
-		fail("%s is not marked as a Middle-Earth file" % path)
+	if data.get("application", "") not in [Document.APPLICATION, Document.OLD_APPLICATION]:
+		fail("%s is not marked as a Geotekton file" % path)
 		return null
 	assert_eq(data.get("version", ""), EXPECTED[path.get_file()]["version"],
 		"file format version of %s" % path)

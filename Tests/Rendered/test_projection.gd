@@ -18,7 +18,7 @@ const KINDS := [
 	MapProjection.Kind.ORTHOGRAPHIC,
 ]
 
-# The middle of the red triangle of triangle.middle-earth, and a point well
+# The middle of the red triangle of triangle.geotekt, and a point well
 # clear of it. Both are away from the grid, which is drawn on multiples of
 # fifteen degrees.
 const RED_TRIANGLE := Vector2(-3.0, 0.0)
@@ -26,7 +26,7 @@ const BARE_PLANET := Vector2(-3.0, 47.0)
 
 
 func test_a_craton_is_drawn_where_every_projection_puts_it() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await show_map()
 	for kind in KINDS:
 		var name := await use_projection(kind)
@@ -40,7 +40,7 @@ func test_a_craton_is_drawn_where_every_projection_puts_it() -> void:
 
 
 func test_clicking_a_craton_selects_it_in_every_projection() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await show_map()
 	for kind in KINDS:
 		var name := await use_projection(kind)
@@ -61,7 +61,7 @@ func test_clicking_a_craton_selects_it_in_every_projection() -> void:
 # the star field. The corner of the view is outside every projection's outline
 # while the whole planet is in view.
 func test_the_sky_shows_through_where_a_projection_draws_nothing() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await show_map()
 	var corner: Vector2 = view().get_global_rect().position + Vector2(3.0, 3.0)
 	for kind in KINDS:
@@ -75,7 +75,7 @@ func test_the_sky_shows_through_where_a_projection_draws_nothing() -> void:
 # What a projection does not draw is not clickable either, and what it does draw
 # comes back as the point it was asked for.
 func test_the_pointer_is_off_the_planet_outside_a_projection() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await show_map()
 	var corner: Vector2 = view().get_global_rect().position + Vector2(3.0, 3.0)
 	for kind in KINDS:
@@ -90,7 +90,7 @@ func test_the_pointer_is_off_the_planet_outside_a_projection() -> void:
 
 
 func test_the_zoom_buttons_move_by_the_documented_step() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	assert_eq(view().zoom, PlanetView.DEFAULT_ZOOM, "a fresh view is not zoomed in")
 	view().zoom_in()
 	assert_close(view().zoom, PlanetView.DEFAULT_ZOOM * PlanetView.ZOOM_STEP, 1e-6,
@@ -115,7 +115,7 @@ func test_the_zoom_buttons_move_by_the_documented_step() -> void:
 # more of the window. The globe is measured across its own equator, where the
 # projection cannot be blamed for the change.
 func test_zooming_in_makes_the_planet_larger() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await look_at_latlon(0.0, 0.0)
 	var near: Variant = view().latlon_to_screen(0.0, -20.0)
 	var far: Variant = view().latlon_to_screen(0.0, 20.0)
@@ -139,7 +139,7 @@ func test_zooming_in_makes_the_planet_larger() -> void:
 # Turning the view clockwise and back leaves it where it started, and the turn
 # is what carries a point round the middle of the view.
 func test_turning_the_view_and_turning_it_back() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	await look_at_latlon(0.0, 0.0)
 	var upright: Variant = view().latlon_to_screen(30.0, 0.0)
 	assert_true(upright != null, "the point above the middle is in view")
@@ -166,7 +166,7 @@ func test_turning_the_view_and_turning_it_back() -> void:
 # The camera reset puts the view back to the middle of the planet, the right way
 # up, whatever the three fields were set to.
 func test_the_camera_reset_puts_every_field_back() -> void:
-	await load_sample("triangle.middle-earth")
+	await load_sample("triangle.geotekt")
 	view().planet.lat = 35.0
 	view().planet.lon = -70.0
 	view().planet.angle = 40.0

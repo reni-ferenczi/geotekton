@@ -1,4 +1,4 @@
-"""Run the Middle Earth test suites.
+"""Run the Geotekton test suites.
 
 Usage:
     python Tests/run.py headless [--filter=SUBSTRING]

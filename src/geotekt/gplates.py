@@ -1,8 +1,8 @@
-"""Turning a GPlates reconstruction into a Middle Earth document.
+"""Turning a GPlates reconstruction into a Geotekton document.
 
 GPlates keeps a reconstruction in two halves: feature collections holding
 present day geometry, each feature naming the plate it follows, and rotation
-files saying where every plate was at every time. Middle Earth keeps motion on
+files saying where every plate was at every time. Geotekton keeps motion on
 each feature, so the import samples every plate's rotation into keyframes and
 writes the same list onto each feature that follows that plate. The features
 are grouped by plate for the tree's sake alone; a group carries no motion.
@@ -38,7 +38,7 @@ MAX_TIME = 10000
 # rather than leaving someone wondering why half a planet is missing.
 MAX_PRIMITIVES = 16384
 
-# Logic/feature_type.gd. A Middle Earth type follows the geometry a feature
+# Logic/feature_type.gd. A Geotekton type follows the geometry a feature
 # holds, so the GPGIM type, whatever it is, has no say in it.
 KIND_TYPES = {
     "polygon": "polygon",
@@ -134,7 +134,7 @@ def _load(paths) -> list:
 
 
 def _convert_feature(feature) -> Feature | None:
-    """The Middle Earth feature this GPlates feature becomes, or None.
+    """The Geotekton feature this GPlates feature becomes, or None.
 
     A feature with no geometry of its own — a topological polygon, a raster, a
     rotation sequence — has nothing to convert and is left out.
@@ -163,7 +163,7 @@ def _convert_feature(feature) -> Feature | None:
 
 
 def _name(feature) -> str:
-    """What to call the feature. GPlates lets one go unnamed; Middle Earth does not."""
+    """What to call the feature. GPlates lets one go unnamed; Geotekton does not."""
     name = feature.get_name(None)
     if name:
         return name
@@ -172,7 +172,7 @@ def _name(feature) -> str:
 
 
 def _kind(geometry) -> str:
-    """The Middle Earth geometry kind this GPlates geometry is."""
+    """The Geotekton geometry kind this GPlates geometry is."""
     if isinstance(geometry, pygplates.PolygonOnSphere):
         return "polygon"
     if isinstance(geometry, pygplates.PolylineOnSphere):
@@ -184,7 +184,7 @@ def _rings(geometry) -> list[list[tuple[float, float]]]:
     """The outlines it holds, each a list of [latitude, longitude] pairs.
 
     A polygon's interior rings come back as further outlines rather than as
-    holes, because Middle Earth has no holes; see Docs/Import.md.
+    holes, because Geotekton has no holes; see Docs/Import.md.
     """
     if not isinstance(geometry, pygplates.PolygonOnSphere):
         return [geometry.to_lat_lon_list()]
@@ -264,10 +264,10 @@ def _keyframes(model, plate: int, step: float, oldest: float):
 
 
 def _rotation_degrees(rotation) -> tuple[float, float, float]:
-    """A GPlates finite rotation as the three angles Middle Earth writes.
+    """A GPlates finite rotation as the three angles Geotekton writes.
 
     GPlates works in a frame with x through zero degrees, y through ninety
-    degrees east and z through the north pole; Middle Earth's y is the pole and
+    degrees east and z through the north pole; Geotekton's y is the pole and
     its z is ninety degrees east, so the two frames differ by swapping the last
     two axes. Swapping them in both the rows and the columns of the rotation
     carries it from one frame to the other.
@@ -280,7 +280,7 @@ def _rotation_degrees(rotation) -> tuple[float, float, float]:
 
 
 def decompose_rotation_degrees(matrix) -> tuple[float, float, float]:
-    """The three angles Middle Earth writes for a rotation matrix.
+    """The three angles Geotekton writes for a rotation matrix.
 
     The same decomposition as `Feature.decompose_rotation_degrees()` in
     `Logic/feature.gd`: the matrix is read as Ry(alpha) Rx(beta) Rz(gamma), and

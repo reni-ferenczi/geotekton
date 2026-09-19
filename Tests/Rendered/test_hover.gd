@@ -20,7 +20,7 @@ const THEN := 200.0
 
 
 func test_the_pointer_leaving_the_view_ends_the_hover() -> void:
-	await load_sample("two_cratons.middle-earth")
+	await load_sample("two_cratons.geotekt")
 	view().craton_hovered.emit(-3.0, -60.0)
 	assert_eq(_hovered_title(), "Green Moved", "the pointer on a craton hovers it")
 
@@ -38,7 +38,7 @@ func test_the_pointer_leaving_the_view_ends_the_hover() -> void:
 # the real pointer of whoever runs the tests send motion of its own and end the
 # hover mid test.
 func test_the_time_moving_a_feature_off_the_pointer_ends_the_hover() -> void:
-	await load_sample("two_cratons.middle-earth")
+	await load_sample("two_cratons.geotekt")
 	var green := _feature("Green Moved")
 	assert_true(green != null, "the sample must contain the Green Moved feature")
 	if green == null:
