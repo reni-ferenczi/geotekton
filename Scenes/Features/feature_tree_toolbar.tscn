@@ -1,14 +1,14 @@
 [gd_scene load_steps=10 format=3 uid="uid://crxenmj8yvnva"]
 
-[ext_resource type="Texture2D" uid="uid://b14yxk4fh2c4u" path="res://Assets/Icons/Generated/GroupAdd.png" id="1_mu6rg"]
-[ext_resource type="Texture2D" uid="uid://fdy6y1yiiatf" path="res://Assets/Icons/Generated/RuleAdd.png" id="2_i4d38"]
-[ext_resource type="Texture2D" uid="uid://c1drmn82vjs0s" path="res://Assets/Icons/Generated/Undo.png" id="3_tmb3n"]
-[ext_resource type="Texture2D" uid="uid://ipe2uvv7mupb" path="res://Assets/Icons/Generated/Redo.png" id="4_jhuml"]
-[ext_resource type="Texture2D" uid="uid://b8yaj5r75jv3v" path="res://Assets/Icons/Generated/Duplicate.png" id="8_h7ike"]
-[ext_resource type="Texture2D" uid="uid://dqj14gql1uwg7" path="res://Assets/Icons/Generated/Collapse.png" id="9_dqyk1"]
-[ext_resource type="Texture2D" uid="uid://cojxs4sy1a5jd" path="res://Assets/Icons/Generated/Expand.png" id="10_san2g"]
-[ext_resource type="Texture2D" uid="uid://dwqdy8nljusya" path="res://Assets/Icons/Generated/Load.png" id="11_phrkv"]
-[ext_resource type="Texture2D" uid="uid://bp015aomhvqsq" path="res://Assets/Icons/Generated/Save.png" id="12_qnfi0"]
+[ext_resource type="Texture2D" uid="uid://dhiuqa658v4ug" path="res://Assets/MiddleEarth Icons/Icons1-AddGroup.png" id="1_mu6rg"]
+[ext_resource type="Texture2D" uid="uid://70ve0u768gv3" path="res://Assets/MiddleEarth Icons/Icons1-Feature.png" id="2_i4d38"]
+[ext_resource type="Texture2D" uid="uid://ftqq3drpee70" path="res://Assets/MiddleEarth Icons/Icons1-Undo.png" id="3_tmb3n"]
+[ext_resource type="Texture2D" uid="uid://dh5w38fpjhjvc" path="res://Assets/MiddleEarth Icons/Icons1-Redo.png" id="4_jhuml"]
+[ext_resource type="Texture2D" uid="uid://e1qv6solmhi1" path="res://Assets/MiddleEarth Icons/Icons1-DuplicatFixed.png" id="8_h7ike"]
+[ext_resource type="Texture2D" uid="uid://d17cx8n88it48" path="res://Assets/MiddleEarth Icons/Icons1-MinusCircle.png" id="9_dqyk1"]
+[ext_resource type="Texture2D" uid="uid://dfcbbtmsi4aab" path="res://Assets/MiddleEarth Icons/Icons1-PlusCircle.png" id="10_san2g"]
+[ext_resource type="Texture2D" uid="uid://ds3ky52lhjp10" path="res://Assets/MiddleEarth Icons/Icons1-Load.png" id="11_phrkv"]
+[ext_resource type="Texture2D" uid="uid://b3jj3to88wj3b" path="res://Assets/MiddleEarth Icons/Icons1-Save.png" id="12_qnfi0"]
 
 [node name="Buttons" type="HFlowContainer"]
 offset_right = 526.0
@@ -18,58 +18,76 @@ theme_override_constants/h_separation = 2
 theme_override_constants/v_separation = 2
 
 [node name="AddGroup" type="Button" parent="."]
+custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 tooltip_text = "Add new group"
 icon = ExtResource("1_mu6rg")
+expand_icon = true
 
 [node name="AddFeature" type="Button" parent="."]
+custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 tooltip_text = "Add new feature"
 icon = ExtResource("2_i4d38")
+expand_icon = true
 
 [node name="VSeparator1" type="VSeparator" parent="."]
 layout_mode = 2
 
 [node name="Undo" type="Button" parent="."]
+custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 tooltip_text = "Undo (Ctrl+Z)"
 icon = ExtResource("3_tmb3n")
+expand_icon = true
 
 [node name="Redo" type="Button" parent="."]
+custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 tooltip_text = "Redo (Ctrl+Y)"
 icon = ExtResource("4_jhuml")
+expand_icon = true
 
 [node name="VSeparator2" type="VSeparator" parent="."]
 layout_mode = 2
 
 [node name="Duplicate" type="Button" parent="."]
+custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 tooltip_text = "Duplicate the selected group or feature"
 icon = ExtResource("8_h7ike")
+expand_icon = true
 
 [node name="VSeparator3" type="VSeparator" parent="."]
 layout_mode = 2
 
 [node name="Collapse" type="Button" parent="."]
+custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 tooltip_text = "Collapse all groups"
 icon = ExtResource("9_dqyk1")
+expand_icon = true
 
 [node name="Expand" type="Button" parent="."]
+custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 tooltip_text = "Expand all groups"
 icon = ExtResource("10_san2g")
+expand_icon = true
 
 [node name="VSeparator4" type="VSeparator" parent="."]
 layout_mode = 2
 
 [node name="Load" type="Button" parent="."]
+custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 tooltip_text = "Load from file (Ctrl+O)"
 icon = ExtResource("11_phrkv")
+expand_icon = true
 
 [node name="Save" type="Button" parent="."]
+custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 tooltip_text = "Save to file (Ctrl+S)"
 icon = ExtResource("12_qnfi0")
+expand_icon = true

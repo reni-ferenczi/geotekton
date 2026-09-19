@@ -31,7 +31,7 @@ func _splittable(kind: Feature.GeometryKind = Feature.GeometryKind.POLYGON) -> D
 		Vector2(0, 0), Vector2(10, 0), Vector2(14, 10),
 		Vector2(5, 16), Vector2(0, 12)]), kind)
 	feature.feature_type = FeatureType.CIRCLE
-	feature.icon = "craton"
+	feature.icon = "shield"
 	feature.time_range = Vector2i(20, 800)
 	Keyframe.upsert(feature.keyframes, 0.0, Vector3(5, 0, 0))
 	Keyframe.upsert(feature.keyframes, 300.0, Vector3(40, 10, 0))
@@ -67,7 +67,7 @@ func test_both_halves_carry_what_the_feature_was() -> void:
 		assert_eq(half.geometry_kind, Feature.GeometryKind.POLYGON, "%s is a polygon" % half.title)
 		assert_eq(half.feature_type, type, "%s keeps the type" % half.title)
 		assert_eq(half.color, color, "%s keeps the colour" % half.title)
-		assert_eq(half.icon, "craton", "%s keeps the icon" % half.title)
+		assert_eq(half.icon, "shield", "%s keeps the icon" % half.title)
 		assert_eq(half.time_range, time_range, "%s keeps the time range" % half.title)
 		assert_eq(half.keyframes.size(), keyframes.size(), "%s keeps the keyframes" % half.title)
 		for i in range(keyframes.size()):
