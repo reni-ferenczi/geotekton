@@ -100,6 +100,14 @@ is used, does the same job without any of it. The file is quiet when it is the
 only one being run, which is what makes this easy to miss; `Tests/Unit` is
 unaffected. See GP-0025.
 
+Do not connect a signal in a `.tscn` from a node of an instanced child scene,
+such as a button of `feature_tree_toolbar.tscn` from `features.tscn`. The
+text loader keeps the connection, so it works from the editor; the export
+converts the scene to binary and drops it, so the button is dead in a release
+build and nothing reports it. Connect it from the script in `_ready()`.
+`Tests/Unit/test_scene_connections.gd` fails the headless run on any such
+connection. See GP-0110.
+
 Assertions collect failures instead of aborting: `assert_true`, `assert_eq`,
 `assert_close` and `fail` append to `TestCase.failures`, so one test method reports
 every problem it finds. Never use GDScript's built-in `assert()`, it aborts the run

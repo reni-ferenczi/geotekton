@@ -26,6 +26,22 @@ var root: Feature:
 		return document.root
 
 
+# The toolbar buttons are wired here rather than in features.tscn. They sit
+# inside the instanced feature_tree_toolbar.tscn, and a connection the outer
+# scene makes to a node of an instance it cannot edit is kept by the text
+# loader but dropped when the export converts the scene to binary, so every
+# button was dead in a release build while it worked from the editor. Save
+# and Load are connected the same way, by Application.
+func _ready() -> void:
+	add_group_button.pressed.connect(_on_add_group_pressed)
+	add_feature_button.pressed.connect(_on_add_feature_pressed)
+	undo_button.pressed.connect(_on_undo_pressed)
+	redo_button.pressed.connect(_on_redo_pressed)
+	duplicate_button.pressed.connect(_on_duplicate_pressed)
+	collapse_button.pressed.connect(_on_collapse_pressed)
+	expand_button.pressed.connect(_on_expand_pressed)
+
+
 # Take the document to edit and show its tree. Called once by Application.
 func attach(document_: Document) -> void:
 	document = document_
