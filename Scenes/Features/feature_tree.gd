@@ -13,12 +13,15 @@ const COLOR_BUTTON := 1
 const ENABLE_BUTTON := 2
 
 @onready var empty_icon := preload("res://Assets/Icons/Generated/Empty.png")
-@onready var group_icon := preload("res://Assets/MiddleEarth Icons/Icons1-Group.png")
-@onready var rule_icon := preload("res://Assets/MiddleEarth Icons/Icons1-Features.png")
+# The group and rule pictures, shrunk to the glyph size the way the glyphs are,
+# so that a row's icon is that size wherever it is read from: the drag preview
+# is built from it, and would otherwise come out at the size the picture was
+# painted. Each is named after its file, which is what the port reports.
+@onready var group_icon := FeatureIcon.shrunk("Icons1-Group", "Icons1-Group")
+@onready var rule_icon := FeatureIcon.shrunk("Icons1-Features", "Icons1-Features")
 
-# What a row's icon is drawn at: the size the feature glyphs come in, which the
-# group and rule pictures are scaled down to from the size they are painted at.
-const ICON_WIDTH := 32
+# What a row's icon is drawn at: the size every picture above comes in.
+const ICON_WIDTH := FeatureIcon.SIZE
 
 # What a row is greyed out to while its feature is not there at the current
 # time, which is when the globe leaves it out as well.

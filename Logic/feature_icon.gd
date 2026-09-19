@@ -68,16 +68,22 @@ static func texture(id: String) -> Texture2D:
 	return _textures[id]
 
 
-# The picture shrunk to SIZE: done once here, in software, rather than by the
-# tree and the selector each time they draw it, which would come out ragged
-# from a picture painted this much larger. The texture is named after the id,
-# which is how the automation port tells a row what it is showing.
-static func _shrunk(id: String) -> Texture2D:
-	var source := load("%s/%s.png" % [DIR, FILES[id]]) as Texture2D
+# A picture under DIR shrunk to SIZE: done once, in software, rather than by
+# the tree and the selector each time they draw it, which would come out ragged
+# from a picture painted this much larger. It also keeps whatever is built from
+# a row's icon, such as the drag preview, at SIZE. The texture is named as the
+# caller says, which is how the automation port tells a row what it is showing.
+static func shrunk(stem: String, name: String) -> Texture2D:
+	var source := load("%s/%s.png" % [DIR, stem]) as Texture2D
 	var image := source.get_image()
 	if image.is_compressed():
 		image.decompress()
 	image.resize(SIZE, SIZE, Image.INTERPOLATE_LANCZOS)
 	var texture := ImageTexture.create_from_image(image)
-	texture.resource_name = id
+	texture.resource_name = name
 	return texture
+
+
+# A glyph, named after its id.
+static func _shrunk(id: String) -> Texture2D:
+	return shrunk(FILES[id], id)
