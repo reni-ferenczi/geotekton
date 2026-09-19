@@ -3051,7 +3051,7 @@ def run_built_in_earth_checks(client: AutomationClient, saved: Path) -> None:
 
 def run_light_settings_checks(client: AutomationClient) -> None:
     """The light is set in the View settings dialog, and the planet is brightest under it."""
-    client.call("load", path=str(ROOT / "Tests" / "Data" / "empty.middle-earth"))
+    client.call("load", path=str(ROOT / "Tests" / "Data" / "empty.geotekt"))
     client.call("set_view", show_map=False, lat=0.0, lon=0.0, angle=0.0, zoom=1.0)
     client.call("set_view_settings", view_settings={"light_direction": [0.0, 0.0], "ambient": 0.0})
     strip = client.call("get_tool")["tool_strip"]

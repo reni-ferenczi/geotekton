@@ -59,9 +59,8 @@ their own, and a leaf without one reads as 0, which is the timeline's Skip, so
 a 0.24.0 file is read as it stands; and 0.26.0 took circles and hotspots out of
 coupling, which has a step that drops every span naming one and says how many
 it dropped; and 0.27.0 renamed the program to Geotekton, so the `application`
-field says `geotekt` and the extension is `.geotekt`, which has a step that
-accepts the old `middle-earth` value and writes the new one, while the Open
-dialog still lists `.middle-earth` files.
+field says `geotekt` and the extension is `.geotekt`, and a file from before
+it is not read.
 
 The first public release will have major version 1.
 

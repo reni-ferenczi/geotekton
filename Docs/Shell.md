@@ -43,7 +43,7 @@ adding an item means adding an enum value and one `add_item` line.
 | File            | Shortcut       | What it does                                     |
 | --------------- | -------------- | ------------------------------------------------ |
 | New             | Ctrl+N         | Empty document, after asking about unsaved changes |
-| Open...         | Ctrl+O         | File dialog listing `.geotekt` files and, through a second filter, `.middle-earth` ones from before 0.27.0, then load |
+| Open...         | Ctrl+O         | File dialog listing `.geotekt` files, then load |
 | Open Recent     |                | The remembered files, newest first, and Clear    |
 | Import...       |                | Convert a GPlates project, or feature collection and rotation files, into a new document; see [Import](Import.md) |
 | Save            | Ctrl+S         | Write to the document path, asking for one only when it has none |

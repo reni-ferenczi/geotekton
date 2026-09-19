@@ -24,9 +24,8 @@ def test_a_file_that_is_not_a_document_is_refused(tmp_path):
         Document.load(other)
 
 
-def test_a_file_from_before_the_rename_loads(tmp_path):
-    """A file written up to 0.26.0 says middle-earth, and is a document all the same."""
-    document = Document.load(SAMPLES / "empty.middle-earth")
+def test_an_empty_file_loads():
+    document = Document.load(SAMPLES / "empty.geotekt")
     assert document.features == []
     assert Document.empty(CURRENT_VERSION).data["application"] == "geotekt"
 

@@ -55,7 +55,7 @@ SCENES = [
     ("triangle", "triangle.geotekt", {}, {}, {}),
     ("two_cratons", "two_cratons.geotekt", {}, {}, {}),
     ("two_cratons_tilted", "two_cratons.geotekt", {"lat": 30.0, "lon": -45.0}, {}, {}),
-    ("empty", "empty.middle-earth", {}, {}, {}),
+    ("empty", "empty.geotekt", {}, {}, {}),
     # The sample is laid out so that the polygon, the polyline and both markers
     # all fit the default view.
     ("mixed_geometry", "mixed_geometry.geotekt", {}, {}, {}),
@@ -78,14 +78,14 @@ SCENES = [
     # wearing an image.
     ("scene_no_stars", "two_cratons.geotekt", {},
         {"star_field": False, "background_color": [0.05, 0.02, 0.12, 1.0]}, {}),
-    ("scene_light_east", "empty.middle-earth", {}, {"light_direction": [0.0, 45.0]}, {}),
-    ("scene_light_high", "empty.middle-earth", {},
+    ("scene_light_east", "empty.geotekt", {}, {"light_direction": [0.0, 45.0]}, {}),
+    ("scene_light_high", "empty.geotekt", {},
         {"light_direction": [55.0, -35.0], "ambient": 0.25}, {}),
-    ("scene_raster", "empty.middle-earth", {}, {"raster_path": RASTER}, {}),
-    ("scene_raster_half", "empty.middle-earth", {},
+    ("scene_raster", "empty.geotekt", {}, {"raster_path": RASTER}, {}),
+    ("scene_raster_half", "empty.geotekt", {},
         {"raster_path": RASTER, "raster_opacity": 0.5}, {}),
     # The planet with no raster, in a color of its own.
-    ("planet_colour", "empty.middle-earth", {},
+    ("planet_colour", "empty.geotekt", {},
         {"raster_path": "", "planet_color": [0.55, 0.35, 0.2, 1.0]}, {}),
     # The kinematics panel, drawn for a feature that moves. The only scene that
     # shows that panel and the only one that selects anything: the graphs are

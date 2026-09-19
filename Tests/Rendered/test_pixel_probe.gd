@@ -50,7 +50,7 @@ func test_the_earth_shows_beside_a_line_and_a_marker() -> void:
 
 
 func test_an_empty_file_draws_no_craton() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	await _check_probe(-3.0, 0.0, "")
 
 

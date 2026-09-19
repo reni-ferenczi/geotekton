@@ -26,11 +26,6 @@ from typing import Any, Iterator
 APPLICATION = "geotekt"
 EXTENSION = ".geotekt"
 
-# What the program was called up to 0.26.0. A file saying so is read like any
-# other and written back unchanged, the way every other field is; only the
-# application renames it on save. See Docs/Persistence.md.
-OLD_APPLICATION = "middle-earth"
-
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
@@ -326,7 +321,7 @@ class Document:
         data = json.loads(text)
         if not isinstance(data, dict):
             raise ValueError("not a Geotekton file: the root is not an object")
-        if data.get("application") not in (APPLICATION, OLD_APPLICATION):
+        if data.get("application") != APPLICATION:
             raise ValueError("not a Geotekton file")
         return cls(data)
 

@@ -29,7 +29,7 @@ const EXPECTED := {
 			[Vector2(5, 40), ""],
 		],
 	},
-	"empty.middle-earth": {
+	"empty.geotekt": {
 		"version": "0.1.0",
 		"titles": ["Planet"],
 		"hits": [
@@ -99,7 +99,7 @@ func test_every_sample_file_is_covered() -> void:
 		return
 	var found: Array[String] = []
 	for file_name in dir.get_files():
-		if file_name.ends_with(Document.EXTENSION) or file_name.ends_with(Document.OLD_EXTENSION):
+		if file_name.ends_with(Document.EXTENSION):
 			found.append(file_name)
 	found.sort()
 	var expected: Array[String] = []
@@ -269,7 +269,7 @@ func _load(path: String) -> Feature:
 	if data is not Dictionary:
 		fail("%s does not hold a dictionary" % path)
 		return null
-	if data.get("application", "") not in [Document.APPLICATION, Document.OLD_APPLICATION]:
+	if data.get("application", "") != Document.APPLICATION:
 		fail("%s is not marked as a Geotekton file" % path)
 		return null
 	assert_eq(data.get("version", ""), EXPECTED[path.get_file()]["version"],

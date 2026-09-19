@@ -198,7 +198,7 @@ func _let_go() -> void:
 # Two features side by side, with the second selected and the Vertex tool on it.
 # Returns the selected one, or null when the setup could not be made.
 func _two_features() -> Feature:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	app.planet_view.planet.lat = 0.0
 	app.planet_view.planet.lon = 20.0
 	await frames(2)

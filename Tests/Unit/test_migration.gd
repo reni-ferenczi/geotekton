@@ -10,7 +10,7 @@ extends TestCase
 # Tests/Data are still written in 0.1.0, so they run through every step.
 
 const DATA_DIR := "res://Tests/Data"
-const OLD_SAMPLES := ["triangle.geotekt", "two_cratons.geotekt", "empty.middle-earth"]
+const OLD_SAMPLES := ["triangle.geotekt", "two_cratons.geotekt", "empty.geotekt"]
 
 # Two triangles sharing an edge, so their outline is one quad, and one triangle
 # far away from them, so the feature ends up with two rings.
@@ -284,7 +284,7 @@ func test_a_block_without_a_style_leaves_the_root_on_its_own_colours() -> void:
 	var path := ProjectSettings.globalize_path("user://test_migration_0_9_0.geotekt")
 	for view in [{}, {"draw_style": "by_plate_id"}]:
 		var file := FileAccess.open(path, FileAccess.WRITE)
-		file.store_string(JSON.stringify({"application": "middle-earth", "version": "0.9.0",
+		file.store_string(JSON.stringify({"application": "geotekt", "version": "0.9.0",
 			"features": {"type": "Group", "is_group": true, "title": "Planet", "children": []},
 			"view": view}))
 		file.close()

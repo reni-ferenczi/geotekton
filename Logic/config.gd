@@ -15,11 +15,6 @@ const MAX_SCALE := 4.0
 # Where the config file lives; set to a scratch folder by the tests.
 static var directory_override: String = ""
 
-# Where it lived up to 0.26.0, when the program was called Middle Earth. The
-# tests set this beside directory_override; left empty with the other one
-# set, there is no old directory, so an isolated run reads nobody's settings.
-static var old_directory_override: String = ""
-
 static var _data: Dictionary = {}
 static var _loaded: bool = false
 
@@ -34,18 +29,6 @@ static func _get_config_path() -> String:
 	return _get_config_dir() + "/config.json"
 
 
-# The file 0.26.0 and older wrote, or an empty string when there is none to
-# look for. It is read on the first run after the rename, while the new
-# directory has no file of its own; the next save writes the new one and the
-# old directory is left as it is.
-static func _get_old_config_path() -> String:
-	if not old_directory_override.is_empty():
-		return old_directory_override + "/config.json"
-	if not directory_override.is_empty():
-		return ""
-	return OS.get_environment("APPDATA") + "/MiddleEarth/config.json"
-
-
 static func _get_default_directory() -> String:
 	return OS.get_environment("USERPROFILE") + "/Documents"
 
@@ -56,8 +39,6 @@ static func _ensure_loaded() -> void:
 	_loaded = true
 	var path := _get_config_path()
 	if not FileAccess.file_exists(path):
-		path = _get_old_config_path()
-	if path.is_empty() or not FileAccess.file_exists(path):
 		_data = {}
 		return
 	var file := FileAccess.open(path, FileAccess.READ)

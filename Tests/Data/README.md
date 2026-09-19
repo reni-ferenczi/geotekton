@@ -2,10 +2,8 @@
 
 Hand-made `.geotekt` files used as fixtures by the tests. They are written in the
 exact format `Document.save_to_file` produces: tab-indented JSON, keys sorted.
-See `Docs/Persistence.md` for the formats themselves. All but one say
-`"application": "geotekt"`, whatever format version they are written in;
-`empty.middle-earth` keeps the name and the field the program wrote up to
-0.26.0, as the standing check that such a file still opens, so leave it as it is.
+See `Docs/Persistence.md` for the formats themselves. All say
+`"application": "geotekt"`, whatever format version they are written in.
 
 Four of the eight are fixtures for the older formats. Three are still written in
 **0.1.0**, where a feature stored a flat list of
@@ -142,10 +140,9 @@ which loads as the one keyframe at time zero. A positive rotation around Y
 test derives this with `Feature.apply_rotation` rather than trusting the number
 written here.
 
-### empty.middle-earth (0.1.0)
+### empty.geotekt (0.1.0)
 
-Root group `Planet` only, no features. Every probe hits nothing. The one sample
-under the old extension, with `"application": "middle-earth"`; see above.
+Root group `Planet` only, no features. Every probe hits nothing.
 
 ### topology.geotekt (0.5.0)
 

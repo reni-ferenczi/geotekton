@@ -98,16 +98,10 @@ func test_loading_a_file_that_is_not_one_reports_why() -> void:
 	assert_true(not document.is_dirty(), "a failed load leaves the document alone")
 
 
-# 0.27.0 renamed the program. A file written before it says middle-earth in
-# its application field and is read all the same; one that names some other
-# program is turned away, and the message says whose file it is not.
-func test_a_file_from_either_name_opens_and_another_name_is_refused() -> void:
+# A file that names some other program in its application field is turned
+# away, and the message says whose file it is not.
+func test_a_file_naming_another_program_is_refused() -> void:
 	var document := Document.new()
-	assert_eq(document.load_from_file("res://Tests/Data/empty.middle-earth"), "",
-		"a file saying middle-earth opens")
-	assert_eq(document.root.child_count(), 0, "and holds nothing")
-	assert_true(not document.is_dirty(), "and is clean")
-
 	var path := ProjectSettings.globalize_path(SCRATCH)
 	for application in [Document.APPLICATION, "some-other-program"]:
 		var file := FileAccess.open(path, FileAccess.WRITE)

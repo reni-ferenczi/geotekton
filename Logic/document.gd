@@ -11,10 +11,6 @@ extends RefCounted
 
 const APPLICATION := "geotekt"
 const EXTENSION := ".geotekt"
-# What the program was called up to 0.26.0. A file saying so is still read;
-# see Docs/Persistence.md.
-const OLD_APPLICATION := "middle-earth"
-const OLD_EXTENSION := ".middle-earth"
 const UNTITLED := "Untitled"
 const MAX_UNDO_STEPS := 100
 
@@ -979,7 +975,7 @@ func load_from_file(file_path: String) -> String:
 	var data: Variant = json.data
 	if data is not Dictionary:
 		return "%s is not a Geotekton file: the root is not an object" % file_path
-	if data.get("application", "") not in [APPLICATION, OLD_APPLICATION]:
+	if data.get("application", "") != APPLICATION:
 		return "%s is not a Geotekton file" % file_path
 
 	var migrated := migrate(data)
@@ -1144,9 +1140,8 @@ static func migrate(data: Dictionary) -> Dictionary:
 				+ "neither takes part in coupling.") % [dropped,
 				"" if dropped == 1 else "s", "was" if dropped == 1 else "were"])
 	# 0.27.0 renamed the program, so a file now says geotekt in its application
-	# field. load_from_file() accepts middle-earth as well, and the next save
-	# writes the new name; nothing else in the file changed, so only the
-	# version moves.
+	# field; a file from before it is not read. Nothing else in the file
+	# changed, so only the version moves.
 	data["version"] = "0.27.0"
 	return data
 

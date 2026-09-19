@@ -530,7 +530,7 @@ the stand-in scene is reached with `--scene=res://...`.
 
 | File                      | Contents                                                   |
 | ------------------------- | ---------------------------------------------------------- |
-| `empty.middle-earth`      | The root group only, no features. Kept under the old name and `application` value, so a file from before 0.27.0 is always in the suite. |
+| `empty.geotekt`           | The root group only, no features.                          |
 | `triangle.geotekt`   | One red triangle around lat/lon (-3, 0).                   |
 | `craton.geotekt`     | One blue outline of 21 vertices with a bay, a narrow neck and a close pair, facing the camera. Written in the current format. |
 | `topology.geotekt`   | Two multipoints on the equator and a line topology running along both, with a gap between the two sections. Written in the current format. |
@@ -599,7 +599,7 @@ The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
 | `triangle`           | `triangle.geotekt`    | default                    |
 | `two_cratons`        | `two_cratons.geotekt` | default                    |
 | `two_cratons_tilted` | `two_cratons.geotekt` | latitude 30, longitude -45 |
-| `empty`              | `empty.middle-earth`       | default                    |
+| `empty`              | `empty.geotekt`       | default                    |
 | `mixed_geometry`     | `mixed_geometry.geotekt` | default                 |
 | `craton`             | `craton.geotekt`      | default                    |
 | `map_rectangular`    | `two_cratons.geotekt` | the map, rectangular       |
@@ -608,11 +608,11 @@ The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
 | `map_robinson`       | `two_cratons.geotekt` | the map, Robinson          |
 | `map_orthographic`   | `two_cratons.geotekt` | the map, orthographic      |
 | `scene_no_stars`     | `two_cratons.geotekt` | the star field off, over a blue background |
-| `scene_light_east`   | `empty.middle-earth`       | the light 45° to the east  |
-| `scene_light_high`   | `empty.middle-earth`       | the light high to the west, with ambient |
-| `scene_raster`       | `empty.middle-earth`       | the raster at full opacity |
-| `scene_raster_half`  | `empty.middle-earth`       | the same image at half, over the planet color |
-| `planet_colour`      | `empty.middle-earth`       | no raster, the planet in a brown of its own |
+| `scene_light_east`   | `empty.geotekt`       | the light 45° to the east  |
+| `scene_light_high`   | `empty.geotekt`       | the light high to the west, with ambient |
+| `scene_raster`       | `empty.geotekt`       | the raster at full opacity |
+| `scene_raster_half`  | `empty.geotekt`       | the same image at half, over the planet color |
+| `planet_colour`      | `empty.geotekt`       | no raster, the planet in a brown of its own |
 | `kinematics`         | `motion.geotekt`      | default, with the kinematics panel up showing the rate row only, the feature selected and the time at 500 Ma |
 
 `two_cratons.geotekt` holds three features and no globe view shows all of

@@ -23,7 +23,7 @@ const WIDE := 0.5
 
 
 func test_a_placed_pole_is_marked_by_a_bold_cross() -> void:
-	await load_sample("empty.middle-earth")
+	await load_sample("empty.geotekt")
 	var flat := Image.create(4, 2, false, Image.FORMAT_RGBA8)
 	flat.fill(Color.RED)
 	view().planet.set_raster(ImageTexture.create_from_image(flat), 1.0)
