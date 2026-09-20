@@ -925,7 +925,7 @@ func test_a_0_27_0_file_round_trips() -> void:
 	var file := FileAccess.open(SCRATCH, FileAccess.READ)
 	var raw: Dictionary = JSON.parse_string(file.get_as_text())
 	file.close()
-	assert_eq(raw["version"], "0.27.0", "at the current version")
+	assert_eq(raw["version"], Application.VERSION, "at the current version")
 	assert_eq(Document.migrate(raw), raw, "migration leaves a 0.27.0 file as it is")
 
 	var reloaded := Document.new()
