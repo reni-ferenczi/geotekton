@@ -83,6 +83,54 @@ func test_a_ring_round_the_pole_covers_the_pole() -> void:
 		assert_eq(Planet.hit_test(89.999, 0.0, geometry), null, "the north pole is outside")
 
 
+# The polygon of the Documents/FillBugRepro.geotekt report: its last vertex was
+# put down twice by a double click, and the fill stopped short of it. The
+# repeated vertex is a corner the clipping cannot get past, so it is left out,
+# and the triangles cover every distinct corner of the ring.
+func test_a_repeated_vertex_does_not_lose_its_corner() -> void:
+	var ring := PackedVector2Array([
+		Vector2(35.5755, 9.1832), Vector2(27.7471, -5.7835), Vector2(15.1366, 7.6085),
+		Vector2(24.9287, 18.8818), Vector2(32.5129, 15.9223), Vector2(32.5129, 15.9223),
+	])
+	var result := Feature.ear_clip(ring)
+	assert_eq(result.size(), 9, "five distinct corners become 3 triangles")
+	for v in ring:
+		assert_true(v in result, "corner %s is covered" % v)
+	assert_close(_area_of(result), _signed_area(ring), 1e-6, "area of the filled polygon")
+
+	var indices := Feature.ear_clip_indices(ring)
+	assert_true(not 5 in indices, "the repeated vertex is not a corner of any triangle")
+
+
+# GPlates closes a polygon by repeating its first vertex at the end, and a
+# vertex may be repeated in the middle of a ring as well. Neither repeat is a
+# corner.
+func test_repeats_anywhere_in_the_ring_are_skipped() -> void:
+	var closed := QUAD.duplicate()
+	closed.append(QUAD[0])
+	assert_eq(Feature.ear_clip(closed).size(), 6, "a quad closed by its first vertex is 2 triangles")
+	assert_eq(Array(Feature.distinct_corners(closed)), [0, 1, 2, 3], "the closing vertex is no corner")
+
+	var stutter := PackedVector2Array([QUAD[0], QUAD[1], QUAD[1], QUAD[1], QUAD[2], QUAD[3]])
+	assert_eq(Feature.ear_clip(stutter).size(), 6, "a quad with a vertex three times is 2 triangles")
+	assert_eq(Array(Feature.distinct_corners(stutter)), [0, 1, 4, 5])
+	assert_close(_area_of(Feature.ear_clip(stutter)), _signed_area(QUAD), 1e-6)
+
+	var one_place := PackedVector2Array([QUAD[0], QUAD[0], QUAD[0]])
+	assert_eq(Feature.ear_clip(one_place).size(), 0, "three vertices in one place are no polygon")
+	var two_places := PackedVector2Array([QUAD[0], QUAD[1], QUAD[0]])
+	assert_eq(Feature.ear_clip(two_places).size(), 0, "nor a ring that goes there and back")
+
+
+# A repeated vertex on a ring round the pole makes no zero area fan triangle.
+func test_a_repeated_vertex_round_the_pole_adds_no_triangle() -> void:
+	var ring := PackedVector2Array()
+	for i in range(12):
+		ring.append(Vector2(-82.0, -180.0 + 30.0 * i))
+	ring.append(ring[11])
+	assert_eq(Feature.ear_clip(ring).size(), 12 * 3, "a fan of one triangle per distinct corner")
+
+
 func test_a_quad_across_the_date_line_is_filled_across_it() -> void:
 	var quad := PackedVector2Array([Vector2(5, 175), Vector2(5, -175), Vector2(-5, -175), Vector2(-5, 175)])
 	var indices := Feature.ear_clip_indices(quad)
@@ -105,6 +153,14 @@ func _geometry(feature: Feature) -> Planet.Geometry:
 	root.is_root = true
 	root.children.append(feature)
 	return Planet.collect_geometry(root)
+
+# The signed area of a triangle list, which is that of the polygon it fills.
+func _area_of(triangles: PackedVector2Array) -> float:
+	var total := 0.0
+	for i in range(0, triangles.size() - 2, 3):
+		total += _signed_area(PackedVector2Array([triangles[i], triangles[i + 1], triangles[i + 2]]))
+	return total
+
 
 # Shoelace area in the (latitude, longitude) plane; the sign follows the winding.
 func _signed_area(polygon: PackedVector2Array) -> float:

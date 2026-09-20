@@ -2602,6 +2602,11 @@ var outline_vertices := PackedVector2Array()
 # Move tool is not here: selecting, dragging and the right click menu are the
 # view's own, and it leaves them alone while a tool owns the clicks.
 func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
+	# The second press of a double click is the first click over again, and no
+	# tool wants a click twice: the Draw tool would put the same vertex down
+	# twice, which is a corner the fill cannot reach. See Docs/Draw.md.
+	if event is InputEventMouseButton and event.double_click:
+		return
 	# The pick mode takes the click ahead of every tool, whichever one is armed.
 	if picking != Pick.NONE:
 		_on_pick_input(lat, lon, event)

@@ -82,6 +82,12 @@ Snapping, tracing along a ring and pasting a shape are described in
 [Snapping](Editing.md#snapping) and [Copying a shape](Editing.md#copying-a-shape).
 Each of them only adds held points, so Enter still decides what is committed.
 
+A double click places one vertex, not two. The window system sends the press
+twice, the second one flagged as a double click, and `Application` drops that
+second press before any tool sees it, since no tool wants a click over again.
+A vertex put down twice would be a corner the fill cannot reach, see
+[Repeated vertices](#repeated-vertices).
+
 ### Visual Feedback
 
 While placing vertices, the shader renders a **live preview overlay** in white:
@@ -170,6 +176,19 @@ After committing, the tool:
 5. This repeats until only 3 vertices remain, which form the final triangle.
 
 The algorithm runs in the 2D lat/lon plane and handles **concave polygons** correctly. Self-intersecting polygons are not supported and will produce undefined results.
+
+### Repeated vertices
+
+A vertex that repeats the one before it, or a last vertex that repeats the
+first, is not a corner of the shape and is left out of the clipping:
+`Feature.distinct_corners()` picks the indices that take part, and the pole
+fan below is built from those as well. Left in, such a vertex makes a corner of
+zero area, which is never convex and always counts as lying on the edge of any
+ear next to it, so the clipping stalls with the corner beside it unfilled. Rings
+like that do exist: a file saved before a double click was caught holds its
+last vertex twice, and GML and the Shapefile format close a ring by repeating
+its first vertex. The vertex stays in the ring, the outline is drawn through it
+and the vertex tool can take it out; only the fill ignores it.
 
 Two kinds of ring have no proper shape in that plane, and are handled first:
 
