@@ -306,12 +306,37 @@ static func nearest_segment(points: PackedVector2Array, target: Vector2,
 	var last := size if closed else size - 1
 	var best := [-1, INF, 0.0]
 	for i in range(maxi(0, last)):
-		var from := points[i]
-		var to := points[(i + 1) % size]
-		var along := from.direction_to(to)
-		var length := from.distance_to(to)
-		var t := 0.0 if length < 1e-9 else clampf((target - from).dot(along) / length, 0.0, 1.0)
-		var distance := target.distance_to(from.lerp(to, t))
-		if distance < best[1]:
-			best = [i, distance, t]
+		var found := _along_segment(points[i], points[(i + 1) % size], target)
+		if found[0] < best[1]:
+			best = [i, found[0], found[1]]
 	return best
+
+
+# The same for a run in which some points cannot be placed: each entry is a
+# Vector2 or null, and a segment with a null end is not offered, since a
+# distance to something that cannot be seen means nothing. The Vertex tool
+# passes a ring with its vertices round the back of the globe as null, so the
+# edges on the near side still take a vertex while the ring as a whole is
+# partly hidden.
+static func nearest_visible_segment(points: Array, target: Vector2, closed: bool) -> Array:
+	var size := points.size()
+	var last := size if closed else size - 1
+	var best := [-1, INF, 0.0]
+	for i in range(maxi(0, last)):
+		var from: Variant = points[i]
+		var to: Variant = points[(i + 1) % size]
+		if from == null or to == null:
+			continue
+		var found := _along_segment(from, to, target)
+		if found[0] < best[1]:
+			best = [i, found[0], found[1]]
+	return best
+
+
+# How far target is from the segment, and how far along it the nearest point
+# sits, from 0 to 1: [distance, t].
+static func _along_segment(from: Vector2, to: Vector2, target: Vector2) -> Array:
+	var along := from.direction_to(to)
+	var length := from.distance_to(to)
+	var t := 0.0 if length < 1e-9 else clampf((target - from).dot(along) / length, 0.0, 1.0)
+	return [target.distance_to(from.lerp(to, t)), t]

@@ -3248,12 +3248,11 @@ func _insert_on_edge(feature: Feature, screen: Vector2) -> Vector2i:
 	var best_part := -1
 	var best: Array = [-1, INF, 0.0]
 	for part in feature.rings.size():
-		var on_screen := _ring_on_screen(feature, part)
-		if on_screen.size() < feature.rings[part].size():
-			# Part of the ring is round the back, where a screen distance means
-			# nothing. Leave that part alone rather than guess at it.
-			continue
-		var found := GeometryEdit.nearest_segment(on_screen, screen, closed)
+		# An edge with an end round the back, where a screen distance means
+		# nothing, is left alone; the edges on the near side are offered
+		# whatever the rest of the ring does.
+		var found := GeometryEdit.nearest_visible_segment(
+			_ring_on_screen(feature, part), screen, closed)
 		if found[0] >= 0 and found[1] < best[1]:
 			best = found
 			best_part = part
@@ -3910,15 +3909,14 @@ func _vertices_on_screen(only: Feature = null, without: Feature = null,
 	return [points, places, world, owners]
 
 
-# One ring of one feature in window pixels, with whatever is round the back left
-# out. A caller that needs the indices to line up checks the size first.
-func _ring_on_screen(feature: Feature, part: int) -> PackedVector2Array:
+# Where each vertex of one part of a feature is on screen, index for index with
+# the ring, null for a vertex that is not shown: round the back of the globe,
+# or off the map.
+func _ring_on_screen(feature: Feature, part: int) -> Array:
 	var m := Feature.world_basis(features.root, feature, document.current_time)
-	var points := PackedVector2Array()
+	var points := []
 	for vertex in Feature.apply_basis(feature.rings[part], m):
-		var screen: Variant = planet_view.latlon_to_screen(vertex.x, vertex.y)
-		if screen != null:
-			points.append(screen)
+		points.append(planet_view.latlon_to_screen(vertex.x, vertex.y))
 	return points
 
 

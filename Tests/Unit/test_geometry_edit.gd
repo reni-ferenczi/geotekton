@@ -331,6 +331,28 @@ func test_the_nearest_segment_and_how_far_along_it() -> void:
 	assert_close(got[2], 0.5, 1e-4, "halfway along it")
 
 
+func test_a_segment_with_a_hidden_end_is_not_offered() -> void:
+	# A square with its third corner round the back: the two edges that meet
+	# there are out, the other two are in, closed or not.
+	var points := [Vector2(0, 0), Vector2(100, 0), null, Vector2(0, 100)]
+	var got := GeometryEdit.nearest_visible_segment(points, Vector2(97, 50), true)
+	assert_eq(got[0], 0, "three pixels from the hidden right hand edge, the bottom one is offered")
+	assert_close(got[1], 50.0, 1e-4, "at its real distance")
+	got = GeometryEdit.nearest_visible_segment(points, Vector2(3, 50), true)
+	assert_eq(got[0], 3, "the closing edge is offered, both its ends being visible")
+	assert_close(got[2], 0.5, 1e-4, "halfway along it")
+	got = GeometryEdit.nearest_visible_segment(points, Vector2(3, 50), false)
+	assert_eq(got[0], 0, "open, with no closing edge, the bottom edge is all that is left")
+	var hidden := [null, null, null]
+	assert_eq(GeometryEdit.nearest_visible_segment(hidden, Vector2(1, 1), true)[0], -1,
+		"a ring wholly round the back offers nothing")
+	var same := GeometryEdit.nearest_segment(PackedVector2Array([
+		Vector2(0, 0), Vector2(100, 0), Vector2(100, 100)]), Vector2(97, 50), false)
+	var visible := GeometryEdit.nearest_visible_segment([
+		Vector2(0, 0), Vector2(100, 0), Vector2(100, 100)], Vector2(97, 50), false)
+	assert_eq(visible, same, "with nothing hidden the two agree")
+
+
 func test_a_point_past_the_end_of_a_segment_stays_on_it() -> void:
 	var points := PackedVector2Array([Vector2(0, 0), Vector2(100, 0)])
 	var got := GeometryEdit.nearest_segment(points, Vector2(150, 0), false)
