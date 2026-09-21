@@ -159,6 +159,80 @@ func test_the_other_parts_of_a_feature_stay_with_the_first_half() -> void:
 		"and the second holds its half alone")
 
 
+# A feature of three triangles: two west of the prime meridian and one east.
+func _three_parts() -> Document:
+	var document := Document.new()
+	var feature := Feature.create_feature("Archipelago", Color.CORNFLOWER_BLUE)
+	feature.add_ring(PackedVector2Array([Vector2(-5, -30), Vector2(5, -30), Vector2(0, -20)]),
+		Feature.GeometryKind.POLYGON)
+	feature.add_ring(PackedVector2Array([Vector2(-5, 10), Vector2(5, 10), Vector2(0, 20)]),
+		Feature.GeometryKind.POLYGON)
+	feature.add_ring(PackedVector2Array([Vector2(15, -30), Vector2(25, -30), Vector2(20, -20)]),
+		Feature.GeometryKind.POLYGON)
+	document.root.children.append(feature)
+	document.record()
+	return document
+
+
+func test_a_cut_between_the_parts_divides_them_in_one_version() -> void:
+	var document := _three_parts()
+	var feature := _feature(document)
+	var depth := document.applied
+	assert_eq(document.divide_feature(feature, PackedVector2Array([Vector2(-40, 0), Vector2(40, 0)])), "")
+	assert_eq(document.applied, depth + 1, "one version")
+	assert_eq(document.root.children.size(), 2, "the tree holds two features now")
+	var first: Feature = document.root.children[0]
+	var second: Feature = document.root.children[1]
+	assert_eq(first.title, "Archipelago", "the first keeps its title")
+	assert_eq(second.title, "Archipelago 2", "and the second is named after it")
+	assert_eq(first.rings.size(), 2, "the two western parts stay with the first")
+	assert_eq(second.rings.size(), 1, "the eastern one goes to the second")
+	assert_eq(second.rings[0][2], Vector2(0, 20), "as it was")
+	assert_eq(first.triangles.size(), 6, "both are filled again")
+	assert_eq(second.triangles.size(), 3)
+	assert_eq(second.color, feature.color, "the second keeps the colour")
+	document.undo()
+	assert_eq(document.root.children.size(), 1, "undo puts the one feature back")
+	assert_eq(_feature(document).rings.size(), 3, "with all three parts")
+
+
+func test_a_divide_that_leaves_every_part_on_one_side_is_refused() -> void:
+	var document := _three_parts()
+	var depth := document.applied
+	assert_eq(document.divide_feature(_feature(document),
+		PackedVector2Array([Vector2(-40, 50), Vector2(40, 50)])),
+		"The cut leaves every part on one side.")
+	assert_eq(document.root.children.size(), 1, "the tree is untouched")
+	assert_eq(document.applied, depth, "and nothing recorded")
+
+
+func test_a_divide_with_children_sends_each_to_the_half_on_its_side() -> void:
+	var document := _three_parts()
+	var feature := _feature(document)
+	var east := Feature.create_feature("East Arc")
+	east.add_ring(PackedVector2Array([Vector2(-2, 12), Vector2(2, 12), Vector2(0, 16)]),
+		Feature.GeometryKind.POLYGON)
+	var west := Feature.create_feature("West Arc")
+	west.add_ring(PackedVector2Array([Vector2(-2, -28), Vector2(2, -28), Vector2(0, -24)]),
+		Feature.GeometryKind.POLYGON)
+	for child in [east, west]:
+		document.root.children.append(child)
+		assert_eq(document.couple(child, feature, 200.0), "")
+	document.current_time = 100.0
+	document.record()
+
+	assert_eq(document.divide_feature(feature, PackedVector2Array([Vector2(-40, 0), Vector2(40, 0)]), true), "")
+	var second: Feature = document.root.children[1]
+	assert_eq(second.title, "Archipelago 2")
+	assert_eq(Coupling.span_at(east, 50.0).parent, second.uuid,
+		"the child on the far side follows the second half from the divide on")
+	assert_eq(Coupling.span_at(east, 150.0).parent, feature.uuid,
+		"and the original before it")
+	assert_eq(Coupling.span_at(west, 50.0).parent, feature.uuid,
+		"the child on the near side goes on following the first")
+	assert_eq(west.couplings.size(), 1, "with its one span untouched")
+
+
 func _area(triangles: PackedVector2Array) -> float:
 	var total := 0.0
 	for i in range(0, triangles.size() - 2, 3):

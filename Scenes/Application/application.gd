@@ -346,9 +346,8 @@ func _ready() -> void:
 	crust_check.toggled.connect(Config.set_split_crust)
 	children_check.button_pressed = Config.get_split_children()
 	children_check.toggled.connect(Config.set_split_children)
-	# Crust lies between the ridge and the halves, so there is none without one.
-	crust_check.disabled = not ridge_check.button_pressed
-	ridge_check.toggled.connect(func(on: bool) -> void: crust_check.disabled = not on)
+	_update_split_switches()
+	ridge_check.toggled.connect(func(_on: bool) -> void: _update_split_switches())
 	# The range and the starting value come from Circle, so the scene does
 	# not carry a second copy of what a circle may be cut into.
 	segments_spin.min_value = Circle.MIN_SEGMENTS
@@ -2013,6 +2012,7 @@ func set_active_tool(tool: Tool) -> void:
 		parallel_check.button_pressed = false
 	if active_tool == Tool.SPLIT and tool != Tool.SPLIT:
 		split_points = PackedVector2Array()
+		_update_split_switches()
 	if _spins(active_tool) and tool != active_tool:
 		_spin_cancel()
 		pole_at = NO_POLE
@@ -2714,6 +2714,7 @@ func _set_tool_points(points: PackedVector2Array) -> void:
 			_show_measurement()
 		Tool.SPLIT:
 			split_points = points
+			_update_split_switches()
 			_refresh_selection_outline()
 			_show_measurement()
 	_update_edit_menu()
@@ -3453,8 +3454,10 @@ func _on_split_input(lat: float, lon: float, event: InputEvent) -> void:
 
 
 # Cut the selected polygon along the points clicked. The part cut is the one
-# whose boundary is nearest the first point. A refused cut keeps its points, so
-# the one at fault can be taken back rather than the whole cut clicked again.
+# whose boundary is nearest the first point. A cut that touches no part of a
+# feature of several divides the parts instead, each to its side of the cut;
+# see Document.divide_feature(). A refused cut keeps its points, so the one at
+# fault can be taken back rather than the whole cut clicked again.
 #
 # Returns what the status bar says about the cut: why it was refused, or which
 # features it left behind.
@@ -3464,21 +3467,23 @@ func split_along_points() -> String:
 		return "Select a polygon to split."
 	if split_points.size() < 2:
 		return "Click where the cut starts and where it ends."
-	# The points were clicked in world space; a feature keeps its own frame.
-	var into_local := Feature.world_basis(
-		features.root, feature, document.current_time).transposed()
-	var path := Feature.apply_basis(split_points, into_local)
-	var part := 0
-	var nearest := INF
-	for index in feature.rings.size():
-		var distance: float = GeometryEdit.nearest_segment(feature.rings[index], path[0], true)[1]
-		if distance < nearest:
-			nearest = distance
-			part = index
-	var ridge := ridge_check.button_pressed
+	var path := _split_path(feature)
+	# Neither a ridge nor a crust follows a divide, since the two share no edge.
+	var ridge := ridge_check.button_pressed and not ridge_check.disabled
 	var crust := ridge and crust_check.button_pressed
-	var error := document.split_feature_along(feature, part, path, ridge, crust,
-		children_check.button_pressed)
+	var error: String
+	if _split_divides(feature):
+		error = document.divide_feature(feature, path, children_check.button_pressed)
+	else:
+		var part := 0
+		var nearest := INF
+		for index in feature.rings.size():
+			var distance: float = GeometryEdit.nearest_segment(feature.rings[index], path[0], true)[1]
+			if distance < nearest:
+				nearest = distance
+				part = index
+		error = document.split_feature_along(feature, part, path, ridge, crust,
+			children_check.button_pressed)
 	if not error.is_empty():
 		return error
 	# The halves, and the ridge and crust behind them, sit side by side where
@@ -3496,6 +3501,37 @@ func split_along_points() -> String:
 	refresh_geometry()
 	set_active_tool(Tool.MOVE)
 	return "Split into %s" % ", ".join(made)
+
+
+# Grey out Ridge while the points clicked would divide the parts rather than
+# cut one, since the two sides of a divide share no edge to leave a ridge
+# along; and Crust whenever there is no ridge, since the crust lies between the
+# ridge and the halves.
+func _update_split_switches() -> void:
+	ridge_check.disabled = _split_divides(features.feature_tree.get_selected_node())
+	crust_check.disabled = ridge_check.disabled or not ridge_check.button_pressed
+
+
+# The points clicked so far, in the selected feature's own frame: they were
+# clicked in world space, and a feature keeps its vertices before its rotation.
+func _split_path(feature: Feature) -> PackedVector2Array:
+	var into_local := Feature.world_basis(
+		features.root, feature, document.current_time).transposed()
+	return Feature.apply_basis(split_points, into_local)
+
+
+# Whether the points clicked so far would divide the feature's parts rather
+# than cut one of them: two or more points, none of them inside a part and no
+# stretch between them crossing a part's edge. Until there are two points there
+# is nothing to touch a part with, so the answer is a cut.
+func _split_divides(feature: Feature) -> bool:
+	if feature == null or split_points.size() < 2 or feature.rings.size() < 2:
+		return false
+	var path := _split_path(feature)
+	for ring in feature.rings:
+		if GeometryEdit.touches(ring, path):
+			return false
+	return true
 
 
 ### Drawing a circle
@@ -3845,9 +3881,14 @@ func _show_measurement(error: String = "") -> void:
 			if measure_points.size() == 1 else "click two points to measure"
 		return
 	if active_tool == Tool.SPLIT:
-		status_measure.text = "click across the polygon, from one edge to another" \
-			if split_points.size() < 2 \
-			else "%d points   Enter splits the polygon along them" % split_points.size()
+		if split_points.size() < 2:
+			status_measure.text = "click across the polygon, from one edge to another"
+		elif _split_divides(features.feature_tree.get_selected_node()):
+			status_measure.text = "%d points   Enter divides the parts along them" \
+				% split_points.size()
+		else:
+			status_measure.text = "%d points   Enter splits the polygon along them" \
+				% split_points.size()
 		return
 
 	var selected := features.feature_tree.get_selected_node()

@@ -408,7 +408,8 @@ nearest point of the polygon's boundary and becomes a new vertex there, or uses
 the vertex that is already there, as a click just past a corner does. The
 points between the ends go to both halves, so the two halves share the whole
 cut. A feature of several polygons is cut in the part whose edge is nearest the
-first point.
+first point, when the cut touches a part at all; a cut drawn between the parts
+[divides](#dividing) them instead.
 
 A cut is refused, with the reason in the status bar, when:
 
@@ -425,6 +426,30 @@ Laurentia 2 crust`.
 
 Each half's ring starts with the cut: its first vertices are the two ends and
 the points between them, which is how the ridge names that stretch.
+
+### Dividing
+
+A feature of several polygons can be split between its parts as well as
+through one of them. A cut that touches no part — none of its points inside a
+part, none of its stretches crossing a part's edge — divides the parts: each
+goes to the side of the cut its middle lies on, the first part's side staying
+with the feature and its title, and the parts on the other side going to the
+second feature, `Laurentia 2`, as the second half of a cut would. The cut is
+read as reaching on past both its ends, so it does not have to be drawn the
+whole way past the outermost parts, and a bent cut sorts each part by the
+stretch nearest to it. Which of the two Enter will do is in the status bar
+while the points are being clicked: `Enter splits the polygon along them` or
+`Enter divides the parts along them`.
+
+A divide leaves no shared edge, so there is no ridge and no crust: the
+**Ridge** and **Crust** switches are greyed out while the points would divide.
+The **Children** switch works as for a cut, by the middle: a feature following
+the polygon at the current time follows the second feature from then on when
+its middle is on that side. A divide is refused when every part lands on one
+side, `The cut leaves every part on one side`, and a cut beside a feature of
+one part is refused as running outside the shape, as before. One undo version
+either way. Implemented by `Document.divide_feature()` over
+`GeometryEdit.touches()`, `side_of()` and `far_parts()`.
 
 ### The ridge
 
