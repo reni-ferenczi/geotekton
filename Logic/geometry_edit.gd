@@ -354,6 +354,68 @@ static func _on_ring(ring: PackedVector2Array, point: Vector2) -> Array:
 	return [edge, along]
 
 
+### Simplifying
+#
+# A freehand stroke is sampled every few pixels, which is far more vertices
+# than the line needs, and the geometry budget is small (Docs/Shader.md). The
+# Draw tool keeps the vertices that matter with this and lets the rest go; see
+# Docs/Draw.md#freehand.
+
+
+# The indices of the points a run keeps when simplified to the tolerance, in
+# order, by Ramer, Douglas and Peucker: the two ends stay, and between two
+# kept points the point furthest from the straight line between them is kept
+# when it is further off than the tolerance, and the two halves it makes are
+# looked at the same way. Both ends of a run of two or fewer are kept as they
+# are. The plane is whichever the points are given in; the Draw tool passes
+# window pixels, so the tolerance is what the eye would miss.
+static func simplified(points: PackedVector2Array, tolerance: float) -> PackedInt32Array:
+	var size := points.size()
+	if size <= 2:
+		var all := PackedInt32Array()
+		for i in size:
+			all.append(i)
+		return all
+	var keep := PackedByteArray()
+	keep.resize(size)
+	keep.fill(0)
+	keep[0] = 1
+	keep[size - 1] = 1
+	var stack: Array[Vector2i] = [Vector2i(0, size - 1)]
+	while not stack.is_empty():
+		var span: Vector2i = stack.pop_back()
+		var from := points[span.x]
+		var to := points[span.y]
+		var furthest := -1
+		var furthest_distance := tolerance
+		for i in range(span.x + 1, span.y):
+			var distance := _off_line(from, to, points[i])
+			if distance > furthest_distance:
+				furthest = i
+				furthest_distance = distance
+		if furthest < 0:
+			continue
+		keep[furthest] = 1
+		if furthest - span.x > 1:
+			stack.append(Vector2i(span.x, furthest))
+		if span.y - furthest > 1:
+			stack.append(Vector2i(furthest, span.y))
+	var result := PackedInt32Array()
+	for i in size:
+		if keep[i]:
+			result.append(i)
+	return result
+
+
+# How far a point is from the straight line through from and to, or from the
+# one point when the two coincide.
+static func _off_line(from: Vector2, to: Vector2, point: Vector2) -> float:
+	var length := from.distance_to(to)
+	if length < 1e-9:
+		return from.distance_to(point)
+	return absf((to - from).cross(point - from)) / length
+
+
 ### Picking
 #
 # Both of these work in whatever plane their points are given in. The Vertex

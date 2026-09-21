@@ -336,7 +336,39 @@ func test_a_divide_needs_two_parts_on_two_sides() -> void:
 	assert_eq(GeometryEdit.divide_problem(parts, PackedVector2Array([Vector2(-20, 0)])),
 		"A cut needs a start and an end.")
 
+### Simplifying a run
 
+
+func test_a_straight_run_keeps_its_two_ends() -> void:
+	var run := PackedVector2Array()
+	for i in 20:
+		run.append(Vector2(i * 5.0, 0.3 * (i % 2)))
+	assert_eq(GeometryEdit.simplified(run, 1.0), PackedInt32Array([0, 19]),
+		"a jitter under the tolerance is let go")
+	assert_eq(GeometryEdit.simplified(run, 0.1), PackedInt32Array(range(20)),
+		"and kept when the tolerance is under it")
+
+
+func test_a_corner_is_kept_and_the_points_along_the_sides_are_not() -> void:
+	var run := PackedVector2Array()
+	for i in 11:
+		run.append(Vector2(i * 10.0, 0.0))
+	for i in range(1, 11):
+		run.append(Vector2(100.0, i * 10.0))
+	assert_eq(GeometryEdit.simplified(run, 2.0), PackedInt32Array([0, 10, 20]),
+		"the two ends and the corner")
+
+
+func test_short_runs_and_a_zero_tolerance() -> void:
+	assert_eq(GeometryEdit.simplified(PackedVector2Array(), 1.0), PackedInt32Array())
+	assert_eq(GeometryEdit.simplified(PackedVector2Array([Vector2(1, 1)]), 1.0), PackedInt32Array([0]))
+	assert_eq(GeometryEdit.simplified(PackedVector2Array([Vector2(1, 1), Vector2(1, 1)]), 1.0),
+		PackedInt32Array([0, 1]), "two points in one place are both kept")
+	var bent := PackedVector2Array([Vector2(0, 0), Vector2(5, 1), Vector2(10, 0)])
+	assert_eq(GeometryEdit.simplified(bent, 0.0), PackedInt32Array([0, 1, 2]),
+		"at zero every point off the line is kept")
+	assert_eq(GeometryEdit.simplified(bent, 1.0), PackedInt32Array([0, 2]),
+		"a point exactly at the tolerance is let go")
 ### Picking
 
 

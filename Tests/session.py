@@ -3516,6 +3516,121 @@ def commit_drawing(client: AutomationClient) -> list[list[float]]:
     return client.call("get_selected")["feature"]["world_rings"][0]
 
 
+# A freehand stroke along the equator and then up the prime meridian, both
+# straight lines on screen from the default view, so simplifying at a few
+# pixels keeps the two ends and the corner and nothing else.
+FREEHAND_STROKE = [(0.0, -20.0 + 2.0 * i) for i in range(11)] + [(1.0 * i, 0.0) for i in range(1, 11)]
+FREEHAND_KEPT = [(0.0, -20.0), (0.0, 0.0), (10.0, 0.0)]
+
+
+def stroke(client: AutomationClient, points: list[tuple[float, float]]) -> bool:
+    """Press at the first point, drag through the rest and let go at the last."""
+    screens = []
+    for lat, lon in points:
+        screen = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        if not check(screen is not None, f"the stroke point ({lat}, {lon}) is visible"):
+            return False
+        screens.append(screen)
+    client.call("press", x=screens[0][0], y=screens[0][1])
+    for screen in screens[1:]:
+        client.call("mouse_move", x=screen[0], y=screen[1])
+    client.call("release", x=screens[-1][0], y=screens[-1][1])
+    return True
+
+
+def run_freehand_session(client: AutomationClient) -> None:
+    """The Draw tool's Freehand switch: a stroke laid down under the pointer."""
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Coast")
+    client.call("set_property", field="feature_type", value="line")
+    client.call("set_tool", tool="draw")
+    tool = client.call("get_tool")
+    check(tool["freehand_visible"], "the Freehand switch shows while a line is drawn")
+    check(not tool["freehand"], "and starts off")
+
+    ### The switch follows the kind
+
+    client.call("set_property", field="feature_type", value="points")
+    client.call("set_tool", tool="draw")
+    check(not client.call("get_tool")["freehand_visible"], "a multipoint offers no freehand")
+    client.call("set_property", field="feature_type", value="line")
+    client.call("set_tool", tool="draw", freehand=True, tolerance=4)
+    tool = client.call("get_tool")
+    check(tool["freehand"] and tool["tolerance"] == 4, f"freehand is on at 4 px: {tool['tolerance']}")
+
+    ### A stroke, simplified when it ends
+
+    depth = undo_depth(client)
+    if not stroke(client, FREEHAND_STROKE):
+        return
+    held = client.call("get_tool")["drawing_vertices"]
+    check(held == 3, f"the stroke came to its two ends and its corner: {held} held")
+    check(client.call("get_tool")["stroke_points"] == 0, "and nothing is left in the stroke")
+    status = client.call("get_status")["status"]["measure"]
+    check(status.startswith("3 vertices"), f"the status bar counts them: {status!r}")
+    check(undo_depth(client) == depth, "nothing reached the document yet")
+
+    ### Taken back and put back whole
+
+    client.call("key", key="Z", ctrl=True)
+    check(client.call("get_tool")["drawing_vertices"] == 0, "Ctrl+Z takes the whole stroke back")
+    client.call("key", key="Y", ctrl=True)
+    check(client.call("get_tool")["drawing_vertices"] == 3, "and Ctrl+Y puts it back whole")
+    if not stroke(client, [(10.0, 2.0), (10.0, 6.0), (10.0, 10.0)]):
+        return
+    check(client.call("get_tool")["drawing_vertices"] == 5, "a second stroke adds its two ends")
+    screen = client.call("latlon_to_screen", lat=10.0, lon=10.0)["screen"]
+    client.call("click", x=screen[0], y=screen[1], button="right")
+    check(client.call("get_tool")["drawing_vertices"] == 3, "the right button takes the second stroke back")
+
+    ### Enter commits the stroke as a line
+
+    client.call("key", key="Enter")
+    feature = client.call("get_selected")["feature"]
+    check(len(feature["rings"]) == 1 and len(feature["rings"][0]) == 3,
+          f"Enter commits the three vertices: {feature['rings']}")
+    check(feature["geometry_kind"] == "polyline", f"as a line: {feature['geometry_kind']}")
+    check(worst_offset(feature["world_rings"][0], FREEHAND_KEPT) < 0.5,
+          f"where the stroke went: {feature['world_rings'][0]}")
+    check(undo_depth(client) == depth + 1, "in one undo step")
+    check(client.call("get_tool")["tool"] == "move", "and the tool goes back to Move")
+
+    ### A freehand polygon, and the tolerance
+
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Island")
+    client.call("set_tool", tool="draw", tolerance=0)
+    check(client.call("get_tool")["freehand"], "the switch is remembered from the line")
+    loop = [(-10.0 + 2.0 * i, -20.0) for i in range(11)] + [(10.0, -20.0 + 2.0 * i) for i in range(1, 11)]         + [(10.0 - 2.0 * i, 0.0 - 2.0 * i) for i in range(1, 10)]
+    if not stroke(client, loop):
+        return
+    held = client.call("get_tool")["drawing_vertices"]
+    check(held == len(loop), f"at a tolerance of 0 every sampled point is kept: {held} of {len(loop)}")
+    client.call("key", key="Enter")
+    feature = client.call("get_selected")["feature"]
+    check(feature["geometry_kind"] == "polygon" and len(feature["rings"][0]) == len(loop),
+          f"Enter closes the stroke into a polygon of {len(loop)} vertices: {len(feature['rings'][0])}")
+    check(len(feature["triangles"]) == 3 * (len(loop) - 2), "which is filled")
+
+    ### Escape drops a stroke in progress, and the switch goes off again
+
+    client.call("set_tool", tool="draw")
+    screen = client.call("latlon_to_screen", lat=-20.0, lon=20.0)["screen"]
+    client.call("press", x=screen[0], y=screen[1])
+    screen = client.call("latlon_to_screen", lat=-20.0, lon=30.0)["screen"]
+    client.call("mouse_move", x=screen[0], y=screen[1])
+    check(client.call("get_tool")["stroke_points"] >= 2, "a stroke is in progress")
+    client.call("key", key="Escape")
+    tool = client.call("get_tool")
+    check(tool["stroke_points"] == 0 and tool["drawing_vertices"] == 0, "Escape drops it")
+    client.call("release", x=screen[0], y=screen[1])
+    check(client.call("get_tool")["drawing_vertices"] == 0, "and the release after it adds nothing")
+    client.call("set_tool", tool="draw", freehand=False)
+    check(not client.call("get_tool")["freehand"], "the switch goes off")
+    client.call("set_tool", tool="move")
+
+
 def run_draw_from_geometry_session(client: AutomationClient) -> None:
     """The Draw tool snaps, takes a pasted shape and traces along a ring."""
     start_new_document(client)
@@ -5547,6 +5662,7 @@ def main(argv: list[str]) -> int:
         run_vertex_delete_checks(client)
         run_snap_session(client)
         run_draw_from_geometry_session(client)
+        run_freehand_session(client)
         run_measure_session(client)
         run_area_session(client)
         run_split_session(client)

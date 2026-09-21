@@ -195,6 +195,34 @@ static func set_split_children(enabled: bool) -> void:
 	set_value("split_children", enabled)
 
 
+# Whether the Draw tool draws freehand: a stroke laid down under the pointer
+# rather than vertices clicked one by one. A switch beside the Draw button
+# while that tool draws a line or a polygon, off unless someone turns it on.
+static func get_freehand() -> bool:
+	return bool(get_value("freehand", false))
+
+
+static func set_freehand(enabled: bool) -> void:
+	set_value("freehand", enabled)
+
+
+# How far a point of a freehand stroke may be from the line without it, in
+# window pixels, before it is kept: the tolerance of the simplification a
+# stroke goes through when it ends. Zero keeps every sampled point.
+const MIN_FREEHAND_TOLERANCE := 0.0
+const MAX_FREEHAND_TOLERANCE := 50.0
+const DEFAULT_FREEHAND_TOLERANCE := 4.0
+
+
+static func get_freehand_tolerance() -> float:
+	return clampf(float(get_value("freehand_tolerance", DEFAULT_FREEHAND_TOLERANCE)),
+		MIN_FREEHAND_TOLERANCE, MAX_FREEHAND_TOLERANCE)
+
+
+static func set_freehand_tolerance(pixels: float) -> void:
+	set_value("freehand_tolerance", clampf(pixels, MIN_FREEHAND_TOLERANCE, MAX_FREEHAND_TOLERANCE))
+
+
 # How wide a picture File > Export Image writes. The height follows from the
 # projection, so this one number settles the size of every export. The default
 # is large enough to print and the bounds are what a viewport can be asked for.

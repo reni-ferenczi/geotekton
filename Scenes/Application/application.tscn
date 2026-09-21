@@ -157,6 +157,31 @@ custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 tooltip_text = "Segments of a circle: how many the Draw tool cuts a circle into when it commits"
 
+[node name="Freehand" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1493827615]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+tooltip_text = "Draw freehand: press and drag to lay the line down under the pointer, simplified when the button is let go; Enter still commits it"
+text = "Freehand"
+
+[node name="ToleranceLabel" type="Label" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1493827616]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Tolerance of a freehand stroke, in pixels: a point closer than this to the line without it is let go when the stroke ends"
+mouse_filter = 1
+text = "Tolerance"
+vertical_alignment = 1
+
+[node name="Tolerance" type="SpinBox" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=1493827617]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+tooltip_text = "Tolerance of a freehand stroke, in pixels: a point closer than this to the line without it is let go when the stroke ends"
+suffix = "px"
+
 [node name="Ridge" type="CheckButton" parent="LeftSplitter/RightSplitter/Center/PanelContainer/Tools" unique_id=828624841]
 unique_name_in_owner = true
 visible = false

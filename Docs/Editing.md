@@ -2,8 +2,8 @@
 
 ## Tools
 
-The toolbar contains seven mutually exclusive tool buttons, two switches and a
-number:
+The toolbar contains seven mutually exclusive tool buttons, a few switches and
+two numbers, each shown only while the tool that reads it is active:
 
 - **Move** — Default. Enables globe rotation, dragging, and feature movement.
 - **Rotate** — Turns the selected feature about its own middle; see
@@ -23,6 +23,11 @@ number:
   see [The Split tool](#the-split-tool). Offered while a polygon is selected.
 - **Circle segments** — Shown only while the Draw tool is drawing a circle; see
   [Segments of a circle](#segments-of-a-circle).
+- **Freehand** and **Tolerance** — Whether the Draw tool lays a line down under
+  a dragged pointer instead of taking vertices click by click, and how closely
+  the line follows the drag, in pixels. Shown only while the Draw tool draws a
+  Line or a Polygon, off to start with, both remembered between sessions; see
+  [Freehand](Draw.md#freehand).
 - **Ridge** — Whether the Split tool leaves a ridge along the cut. Shown only
   while that tool is active, on to start with, and remembered between sessions;
   see [The ridge](#the-ridge).
