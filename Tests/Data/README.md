@@ -5,7 +5,7 @@ exact format `Document.save_to_file` produces: tab-indented JSON, keys sorted.
 See `Docs/Persistence.md` for the formats themselves. All say
 `"application": "geotekt"`, whatever format version they are written in.
 
-Four of the eight are fixtures for the older formats. Three are still written in
+Four of the nine are fixtures for the older formats. Three are still written in
 **0.1.0**, where a feature stored a flat list of
 triangles and no geometry kind. They are the fixtures for `Document.migrate()`, which
 recovers the outline those triangles covered, so leave them as they are.
@@ -33,7 +33,8 @@ group styles.
 than one it had to recover: rings, a geometry kind, a feature type, a keyframe
 list and a uuid on every node. `motion.geotekt` is the one whose keyframe
 list holds more than one keyframe, which is what makes it the fixture for
-motion over time.
+motion over time. `poles.geotekt`, the ninth, is written in the current format
+and holds the two polygons at the poles.
 
 `topology.geotekt` is the fixture for a
 [line topology](../../Docs/Editing.md#topologies): two multipoints on the
@@ -162,6 +163,19 @@ resolved topology is drawn. The one at (0, 3) is in the gap between the two
 sections, off the grid, and shows the Earth: the sections are not joined
 up. The two on the markers are at vertices the boundary also runs through, and
 the marker wins there, so they say the features are still drawn under it.
+
+### poles.geotekt (0.28.0)
+
+Root group `Planet` > `Beside the Pole` in red and `Round the Pole` in blue,
+written in the current format. The first runs along 70 N and 88 N between
+60 W and 60 E, five vertices on each parallel, beside the north pole but not
+round it. The second goes round the south pole along 70 S with a bay cut in
+between 90 W and 60 W that widens inside its mouth, so the lips over the bay
+cannot be seen from the pole. Both are shapes whose fill went wrong when the
+triangulation was decided in the latitude and longitude plane (GP-0112); the
+golden scenes `pole_north` and `pole_south` look at them from over the poles,
+and `Tests/Unit/test_ear_clip.gd` builds the same two rings to probe the fill
+on the sphere. The document names no view, so it opens on the defaults.
 
 ### craton.geotekt (0.5.0)
 

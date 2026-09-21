@@ -700,13 +700,21 @@ static func rings_from_json(data: Array) -> Array[PackedVector2Array]:
 ### Triangulation
 
 
-# Ear clipping in the (latitude, longitude) plane. Returns a flat list of
-# triangles, 3 vertices each, wound the same way as the polygon that went in.
+# Ear clipping of a ring on the sphere. Returns a flat list of triangles, 3
+# vertices each, wound the same way as the polygon that went in.
 # Self-intersecting polygons are not supported.
 #
-# A ring whose longitude winds a full turn goes round a pole, and has no shape
-# in that plane to clip: it becomes a fan of triangles from the pole on the
-# side most of the ring lies on, which the pole is added to as a vertex.
+# The shader fills each triangle as a spherical one, its edges great circles,
+# so the clipping has to decide convexity and containment on the sphere as
+# well, or an ear that is fine in the latitude and longitude plane overlaps
+# its neighbour or leaves a sliver open on the globe; near a pole, where that
+# plane is at its most stretched, this showed as the fill going wrong. The
+# ring is therefore projected gnomonically about the middle of its vertices,
+# a projection under which every great circle is a straight line, so the
+# plane triangulation of the image is a sphere triangulation of the ring. A
+# ring round a pole needs nothing special under it, bays and all; one wider
+# than a hemisphere cannot be projected and falls back to the plane. See
+# Docs/Draw.md#triangulation--ear-clipping.
 #
 # A vertex that repeats the one before it, or a last vertex that repeats the
 # first, is left out: it has no edge of its own, and the zero area corner it
@@ -716,19 +724,6 @@ static func rings_from_json(data: Array) -> Array[PackedVector2Array]:
 # vertex.
 static func ear_clip(polygon: PackedVector2Array) -> PackedVector2Array:
 	var result := PackedVector2Array()
-	var corners := distinct_corners(polygon)
-	var n := corners.size()
-	if n >= 3 and absf(_longitude_winding(polygon)) > 180.0:
-		var latitude_sum := 0.0
-		for i in corners:
-			latitude_sum += polygon[i].x
-		var pole := Vector2(-90.0 if latitude_sum < 0.0 else 90.0, 0.0)
-		for i in range(n):
-			result.append(pole)
-			result.append(polygon[corners[i]])
-			result.append(polygon[corners[(i + 1) % n]])
-		return result
-
 	for index in ear_clip_indices(polygon):
 		result.append(polygon[index])
 	return result
@@ -747,18 +742,50 @@ static func distinct_corners(ring: PackedVector2Array) -> PackedInt32Array:
 	return result
 
 
-# The sum of the longitude steps round a ring, each taken the short way: plus
-# or minus 360 for a ring round a pole, zero for any other.
-static func _longitude_winding(ring: PackedVector2Array) -> float:
-	var total := 0.0
-	for i in range(ring.size()):
-		total += wrapf(ring[(i + 1) % ring.size()].y - ring[i].y, -180.0, 180.0)
-	return total
+# How close to the horizon of the projection a vertex may come: the cosine of
+# the angle from the middle of the ring, and 0.05 is about 87 degrees. Past it
+# the image runs off to infinity and the ring is clipped in the plane instead.
+const GNOMONIC_DEPTH := 0.05
+
+
+# The ring's corners projected gnomonically about the middle of its vertices,
+# index for index with the ring (the other entries are zero), or an empty
+# array when a corner lies too near the horizon of that projection.
+static func _gnomonic(ring: PackedVector2Array, corners: PackedInt32Array) -> PackedVector2Array:
+	var units: Array[Vector3] = []
+	var middle := Vector3.ZERO
+	for i in corners:
+		var unit := _latlon_to_xyz_s(ring[i])
+		units.append(unit)
+		middle += unit
+	if middle.length() < 1e-6:
+		return PackedVector2Array()
+	var n := middle.normalized()
+	var e1 := n.cross(Vector3.UP if absf(n.y) < 0.9 else Vector3.RIGHT).normalized()
+	var e2 := n.cross(e1)
+	var plane := PackedVector2Array()
+	plane.resize(ring.size())
+	for k in corners.size():
+		var depth := units[k].dot(n)
+		if depth < GNOMONIC_DEPTH:
+			return PackedVector2Array()
+		plane[corners[k]] = Vector2(units[k].dot(e1) / depth, units[k].dot(e2) / depth)
+	return plane
+
+
+# The ring in the latitude and longitude plane with the longitudes unwrapped,
+# so that each step from one vertex to the next is under 180 degrees and a
+# ring across the date line keeps its shape. The plane a ring too wide for the
+# gnomonic projection is clipped in.
+static func _unwrapped(ring: PackedVector2Array) -> PackedVector2Array:
+	var polygon := ring.duplicate()
+	for i in range(1, ring.size()):
+		var step := wrapf(ring[i].y - ring[i - 1].y, -180.0, 180.0)
+		polygon[i] = Vector2(ring[i].x, polygon[i - 1].y + step)
+	return polygon
 
 
 # The same triangulation as vertex indices into the ring, three per triangle.
-# The longitudes are unwrapped first, so that each step from one vertex to the
-# next is under 180 degrees and a ring across the date line keeps its shape.
 # A repeated vertex is never among the indices, see ear_clip.
 static func ear_clip_indices(ring: PackedVector2Array) -> PackedInt32Array:
 	var result := PackedInt32Array()
@@ -767,10 +794,9 @@ static func ear_clip_indices(ring: PackedVector2Array) -> PackedInt32Array:
 	if n < 3:
 		return result
 
-	var polygon := ring.duplicate()
-	for i in range(1, ring.size()):
-		var step := wrapf(ring[i].y - ring[i - 1].y, -180.0, 180.0)
-		polygon[i] = Vector2(ring[i].x, polygon[i - 1].y + step)
+	var polygon := _gnomonic(ring, corners)
+	if polygon.is_empty():
+		polygon = _unwrapped(ring)
 
 	# Build mutable index list
 	var idx: Array[int] = []
