@@ -56,8 +56,8 @@ armed, so another click moves it, and Escape leaves the tool. Nothing is held,
 and snapping does not apply. See [Hotspots](Editing.md#hotspots). The rest of
 this page is about the other three kinds.
 
-The minimums are `Feature.MINIMUM_VERTICES`, which the Vertex tool reads as
-well: it refuses to delete a vertex that would leave a part under its minimum.
+The minimums are `Feature.MINIMUM_VERTICES`, which `Document.remove_vertex()`
+reads as well: a part the Vertex tool takes under its minimum goes altogether.
 See [Deleting](Editing.md#deleting).
 
 ## Drawing Process

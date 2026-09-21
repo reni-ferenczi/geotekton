@@ -58,29 +58,18 @@ func test_removing_takes_one_vertex_out() -> void:
 	assert_eq(got[1], ring[2], "the ones after it moved up")
 
 
-func test_a_polygon_of_three_vertices_refuses_a_deletion() -> void:
+func test_a_deletion_under_the_minimum_is_not_refused() -> void:
+	# The part goes with the vertex instead; see Document.remove_vertex().
 	var triangle := PackedVector2Array([Vector2(0, 0), Vector2(5, 0), Vector2(0, 5)])
-	assert_true(not GeometryEdit.removal_problem(triangle, 1,
-		Feature.GeometryKind.POLYGON).is_empty(),
-		"two vertices are not a polygon, so the deletion is refused")
-	assert_eq(GeometryEdit.removal_problem(_pentagon(), 1, Feature.GeometryKind.POLYGON), "",
-		"a pentagon has one to spare")
-
-
-func test_each_kind_keeps_its_own_minimum() -> void:
-	var two := PackedVector2Array([Vector2(0, 0), Vector2(5, 0)])
-	assert_eq(GeometryEdit.removal_problem(two, 0, Feature.GeometryKind.MULTIPOINT), "",
-		"one marker is still a multipoint")
-	assert_true(not GeometryEdit.removal_problem(two, 0,
-		Feature.GeometryKind.POLYLINE).is_empty(),
-		"one vertex is not a polyline")
+	assert_eq(GeometryEdit.removal_problem(triangle, 1), "",
+		"the last vertices of a part can be taken out one by one")
+	var one := PackedVector2Array([Vector2(0, 0)])
+	assert_eq(GeometryEdit.removal_problem(one, 0), "", "down to the last one")
 
 
 func test_a_vertex_that_is_not_there_cannot_be_deleted() -> void:
-	assert_true(not GeometryEdit.removal_problem(_pentagon(), 9,
-		Feature.GeometryKind.POLYGON).is_empty())
-	assert_true(not GeometryEdit.removal_problem(_pentagon(), -1,
-		Feature.GeometryKind.POLYGON).is_empty())
+	assert_true(not GeometryEdit.removal_problem(_pentagon(), 9).is_empty())
+	assert_true(not GeometryEdit.removal_problem(_pentagon(), -1).is_empty())
 
 
 ### An edited ring still triangulates
