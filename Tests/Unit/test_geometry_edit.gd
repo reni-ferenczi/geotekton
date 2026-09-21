@@ -278,8 +278,6 @@ func test_a_cut_with_both_ends_on_one_edge_is_refused() -> void:
 		PackedVector2Array([Vector2(3, -1)])).is_empty(), "one point is no cut")
 
 
-
-
 ### Dividing the parts of a feature
 
 
