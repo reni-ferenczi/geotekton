@@ -139,8 +139,26 @@ static func color_button(button_name: String, tooltip: String) -> ColorPickerBut
 	_offer_presets(picker)
 	# The presets are shared and the picker's own copy is not, so it is brought
 	# up to date every time it opens rather than when something else changed.
-	button.get_popup().about_to_popup.connect(_offer_presets.bind(picker))
+	var popup := button.get_popup()
+	popup.about_to_popup.connect(_offer_presets.bind(picker))
+	# The popup comes up no wider than the picker asks for, whichever way it
+	# was opened and whatever size it had last time. Godot sizes it when the
+	# button is pressed, before the presets above go in, and a popup once
+	# widened keeps its width, so it is put back to the picker's minimum after
+	# each opening and again should anything widen it while it is open. See
+	# Docs/Properties.md#the-colour-picker.
+	popup.about_to_popup.connect(popup.reset_size, CONNECT_DEFERRED)
+	popup.size_changed.connect(_fit_popup_width.bind(popup))
 	return button
+
+
+# Take a picker popup back to the width its contents need when it is wider.
+# Only the width: the height grows when the swatches are unfolded, which is
+# the popup's own business.
+static func _fit_popup_width(popup: Window) -> void:
+	var wanted := popup.get_contents_minimum_size()
+	if popup.size.x > int(wanted.x) + 1:
+		popup.size = Vector2i(int(wanted.x), popup.size.y)
 
 
 static func _offer_presets(picker: ColorPicker) -> void:
