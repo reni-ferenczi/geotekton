@@ -39,17 +39,13 @@ static func removed(ring: PackedVector2Array, index: int) -> PackedVector2Array:
 
 
 # Why the vertex cannot be taken out, or an empty string when it can. A part
-# that would fall under the minimum its kind needs is refused rather than
-# quietly taking the whole shape with it: on the globe the Vertex tool would
-# otherwise make a triangle disappear under a single key press.
-static func removal_problem(ring: PackedVector2Array, index: int,
-		kind: Feature.GeometryKind) -> String:
+# that would fall under the minimum its kind needs is not refused: the part
+# goes with the vertex, which Document.remove_vertex() does, and which is the
+# one way to take a single part out of a feature of several. See
+# Docs/Editing.md#deleting.
+static func removal_problem(ring: PackedVector2Array, index: int) -> String:
 	if index < 0 or index >= ring.size():
 		return "There is no vertex %d." % index
-	var minimum := int(Feature.MINIMUM_VERTICES[kind])
-	if ring.size() - 1 < minimum:
-		return "A %s needs %d vertices; delete the feature instead." % [
-			Feature.KIND_NAMES[kind], minimum]
 	return ""
 
 

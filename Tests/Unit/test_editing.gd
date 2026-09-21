@@ -364,6 +364,38 @@ func test_removing_vertices_ends_with_the_part_gone() -> void:
 	assert_eq(_feature(document).triangles.size(), 0)
 
 
+func test_removing_a_part_leaves_the_other_parts_alone() -> void:
+	var document := _document()
+	var other := PackedVector2Array([Vector2(20, 20), Vector2(30, 25), Vector2(20, 30)])
+	_feature(document).add_ring(other, Feature.GeometryKind.POLYGON)
+	document.record()
+	assert_eq(document.remove_vertex(_feature(document), 0, 1), "")
+	assert_eq(_feature(document).rings.size(), 1,
+		"the first part fell under three vertices and went")
+	assert_eq(_feature(document).rings[0], other, "the second part is untouched")
+	assert_eq(_feature(document).triangles.size(), 3, "and still filled")
+	assert_eq(_feature(document).geometry_kind, Feature.GeometryKind.POLYGON,
+		"a polygon does not turn into a line on the way down")
+
+
+func test_a_polyline_part_goes_with_its_second_to_last_vertex() -> void:
+	var document := _document(Feature.GeometryKind.POLYLINE)
+	assert_eq(document.remove_vertex(_feature(document), 0, 0), "")
+	assert_eq(_feature(document).rings[0].size(), 2, "two vertices are still a line")
+	assert_eq(document.remove_vertex(_feature(document), 0, 0), "")
+	assert_eq(_feature(document).rings.size(), 0, "one is not")
+
+
+func test_a_feature_stripped_of_its_parts_stays_in_the_tree() -> void:
+	var document := _document()
+	assert_eq(document.remove_vertex(_feature(document), 0, 0), "")
+	assert_eq(document.root.children.size(), 1, "the feature is still there")
+	assert_true(not _feature(document).has_geometry(), "holding nothing, like a new one")
+	assert_eq(_feature(document).title, "Laurentia")
+	document.undo()
+	assert_eq(_feature(document).rings.size(), 1, "and one undo step brings the part back")
+
+
 func test_a_multipoint_keeps_its_last_vertex_until_it_is_removed() -> void:
 	var document := _document(Feature.GeometryKind.MULTIPOINT)
 	assert_eq(document.remove_vertex(_feature(document), 0, 0), "")

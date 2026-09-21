@@ -286,10 +286,20 @@ distance to something that cannot be seen means nothing.
 Delete takes out the vertex being held: the one under the pointer, or the one
 last clicked when the pointer is on no vertex. Ctrl+LMB on a vertex does the
 same to the vertex clicked; Ctrl+LMB on an edge or on empty planet does nothing.
-Either one is a single undo version. Deleting a vertex is **refused** when the
-part would fall under the minimum its kind needs — three for a polygon, two for
-a polyline, one for a multipoint — and the status bar says so. Without that check, a single
-key press would make a triangle vanish from the globe.
+Either one is a single undo version.
+
+A part left with fewer vertices than its kind needs — three for a polygon, two
+for a polyline, one for a multipoint — goes with the vertex: taking any
+vertex out of a triangle removes the triangle, and the status bar says
+`Removed a part of Laurentia`, or `Removed the last part of Laurentia` when
+nothing is left. A polygon is never kept as a line or a point; its kind stays
+what it was. This is the way to take one part out of a feature of several,
+which Edit > Delete cannot do, since that removes the whole feature. A feature
+whose last part went stays in the tree with no geometry, like a new one, so
+the tool the type is drawn with is armed and it can be drawn again; Ctrl+Z
+brings the part back. Deleting used to be refused at the minimum, so that a
+key press could not make a triangle vanish; a single undo step is enough
+protection, and the refusal left multi-part features uneditable (GP-0112).
 
 **Edit > Delete** uses the same Delete key to remove the whole feature. While
 the Vertex tool holds a vertex, the tool gets the key first and the feature

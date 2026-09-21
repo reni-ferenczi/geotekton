@@ -2543,6 +2543,9 @@ VERTEX_SQUARE = [(-8.0, -8.0), (-8.0, 8.0), (8.0, 8.0), (8.0, -8.0)]
 # A place on the planet well away from every vertex and edge of both.
 VERTEX_EMPTY = (-30.0, -30.0)
 
+# A second part drawn onto the square, clear of it and of VERTEX_EMPTY.
+VERTEX_SECOND_PART = [(20.0, 20.0), (20.0, 32.0), (32.0, 26.0)]
+
 # Where the feature is moved to at time zero, and the time the vertices are
 # then edited at, which is between the one keyframe and nothing, so the feature
 # is somewhere other than where its vertices are stored.
@@ -3284,21 +3287,24 @@ def run_vertex_session(client: AutomationClient) -> None:
           "and the tool holds nothing")
     check(undo_depth(client) == versions + 1, "deleting is one undo step")
 
-    # A triangle has nothing to spare, so the next deletion is refused rather
-    # than taking the whole shape with it.
+    # A triangle has nothing to spare, so the next deletion takes the part with
+    # it; the feature stays, holding nothing, and one undo step brings it back.
     check(len(after["rings"][0]) == 3, "the feature is back to a triangle")
+    title = after["title"]
     grabbed = after["world_rings"][0][0]
     if drag_vertex(client, grabbed, grabbed):
         versions = undo_depth(client)
-        refused = ""
-        try:
-            client.call("vertex", action="delete")
-        except RuntimeError as error:
-            refused = str(error)
-        check(refused != "", f"deleting from a triangle is refused: {refused}")
+        client.call("vertex", action="delete")
+        stripped = client.call("get_selected")["feature"]
+        check(stripped["rings"] == [], f"deleting from a triangle takes the part: {stripped['rings']}")
+        check(title in titles_of(client), "and leaves the feature in the tree")
+        measure = client.call("get_status")["status"]["measure"]
+        check(measure == f"Removed the last part of {title}",
+              f"with the status bar saying so: {measure}")
+        check(undo_depth(client) == versions + 1, "in one undo step")
+        client.call("menu", item="undo")
         check(len(client.call("get_selected")["feature"]["rings"][0]) == 3,
-              "and the triangle is still whole")
-        check(undo_depth(client) == versions, "a refusal records no undo step")
+              "which undo takes back")
 
 
 def run_vertex_delete_checks(client: AutomationClient) -> None:
@@ -3351,16 +3357,34 @@ def run_vertex_delete_checks(client: AutomationClient) -> None:
     check(len(triangle) == 3, f"and takes the vertex out: {triangle}")
     check(undo_depth(client) == versions + 1, "in one undo step")
 
-    ### Ctrl+click on a triangle
+    ### Ctrl+click on a triangle of a two part feature
 
+    # A second part beside the triangle, so that taking the triangle down
+    # vertex by vertex removes one part and leaves the other, which is the one
+    # way a part of a feature of several is taken out.
+    client.call("set_tool", tool="draw")
+    if not draw(client, VERTEX_SECOND_PART):
+        return
+    client.call("key", key="Enter")
+    client.call("set_tool", tool="vertex")
+    feature = client.call("get_selected")["feature"]
+    if not check(len(feature["rings"]) == 2, f"the feature has two parts: {feature['rings']}"):
+        return
+    second = feature["rings"][1]
+
+    # Two vertices are not a polygon, so the triangle goes with its first.
     versions = undo_depth(client)
     if not click_at(client, triangle[0], ctrl=True):
         return
-    check(len(client.call("get_selected")["feature"]["rings"][0]) == 3,
-          "Ctrl+click on a vertex of a triangle is refused")
+    parts = client.call("get_selected")["feature"]["rings"]
+    check(parts == [second], f"Ctrl+click on the triangle takes the part, leaving the other: {parts}")
     measure = client.call("get_status")["status"]["measure"]
-    check("polygon" in measure.lower(), f"with the reason in the status bar: {measure}")
-    check(undo_depth(client) == versions, "and records nothing")
+    check(measure == "Removed a part of Square", f"the status bar says which: {measure}")
+    check("Square" in titles_of(client), "the feature is still in the tree")
+    check(undo_depth(client) == versions + 1, "in one undo step")
+    tool = client.call("get_tool")
+    check(tool["selected_vertex"] is None and tool["tool"] == "vertex",
+          f"the tool holds nothing and stays armed: {tool}")
 
     ### The Delete key with nothing in hand
 

@@ -2862,7 +2862,7 @@ func _input(event: InputEvent) -> void:
 	# accelerator would otherwise take the whole feature.
 	if key.keycode == KEY_DELETE and active_tool == Tool.VERTEX \
 			and vertex_in_hand() != NO_VERTEX:
-		_report(delete_selected_vertex())
+		_report_problem(delete_selected_vertex())
 		get_viewport().set_input_as_handled()
 	elif _hotkey(key):
 		get_viewport().set_input_as_handled()
@@ -2986,6 +2986,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 # message is the tool having done it, which needs no telling.
 func _report(problem: String) -> void:
 	_show_measurement(problem)
+
+
+# Show a problem, and leave the status bar alone when there is none: for an
+# action that has already said what it did, such as a deletion that took a
+# whole part with it.
+func _report_problem(problem: String) -> void:
+	if not problem.is_empty():
+		_show_measurement(problem)
 
 
 func _outline_commit() -> void:
@@ -3215,7 +3223,7 @@ func _vertex_ctrl_press(feature: Feature, screen: Vector2) -> void:
 	var picked := GeometryEdit.nearest_point(own[0], screen, VERTEX_PICK_PIXELS)
 	if picked >= 0:
 		hovered_vertex = own[1][picked]
-		_report(delete_selected_vertex())
+		_report_problem(delete_selected_vertex())
 
 
 # A press takes hold of the vertex under the pointer, or failing that puts a new
@@ -3341,9 +3349,12 @@ func _vertex_cancel_drag() -> void:
 	_after_vertex_edit()
 
 
-# Take out the vertex the tool is working on. Refused when the part would fall
-# under the minimum its kind needs: on the globe a triangle would otherwise
-# disappear under a single key press.
+# Take out the vertex the tool is working on. A part left under the minimum its
+# kind needs goes with it, and the status bar says so, since a triangle
+# vanishing under one key press should not pass in silence. That is how one
+# part of a feature of several is taken out; the feature itself stays, with no
+# geometry once its last part is gone, and is drawn on again like a new one.
+# Returns why it could not be done, or an empty string.
 func delete_selected_vertex() -> String:
 	var feature := features.feature_tree.get_selected_node()
 	var target := vertex_in_hand()
@@ -3351,10 +3362,10 @@ func delete_selected_vertex() -> String:
 		return "The pointer is on no vertex, and none is picked."
 	if target.x >= feature.rings.size() or target.y >= feature.rings[target.x].size():
 		return "That vertex is no longer there."
-	var problem := GeometryEdit.removal_problem(
-		feature.rings[target.x], target.y, feature.geometry_kind)
+	var problem := GeometryEdit.removal_problem(feature.rings[target.x], target.y)
 	if not problem.is_empty():
 		return problem
+	var parts := feature.rings.size()
 	var error := document.remove_vertex(feature, target.x, target.y)
 	if not error.is_empty():
 		return error
@@ -3362,6 +3373,11 @@ func delete_selected_vertex() -> String:
 	selected_vertex = NO_VERTEX
 	split_from = NO_VERTEX
 	_after_vertex_edit()
+	if feature.rings.size() < parts:
+		_show_measurement("Removed the last part of %s" % feature.title
+			if feature.rings.is_empty() else "Removed a part of %s" % feature.title)
+	else:
+		_show_measurement()
 	return ""
 
 
