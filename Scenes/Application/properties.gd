@@ -1442,6 +1442,10 @@ func to_json() -> Dictionary:
 		"name": name_edit.text,
 		"enabled": enabled_check.button_pressed,
 		"color_picker_open": color_button.get_popup().visible,
+		"color_picker_size": [color_button.get_popup().size.x, color_button.get_popup().size.y],
+		"color_button_rect": [color_button.get_global_rect().position.x,
+			color_button.get_global_rect().position.y,
+			color_button.get_global_rect().size.x, color_button.get_global_rect().size.y],
 		"color_presets": _presets_to_json(),
 	}
 	if node.is_group:

@@ -1155,6 +1155,27 @@ def run_color_picker_checks(client: AutomationClient) -> None:
           f"a committed colour is added as one more preset: {grown}")
     client.call("key", key="Escape")
 
+    # The popup keeps the width its contents need however it is opened. It is
+    # opened from the swatch and from the Colour button by turns, with a full
+    # row of presets, since a popup once widened would keep its width and a
+    # widening on each opening is what was reported.
+    for value in ([1.0, 0.5, 0.0], [0.5, 0.0, 1.0], [0.0, 0.5, 1.0], [1.0, 0.0, 0.5]):
+        client.call("set_property", field="color", value=value + [1.0])
+    check(len(presets(client)) >= 9, f"the presets fill a row: {len(presets(client))}")
+    widths = []
+    for opening in range(6):
+        if opening % 2 == 0:
+            client.call("swatch", title="Old Shield")
+        else:
+            rect = client.call("get_properties")["properties"]["color_button_rect"]
+            client.call("click", x=rect[0] + rect[2] / 2, y=rect[1] + rect[3] / 2)
+        panel = client.call("get_properties")["properties"]
+        check(panel["color_picker_open"], f"opening {opening + 1} opens the picker")
+        widths.append(panel["color_picker_size"][0])
+        client.call("key", key="Escape")
+    check(len(set(widths)) == 1, f"the picker is as wide on every opening: {widths}")
+    check(widths[0] < 500, f"and no wider than its contents: {widths[0]}")
+
     # The right click on the swatch still puts the type's default back, and
     # picks nothing.
     client.call("swatch", title="Old Shield", button="right")

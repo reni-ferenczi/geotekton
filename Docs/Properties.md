@@ -211,6 +211,22 @@ them, so a palette built for one feature is a click away on the next. Every
 picker reads the same list, which lives for the session and is not written to
 the settings file.
 
+### The colour picker
+
+The popup is Godot's own, and is held to the width its contents need. Godot
+sizes it when the button is pressed, before the presets go in, and a popup
+window that has once been made wider keeps that width, so `color_button()`
+puts it back to the picker's minimum width after every opening and again
+should anything widen it while it is open; the height is left alone, since it
+grows when the swatches or the recent colours are unfolded. This answers a
+report of the picker coming up stretched sideways, wider on each opening until
+it nearly filled the window (GP-0112). The stretch was not reproduced on the
+development machine, so the guard is a bound rather than a fix at the cause;
+`run_color_picker_checks` in `Tests/session.py` opens the picker from the
+button and from the swatch by turns with a full row of presets and checks
+that the width is the same each time. The automation port reports the popup's
+size as `color_picker_size` and the button's place as `color_button_rect`.
+
 The box beside the color picker is the feature's opacity, from 0 to 100
 percent. It is the alpha of the same color, so it is saved with the color and
 undone with it, and the picker itself leaves the alpha alone. At 0 the planet
