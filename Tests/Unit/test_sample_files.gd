@@ -89,6 +89,19 @@ const EXPECTED := {
 			[Vector2(5, 17), ""],
 		],
 	},
+	"poles.geotekt": {
+		"version": "0.28.0",
+		"titles": ["Planet", "Beside the Pole", "Round the Pole"],
+		"hits": [
+			[Vector2(80, 0), "Beside the Pole"],
+			[Vector2(89, 0), ""],
+			[Vector2(-90, 0), "Round the Pole"],
+			[Vector2(-80, 0), "Round the Pole"],
+			# In the bay, under its lips, which a fan from the pole filled.
+			[Vector2(-78, -70), ""],
+			[Vector2(-72, -85), "Round the Pole"],
+		],
+	},
 }
 
 

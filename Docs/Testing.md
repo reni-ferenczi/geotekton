@@ -637,7 +637,7 @@ A scene states more than its view: whether the kinematics panel is up, what is
 selected and what the time is. Loading a document clears the selection and puts
 the time at the [oldest age](Time.md#the-time-control) the animation covers, so
 a scene only has to name what it wants beyond that, and no scene depends on the
-one before it. Only `kinematics` names a time of its own; the other seventeen
+one before it. Only `kinematics` names a time of its own; the other nineteen
 references show the timeline at 2000 Ma.
 
 A scene that wants its own view settings is rendered from a copy of the sample

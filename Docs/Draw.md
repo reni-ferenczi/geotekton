@@ -175,32 +175,62 @@ After committing, the tool:
 4. If the triangle is a valid ear, it is output and vertex `i` is removed from the list.
 5. This repeats until only 3 vertices remain, which form the final triangle.
 
-The algorithm runs in the 2D lat/lon plane and handles **concave polygons** correctly. Self-intersecting polygons are not supported and will produce undefined results.
+The algorithm handles **concave polygons** correctly. Self-intersecting polygons are not supported and will produce undefined results.
+
+### The plane it runs in
+
+The shader fills every triangle as a spherical one, its edges great circles
+(see [Shader](Shader.md#math)), so the convexity and containment the
+clipping decides have to hold on the sphere, or an ear that is fine in the
+plane it was decided in overlaps its neighbour or leaves a sliver open on the
+globe. In the latitude and longitude plane that happens wherever the plane is
+far from the sphere, most of all near the poles, where a degree of longitude
+is a few kilometers and a straight line in the plane is nothing like a great
+circle: the fill of a polygon beside a pole doubled up along its cuts, which
+was reported in GP-0112.
+
+The ring is therefore projected **gnomonically** first, about the middle of
+its vertices on the sphere: each vertex goes to where the line from the
+centre of the planet through it meets the plane tangent at that middle
+(`Feature._gnomonic()`). Under that projection every great circle is a
+straight line, so a triangle that is an ear in the projected plane is an ear
+on the sphere, and the plane triangulation of the image is a sphere
+triangulation of the ring. It also settles two rings that have no proper shape
+in the latitude and longitude plane without a case of their own:
+
+- **Across the date line.** The projection knows nothing of longitude, so a
+  quad from 175 E to 175 W is the 10 degree quad it is.
+- **Round a pole.** Projected about a middle at or near the pole, the ring
+  is an ordinary polygon round the origin, and a ring at one latitude, which
+  a circle centered on the pole is, is a regular polygon there. Such a ring
+  used to be filled as a fan of triangles from the pole, which is wrong as
+  soon as the ring has a bay the pole cannot see into: the fan filled the bay
+  under its lips. A ring of n corners now gives n - 2 triangles, as any other,
+  and the pole is no longer added as a vertex.
+
+The projection reaches a hemisphere: a vertex more than about 87 degrees from
+the middle (`Feature.GNOMONIC_DEPTH`) has no image, and a ring that wide is
+clipped in the latitude and longitude plane with its longitudes unwrapped
+(`Feature._unwrapped()`), as every ring was before. `Tests/Unit/test_ear_clip.gd`
+checks the fill on the sphere: a grid of probes over a polygon beside the pole
+and one round the pole with a bay, each inside point covered by one triangle
+and each outside point by none, judged against a gnomonic point in polygon
+test about the probe itself. `Tests/Data/poles.geotekt` holds the two, and
+the golden scenes `pole_north` and `pole_south` look at them from over the
+poles.
 
 ### Repeated vertices
 
 A vertex that repeats the one before it, or a last vertex that repeats the
 first, is not a corner of the shape and is left out of the clipping:
-`Feature.distinct_corners()` picks the indices that take part, and the pole
-fan below is built from those as well. Left in, such a vertex makes a corner of
+`Feature.distinct_corners()` picks the indices that take part, and the
+projection above is made of those as well. Left in, such a vertex makes a corner of
 zero area, which is never convex and always counts as lying on the edge of any
 ear next to it, so the clipping stalls with the corner beside it unfilled. Rings
 like that do exist: a file saved before a double click was caught holds its
 last vertex twice, and GML and the Shapefile format close a ring by repeating
 its first vertex. The vertex stays in the ring, the outline is drawn through it
 and the vertex tool can take it out; only the fill ignores it.
-
-Two kinds of ring have no proper shape in that plane, and are handled first:
-
-- **Across the date line.** The longitudes are unwrapped before clipping, so
-  each step from one vertex to the next is under 180 degrees. A quad from 175 E
-  to 175 W is clipped as the 10 degree quad it is, not as one 350 degrees wide.
-- **Round a pole.** When the longitude steps of a ring, each taken the short
-  way, add up to a full turn, the ring encloses a pole. It is cut into a fan of
-  triangles `(pole, v[i], v[i+1])`, one per vertex, with the pole on the side
-  where most of the ring's latitude lies. The pole is added to the triangle
-  list as an extra vertex. A ring at one latitude, which a circle centered on
-  the pole is, would otherwise have no area and no fill at all.
 
 ### Winding Order Correction
 
