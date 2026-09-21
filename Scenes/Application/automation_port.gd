@@ -656,6 +656,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"circle": _circle_to_json(),
 				"segments": app.circle_segments(),
 				"segments_visible": app.segments_spin.is_visible_in_tree(),
+				"freehand": app.freehand_check.button_pressed,
+				"freehand_visible": app.freehand_check.is_visible_in_tree(),
+				"tolerance": app.freehand_tolerance(),
+				"stroke_points": app.stroke.size(),
 				"draw_enabled": not app.draw_button.disabled,
 				"topology_enabled": app._can_build_topology(
 					app.features.feature_tree.get_selected_node()),
@@ -703,6 +707,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				return {"ok": false, "error": "unknown tool: %s" % tool_name}
 			if request.has("segments"):
 				app.segments_spin.value = float(request["segments"])
+			if request.has("freehand"):
+				app.freehand_check.button_pressed = bool(request["freehand"])
+			if request.has("tolerance"):
+				app.tolerance_spin.value = float(request["tolerance"])
 			if request.has("ridge"):
 				app.ridge_check.button_pressed = bool(request["ridge"])
 				app.ridge_check.toggled.emit(app.ridge_check.button_pressed)

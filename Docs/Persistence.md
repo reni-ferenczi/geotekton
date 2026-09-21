@@ -710,6 +710,7 @@ more than the last change.
 | `vertex_marker_scale`, `line_width_scale` | How large the outline overlay is drawn, as multiples of the shader defaults |
 | `snap_to_vertices`                 | Edit > Snap to vertices: whether a dragged vertex, a pole or a drawn point snaps onto a nearby vertex. On when the file says nothing |
 | `split_ridge`, `split_crust`, `split_children` | Whether the Split tool leaves a ridge, crust beside it, and cuts the polygon's children along. All on when the file says nothing |
+| `freehand`, `freehand_tolerance` | Whether the Draw tool draws freehand, off when the file says nothing, and the tolerance a stroke is simplified to, in pixels, 4 when the file says nothing |
 | `export_width`                     | How wide an exported picture or video is; the height follows from what is being shown |
 | `ffmpeg`                           | Which ffmpeg encodes the frames of a video; the path is searched when unset |
 | `feature_colors`                   | Feature type id to `[r, g, b, a]`, for the types whose color the Preferences dialog changed; a type missing here has its catalog color |

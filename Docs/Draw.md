@@ -1,7 +1,8 @@
 # Draw Tool
 
 The Draw tool places the geometry of a feature on the planet surface: click to
-put vertices down, then press Enter to commit them.
+put vertices down, or drag with [Freehand](#freehand) on, then press Enter to
+commit them.
 
 ## Tool Selection
 
@@ -77,6 +78,7 @@ selected feature.
 | **Enter** | Commit the vertices to the feature |
 | **Escape** | Cancel the current outline, discard all placed vertices |
 | **MMB** | Planet rotation (always available, unchanged) |
+| **LMB drag**, with **Freehand** on | Lay a stroke down under the pointer; see [Freehand](#freehand) |
 
 Snapping, tracing along a ring and pasting a shape are described in
 [Snapping](Editing.md#snapping) and [Copying a shape](Editing.md#copying-a-shape).
@@ -130,6 +132,70 @@ markers on a multipoint, and no dots on the vertices. See [Editing](Editing.md#t
 7. Repeat to add more parts to the same feature, or select a different feature.
 
 Press **Escape** at any time to discard the current outline and start over.
+
+### Freehand
+
+The **Freehand** switch, shown in the toolbar while the Draw tool draws a Line
+or a Polygon, changes what the left button does: pressed and dragged, it lays
+the line down under the pointer, and lets nothing be clicked out vertex by
+vertex until it is turned off again. Points, a Circle and a Hotspot are not
+lines and do not offer it. The switch is off to start with and remembered
+between sessions, in the `freehand` setting.
+
+| Input | Action |
+|-------|--------|
+| **LMB press** | Start a stroke where the pointer is |
+| **Mouse motion** (button held) | Add a point to the stroke every `Application.FREEHAND_SPACING` (3) pixels the pointer moves |
+| **LMB release** | End the stroke: simplify it to the **Tolerance** and add what is left to the held points, as one group |
+| **RMB** or **Ctrl+Z** | Take the whole last stroke back |
+| **Ctrl+Y** | Put it back whole |
+| **Enter** | Commit the held points, ending a stroke still in progress first |
+| **Escape** | Drop a stroke in progress and every held point |
+
+A line drawn this way is no different underneath from one clicked out: a
+feature holds vertices and nothing else, the shader draws great circle arcs
+between them, and GPlates, GML and the Shapefile format have no curve either.
+What the switch changes is who places the vertices. The stroke is sampled as
+the pointer moves and then **simplified** when the button is let go, by
+Ramer, Douglas and Peucker in window pixels
+(`GeometryEdit.simplified()`): the two ends stay, and between two kept points
+the point furthest from the straight line between them is kept when it is
+further off than the tolerance, and each half is looked at the same way. The
+**Tolerance** box beside the switch is that distance, from 0, which keeps every
+sampled point, to 50 pixels, 4 to start with, remembered in the
+`freehand_tolerance` setting. Pixels rather than degrees, since the tolerance
+is what the eye would miss at the zoom the line was drawn at: a coastline
+traced at a high zoom keeps more of its detail than the same coastline traced
+from far out, which is also what the drawing hand meant.
+
+The budget makes the simplification matter. The shader loops over every
+segment for every fragment, so a document holds about 2,000 primitives at 60
+frames a second and 16,384 at most (see [Shader](Shader.md#performance)); a
+stroke that kept every sample would spend that on one coastline. The count
+after simplification is in the status bar, `24 vertices   drag to add a
+stroke   Enter commits`, which is how the tolerance is set by eye.
+
+While a stroke is in progress the preview shows the held points and the raw
+stroke as one line with no vertex markers, open for a Line and closed once a
+Polygon has three points, since a run sampled every few pixels is too fine to
+mark. Snapping and tracing along a ring do not apply to a stroke; Paste Shape
+adds its points as it always has. A stroke that runs off the planet ends
+where it left it, and a stroke of one point, a click that did not move, is
+one vertex like any other click.
+
+The held points come in groups, one per click and one per stroke
+(`Application.draw_groups`), and Ctrl+Z, RMB and Ctrl+Y move a group at a
+time, so a stroke is taken back and put back whole rather than one sampled
+vertex at a time. A group list that does not add up to the points held,
+because something reset the points without it, is read as one point per
+group, which is what every click is.
+
+The automation port reports the switch, the tolerance and how many points
+a stroke in progress holds in `get_tool` (`freehand`, `freehand_visible`,
+`tolerance`, `stroke_points`) and sets the first two through `set_tool`;
+`run_freehand_session` in `Tests/session.py` draws a stroke with a corner and
+checks what the simplification keeps, the take back, the commit, a polygon at
+a tolerance of zero and Escape.
 
 ### State Clearing
 

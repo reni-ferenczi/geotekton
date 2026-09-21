@@ -69,6 +69,21 @@ func test_a_missing_key_falls_back_to_the_default() -> void:
 	_restore_the_real_config()
 
 
+func test_the_freehand_settings_default_and_stay_inside_their_bounds() -> void:
+	_use_a_scratch_config()
+	assert_eq(Config.get_freehand(), false, "freehand is off until someone turns it on")
+	assert_eq(Config.get_freehand_tolerance(), Config.DEFAULT_FREEHAND_TOLERANCE)
+	Config.set_freehand(true)
+	Config.set_freehand_tolerance(12.0)
+	assert_eq(Config.get_freehand(), true)
+	assert_eq(Config.get_freehand_tolerance(), 12.0)
+	Config.set_freehand_tolerance(-3.0)
+	assert_eq(Config.get_freehand_tolerance(), Config.MIN_FREEHAND_TOLERANCE, "clamped below")
+	Config.set_freehand_tolerance(999.0)
+	assert_eq(Config.get_freehand_tolerance(), Config.MAX_FREEHAND_TOLERANCE, "and above")
+	_restore_the_real_config()
+
+
 func test_the_recent_list_keeps_the_newest_first_without_duplicates() -> void:
 	_use_a_scratch_config()
 	Config.add_recent_file("a.geotekt")

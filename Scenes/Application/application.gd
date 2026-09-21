@@ -142,6 +142,9 @@ const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
 @onready var split_button: Button = %Split
 @onready var segments_spin: SpinBox = %Segments
 @onready var segments_label: Label = %SegmentsLabel
+@onready var freehand_check: CheckButton = %Freehand
+@onready var tolerance_label: Label = %ToleranceLabel
+@onready var tolerance_spin: SpinBox = %Tolerance
 @onready var ridge_check: CheckButton = %Ridge
 @onready var crust_check: CheckButton = %Crust
 @onready var children_check: CheckButton = %Children
@@ -340,6 +343,17 @@ func _ready() -> void:
 	for tool: Tool in tool_buttons:
 		tool_buttons[tool].pressed.connect(func() -> void: set_active_tool(tool))
 	segments_spin.value_changed.connect(func(_value: float) -> void: _refresh_selection_outline())
+	freehand_check.button_pressed = Config.get_freehand()
+	freehand_check.toggled.connect(func(on: bool) -> void:
+		Config.set_freehand(on)
+		_finish_stroke()
+		_refresh_selection_outline()
+		_show_measurement())
+	tolerance_spin.min_value = Config.MIN_FREEHAND_TOLERANCE
+	tolerance_spin.max_value = Config.MAX_FREEHAND_TOLERANCE
+	tolerance_spin.step = 1.0
+	tolerance_spin.value = Config.get_freehand_tolerance()
+	tolerance_spin.value_changed.connect(Config.set_freehand_tolerance)
 	ridge_check.button_pressed = Config.get_split_ridge()
 	ridge_check.toggled.connect(Config.set_split_ridge)
 	crust_check.button_pressed = Config.get_split_crust()
@@ -2064,6 +2078,9 @@ func _update_tool_buttons() -> void:
 	split_button.disabled = not _can_split_along(selected)
 	segments_label.visible = _drawing_circle()
 	segments_spin.visible = _drawing_circle()
+	freehand_check.visible = _can_draw_freehand()
+	tolerance_label.visible = _can_draw_freehand()
+	tolerance_spin.visible = _can_draw_freehand()
 
 
 # Whether the armed tool can still work on the selected feature. Only the two
@@ -2636,6 +2653,9 @@ func _on_planet_input_outside(event: InputEvent) -> void:
 		return
 	if active_tool == Tool.VERTEX:
 		_vertex_commit_drag()
+	elif active_tool == Tool.DRAW:
+		# A stroke that runs off the planet ends where it left it.
+		_finish_stroke()
 	elif _spins(active_tool):
 		# Off the planet there is no angle to turn to, so the drag is given up
 		# and the keyframes go back the way they were, as a move does.
@@ -2659,13 +2679,29 @@ func _on_planet_input_outside(event: InputEvent) -> void:
 var taken_back := PackedVector2Array()
 
 
+# The points of the Draw tool come in groups: one per click, and one per
+# freehand stroke, which is taken back and put back whole. The groups are
+# counts, oldest first, adding up to the points held; taken_back_groups are
+# those of the points taken back, in the order they were taken. Either list
+# that does not add up to its points, because something reset the points
+# without it, is read as one point per group, which is what every click is.
+var draw_groups: Array[int] = []
+var taken_back_groups: Array[int] = []
+
+
 func undo() -> void:
 	var points := _tool_points()
 	if points.is_empty():
 		features.undo()
 		return
-	taken_back.append(points[points.size() - 1])
-	points.remove_at(points.size() - 1)
+	var count := _last_group(draw_groups, points.size())
+	for i in count:
+		taken_back.append(points[points.size() - count + i])
+	points.resize(points.size() - count)
+	if active_tool == Tool.DRAW:
+		_sync_groups(points.size() + count)
+		draw_groups.resize(draw_groups.size() - 1)
+		taken_back_groups.append(count)
 	_set_tool_points(points)
 
 
@@ -2674,9 +2710,37 @@ func redo() -> void:
 		features.redo()
 		return
 	var points := _tool_points()
-	points.append(taken_back[taken_back.size() - 1])
-	taken_back.remove_at(taken_back.size() - 1)
+	var count := _last_group(taken_back_groups, taken_back.size())
+	points.append_array(taken_back.slice(taken_back.size() - count))
+	taken_back.resize(taken_back.size() - count)
+	if active_tool == Tool.DRAW:
+		if taken_back_groups.size() > 0:
+			taken_back_groups.resize(taken_back_groups.size() - 1)
+		_sync_groups(points.size() - count)
+		draw_groups.append(count)
 	_set_tool_points(points)
+
+
+# How many points the last group holds: the last entry when the groups add up
+# to the points and the tool is Draw, otherwise one.
+func _last_group(groups: Array[int], size: int) -> int:
+	if active_tool != Tool.DRAW or groups.is_empty() or size == 0:
+		return 1
+	var total := 0
+	for count in groups:
+		total += count
+	return groups[groups.size() - 1] if total == size else 1
+
+
+# Make draw_groups add up to size, one point per group where they do not.
+func _sync_groups(size: int) -> void:
+	var total := 0
+	for count in draw_groups:
+		total += count
+	if total != size:
+		draw_groups.clear()
+		for i in size:
+			draw_groups.append(1)
 
 
 # One more point for the active tool, from a click.
@@ -2720,6 +2784,8 @@ func _set_tool_points(points: PackedVector2Array) -> void:
 
 
 func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
+	if freehand() and _on_freehand_input(lat, lon, event):
+		return
 	if event is not InputEventMouseButton or not event.is_pressed():
 		return
 
@@ -2744,6 +2810,114 @@ func _on_draw_input(lat: float, lon: float, event: InputEvent) -> void:
 			_draw_points(PackedVector2Array([snap["point"]]), [snap])
 	elif event.button_index == MOUSE_BUTTON_RIGHT and not outline_vertices.is_empty():
 		undo()
+
+
+### Freehand drawing
+#
+# With the Freehand switch on, the Draw tool lays a line down under the
+# pointer: the left button pressed starts a stroke, the pointer moving adds a
+# point every few pixels, and the button let go ends it, whereupon the stroke
+# is simplified to the tolerance beside the switch and joins the held points
+# as one group, which RMB and Ctrl+Z take back whole. Nothing else changes:
+# Enter commits, Escape cancels, and the vertices are as sampled, which is
+# what a freehand line is under everything that stores or draws one. See
+# Docs/Draw.md#freehand.
+
+# How far the pointer moves, in window pixels, before the stroke takes the
+# next point. Without it a slow drag lays down hundreds of points a pixel
+# apart, which on a polygon is also the repeated vertex case.
+const FREEHAND_SPACING := 3.0
+
+# The stroke being drawn, in world latitude and longitude and in window
+# pixels side by side, and whether the button is down.
+var stroke := PackedVector2Array()
+var stroke_screen := PackedVector2Array()
+var stroke_on := false
+
+
+# Whether the Draw tool can draw freehand on what is selected: a line or a
+# polygon, which are drawn vertex by vertex; a multipoint, a circle and a
+# hotspot are not lines.
+func _can_draw_freehand() -> bool:
+	if active_tool != Tool.DRAW or _drawing_circle() or _drawing_hotspot():
+		return false
+	var selected := features.feature_tree.get_selected_node()
+	if selected == null or selected.is_group:
+		return false
+	return drawing_kind() in [Feature.GeometryKind.POLYGON, Feature.GeometryKind.POLYLINE]
+
+
+# Whether the Draw tool is drawing freehand now.
+func freehand() -> bool:
+	return freehand_check.button_pressed and _can_draw_freehand()
+
+
+# The tolerance a stroke is simplified to when it ends, in window pixels.
+func freehand_tolerance() -> float:
+	return tolerance_spin.value
+
+
+# The freehand part of the Draw tool's input. Returns whether the event was
+# the stroke's: a left press, the motion while it is down and the release. A
+# right press falls through to the take back.
+func _on_freehand_input(lat: float, lon: float, event: InputEvent) -> bool:
+	if event is InputEventMouseMotion:
+		if not stroke_on:
+			return false
+		var screen: Variant = planet_view.latlon_to_screen(lat, lon)
+		if screen == null:
+			return true
+		var last := stroke_screen[stroke_screen.size() - 1]
+		if (screen as Vector2).distance_to(last) >= FREEHAND_SPACING:
+			stroke.append(Vector2(lat, lon))
+			stroke_screen.append(screen)
+			_refresh_outline()
+		return true
+	if event is not InputEventMouseButton or event.button_index != MOUSE_BUTTON_LEFT:
+		return false
+	if event.is_pressed():
+		var screen: Variant = planet_view.latlon_to_screen(lat, lon)
+		if screen == null:
+			return true
+		stroke = PackedVector2Array([Vector2(lat, lon)])
+		stroke_screen = PackedVector2Array([screen])
+		stroke_on = true
+		_refresh_outline()
+		return true
+	_finish_stroke()
+	return true
+
+
+# End the stroke: simplify it to the tolerance in window pixels and add what
+# is left to the held points as one group. A stroke of one point is a click.
+func _finish_stroke() -> void:
+	if not stroke_on:
+		return
+	stroke_on = false
+	var kept := PackedVector2Array()
+	for index in GeometryEdit.simplified(stroke_screen, freehand_tolerance()):
+		kept.append(stroke[index])
+	stroke = PackedVector2Array()
+	stroke_screen = PackedVector2Array()
+	if kept.is_empty():
+		_refresh_outline()
+		return
+	var snaps := []
+	snaps.resize(kept.size())
+	_draw_points(kept, snaps)
+	# One group for the whole stroke, in place of the one per point that
+	# _draw_points gave.
+	draw_groups.resize(draw_groups.size() - kept.size())
+	draw_groups.append(kept.size())
+	_show_measurement()
+
+
+# Forget a stroke without adding it, when the drawing is cancelled or the
+# tool is left.
+func _drop_stroke() -> void:
+	stroke_on = false
+	stroke = PackedVector2Array()
+	stroke_screen = PackedVector2Array()
 
 
 # Put the hotspot where the Draw tool was clicked, on the feature under the
@@ -2772,13 +2946,18 @@ func _place_hotspot(hotspot: Feature, at: Vector2) -> void:
 var draw_snapped: Array = []
 
 
-# Append points to the drawing with what each one snapped to.
+# Append points to the drawing with what each one snapped to, each its own
+# group for taking back; see draw_groups.
 func _draw_points(points: PackedVector2Array, snaps: Array) -> void:
 	draw_snapped.resize(outline_vertices.size())
 	draw_snapped.append_array(snaps)
+	_sync_groups(outline_vertices.size())
+	for i in points.size():
+		draw_groups.append(1)
 	var held := outline_vertices.duplicate()
 	held.append_array(points)
 	taken_back = PackedVector2Array()
+	taken_back_groups.clear()
 	_set_tool_points(held)
 
 
@@ -2935,6 +3114,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				if _drawing_circle():
 					_report(_circle_commit())
 				else:
+					_finish_stroke()
 					_outline_commit()
 			elif event.keycode == KEY_ESCAPE:
 				_outline_cancel()
@@ -3010,8 +3190,11 @@ func _outline_commit() -> void:
 
 
 func _outline_cancel() -> void:
+	_drop_stroke()
 	outline_vertices = PackedVector2Array()
 	taken_back = PackedVector2Array()
+	draw_groups.clear()
+	taken_back_groups.clear()
 	_refresh_selection_outline()
 	_show_measurement()
 
@@ -3021,20 +3204,28 @@ func _refresh_outline() -> void:
 		planet_view.planet.set_outline(_child_outline() + _circle_outline())
 		_show_measurement()
 		return
+	var shown := outline_vertices.duplicate()
+	if stroke_on:
+		shown.append_array(stroke)
 	planet_view.planet.set_outline(_child_outline() + [{
-		"vertices": outline_vertices,
-		"style": _drawing_outline_style(),
+		"vertices": shown,
+		"style": _drawing_outline_style(shown.size()),
 	}])
 
 
 # How the shape being drawn is shown. A polygon gets a faint closing segment,
 # so it is clear that the shape is not finished; a multipoint gets markers only.
-func _drawing_outline_style() -> Planet.OutlineStyle:
+# A freehand line is sampled too finely to mark, so it is drawn with no vertex
+# markers: open, or closed once a polygon has three points.
+func _drawing_outline_style(count: int = outline_vertices.size()) -> Planet.OutlineStyle:
+	var closed := drawing_kind() == Feature.GeometryKind.POLYGON and count >= 3
+	if freehand():
+		return Planet.OutlineStyle.OUTLINE if closed else Planet.OutlineStyle.OPEN_LINE
 	match drawing_kind():
 		Feature.GeometryKind.MULTIPOINT:
 			return Planet.OutlineStyle.POINTS
 		Feature.GeometryKind.POLYGON:
-			if outline_vertices.size() >= 3:
+			if closed:
 				return Planet.OutlineStyle.CLOSED_PREVIEW
 	return Planet.OutlineStyle.OPEN
 
@@ -3848,6 +4039,12 @@ func _show_measurement(error: String = "") -> void:
 		status_measure.text = "click across the polygon, from one edge to another" \
 			if split_points.size() < 2 \
 			else "%d points   Enter splits the polygon along them" % split_points.size()
+		return
+
+	if freehand():
+		# The held count says what a stroke came to once simplified, which is
+		# what the tolerance is set by.
+		status_measure.text = "drag to draw freehand   Enter commits" if outline_vertices.is_empty() 			else "%d vertices   drag to add a stroke   Enter commits" % outline_vertices.size()
 		return
 
 	var selected := features.feature_tree.get_selected_node()
