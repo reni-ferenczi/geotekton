@@ -284,17 +284,34 @@ slightly, which is why the new vertex can sit a fraction of a degree off the
 edge it was asked for.
 
 An edge with a vertex round the back of the globe is left alone: a screen
-distance to something that cannot be seen means nothing.
+distance to something that cannot be seen means nothing. The other edges of
+the same ring are offered as usual, so a polygon too wide to be on screen all
+at once still takes a vertex on the edges that are. Until GP-0112 the whole
+ring was left alone as soon as one vertex of it was hidden, which on a
+continent sized polygon meant a click on a visible edge did nothing, with no
+reason shown. A click within `VERTEX_PICK_PIXELS` of a vertex takes hold of
+that vertex instead of inserting, so an edge shorter than twice that on
+screen has no point that inserts; zoom in.
 
 ### Deleting
 
 Delete takes out the vertex being held: the one under the pointer, or the one
 last clicked when the pointer is on no vertex. Ctrl+LMB on a vertex does the
 same to the vertex clicked; Ctrl+LMB on an edge or on empty planet does nothing.
-Either one is a single undo version. Deleting a vertex is **refused** when the
-part would fall under the minimum its kind needs — three for a polygon, two for
-a polyline, one for a multipoint — and the status bar says so. Without that check, a single
-key press would make a triangle vanish from the globe.
+Either one is a single undo version.
+
+A part left with fewer vertices than its kind needs — three for a polygon, two
+for a polyline, one for a multipoint — goes with the vertex: taking any
+vertex out of a triangle removes the triangle, and the status bar says
+`Removed a part of Laurentia`, or `Removed the last part of Laurentia` when
+nothing is left. A polygon is never kept as a line or a point; its kind stays
+what it was. This is the way to take one part out of a feature of several,
+which Edit > Delete cannot do, since that removes the whole feature. A feature
+whose last part went stays in the tree with no geometry, like a new one, so
+the tool the type is drawn with is armed and it can be drawn again; Ctrl+Z
+brings the part back. Deleting used to be refused at the minimum, so that a
+key press could not make a triangle vanish; a single undo step is enough
+protection, and the refusal left multi-part features uneditable (GP-0112).
 
 **Edit > Delete** uses the same Delete key to remove the whole feature. While
 the Vertex tool holds a vertex, the tool gets the key first and the feature
@@ -413,7 +430,8 @@ nearest point of the polygon's boundary and becomes a new vertex there, or uses
 the vertex that is already there, as a click just past a corner does. The
 points between the ends go to both halves, so the two halves share the whole
 cut. A feature of several polygons is cut in the part whose edge is nearest the
-first point.
+first point, when the cut touches a part at all; a cut drawn between the parts
+[divides](#dividing) them instead.
 
 A cut is refused, with the reason in the status bar, when:
 
@@ -430,6 +448,30 @@ Laurentia 2 crust`.
 
 Each half's ring starts with the cut: its first vertices are the two ends and
 the points between them, which is how the ridge names that stretch.
+
+### Dividing
+
+A feature of several polygons can be split between its parts as well as
+through one of them. A cut that touches no part — none of its points inside a
+part, none of its stretches crossing a part's edge — divides the parts: each
+goes to the side of the cut its middle lies on, the first part's side staying
+with the feature and its title, and the parts on the other side going to the
+second feature, `Laurentia 2`, as the second half of a cut would. The cut is
+read as reaching on past both its ends, so it does not have to be drawn the
+whole way past the outermost parts, and a bent cut sorts each part by the
+stretch nearest to it. Which of the two Enter will do is in the status bar
+while the points are being clicked: `Enter splits the polygon along them` or
+`Enter divides the parts along them`.
+
+A divide leaves no shared edge, so there is no ridge and no crust: the
+**Ridge** and **Crust** switches are greyed out while the points would divide.
+The **Children** switch works as for a cut, by the middle: a feature following
+the polygon at the current time follows the second feature from then on when
+its middle is on that side. A divide is refused when every part lands on one
+side, `The cut leaves every part on one side`, and a cut beside a feature of
+one part is refused as running outside the shape, as before. One undo version
+either way. Implemented by `Document.divide_feature()` over
+`GeometryEdit.touches()`, `side_of()` and `far_parts()`.
 
 ### The ridge
 

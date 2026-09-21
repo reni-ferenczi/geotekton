@@ -110,6 +110,58 @@ func test_the_line_width_preference_changes_what_is_drawn() -> void:
 			% [reach[1], reach[0]])
 
 
+# A quad 140 degrees wide: its western edge is in front of the camera and its
+# eastern one round the back, so the ring as a whole is never wholly on screen
+# from where the test looks. The camera sits 2.1 radii out, so it sees a cap of
+# about 62 degrees round the middle of the view rather than a hemisphere.
+const WIDE := [Vector2(-20, -40), Vector2(20, -40), Vector2(20, 100), Vector2(-20, 100)]
+
+
+func test_a_vertex_goes_onto_a_visible_edge_of_a_partly_hidden_ring() -> void:
+	await load_sample("empty.geotekt")
+	app.planet_view.planet.lat = 0.0
+	app.planet_view.planet.lon = 0.0
+	await frames(2)
+	var wide := Feature.create_feature("Wide")
+	wide.add_ring(PackedVector2Array(WIDE), Feature.GeometryKind.POLYGON)
+	app.features.root.children.append(wide)
+	app.document.record()
+	app.features.reload()
+	app.refresh_geometry()
+	await frames(2)
+	# The reload put a clone of the tree in place, so the feature is found again.
+	var feature := _find("Wide")
+	app.features.feature_tree.select_node(feature)
+	app.set_active_tool(Application.Tool.VERTEX)
+	await frames(2)
+	if not app.active_tool == Application.Tool.VERTEX:
+		fail("the Vertex tool did not arm")
+		return
+
+	var hidden := 0
+	for vertex in WIDE:
+		if app.planet_view.latlon_to_screen(vertex.x, vertex.y) == null:
+			hidden += 1
+	assert_eq(hidden, 2, "the two eastern corners are round the back")
+
+	# Halfway between the two western corners on screen: the edge is picked
+	# along the straight line between them, which an arc seen this far from
+	# the middle of the view bows away from by more than the pick radius.
+	var top: Variant = app.planet_view.latlon_to_screen(WIDE[0].x, WIDE[0].y)
+	var bottom: Variant = app.planet_view.latlon_to_screen(WIDE[1].x, WIDE[1].y)
+	assert_true(top != null and bottom != null, "the western edge is on screen")
+	if top == null or bottom == null:
+		return
+	await click(((top as Vector2) + (bottom as Vector2)) * 0.5)
+	# The edit reloaded the tree once more.
+	var ring: PackedVector2Array = _find("Wide").rings[0]
+	assert_eq(ring.size(), 5, "a click on it puts a vertex down")
+	if ring.size() == 5:
+		assert_close(ring[1], Vector2(0.0, -40.0), 0.5,
+			"between the two western corners, where the click fell")
+	_let_go()
+
+
 ### Helpers
 
 # How far the outline overlay reaches, in pixels, at the usual size and at four

@@ -1,0 +1,176 @@
+{
+	"application": "geotekt",
+	"features": {
+		"children": [
+			{
+				"color": [
+					1.0,
+					0.0,
+					0.0,
+					1.0
+				],
+				"couplings": [],
+				"enabled": true,
+				"feature_type": "polygon",
+				"geometry_kind": "polygon",
+				"is_group": false,
+				"keyframes": [],
+				"rings": [
+					[
+						[
+							70.0,
+							-60.0
+						],
+						[
+							70.0,
+							-30.0
+						],
+						[
+							70.0,
+							0.0
+						],
+						[
+							70.0,
+							30.0
+						],
+						[
+							70.0,
+							60.0
+						],
+						[
+							88.0,
+							60.0
+						],
+						[
+							88.0,
+							30.0
+						],
+						[
+							88.0,
+							0.0
+						],
+						[
+							88.0,
+							-30.0
+						],
+						[
+							88.0,
+							-60.0
+						]
+					]
+				],
+				"time_range": [
+					0,
+					2000
+				],
+				"title": "Beside the Pole",
+				"type": "Feature",
+				"uuid": "3f0c2a58-6b1e-4d2f-9a7c-1e5b8d4c2a10"
+			},
+			{
+				"color": [
+					0.0,
+					0.0,
+					1.0,
+					1.0
+				],
+				"couplings": [],
+				"enabled": true,
+				"feature_type": "polygon",
+				"geometry_kind": "polygon",
+				"is_group": false,
+				"keyframes": [],
+				"rings": [
+					[
+						[
+							-70.0,
+							-180.0
+						],
+						[
+							-70.0,
+							-150.0
+						],
+						[
+							-70.0,
+							-120.0
+						],
+						[
+							-70.0,
+							-90.0
+						],
+						[
+							-70.0,
+							-80.0
+						],
+						[
+							-74.0,
+							-88.0
+						],
+						[
+							-82.0,
+							-88.0
+						],
+						[
+							-82.0,
+							-55.0
+						],
+						[
+							-74.0,
+							-55.0
+						],
+						[
+							-70.0,
+							-75.0
+						],
+						[
+							-70.0,
+							-60.0
+						],
+						[
+							-70.0,
+							-30.0
+						],
+						[
+							-70.0,
+							0.0
+						],
+						[
+							-70.0,
+							30.0
+						],
+						[
+							-70.0,
+							60.0
+						],
+						[
+							-70.0,
+							90.0
+						],
+						[
+							-70.0,
+							120.0
+						],
+						[
+							-70.0,
+							150.0
+						]
+					]
+				],
+				"time_range": [
+					0,
+					2000
+				],
+				"title": "Round the Pole",
+				"type": "Feature",
+				"uuid": "7a91e4c2-0d3b-4f68-b5e1-9c2d6a8f3b21"
+			}
+		],
+		"enabled": true,
+		"is_group": true,
+		"title": "Planet",
+		"type": "Group",
+		"uuid": "c5d2b7e9-4a1f-4c3d-8e6b-2f9a0d1c7e84"
+	},
+	"version": "0.28.0",
+	"view": {}
+}

@@ -1155,6 +1155,27 @@ def run_color_picker_checks(client: AutomationClient) -> None:
           f"a committed colour is added as one more preset: {grown}")
     client.call("key", key="Escape")
 
+    # The popup keeps the width its contents need however it is opened. It is
+    # opened from the swatch and from the Colour button by turns, with a full
+    # row of presets, since a popup once widened would keep its width and a
+    # widening on each opening is what was reported.
+    for value in ([1.0, 0.5, 0.0], [0.5, 0.0, 1.0], [0.0, 0.5, 1.0], [1.0, 0.0, 0.5]):
+        client.call("set_property", field="color", value=value + [1.0])
+    check(len(presets(client)) >= 9, f"the presets fill a row: {len(presets(client))}")
+    widths = []
+    for opening in range(6):
+        if opening % 2 == 0:
+            client.call("swatch", title="Old Shield")
+        else:
+            rect = client.call("get_properties")["properties"]["color_button_rect"]
+            client.call("click", x=rect[0] + rect[2] / 2, y=rect[1] + rect[3] / 2)
+        panel = client.call("get_properties")["properties"]
+        check(panel["color_picker_open"], f"opening {opening + 1} opens the picker")
+        widths.append(panel["color_picker_size"][0])
+        client.call("key", key="Escape")
+    check(len(set(widths)) == 1, f"the picker is as wide on every opening: {widths}")
+    check(widths[0] < 500, f"and no wider than its contents: {widths[0]}")
+
     # The right click on the swatch still puts the type's default back, and
     # picks nothing.
     client.call("swatch", title="Old Shield", button="right")
@@ -2543,6 +2564,9 @@ VERTEX_SQUARE = [(-8.0, -8.0), (-8.0, 8.0), (8.0, 8.0), (8.0, -8.0)]
 # A place on the planet well away from every vertex and edge of both.
 VERTEX_EMPTY = (-30.0, -30.0)
 
+# A second part drawn onto the square, clear of it and of VERTEX_EMPTY.
+VERTEX_SECOND_PART = [(20.0, 20.0), (20.0, 32.0), (32.0, 26.0)]
+
 # Where the feature is moved to at time zero, and the time the vertices are
 # then edited at, which is between the one keyframe and nothing, so the feature
 # is somewhere other than where its vertices are stored.
@@ -3284,21 +3308,24 @@ def run_vertex_session(client: AutomationClient) -> None:
           "and the tool holds nothing")
     check(undo_depth(client) == versions + 1, "deleting is one undo step")
 
-    # A triangle has nothing to spare, so the next deletion is refused rather
-    # than taking the whole shape with it.
+    # A triangle has nothing to spare, so the next deletion takes the part with
+    # it; the feature stays, holding nothing, and one undo step brings it back.
     check(len(after["rings"][0]) == 3, "the feature is back to a triangle")
+    title = after["title"]
     grabbed = after["world_rings"][0][0]
     if drag_vertex(client, grabbed, grabbed):
         versions = undo_depth(client)
-        refused = ""
-        try:
-            client.call("vertex", action="delete")
-        except RuntimeError as error:
-            refused = str(error)
-        check(refused != "", f"deleting from a triangle is refused: {refused}")
+        client.call("vertex", action="delete")
+        stripped = client.call("get_selected")["feature"]
+        check(stripped["rings"] == [], f"deleting from a triangle takes the part: {stripped['rings']}")
+        check(title in titles_of(client), "and leaves the feature in the tree")
+        measure = client.call("get_status")["status"]["measure"]
+        check(measure == f"Removed the last part of {title}",
+              f"with the status bar saying so: {measure}")
+        check(undo_depth(client) == versions + 1, "in one undo step")
+        client.call("menu", item="undo")
         check(len(client.call("get_selected")["feature"]["rings"][0]) == 3,
-              "and the triangle is still whole")
-        check(undo_depth(client) == versions, "a refusal records no undo step")
+              "which undo takes back")
 
 
 def run_vertex_delete_checks(client: AutomationClient) -> None:
@@ -3351,16 +3378,34 @@ def run_vertex_delete_checks(client: AutomationClient) -> None:
     check(len(triangle) == 3, f"and takes the vertex out: {triangle}")
     check(undo_depth(client) == versions + 1, "in one undo step")
 
-    ### Ctrl+click on a triangle
+    ### Ctrl+click on a triangle of a two part feature
 
+    # A second part beside the triangle, so that taking the triangle down
+    # vertex by vertex removes one part and leaves the other, which is the one
+    # way a part of a feature of several is taken out.
+    client.call("set_tool", tool="draw")
+    if not draw(client, VERTEX_SECOND_PART):
+        return
+    client.call("key", key="Enter")
+    client.call("set_tool", tool="vertex")
+    feature = client.call("get_selected")["feature"]
+    if not check(len(feature["rings"]) == 2, f"the feature has two parts: {feature['rings']}"):
+        return
+    second = feature["rings"][1]
+
+    # Two vertices are not a polygon, so the triangle goes with its first.
     versions = undo_depth(client)
     if not click_at(client, triangle[0], ctrl=True):
         return
-    check(len(client.call("get_selected")["feature"]["rings"][0]) == 3,
-          "Ctrl+click on a vertex of a triangle is refused")
+    parts = client.call("get_selected")["feature"]["rings"]
+    check(parts == [second], f"Ctrl+click on the triangle takes the part, leaving the other: {parts}")
     measure = client.call("get_status")["status"]["measure"]
-    check("polygon" in measure.lower(), f"with the reason in the status bar: {measure}")
-    check(undo_depth(client) == versions, "and records nothing")
+    check(measure == "Removed a part of Square", f"the status bar says which: {measure}")
+    check("Square" in titles_of(client), "the feature is still in the tree")
+    check(undo_depth(client) == versions + 1, "in one undo step")
+    tool = client.call("get_tool")
+    check(tool["selected_vertex"] is None and tool["tool"] == "vertex",
+          f"the tool holds nothing and stays armed: {tool}")
 
     ### The Delete key with nothing in hand
 
@@ -3920,6 +3965,72 @@ def run_split_session(client: AutomationClient) -> None:
 SPLIT_CUT = [(-24.0, -8.0), (-6.0, -10.0), (12.0, -8.0)]
 # Inside the west and the east half of that cut, away from every edge.
 SPLIT_PROBES = {"Old Shield": (-10.0, -16.0), "Old Shield 2": (-10.0, -2.0)}
+
+
+# Two triangles of one feature, west and east of the prime meridian, and a cut
+# drawn down the meridian between them that touches neither.
+DIVIDE_WEST = [(-8.0, -30.0), (8.0, -30.0), (0.0, -18.0)]
+DIVIDE_EAST = [(-8.0, 12.0), (8.0, 12.0), (0.0, 24.0)]
+DIVIDE_CUT = [(-20.0, -4.0), (0.0, 2.0), (20.0, -4.0)]
+
+
+def run_divide_session(client: AutomationClient) -> None:
+    """The Split tool dividing a feature of two polygons along a cut between them."""
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Isles")
+    # Enter goes back to Move, so the second part asks for the tool again.
+    for part in [DIVIDE_WEST, DIVIDE_EAST]:
+        client.call("set_tool", tool="draw")
+        if not draw(client, part):
+            return
+        client.call("key", key="Enter")
+    feature = client.call("get_selected")["feature"]
+    if not check(len(feature["rings"]) == 2, f"the feature has two parts: {len(feature['rings'])}"):
+        return
+    depth = undo_depth(client)
+
+    client.call("set_tool", tool="split")
+    tool = client.call("get_tool")
+    check(tool["ridge_enabled"], "Ridge is offered before any point is clicked")
+
+    # A cut that passes both parts on one side is refused.
+    if not draw(client, [(-20.0, 40.0), (20.0, 40.0)]):
+        return
+    client.call("key", key="Enter")
+    status = client.call("get_status")["status"]["measure"]
+    check("every part on one side" in status, f"a cut beside both parts is refused: {status!r}")
+    check(undo_depth(client) == depth, "and records nothing")
+    client.call("key", key="Escape")
+
+    if not draw(client, DIVIDE_CUT):
+        return
+    status = client.call("get_status")["status"]["measure"]
+    check("divides the parts" in status, f"the status bar says Enter divides: {status!r}")
+    tool = client.call("get_tool")
+    check(not tool["ridge_enabled"] and not tool["crust_enabled"],
+          "Ridge and Crust are greyed out, since a divide leaves no shared edge")
+    client.call("key", key="Enter")
+    status = client.call("get_status")["status"]["measure"]
+    check(status == "Split into Isles, Isles 2", f"the status bar names the two: {status!r}")
+    check(undo_depth(client) == depth + 1, "the divide recorded one version")
+    check(client.call("get_tool")["tool"] == "move", "and went back to the Move tool")
+    titles = titles_of(client)
+    check(titles == ["Planet", "Isles", "Isles 2"], f"the feature became two: {titles}")
+    for title, part in [("Isles", DIVIDE_WEST), ("Isles 2", DIVIDE_EAST)]:
+        client.call("select", title=title)
+        rings = client.call("get_selected")["feature"]["world_rings"]
+        check(len(rings) == 1 and worst_offset(rings[0], part) < 1e-3,
+              f"{title} holds the {'western' if title == 'Isles' else 'eastern'} part alone: {rings}")
+    client.call("select", title="Isles")
+    client.call("set_tool", tool="split")
+    check(client.call("get_tool")["ridge_enabled"], "Ridge comes back once the tool is picked again")
+    client.call("set_tool", tool="move")
+
+    client.call("menu", item="undo")
+    check(titles_of(client) == ["Planet", "Isles"], "undo puts the one feature back")
+    client.call("select", title="Isles")
+    check(len(client.call("get_selected")["feature"]["rings"]) == 2, "with both parts")
 
 
 def run_split_tool_session(client: AutomationClient) -> None:
@@ -5556,6 +5667,7 @@ def main(argv: list[str]) -> int:
         run_area_session(client)
         run_split_session(client)
         run_split_tool_session(client)
+        run_divide_session(client)
         run_ridge_session(client)
         run_crust_session(client)
         run_split_children_session(client)

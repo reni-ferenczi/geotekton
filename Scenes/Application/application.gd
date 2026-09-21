@@ -360,9 +360,8 @@ func _ready() -> void:
 	crust_check.toggled.connect(Config.set_split_crust)
 	children_check.button_pressed = Config.get_split_children()
 	children_check.toggled.connect(Config.set_split_children)
-	# Crust lies between the ridge and the halves, so there is none without one.
-	crust_check.disabled = not ridge_check.button_pressed
-	ridge_check.toggled.connect(func(on: bool) -> void: crust_check.disabled = not on)
+	_update_split_switches()
+	ridge_check.toggled.connect(func(_on: bool) -> void: _update_split_switches())
 	# The range and the starting value come from Circle, so the scene does
 	# not carry a second copy of what a circle may be cut into.
 	segments_spin.min_value = Circle.MIN_SEGMENTS
@@ -2027,6 +2026,7 @@ func set_active_tool(tool: Tool) -> void:
 		parallel_check.button_pressed = false
 	if active_tool == Tool.SPLIT and tool != Tool.SPLIT:
 		split_points = PackedVector2Array()
+		_update_split_switches()
 	if _spins(active_tool) and tool != active_tool:
 		_spin_cancel()
 		pole_at = NO_POLE
@@ -2778,6 +2778,7 @@ func _set_tool_points(points: PackedVector2Array) -> void:
 			_show_measurement()
 		Tool.SPLIT:
 			split_points = points
+			_update_split_switches()
 			_refresh_selection_outline()
 			_show_measurement()
 	_update_edit_menu()
@@ -3041,7 +3042,7 @@ func _input(event: InputEvent) -> void:
 	# accelerator would otherwise take the whole feature.
 	if key.keycode == KEY_DELETE and active_tool == Tool.VERTEX \
 			and vertex_in_hand() != NO_VERTEX:
-		_report(delete_selected_vertex())
+		_report_problem(delete_selected_vertex())
 		get_viewport().set_input_as_handled()
 	elif _hotkey(key):
 		get_viewport().set_input_as_handled()
@@ -3166,6 +3167,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 # message is the tool having done it, which needs no telling.
 func _report(problem: String) -> void:
 	_show_measurement(problem)
+
+
+# Show a problem, and leave the status bar alone when there is none: for an
+# action that has already said what it did, such as a deletion that took a
+# whole part with it.
+func _report_problem(problem: String) -> void:
+	if not problem.is_empty():
+		_show_measurement(problem)
 
 
 func _outline_commit() -> void:
@@ -3406,7 +3415,7 @@ func _vertex_ctrl_press(feature: Feature, screen: Vector2) -> void:
 	var picked := GeometryEdit.nearest_point(own[0], screen, VERTEX_PICK_PIXELS)
 	if picked >= 0:
 		hovered_vertex = own[1][picked]
-		_report(delete_selected_vertex())
+		_report_problem(delete_selected_vertex())
 
 
 # A press takes hold of the vertex under the pointer, or failing that puts a new
@@ -3439,12 +3448,11 @@ func _insert_on_edge(feature: Feature, screen: Vector2) -> Vector2i:
 	var best_part := -1
 	var best: Array = [-1, INF, 0.0]
 	for part in feature.rings.size():
-		var on_screen := _ring_on_screen(feature, part)
-		if on_screen.size() < feature.rings[part].size():
-			# Part of the ring is round the back, where a screen distance means
-			# nothing. Leave that part alone rather than guess at it.
-			continue
-		var found := GeometryEdit.nearest_segment(on_screen, screen, closed)
+		# An edge with an end round the back, where a screen distance means
+		# nothing, is left alone; the edges on the near side are offered
+		# whatever the rest of the ring does.
+		var found := GeometryEdit.nearest_visible_segment(
+			_ring_on_screen(feature, part), screen, closed)
 		if found[0] >= 0 and found[1] < best[1]:
 			best = found
 			best_part = part
@@ -3532,9 +3540,12 @@ func _vertex_cancel_drag() -> void:
 	_after_vertex_edit()
 
 
-# Take out the vertex the tool is working on. Refused when the part would fall
-# under the minimum its kind needs: on the globe a triangle would otherwise
-# disappear under a single key press.
+# Take out the vertex the tool is working on. A part left under the minimum its
+# kind needs goes with it, and the status bar says so, since a triangle
+# vanishing under one key press should not pass in silence. That is how one
+# part of a feature of several is taken out; the feature itself stays, with no
+# geometry once its last part is gone, and is drawn on again like a new one.
+# Returns why it could not be done, or an empty string.
 func delete_selected_vertex() -> String:
 	var feature := features.feature_tree.get_selected_node()
 	var target := vertex_in_hand()
@@ -3542,10 +3553,10 @@ func delete_selected_vertex() -> String:
 		return "The pointer is on no vertex, and none is picked."
 	if target.x >= feature.rings.size() or target.y >= feature.rings[target.x].size():
 		return "That vertex is no longer there."
-	var problem := GeometryEdit.removal_problem(
-		feature.rings[target.x], target.y, feature.geometry_kind)
+	var problem := GeometryEdit.removal_problem(feature.rings[target.x], target.y)
 	if not problem.is_empty():
 		return problem
+	var parts := feature.rings.size()
 	var error := document.remove_vertex(feature, target.x, target.y)
 	if not error.is_empty():
 		return error
@@ -3553,6 +3564,11 @@ func delete_selected_vertex() -> String:
 	selected_vertex = NO_VERTEX
 	split_from = NO_VERTEX
 	_after_vertex_edit()
+	if feature.rings.size() < parts:
+		_show_measurement("Removed the last part of %s" % feature.title
+			if feature.rings.is_empty() else "Removed a part of %s" % feature.title)
+	else:
+		_show_measurement()
 	return ""
 
 
@@ -3644,8 +3660,10 @@ func _on_split_input(lat: float, lon: float, event: InputEvent) -> void:
 
 
 # Cut the selected polygon along the points clicked. The part cut is the one
-# whose boundary is nearest the first point. A refused cut keeps its points, so
-# the one at fault can be taken back rather than the whole cut clicked again.
+# whose boundary is nearest the first point. A cut that touches no part of a
+# feature of several divides the parts instead, each to its side of the cut;
+# see Document.divide_feature(). A refused cut keeps its points, so the one at
+# fault can be taken back rather than the whole cut clicked again.
 #
 # Returns what the status bar says about the cut: why it was refused, or which
 # features it left behind.
@@ -3655,21 +3673,23 @@ func split_along_points() -> String:
 		return "Select a polygon to split."
 	if split_points.size() < 2:
 		return "Click where the cut starts and where it ends."
-	# The points were clicked in world space; a feature keeps its own frame.
-	var into_local := Feature.world_basis(
-		features.root, feature, document.current_time).transposed()
-	var path := Feature.apply_basis(split_points, into_local)
-	var part := 0
-	var nearest := INF
-	for index in feature.rings.size():
-		var distance: float = GeometryEdit.nearest_segment(feature.rings[index], path[0], true)[1]
-		if distance < nearest:
-			nearest = distance
-			part = index
-	var ridge := ridge_check.button_pressed
+	var path := _split_path(feature)
+	# Neither a ridge nor a crust follows a divide, since the two share no edge.
+	var ridge := ridge_check.button_pressed and not ridge_check.disabled
 	var crust := ridge and crust_check.button_pressed
-	var error := document.split_feature_along(feature, part, path, ridge, crust,
-		children_check.button_pressed)
+	var error: String
+	if _split_divides(feature):
+		error = document.divide_feature(feature, path, children_check.button_pressed)
+	else:
+		var part := 0
+		var nearest := INF
+		for index in feature.rings.size():
+			var distance: float = GeometryEdit.nearest_segment(feature.rings[index], path[0], true)[1]
+			if distance < nearest:
+				nearest = distance
+				part = index
+		error = document.split_feature_along(feature, part, path, ridge, crust,
+			children_check.button_pressed)
 	if not error.is_empty():
 		return error
 	# The halves, and the ridge and crust behind them, sit side by side where
@@ -3687,6 +3707,37 @@ func split_along_points() -> String:
 	refresh_geometry()
 	set_active_tool(Tool.MOVE)
 	return "Split into %s" % ", ".join(made)
+
+
+# Grey out Ridge while the points clicked would divide the parts rather than
+# cut one, since the two sides of a divide share no edge to leave a ridge
+# along; and Crust whenever there is no ridge, since the crust lies between the
+# ridge and the halves.
+func _update_split_switches() -> void:
+	ridge_check.disabled = _split_divides(features.feature_tree.get_selected_node())
+	crust_check.disabled = ridge_check.disabled or not ridge_check.button_pressed
+
+
+# The points clicked so far, in the selected feature's own frame: they were
+# clicked in world space, and a feature keeps its vertices before its rotation.
+func _split_path(feature: Feature) -> PackedVector2Array:
+	var into_local := Feature.world_basis(
+		features.root, feature, document.current_time).transposed()
+	return Feature.apply_basis(split_points, into_local)
+
+
+# Whether the points clicked so far would divide the feature's parts rather
+# than cut one of them: two or more points, none of them inside a part and no
+# stretch between them crossing a part's edge. Until there are two points there
+# is nothing to touch a part with, so the answer is a cut.
+func _split_divides(feature: Feature) -> bool:
+	if feature == null or split_points.size() < 2 or feature.rings.size() < 2:
+		return false
+	var path := _split_path(feature)
+	for ring in feature.rings:
+		if GeometryEdit.touches(ring, path):
+			return false
+	return true
 
 
 ### Drawing a circle
@@ -4036,9 +4087,14 @@ func _show_measurement(error: String = "") -> void:
 			if measure_points.size() == 1 else "click two points to measure"
 		return
 	if active_tool == Tool.SPLIT:
-		status_measure.text = "click across the polygon, from one edge to another" \
-			if split_points.size() < 2 \
-			else "%d points   Enter splits the polygon along them" % split_points.size()
+		if split_points.size() < 2:
+			status_measure.text = "click across the polygon, from one edge to another"
+		elif _split_divides(features.feature_tree.get_selected_node()):
+			status_measure.text = "%d points   Enter divides the parts along them" \
+				% split_points.size()
+		else:
+			status_measure.text = "%d points   Enter splits the polygon along them" \
+				% split_points.size()
 		return
 
 	if freehand():
@@ -4107,15 +4163,14 @@ func _vertices_on_screen(only: Feature = null, without: Feature = null,
 	return [points, places, world, owners]
 
 
-# One ring of one feature in window pixels, with whatever is round the back left
-# out. A caller that needs the indices to line up checks the size first.
-func _ring_on_screen(feature: Feature, part: int) -> PackedVector2Array:
+# Where each vertex of one part of a feature is on screen, index for index with
+# the ring, null for a vertex that is not shown: round the back of the globe,
+# or off the map.
+func _ring_on_screen(feature: Feature, part: int) -> Array:
 	var m := Feature.world_basis(features.root, feature, document.current_time)
-	var points := PackedVector2Array()
+	var points := []
 	for vertex in Feature.apply_basis(feature.rings[part], m):
-		var screen: Variant = planet_view.latlon_to_screen(vertex.x, vertex.y)
-		if screen != null:
-			points.append(screen)
+		points.append(planet_view.latlon_to_screen(vertex.x, vertex.y))
 	return points
 
 

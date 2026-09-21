@@ -63,6 +63,11 @@ SCENES = [
     # that its bay, its neck and its northern lobe are all in the reference and
     # none of it runs off the limb. See GP-0026.
     ("craton", "craton.geotekt", {}, {}, {}),
+    # Two polygons at the poles, one beside the north pole and one round the
+    # south pole with a bay in it, each seen from over its pole: the fill of a
+    # polygon near a pole once went wrong (GP-0112), and these keep it right.
+    ("pole_north", "poles.geotekt", {"lat": 80.0, "lon": 0.0}, {}, {}),
+    ("pole_south", "poles.geotekt", {"lat": -80.0, "lon": -70.0}, {}, {}),
     # The grid and the features in each projection, which is what says the
     # inverse in the shader agrees with the one in MapProjection. The sample is
     # the one with features north, south and either side of the middle, so the

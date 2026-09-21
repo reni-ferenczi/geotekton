@@ -60,11 +60,9 @@ func test_triangulation_preserves_the_signed_area() -> void:
 
 
 # A ring round the south pole at one latitude has no area in the plane, and one
-# at mixed latitudes has the wrong one. Both are filled as a fan from the pole,
-# so the polar cap is covered and the rest of the planet is not. The pole itself
-# is the corner every fan triangle shares, which a hit test does not count as
-# inside, so the probes sit a hair from it and off the cuts at the vertex
-# longitudes.
+# at mixed latitudes has the wrong one. Projected about the pole both are
+# plain polygons round the origin, so the polar cap is covered, pole included,
+# and the rest of the planet is not.
 func test_a_ring_round_the_pole_covers_the_pole() -> void:
 	var level := PackedVector2Array()
 	var mixed := PackedVector2Array()
@@ -73,9 +71,10 @@ func test_a_ring_round_the_pole_covers_the_pole() -> void:
 		mixed.append(Vector2(-80.0 if i % 2 == 0 else -83.0, -180.0 + 30.0 * i))
 	for ring in [level, mixed]:
 		var feature := _polygon(ring)
-		assert_eq(feature.triangles.size(), ring.size() * 3,
-			"a ring of %d vertices round the pole is a fan of as many triangles" % ring.size())
+		assert_eq(feature.triangles.size(), (ring.size() - 2) * 3,
+			"a ring of %d vertices round the pole is clipped like any other" % ring.size())
 		var geometry := _geometry(feature)
+		assert_eq(Planet.hit_test(-90.0, 0.0, geometry), feature, "the pole itself is inside")
 		for lon in [-170.0, -45.0, 10.0, 100.0]:
 			assert_eq(Planet.hit_test(-89.999, lon, geometry), feature, "the pole at %s is inside" % lon)
 			assert_eq(Planet.hit_test(-85.0, lon, geometry), feature, "85 S at %s is inside" % lon)
@@ -122,13 +121,13 @@ func test_repeats_anywhere_in_the_ring_are_skipped() -> void:
 	assert_eq(Feature.ear_clip(two_places).size(), 0, "nor a ring that goes there and back")
 
 
-# A repeated vertex on a ring round the pole makes no zero area fan triangle.
+# A repeated vertex on a ring round the pole makes no zero area triangle.
 func test_a_repeated_vertex_round_the_pole_adds_no_triangle() -> void:
 	var ring := PackedVector2Array()
 	for i in range(12):
 		ring.append(Vector2(-82.0, -180.0 + 30.0 * i))
 	ring.append(ring[11])
-	assert_eq(Feature.ear_clip(ring).size(), 12 * 3, "a fan of one triangle per distinct corner")
+	assert_eq(Feature.ear_clip(ring).size(), 10 * 3, "two triangles fewer than distinct corners")
 
 
 func test_a_quad_across_the_date_line_is_filled_across_it() -> void:
@@ -170,3 +169,139 @@ func _signed_area(polygon: PackedVector2Array) -> float:
 		var b := polygon[(i + 1) % polygon.size()]
 		total += a.x * b.y - b.x * a.y
 	return total / 2.0
+
+
+### Filling on the sphere
+#
+# The shader fills each triangle as a spherical one, its edges great circles,
+# so what matters is that the triangles cover the spherical polygon once: no
+# point of it left out and no point covered twice, and nothing outside it
+# filled. The reference for "inside" is a gnomonic projection about the probe
+# itself, under which every great circle is a straight line, so a planar test
+# at the origin is exact for any polygon within the hemisphere round the probe.
+
+
+# Whether the point is inside the spherical polygon the ring outlines.
+func _inside_on_sphere(ring: PackedVector2Array, point: Vector2) -> bool:
+	var n := Feature._latlon_to_xyz_s(point)
+	var e1 := n.cross(Vector3.UP if absf(n.y) < 0.9 else Vector3.RIGHT).normalized()
+	var e2 := n.cross(e1)
+	var plane := PackedVector2Array()
+	for vertex in ring:
+		var v := Feature._latlon_to_xyz_s(vertex)
+		var depth := v.dot(n)
+		if depth <= 1e-6:
+			return false
+		plane.append(Vector2(v.dot(e1) / depth, v.dot(e2) / depth))
+	return Geometry2D.is_point_in_polygon(Vector2.ZERO, plane)
+
+
+# How many of the feature's triangles cover the point on the sphere, by the
+# same half plane test the shader and the hit test use: [with the edges
+# counted in, with them left out]. A point on the cut between two triangles
+# is in both by the first count and in neither by the second.
+func _covered_by(feature: Feature, point: Vector2) -> Array[int]:
+	var p := Feature._latlon_to_xyz_s(point)
+	var closed := 0
+	var open := 0
+	for i in range(0, feature.triangles.size() - 2, 3):
+		var a := Feature._latlon_to_xyz_s(feature.triangles[i])
+		var b := Feature._latlon_to_xyz_s(feature.triangles[i + 1])
+		var c := Feature._latlon_to_xyz_s(feature.triangles[i + 2])
+		var least := minf(a.cross(b).normalized().dot(p),
+			minf(b.cross(c).normalized().dot(p), c.cross(a).normalized().dot(p)))
+		if least > 1e-6:
+			open += 1
+		if least > -1e-6:
+			closed += 1
+	return [closed, open]
+
+
+# Probe a grid of points over the given latitudes and longitudes: inside the
+# spherical polygon each is covered exactly once, outside not at all. A point
+# is a gap when no triangle covers it even with the edges counted in, and an
+# overlap when two cover it with the edges left out, so a point on the cut
+# between two triangles is neither. Points within a small angle of the ring's
+# own edge are skipped, since the reference and the fill may round
+# differently there.
+func _check_fill(ring: PackedVector2Array, lats: Array, lons: Array, what: String) -> void:
+	var feature := _polygon(ring)
+	var gaps := 0
+	var overlaps := 0
+	var spills := 0
+	var probed := 0
+	for lat in lats:
+		for lon in lons:
+			var point := Vector2(lat, lon)
+			if _near_an_edge(ring, point):
+				continue
+			probed += 1
+			var covered := _covered_by(feature, point)
+			if _inside_on_sphere(ring, point):
+				if covered[0] == 0:
+					gaps += 1
+				elif covered[1] > 1:
+					overlaps += 1
+			elif covered[1] > 0:
+				spills += 1
+	assert_true(probed > 20, "%s: enough points probed (%d)" % [what, probed])
+	assert_eq(gaps, 0, "%s: points inside left unfilled" % what)
+	assert_eq(overlaps, 0, "%s: points inside filled twice" % what)
+	assert_eq(spills, 0, "%s: points outside filled" % what)
+
+
+# Whether the point is within a small angle of an edge of the ring.
+func _near_an_edge(ring: PackedVector2Array, point: Vector2) -> bool:
+	var p := Feature._latlon_to_xyz_s(point)
+	for i in ring.size():
+		var a := Feature._latlon_to_xyz_s(ring[i])
+		var b := Feature._latlon_to_xyz_s(ring[(i + 1) % ring.size()])
+		if Planet.arc_distance(a, b, p) < 0.004:
+			return true
+	return false
+
+
+func _range(from: float, to: float, step: float) -> Array:
+	var result := []
+	var value := from
+	while value <= to + 1e-9:
+		result.append(value)
+		value += step
+	return result
+
+
+# A polygon beside the pole, not round it: several vertices along 70 N and
+# along 88 N between 60 W and 60 E. In the latitude and longitude plane it is
+# a rectangle; on the sphere its edges bow towards the pole.
+func test_a_polygon_beside_the_pole_is_filled_once() -> void:
+	var ring := PackedVector2Array()
+	for lon in [-60.0, -30.0, 0.0, 30.0, 60.0]:
+		ring.append(Vector2(70.0, lon))
+	for lon in [60.0, 30.0, 0.0, -30.0, -60.0]:
+		ring.append(Vector2(88.0, lon))
+	_check_fill(ring, _range(60.0, 89.5, 1.0), _range(-90.0, 90.0, 5.0), "beside the pole")
+
+
+# A ring round the pole with a bay in it that widens inside its mouth, the
+# way a hand drawn Antarctica has one: the lips over the bay cannot be seen
+# from the pole, so a fan from the pole fills the bay under them.
+func test_a_ring_round_the_pole_with_a_bay_is_filled_once() -> void:
+	var ring := PackedVector2Array()
+	for i in range(12):
+		var lon := -180.0 + 30.0 * i
+		ring.append(Vector2(-70.0, lon))
+		if i == 3:
+			ring.append(Vector2(-70.0, -80.0))
+			ring.append(Vector2(-74.0, -88.0))
+			ring.append(Vector2(-82.0, -88.0))
+			ring.append(Vector2(-82.0, -55.0))
+			ring.append(Vector2(-74.0, -55.0))
+			ring.append(Vector2(-70.0, -75.0))
+	_check_fill(ring, _range(-89.5, -60.0, 1.0), _range(-180.0, 175.0, 2.5), "round the pole with a bay")
+
+
+# The polygons of the existing tests still fill once when checked on the
+# sphere rather than in the plane.
+func test_the_plane_polygons_fill_once_on_the_sphere() -> void:
+	_check_fill(QUAD, _range(-5.0, 35.0, 1.0), _range(-5.0, 35.0, 1.0), "the quad")
+	_check_fill(L_SHAPE, _range(-5.0, 35.0, 1.0), _range(-5.0, 35.0, 1.0), "the L shape")

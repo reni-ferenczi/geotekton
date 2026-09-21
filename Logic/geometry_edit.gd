@@ -39,17 +39,13 @@ static func removed(ring: PackedVector2Array, index: int) -> PackedVector2Array:
 
 
 # Why the vertex cannot be taken out, or an empty string when it can. A part
-# that would fall under the minimum its kind needs is refused rather than
-# quietly taking the whole shape with it: on the globe the Vertex tool would
-# otherwise make a triangle disappear under a single key press.
-static func removal_problem(ring: PackedVector2Array, index: int,
-		kind: Feature.GeometryKind) -> String:
+# that would fall under the minimum its kind needs is not refused: the part
+# goes with the vertex, which Document.remove_vertex() does, and which is the
+# one way to take a single part out of a feature of several. See
+# Docs/Editing.md#deleting.
+static func removal_problem(ring: PackedVector2Array, index: int) -> String:
 	if index < 0 or index >= ring.size():
 		return "There is no vertex %d." % index
-	var minimum := int(Feature.MINIMUM_VERTICES[kind])
-	if ring.size() - 1 < minimum:
-		return "A %s needs %d vertices; delete the feature instead." % [
-			Feature.KIND_NAMES[kind], minimum]
 	return ""
 
 
@@ -207,6 +203,93 @@ static func shared_edge(ring: PackedVector2Array, path: PackedVector2Array) -> P
 	edge.append_array(path.slice(1, path.size() - 1))
 	edge.append(cut[0][cut[2]])
 	return edge
+
+
+### Dividing
+#
+# A cut that touches no ring of a feature of several polygons does not cut a
+# ring; it divides the parts, each going to the side of it that its middle lies
+# on. The Split tool tells the two apart with touches(); see
+# Docs/Editing.md#dividing.
+
+
+# Whether the path touches the ring: crosses one of its edges, or has a point
+# inside it. A path that does neither runs wholly outside the ring.
+static func touches(ring: PackedVector2Array, path: PackedVector2Array) -> bool:
+	var size := ring.size()
+	for point in path:
+		if Geometry2D.is_point_in_polygon(point, ring):
+			return true
+	for k in path.size() - 1:
+		for i in size:
+			if Geometry2D.segment_intersects_segment(
+					path[k], path[k + 1], ring[i], ring[(i + 1) % size]) != null:
+				return true
+	return false
+
+
+# Which side of the divider a point lies on, 1 or -1: the sign of the point
+# against the segment of the divider it is nearest to. The first and last
+# segments reach on past their ends, so every point of the plane has a side and
+# a divider that stops short of a part still puts it somewhere. A point on the
+# divider itself counts as 1.
+static func side_of(divider: PackedVector2Array, point: Vector2) -> int:
+	var last := divider.size() - 2
+	var best := INF
+	var sign := 1
+	for i in range(last + 1):
+		var from := divider[i]
+		var to := divider[i + 1]
+		var length := from.distance_to(to)
+		if length < 1e-9:
+			continue
+		var along := (to - from) / length
+		var t := (point - from).dot(along) / length
+		if i > 0:
+			t = maxf(t, 0.0)
+		if i < last:
+			t = minf(t, 1.0)
+		var distance := point.distance_to(from + (to - from) * t)
+		if distance < best:
+			best = distance
+			sign = 1 if (to - from).cross(point - from) >= 0.0 else -1
+	return sign
+
+
+# The mean of a ring's vertices, in the plane the ring is given in.
+static func middle(ring: PackedVector2Array) -> Vector2:
+	var total := Vector2.ZERO
+	for vertex in ring:
+		total += vertex
+	return total / maxi(1, ring.size())
+
+
+# The parts on the other side of the divider from the first part, as indices
+# into rings; the first part keeps the feature's title, so its side is the one
+# that stays.
+static func far_parts(rings: Array, divider: PackedVector2Array) -> PackedInt32Array:
+	var result := PackedInt32Array()
+	if rings.is_empty():
+		return result
+	var near := side_of(divider, middle(rings[0]))
+	for index in range(1, rings.size()):
+		if side_of(divider, middle(rings[index])) != near:
+			result.append(index)
+	return result
+
+
+# Why the parts cannot be divided along the path, or an empty string when they
+# can: it needs two points, a feature of more than one part, and parts on both
+# sides. A path that touches a ring is a cut of that ring, not a divide, and
+# split_along_problem() is the one to ask about it.
+static func divide_problem(rings: Array, path: PackedVector2Array) -> String:
+	if path.size() < 2:
+		return "A cut needs a start and an end."
+	if rings.size() < 2:
+		return "The cut runs outside the shape."
+	if far_parts(rings, path).is_empty():
+		return "The cut leaves every part on one side."
+	return ""
 
 
 # The stretch of a path inside a ring, from where it first crosses the boundary
@@ -368,12 +451,37 @@ static func nearest_segment(points: PackedVector2Array, target: Vector2,
 	var last := size if closed else size - 1
 	var best := [-1, INF, 0.0]
 	for i in range(maxi(0, last)):
-		var from := points[i]
-		var to := points[(i + 1) % size]
-		var along := from.direction_to(to)
-		var length := from.distance_to(to)
-		var t := 0.0 if length < 1e-9 else clampf((target - from).dot(along) / length, 0.0, 1.0)
-		var distance := target.distance_to(from.lerp(to, t))
-		if distance < best[1]:
-			best = [i, distance, t]
+		var found := _along_segment(points[i], points[(i + 1) % size], target)
+		if found[0] < best[1]:
+			best = [i, found[0], found[1]]
 	return best
+
+
+# The same for a run in which some points cannot be placed: each entry is a
+# Vector2 or null, and a segment with a null end is not offered, since a
+# distance to something that cannot be seen means nothing. The Vertex tool
+# passes a ring with its vertices round the back of the globe as null, so the
+# edges on the near side still take a vertex while the ring as a whole is
+# partly hidden.
+static func nearest_visible_segment(points: Array, target: Vector2, closed: bool) -> Array:
+	var size := points.size()
+	var last := size if closed else size - 1
+	var best := [-1, INF, 0.0]
+	for i in range(maxi(0, last)):
+		var from: Variant = points[i]
+		var to: Variant = points[(i + 1) % size]
+		if from == null or to == null:
+			continue
+		var found := _along_segment(from, to, target)
+		if found[0] < best[1]:
+			best = [i, found[0], found[1]]
+	return best
+
+
+# How far target is from the segment, and how far along it the nearest point
+# sits, from 0 to 1: [distance, t].
+static func _along_segment(from: Vector2, to: Vector2, target: Vector2) -> Array:
+	var along := from.direction_to(to)
+	var length := from.distance_to(to)
+	var t := 0.0 if length < 1e-9 else clampf((target - from).dot(along) / length, 0.0, 1.0)
+	return [target.distance_to(from.lerp(to, t)), t]

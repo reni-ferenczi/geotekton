@@ -642,6 +642,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"split_points": _points_to_json(app.split_points),
 				"ridge": app.ridge_check.button_pressed,
 				"ridge_visible": app.ridge_check.is_visible_in_tree(),
+				"ridge_enabled": not app.ridge_check.disabled,
 				"crust": app.crust_check.button_pressed,
 				"crust_visible": app.crust_check.is_visible_in_tree(),
 				"crust_enabled": not app.crust_check.disabled,

@@ -500,6 +500,59 @@ func split_feature_along(feature: Feature, part: int, path: PackedVector2Array,
 		edge_size, crust, world_cut)
 
 
+# Divide a feature of several polygons along a path that touches none of them,
+# in the feature's own frame: the parts on the other side of the path from the
+# first part go to a copy of the feature, "<title> 2" beside it, the way a cut
+# leaves its second half; see GeometryEdit.far_parts() and
+# Docs/Editing.md#dividing. Nothing is shared between the two, so no ridge and
+# no crust. With `children` on, a feature following the polygon at the current
+# time follows the copy from then on when its middle is on the copy's side.
+# One version.
+func divide_feature(feature: Feature, path: PackedVector2Array, children := false) -> String:
+	if feature == null or feature.is_group \
+			or feature.geometry_kind != Feature.GeometryKind.POLYGON:
+		return "Only a polygon is split along a cut."
+	var problem := GeometryEdit.divide_problem(feature.rings, path)
+	if not problem.is_empty():
+		return problem
+	var parent := root.find_parent(feature)
+	if parent == null:
+		return "%s is not in the tree." % feature.title
+	var far := GeometryEdit.far_parts(feature.rings, path)
+	var followers: Array[Feature] = []
+	if children:
+		followers = Coupling.children_of(root, feature.uuid, current_time)
+
+	var other := feature.duplicate()
+	other.title = Feature.clamp_title("%s 2" % feature.title)
+	var kept: Array[PackedVector2Array] = []
+	var moved: Array[PackedVector2Array] = []
+	for index in feature.rings.size():
+		if far.has(index):
+			moved.append(feature.rings[index])
+		else:
+			kept.append(feature.rings[index])
+	feature.rings = kept
+	other.rings = moved
+	feature.rebuild_triangles()
+	other.rebuild_triangles()
+	parent.children.insert(parent.find_child(feature) + 1, other)
+
+	split_children.clear()
+	var near := GeometryEdit.side_of(path, GeometryEdit.middle(kept[0]))
+	var into_local := Feature.world_basis(root, feature, current_time).transposed()
+	for child in followers:
+		var span := Coupling.span_at(child, current_time)
+		if child.feature_type == FeatureType.CIRCLE or not span.parents().has(feature.uuid):
+			continue
+		var world := Feature.world_basis(root, child, current_time) * Kinematics.centroid(child)
+		var local := Feature._xyz_to_latlon_s(into_local * world)
+		if GeometryEdit.side_of(path, local) != near:
+			_follow_instead(child, feature.uuid, other)
+	record()
+	return ""
+
+
 # Put the first half in place of the part and the second in a new feature beside
 # the original, named after it. `edge_size` is how many vertices the cut both
 # halves share has, and a ridge is left along it when that is not zero. Each

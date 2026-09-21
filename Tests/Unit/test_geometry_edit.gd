@@ -58,29 +58,18 @@ func test_removing_takes_one_vertex_out() -> void:
 	assert_eq(got[1], ring[2], "the ones after it moved up")
 
 
-func test_a_polygon_of_three_vertices_refuses_a_deletion() -> void:
+func test_a_deletion_under_the_minimum_is_not_refused() -> void:
+	# The part goes with the vertex instead; see Document.remove_vertex().
 	var triangle := PackedVector2Array([Vector2(0, 0), Vector2(5, 0), Vector2(0, 5)])
-	assert_true(not GeometryEdit.removal_problem(triangle, 1,
-		Feature.GeometryKind.POLYGON).is_empty(),
-		"two vertices are not a polygon, so the deletion is refused")
-	assert_eq(GeometryEdit.removal_problem(_pentagon(), 1, Feature.GeometryKind.POLYGON), "",
-		"a pentagon has one to spare")
-
-
-func test_each_kind_keeps_its_own_minimum() -> void:
-	var two := PackedVector2Array([Vector2(0, 0), Vector2(5, 0)])
-	assert_eq(GeometryEdit.removal_problem(two, 0, Feature.GeometryKind.MULTIPOINT), "",
-		"one marker is still a multipoint")
-	assert_true(not GeometryEdit.removal_problem(two, 0,
-		Feature.GeometryKind.POLYLINE).is_empty(),
-		"one vertex is not a polyline")
+	assert_eq(GeometryEdit.removal_problem(triangle, 1), "",
+		"the last vertices of a part can be taken out one by one")
+	var one := PackedVector2Array([Vector2(0, 0)])
+	assert_eq(GeometryEdit.removal_problem(one, 0), "", "down to the last one")
 
 
 func test_a_vertex_that_is_not_there_cannot_be_deleted() -> void:
-	assert_true(not GeometryEdit.removal_problem(_pentagon(), 9,
-		Feature.GeometryKind.POLYGON).is_empty())
-	assert_true(not GeometryEdit.removal_problem(_pentagon(), -1,
-		Feature.GeometryKind.POLYGON).is_empty())
+	assert_true(not GeometryEdit.removal_problem(_pentagon(), 9).is_empty())
+	assert_true(not GeometryEdit.removal_problem(_pentagon(), -1).is_empty())
 
 
 ### An edited ring still triangulates
@@ -289,6 +278,66 @@ func test_a_cut_with_both_ends_on_one_edge_is_refused() -> void:
 		PackedVector2Array([Vector2(3, -1)])).is_empty(), "one point is no cut")
 
 
+
+
+### Dividing the parts of a feature
+
+
+# Two triangles side by side, west and east of the prime meridian.
+func _two_parts() -> Array:
+	return [
+		PackedVector2Array([Vector2(-5, -20), Vector2(5, -20), Vector2(0, -10)]),
+		PackedVector2Array([Vector2(-5, 10), Vector2(5, 10), Vector2(0, 20)]),
+	]
+
+
+func test_a_path_touches_a_ring_by_crossing_it_or_ending_inside_it() -> void:
+	var ring: PackedVector2Array = _two_parts()[0]
+	assert_true(GeometryEdit.touches(ring, PackedVector2Array([Vector2(0, -30), Vector2(0, -15)])),
+		"a path that crosses the edge touches the ring")
+	assert_true(GeometryEdit.touches(ring, PackedVector2Array([Vector2(0, -18), Vector2(1, -17)])),
+		"so does one that lies inside it")
+	assert_true(not GeometryEdit.touches(ring, PackedVector2Array([Vector2(-20, 0), Vector2(20, 0)])),
+		"one that passes beside it does not")
+
+
+func test_the_side_of_a_point_follows_the_nearest_stretch_of_the_divider() -> void:
+	var divider := PackedVector2Array([Vector2(-20, 0), Vector2(20, 0)])
+	assert_true(GeometryEdit.side_of(divider, Vector2(0, -10)) != GeometryEdit.side_of(divider, Vector2(0, 10)),
+		"the two sides of a straight divider differ")
+	assert_eq(GeometryEdit.side_of(divider, Vector2(40, -10)), GeometryEdit.side_of(divider, Vector2(0, -10)),
+		"a point past the end is on the side the extended divider puts it")
+	# A divider that bends round: the far side of the bend is the same side as
+	# the near stretch says, since the nearest stretch decides.
+	var bent := PackedVector2Array([Vector2(-20, 0), Vector2(0, 0), Vector2(0, 20)])
+	assert_eq(GeometryEdit.side_of(bent, Vector2(-10, 5)), GeometryEdit.side_of(bent, Vector2(-5, 10)),
+		"inside the bend is one side")
+	assert_true(GeometryEdit.side_of(bent, Vector2(-10, 5)) != GeometryEdit.side_of(bent, Vector2(-10, -5)),
+		"and outside it the other")
+
+
+func test_the_far_parts_are_those_across_the_divider_from_the_first() -> void:
+	var parts := _two_parts()
+	var divider := PackedVector2Array([Vector2(-20, 0), Vector2(20, 0)])
+	assert_eq(GeometryEdit.far_parts(parts, divider), PackedInt32Array([1]),
+		"the eastern part is across from the western first one")
+	parts.reverse()
+	assert_eq(GeometryEdit.far_parts(parts, divider), PackedInt32Array([1]),
+		"whichever of them is first, the other is far")
+	assert_eq(GeometryEdit.far_parts(parts, PackedVector2Array([Vector2(-20, 40), Vector2(20, 40)])),
+		PackedInt32Array(), "a divider east of both leaves both near")
+
+
+func test_a_divide_needs_two_parts_on_two_sides() -> void:
+	var parts := _two_parts()
+	assert_eq(GeometryEdit.divide_problem(parts, PackedVector2Array([Vector2(-20, 0), Vector2(20, 0)])), "")
+	assert_eq(GeometryEdit.divide_problem(parts, PackedVector2Array([Vector2(-20, 40), Vector2(20, 40)])),
+		"The cut leaves every part on one side.")
+	assert_eq(GeometryEdit.divide_problem([parts[0]], PackedVector2Array([Vector2(-20, 0), Vector2(20, 0)])),
+		"The cut runs outside the shape.")
+	assert_eq(GeometryEdit.divide_problem(parts, PackedVector2Array([Vector2(-20, 0)])),
+		"A cut needs a start and an end.")
+
 ### Simplifying a run
 
 
@@ -322,8 +371,6 @@ func test_short_runs_and_a_zero_tolerance() -> void:
 		"at zero every point off the line is kept")
 	assert_eq(GeometryEdit.simplified(bent, 1.0), PackedInt32Array([0, 2]),
 		"a point exactly at the tolerance is let go")
-
-
 ### Picking
 
 
@@ -364,6 +411,28 @@ func test_the_nearest_segment_and_how_far_along_it() -> void:
 	got = GeometryEdit.nearest_segment(points, Vector2(97, 50), false)
 	assert_eq(got[0], 1, "the second segment")
 	assert_close(got[2], 0.5, 1e-4, "halfway along it")
+
+
+func test_a_segment_with_a_hidden_end_is_not_offered() -> void:
+	# A square with its third corner round the back: the two edges that meet
+	# there are out, the other two are in, closed or not.
+	var points := [Vector2(0, 0), Vector2(100, 0), null, Vector2(0, 100)]
+	var got := GeometryEdit.nearest_visible_segment(points, Vector2(97, 50), true)
+	assert_eq(got[0], 0, "three pixels from the hidden right hand edge, the bottom one is offered")
+	assert_close(got[1], 50.0, 1e-4, "at its real distance")
+	got = GeometryEdit.nearest_visible_segment(points, Vector2(3, 50), true)
+	assert_eq(got[0], 3, "the closing edge is offered, both its ends being visible")
+	assert_close(got[2], 0.5, 1e-4, "halfway along it")
+	got = GeometryEdit.nearest_visible_segment(points, Vector2(3, 50), false)
+	assert_eq(got[0], 0, "open, with no closing edge, the bottom edge is all that is left")
+	var hidden := [null, null, null]
+	assert_eq(GeometryEdit.nearest_visible_segment(hidden, Vector2(1, 1), true)[0], -1,
+		"a ring wholly round the back offers nothing")
+	var same := GeometryEdit.nearest_segment(PackedVector2Array([
+		Vector2(0, 0), Vector2(100, 0), Vector2(100, 100)]), Vector2(97, 50), false)
+	var visible := GeometryEdit.nearest_visible_segment([
+		Vector2(0, 0), Vector2(100, 0), Vector2(100, 100)], Vector2(97, 50), false)
+	assert_eq(visible, same, "with nothing hidden the two agree")
 
 
 func test_a_point_past_the_end_of_a_segment_stays_on_it() -> void:
