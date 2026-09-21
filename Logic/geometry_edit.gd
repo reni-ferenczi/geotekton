@@ -205,6 +205,93 @@ static func shared_edge(ring: PackedVector2Array, path: PackedVector2Array) -> P
 	return edge
 
 
+### Dividing
+#
+# A cut that touches no ring of a feature of several polygons does not cut a
+# ring; it divides the parts, each going to the side of it that its middle lies
+# on. The Split tool tells the two apart with touches(); see
+# Docs/Editing.md#dividing.
+
+
+# Whether the path touches the ring: crosses one of its edges, or has a point
+# inside it. A path that does neither runs wholly outside the ring.
+static func touches(ring: PackedVector2Array, path: PackedVector2Array) -> bool:
+	var size := ring.size()
+	for point in path:
+		if Geometry2D.is_point_in_polygon(point, ring):
+			return true
+	for k in path.size() - 1:
+		for i in size:
+			if Geometry2D.segment_intersects_segment(
+					path[k], path[k + 1], ring[i], ring[(i + 1) % size]) != null:
+				return true
+	return false
+
+
+# Which side of the divider a point lies on, 1 or -1: the sign of the point
+# against the segment of the divider it is nearest to. The first and last
+# segments reach on past their ends, so every point of the plane has a side and
+# a divider that stops short of a part still puts it somewhere. A point on the
+# divider itself counts as 1.
+static func side_of(divider: PackedVector2Array, point: Vector2) -> int:
+	var last := divider.size() - 2
+	var best := INF
+	var sign := 1
+	for i in range(last + 1):
+		var from := divider[i]
+		var to := divider[i + 1]
+		var length := from.distance_to(to)
+		if length < 1e-9:
+			continue
+		var along := (to - from) / length
+		var t := (point - from).dot(along) / length
+		if i > 0:
+			t = maxf(t, 0.0)
+		if i < last:
+			t = minf(t, 1.0)
+		var distance := point.distance_to(from + (to - from) * t)
+		if distance < best:
+			best = distance
+			sign = 1 if (to - from).cross(point - from) >= 0.0 else -1
+	return sign
+
+
+# The mean of a ring's vertices, in the plane the ring is given in.
+static func middle(ring: PackedVector2Array) -> Vector2:
+	var total := Vector2.ZERO
+	for vertex in ring:
+		total += vertex
+	return total / maxi(1, ring.size())
+
+
+# The parts on the other side of the divider from the first part, as indices
+# into rings; the first part keeps the feature's title, so its side is the one
+# that stays.
+static func far_parts(rings: Array, divider: PackedVector2Array) -> PackedInt32Array:
+	var result := PackedInt32Array()
+	if rings.is_empty():
+		return result
+	var near := side_of(divider, middle(rings[0]))
+	for index in range(1, rings.size()):
+		if side_of(divider, middle(rings[index])) != near:
+			result.append(index)
+	return result
+
+
+# Why the parts cannot be divided along the path, or an empty string when they
+# can: it needs two points, a feature of more than one part, and parts on both
+# sides. A path that touches a ring is a cut of that ring, not a divide, and
+# split_along_problem() is the one to ask about it.
+static func divide_problem(rings: Array, path: PackedVector2Array) -> String:
+	if path.size() < 2:
+		return "A cut needs a start and an end."
+	if rings.size() < 2:
+		return "The cut runs outside the shape."
+	if far_parts(rings, path).is_empty():
+		return "The cut leaves every part on one side."
+	return ""
+
+
 # The stretch of a path inside a ring, from where it first crosses the boundary
 # to where it last does, with the path's points in between. What the Split tool
 # cuts a child along; empty when the path crosses the boundary fewer than twice.

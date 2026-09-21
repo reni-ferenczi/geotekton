@@ -278,6 +278,65 @@ func test_a_cut_with_both_ends_on_one_edge_is_refused() -> void:
 		PackedVector2Array([Vector2(3, -1)])).is_empty(), "one point is no cut")
 
 
+### Dividing the parts of a feature
+
+
+# Two triangles side by side, west and east of the prime meridian.
+func _two_parts() -> Array:
+	return [
+		PackedVector2Array([Vector2(-5, -20), Vector2(5, -20), Vector2(0, -10)]),
+		PackedVector2Array([Vector2(-5, 10), Vector2(5, 10), Vector2(0, 20)]),
+	]
+
+
+func test_a_path_touches_a_ring_by_crossing_it_or_ending_inside_it() -> void:
+	var ring: PackedVector2Array = _two_parts()[0]
+	assert_true(GeometryEdit.touches(ring, PackedVector2Array([Vector2(0, -30), Vector2(0, -15)])),
+		"a path that crosses the edge touches the ring")
+	assert_true(GeometryEdit.touches(ring, PackedVector2Array([Vector2(0, -18), Vector2(1, -17)])),
+		"so does one that lies inside it")
+	assert_true(not GeometryEdit.touches(ring, PackedVector2Array([Vector2(-20, 0), Vector2(20, 0)])),
+		"one that passes beside it does not")
+
+
+func test_the_side_of_a_point_follows_the_nearest_stretch_of_the_divider() -> void:
+	var divider := PackedVector2Array([Vector2(-20, 0), Vector2(20, 0)])
+	assert_true(GeometryEdit.side_of(divider, Vector2(0, -10)) != GeometryEdit.side_of(divider, Vector2(0, 10)),
+		"the two sides of a straight divider differ")
+	assert_eq(GeometryEdit.side_of(divider, Vector2(40, -10)), GeometryEdit.side_of(divider, Vector2(0, -10)),
+		"a point past the end is on the side the extended divider puts it")
+	# A divider that bends round: the far side of the bend is the same side as
+	# the near stretch says, since the nearest stretch decides.
+	var bent := PackedVector2Array([Vector2(-20, 0), Vector2(0, 0), Vector2(0, 20)])
+	assert_eq(GeometryEdit.side_of(bent, Vector2(-10, 5)), GeometryEdit.side_of(bent, Vector2(-5, 10)),
+		"inside the bend is one side")
+	assert_true(GeometryEdit.side_of(bent, Vector2(-10, 5)) != GeometryEdit.side_of(bent, Vector2(-10, -5)),
+		"and outside it the other")
+
+
+func test_the_far_parts_are_those_across_the_divider_from_the_first() -> void:
+	var parts := _two_parts()
+	var divider := PackedVector2Array([Vector2(-20, 0), Vector2(20, 0)])
+	assert_eq(GeometryEdit.far_parts(parts, divider), PackedInt32Array([1]),
+		"the eastern part is across from the western first one")
+	parts.reverse()
+	assert_eq(GeometryEdit.far_parts(parts, divider), PackedInt32Array([1]),
+		"whichever of them is first, the other is far")
+	assert_eq(GeometryEdit.far_parts(parts, PackedVector2Array([Vector2(-20, 40), Vector2(20, 40)])),
+		PackedInt32Array(), "a divider east of both leaves both near")
+
+
+func test_a_divide_needs_two_parts_on_two_sides() -> void:
+	var parts := _two_parts()
+	assert_eq(GeometryEdit.divide_problem(parts, PackedVector2Array([Vector2(-20, 0), Vector2(20, 0)])), "")
+	assert_eq(GeometryEdit.divide_problem(parts, PackedVector2Array([Vector2(-20, 40), Vector2(20, 40)])),
+		"The cut leaves every part on one side.")
+	assert_eq(GeometryEdit.divide_problem([parts[0]], PackedVector2Array([Vector2(-20, 0), Vector2(20, 0)])),
+		"The cut runs outside the shape.")
+	assert_eq(GeometryEdit.divide_problem(parts, PackedVector2Array([Vector2(-20, 0)])),
+		"A cut needs a start and an end.")
+
+
 ### Picking
 
 

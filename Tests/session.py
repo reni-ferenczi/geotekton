@@ -3852,6 +3852,72 @@ SPLIT_CUT = [(-24.0, -8.0), (-6.0, -10.0), (12.0, -8.0)]
 SPLIT_PROBES = {"Old Shield": (-10.0, -16.0), "Old Shield 2": (-10.0, -2.0)}
 
 
+# Two triangles of one feature, west and east of the prime meridian, and a cut
+# drawn down the meridian between them that touches neither.
+DIVIDE_WEST = [(-8.0, -30.0), (8.0, -30.0), (0.0, -18.0)]
+DIVIDE_EAST = [(-8.0, 12.0), (8.0, 12.0), (0.0, 24.0)]
+DIVIDE_CUT = [(-20.0, -4.0), (0.0, 2.0), (20.0, -4.0)]
+
+
+def run_divide_session(client: AutomationClient) -> None:
+    """The Split tool dividing a feature of two polygons along a cut between them."""
+    start_new_document(client)
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="name", value="Isles")
+    # Enter goes back to Move, so the second part asks for the tool again.
+    for part in [DIVIDE_WEST, DIVIDE_EAST]:
+        client.call("set_tool", tool="draw")
+        if not draw(client, part):
+            return
+        client.call("key", key="Enter")
+    feature = client.call("get_selected")["feature"]
+    if not check(len(feature["rings"]) == 2, f"the feature has two parts: {len(feature['rings'])}"):
+        return
+    depth = undo_depth(client)
+
+    client.call("set_tool", tool="split")
+    tool = client.call("get_tool")
+    check(tool["ridge_enabled"], "Ridge is offered before any point is clicked")
+
+    # A cut that passes both parts on one side is refused.
+    if not draw(client, [(-20.0, 40.0), (20.0, 40.0)]):
+        return
+    client.call("key", key="Enter")
+    status = client.call("get_status")["status"]["measure"]
+    check("every part on one side" in status, f"a cut beside both parts is refused: {status!r}")
+    check(undo_depth(client) == depth, "and records nothing")
+    client.call("key", key="Escape")
+
+    if not draw(client, DIVIDE_CUT):
+        return
+    status = client.call("get_status")["status"]["measure"]
+    check("divides the parts" in status, f"the status bar says Enter divides: {status!r}")
+    tool = client.call("get_tool")
+    check(not tool["ridge_enabled"] and not tool["crust_enabled"],
+          "Ridge and Crust are greyed out, since a divide leaves no shared edge")
+    client.call("key", key="Enter")
+    status = client.call("get_status")["status"]["measure"]
+    check(status == "Split into Isles, Isles 2", f"the status bar names the two: {status!r}")
+    check(undo_depth(client) == depth + 1, "the divide recorded one version")
+    check(client.call("get_tool")["tool"] == "move", "and went back to the Move tool")
+    titles = titles_of(client)
+    check(titles == ["Planet", "Isles", "Isles 2"], f"the feature became two: {titles}")
+    for title, part in [("Isles", DIVIDE_WEST), ("Isles 2", DIVIDE_EAST)]:
+        client.call("select", title=title)
+        rings = client.call("get_selected")["feature"]["world_rings"]
+        check(len(rings) == 1 and worst_offset(rings[0], part) < 1e-3,
+              f"{title} holds the {'western' if title == 'Isles' else 'eastern'} part alone: {rings}")
+    client.call("select", title="Isles")
+    client.call("set_tool", tool="split")
+    check(client.call("get_tool")["ridge_enabled"], "Ridge comes back once the tool is picked again")
+    client.call("set_tool", tool="move")
+
+    client.call("menu", item="undo")
+    check(titles_of(client) == ["Planet", "Isles"], "undo puts the one feature back")
+    client.call("select", title="Isles")
+    check(len(client.call("get_selected")["feature"]["rings"]) == 2, "with both parts")
+
+
 def run_split_tool_session(client: AutomationClient) -> None:
     """The Split tool cutting the sample craton along a drawn line."""
     client.call("load", path=str(ROOT / "Tests" / "Data" / "craton.geotekt"))
@@ -5485,6 +5551,7 @@ def main(argv: list[str]) -> int:
         run_area_session(client)
         run_split_session(client)
         run_split_tool_session(client)
+        run_divide_session(client)
         run_ridge_session(client)
         run_crust_session(client)
         run_split_children_session(client)
