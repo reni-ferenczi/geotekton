@@ -279,7 +279,14 @@ slightly, which is why the new vertex can sit a fraction of a degree off the
 edge it was asked for.
 
 An edge with a vertex round the back of the globe is left alone: a screen
-distance to something that cannot be seen means nothing.
+distance to something that cannot be seen means nothing. The other edges of
+the same ring are offered as usual, so a polygon too wide to be on screen all
+at once still takes a vertex on the edges that are. Until GP-0112 the whole
+ring was left alone as soon as one vertex of it was hidden, which on a
+continent sized polygon meant a click on a visible edge did nothing, with no
+reason shown. A click within `VERTEX_PICK_PIXELS` of a vertex takes hold of
+that vertex instead of inserting, so an edge shorter than twice that on
+screen has no point that inserts; zoom in.
 
 ### Deleting
 
