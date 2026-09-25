@@ -4123,17 +4123,18 @@ def run_split_tool_session(client: AutomationClient) -> None:
     check(client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"] == before,
           "the planet stays where it was when the tool is picked")
 
-    # A point too many, taken back with Ctrl+Z, and a cut that crosses the edge.
+    # A point too many, taken back with Ctrl+Z, and a cut that crosses itself
+    # inside the craton, the one cut the tool refuses.
     if not draw(client, SPLIT_CUT[:2] + [(2.0, -30.0)]):
         return
     client.call("key", key="Z", ctrl=True)
     held = len(client.call("get_tool")["split_points"])
     check(held == 2, f"Ctrl+Z takes the last point of the cut back: {held} held")
-    if not draw(client, [(2.0, -30.0), SPLIT_CUT[2]]):
+    if not draw(client, [(-8.0, -14.0), (-8.0, -2.0), SPLIT_CUT[2]]):
         return
     client.call("key", key="Enter")
     status = client.call("get_status")["status"]["measure"]
-    check("crosses the edge" in status, f"a cut that crosses the edge is refused: {status!r}")
+    check("crosses itself" in status, f"a cut that crosses itself is refused: {status!r}")
     check(undo_depth(client) == depth, "and records nothing")
     check(client.call("get_tool")["split_refused"], "the refused cut is marked as such")
     # Its last point is drawn in red, off the pointer so nothing else is lit.

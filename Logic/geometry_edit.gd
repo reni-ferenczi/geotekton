@@ -177,35 +177,281 @@ static func _neighbours(size: int, a: int, b: int) -> bool:
 
 
 # Why the polygon cannot be split along a cut drawn across it, or an empty string
-# when it can. The path is every point of the cut as clicked; see cut_across()
-# for where its ends go. Both ends on one edge would take a bite out of that
-# edge rather than cut the polygon across, and are refused.
+# when it can; see cut_pieces().
 static func split_along_problem(ring: PackedVector2Array, path: PackedVector2Array) -> String:
-	if path.size() < 2:
-		return "A cut needs a start and an end."
-	var cut := cut_across(ring, path)
-	if _neighbours((cut[0] as PackedVector2Array).size(), cut[1], cut[2]):
-		return "Both ends of the cut land on the same edge."
-	return polygon_split_problem(cut[0], cut[1], cut[2], cut[3])
+	return cut_pieces(ring, path)["problem"]
 
 
-# The two polygons the ring becomes when it is cut along a drawn path. Between
-# them they hold every vertex of the ring once, and the two ends and the points
-# between them twice.
+# The two polygons the ring becomes when a cut of one stretch runs across it:
+# the piece the feature keeps and the other one. Between them they hold every
+# vertex of the ring once, and the two ends and the points between them twice.
+# A cut of several stretches makes more pieces; cut_pieces() has them all.
 static func split_along(ring: PackedVector2Array, path: PackedVector2Array) -> Array[PackedVector2Array]:
-	var cut := cut_across(ring, path)
-	return split_polygon(cut[0], cut[1], cut[2], cut[3])
+	var cut := cut_pieces(ring, path)
+	var first: int = cut["first"]
+	var halves: Array[PackedVector2Array] = [cut["pieces"][first][0], cut["pieces"][-first][0]]
+	return halves
 
 
-# The edge the two halves of such a cut share: the cut itself from where it
-# meets the ring to where it leaves it, which is where the ridge left behind
-# starts out.
+# The edge the two halves of a cut of one stretch share: the stretch, from
+# where it meets the ring to where it leaves it, which is where the ridge left
+# behind starts out. Each half's ring starts with it.
 static func shared_edge(ring: PackedVector2Array, path: PackedVector2Array) -> PackedVector2Array:
-	var cut := cut_across(ring, path)
-	var edge := PackedVector2Array([cut[0][cut[1]]])
-	edge.append_array(cut[3])
-	edge.append(cut[0][cut[2]])
-	return edge
+	return cut_pieces(ring, path)["edge"]
+
+
+### Cutting along a drawn line
+#
+# A line drawn across a polygon cuts it wherever it runs inside the outline.
+# Each stretch of it inside, from where it crosses the outline to where it
+# crosses back, cuts the piece it lies in in two, so a line that goes in and out
+# of a bay or across the arms of a C makes more than two pieces. The pieces left
+# of the line, in the direction it was drawn, are one side and those right of it
+# the other, which is what lets a split make two features of any number of
+# pieces: each holds its side's pieces as its parts.
+
+const LEFT := 1
+const RIGHT := -1
+const OUTSIDE_PROBLEM := "The cut runs outside the shape."
+
+
+# The pieces a drawn line cuts the ring into, as a dictionary:
+#   problem   why it cannot be cut, or an empty string
+#   pieces    {LEFT: [ring, ...], RIGHT: [ring, ...]}
+#   first     the side of the piece the feature keeps
+#   stretches how many stretches of the line run inside the ring
+#   edge      for a cut of one stretch, the edge the two pieces share
+# An end clicked inside the ring is carried on along the line to the outline,
+# so a cut stopped a little short still goes through. A cut of one stretch
+# keeps the order split_polygon() gives, each piece starting with the edge, the
+# kept piece first on its side and the other first on the other, which is what
+# the ridge is laid along.
+static func cut_pieces(ring: PackedVector2Array, path: PackedVector2Array) -> Dictionary:
+	var result := {"problem": "", "pieces": {LEFT: [], RIGHT: []}, "first": LEFT,
+		"stretches": 0, "edge": PackedVector2Array()}
+	if path.size() < 2:
+		result["problem"] = "A cut needs a start and an end."
+		return result
+	if ring.size() < 3:
+		result["problem"] = OUTSIDE_PROBLEM
+		return result
+	var plane := plane_for(ring, path)
+	var flat := turned(ring, plane)
+	var line := _reach_outline(flat, turned(path, plane))
+	var stretches := _stretches(flat, line)
+	if stretches.is_empty():
+		result["problem"] = OUTSIDE_PROBLEM
+		return result
+	if _cross(stretches):
+		result["problem"] = "The cut crosses itself."
+		return result
+	result["stretches"] = stretches.size()
+
+	var pieces: Array[PackedVector2Array] = [flat]
+	for k in stretches.size():
+		var stretch: PackedVector2Array = stretches[k]
+		var at := _piece_holding(pieces, stretch)
+		if at < 0:
+			result["problem"] = "The cut crosses itself."
+			return result
+		var cut := cut_across(pieces[at], stretch)
+		var between: PackedVector2Array = cut[3]
+		if cut[1] == cut[2] or (between.is_empty() \
+				and _neighbours((cut[0] as PackedVector2Array).size(), cut[1], cut[2])):
+			result["problem"] = "The cut runs along the edge of the shape."
+			return result
+		var halves := split_polygon(cut[0], cut[1], cut[2], between)
+		if k == 0:
+			result["first"] = LEFT if _holds(halves[0], _beside(stretch, LEFT)) else RIGHT
+			result["edge"] = _back_all(stretch, plane)
+		pieces[at] = halves[0]
+		pieces.append(halves[1])
+
+	for piece in pieces:
+		var side := _side_of_piece(piece, stretches, line)
+		result["pieces"][side].append(_back_all(piece, plane))
+	# For one stretch the kept piece is pieces[0] and the other pieces[1], each
+	# alone on its side already.
+	return result
+
+
+static func _back_all(points: PackedVector2Array, plane: Basis) -> PackedVector2Array:
+	if plane == Basis.IDENTITY:
+		return points
+	var result := PackedVector2Array()
+	for point in points:
+		result.append(_back(point, plane))
+	return result
+
+
+# The line with each end that lies inside the ring carried on, the way the line
+# was going, to where it meets the outline.
+static func _reach_outline(ring: PackedVector2Array, line: PackedVector2Array) -> PackedVector2Array:
+	var result := line.duplicate()
+	if Geometry2D.is_point_in_polygon(result[0], ring):
+		var reached: Variant = _ray_to_outline(ring, result[0], result[0] - result[1])
+		if reached != null:
+			result.insert(0, reached)
+	var last := result.size() - 1
+	if Geometry2D.is_point_in_polygon(result[last], ring):
+		var reached: Variant = _ray_to_outline(ring, result[last], result[last] - result[last - 1])
+		if reached != null:
+			result.append(reached)
+	return result
+
+
+# Where a ray from inside the ring first meets its outline, or null.
+static func _ray_to_outline(ring: PackedVector2Array, from: Vector2, direction: Vector2) -> Variant:
+	if direction.length() < 1e-12:
+		return null
+	var reach := 0.0
+	for vertex in ring:
+		reach = maxf(reach, from.distance_to(vertex))
+	var to := from + direction.normalized() * (reach * 2.0 + 1.0)
+	var best: Variant = null
+	var nearest := INF
+	for i in ring.size():
+		var hit: Variant = Geometry2D.segment_intersects_segment(
+			from, to, ring[i], ring[(i + 1) % ring.size()])
+		if hit != null and from.distance_to(hit) < nearest:
+			nearest = from.distance_to(hit)
+			best = hit
+	return best
+
+
+# The stretches of the line inside the ring, in the order the line runs, each
+# from a crossing of the outline through the line's points to the next one.
+static func _stretches(ring: PackedVector2Array, line: PackedVector2Array) -> Array:
+	var crossings := []
+	for k in line.size() - 1:
+		var length := line[k].distance_to(line[k + 1])
+		if length < 1e-12:
+			continue
+		for i in ring.size():
+			var at: Variant = Geometry2D.segment_intersects_segment(
+				line[k], line[k + 1], ring[i], ring[(i + 1) % ring.size()])
+			if at != null:
+				crossings.append([k + line[k].distance_to(at) / length, at])
+	crossings.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	# A crossing through a vertex is found on both of its edges.
+	var unique := []
+	for crossing in crossings:
+		if unique.is_empty() or (crossing[1] as Vector2).distance_to(unique[-1][1]) > 1e-9:
+			unique.append(crossing)
+	var stretches := []
+	for c in unique.size() - 1:
+		var from: float = unique[c][0]
+		var to: float = unique[c + 1][0]
+		if not Geometry2D.is_point_in_polygon(_at(line, (from + to) * 0.5), ring):
+			continue
+		var stretch := PackedVector2Array([unique[c][1]])
+		for k in range(ceili(from), floori(to) + 1):
+			if k > from + 1e-9 and k < to - 1e-9:
+				stretch.append(line[k])
+		stretch.append(unique[c + 1][1])
+		stretches.append(stretch)
+	return stretches
+
+
+# The point that far along the line, counted in segments.
+static func _at(line: PackedVector2Array, along: float) -> Vector2:
+	var k := clampi(floori(along), 0, line.size() - 2)
+	return line[k].lerp(line[k + 1], along - k)
+
+
+# Whether any stretch crosses itself or another one.
+static func _cross(stretches: Array) -> bool:
+	for a in stretches.size():
+		var one: PackedVector2Array = stretches[a]
+		for b in range(a, stretches.size()):
+			var two: PackedVector2Array = stretches[b]
+			for i in one.size() - 1:
+				for j in two.size() - 1:
+					if a == b and absi(i - j) < 2:
+						continue
+					if Geometry2D.segment_intersects_segment(one[i], one[i + 1], two[j], two[j + 1]) != null:
+						return true
+	return false
+
+
+# Which of the pieces the stretch runs through: both its ends on the piece's
+# outline and the stretch inside it. -1 when none is.
+static func _piece_holding(pieces: Array[PackedVector2Array], stretch: PackedVector2Array) -> int:
+	for at in pieces.size():
+		var piece := pieces[at]
+		if nearest_segment(piece, stretch[0], true)[1] > 1e-4 \
+				or nearest_segment(piece, stretch[stretch.size() - 1], true)[1] > 1e-4:
+			continue
+		if _holds(piece, _beside(stretch, LEFT)) or _holds(piece, _beside(stretch, RIGHT)):
+			return at
+	return -1
+
+
+# A point just off the middle of the stretch's longest segment, on that side.
+static func _beside(stretch: PackedVector2Array, side: int) -> Vector2:
+	var longest := 0
+	for i in stretch.size() - 1:
+		if stretch[i].distance_to(stretch[i + 1]) > stretch[longest].distance_to(stretch[longest + 1]):
+			longest = i
+	var from := stretch[longest]
+	var to := stretch[longest + 1]
+	var along := to - from
+	var off := Vector2(-along.y, along.x).normalized() * maxf(along.length() * 1e-4, 1e-7)
+	return (from + to) * 0.5 + off * side
+
+
+static func _holds(piece: PackedVector2Array, point: Vector2) -> bool:
+	return Geometry2D.is_point_in_polygon(point, piece)
+
+
+# Which side of the line a piece is on: the side of a stretch it lies beside.
+# Every piece borders one; the side of its middle is a fallback for a piece
+# the checks miss by rounding.
+static func _side_of_piece(piece: PackedVector2Array, stretches: Array, line: PackedVector2Array) -> int:
+	for stretch: PackedVector2Array in stretches:
+		if _holds(piece, _beside(stretch, LEFT)):
+			return LEFT
+		if _holds(piece, _beside(stretch, RIGHT)):
+			return RIGHT
+	return side_of(line, middle(piece))
+
+
+# The runs a line feature's ring is cut into where the drawn line crosses it,
+# by the side of the drawn line each lies on: {LEFT: [run, ...], RIGHT: [...]}.
+# Both runs keep the point they were cut at. A ring the line misses is one run.
+static func cut_runs(run: PackedVector2Array, path: PackedVector2Array) -> Dictionary:
+	var result := {LEFT: [], RIGHT: []}
+	if run.size() < 2 or path.size() < 2:
+		result[sides(path, [sphere_middle(run)])[0] if path.size() >= 2 else LEFT].append(run)
+		return result
+	var plane := plane_for(run, path)
+	var flat := turned(run, plane)
+	var flat_path := turned(path, plane)
+	var runs := []
+	var current := PackedVector2Array([flat[0]])
+	for k in flat.size() - 1:
+		var hits := []
+		for j in flat_path.size() - 1:
+			var at: Variant = Geometry2D.segment_intersects_segment(
+				flat[k], flat[k + 1], flat_path[j], flat_path[j + 1])
+			if at != null:
+				hits.append(at)
+		hits.sort_custom(func(a: Vector2, b: Vector2) -> bool:
+			return flat[k].distance_to(a) < flat[k].distance_to(b))
+		for at: Vector2 in hits:
+			if at.distance_to(current[current.size() - 1]) < 1e-9:
+				continue
+			current.append(at)
+			runs.append(current)
+			current = PackedVector2Array([at])
+		current.append(flat[k + 1])
+	runs.append(current)
+	for piece: PackedVector2Array in runs:
+		if piece.size() < 2:
+			continue
+		var side := side_of(flat_path, (piece[0] + piece[1]) * 0.5)
+		result[side].append(_back_all(piece, plane))
+	return result
 
 
 ### Dividing
@@ -277,6 +523,32 @@ static func middle(ring: PackedVector2Array) -> Vector2:
 	return total / maxi(1, ring.size())
 
 
+# The middle of a ring on the sphere, as (latitude, longitude): the mean of its
+# vertices as unit vectors, which holds across ±180° and round a pole where the
+# mean of the numbers does not.
+static func sphere_middle(ring: PackedVector2Array) -> Vector2:
+	var total := Vector3.ZERO
+	for vertex in ring:
+		total += Feature._latlon_to_xyz_s(vertex)
+	if total.length() < 1e-12:
+		return ring[0] if not ring.is_empty() else Vector2.ZERO
+	return Feature._xyz_to_latlon_s(total.normalized())
+
+
+# Which side of the divider each point is on, as side_of() gives it, in the
+# plane the divider and the points call for.
+static func sides(divider: PackedVector2Array, points: PackedVector2Array) -> PackedInt32Array:
+	# Taken as one run, so a point across ±180° from the divider counts too.
+	var together := divider.duplicate()
+	together.append_array(points)
+	var plane := plane_for(together)
+	var flat := turned(divider, plane)
+	var result := PackedInt32Array()
+	for point in turned(points, plane):
+		result.append(side_of(flat, point))
+	return result
+
+
 # The parts on the other side of the divider from the first part, as indices
 # into rings; the first part keeps the feature's title, so its side is the one
 # that stays.
@@ -284,9 +556,12 @@ static func far_parts(rings: Array, divider: PackedVector2Array) -> PackedInt32A
 	var result := PackedInt32Array()
 	if rings.is_empty():
 		return result
-	var near := side_of(divider, middle(rings[0]))
+	var middles := PackedVector2Array()
+	for ring: PackedVector2Array in rings:
+		middles.append(sphere_middle(ring))
+	var found := sides(divider, middles)
 	for index in range(1, rings.size()):
-		if side_of(divider, middle(rings[index])) != near:
+		if found[index] != found[0]:
 			result.append(index)
 	return result
 
@@ -360,9 +635,12 @@ static func cut_across(ring: PackedVector2Array, path: PackedVector2Array) -> Ar
 			if ends[k][0] == i and ends[k][1] == 0.0:
 				at[k] = result.size()
 		result.append(ring[i])
-		# Both ends inside one edge is refused later, as neighbours, whichever
-		# order they go in here.
-		for k in 2:
+		# Two ends on one edge, a bite out of it, go in in the order they lie
+		# along it.
+		var order := [0, 1]
+		if ends[1][1] < ends[0][1]:
+			order = [1, 0]
+		for k: int in order:
 			if ends[k][0] == i and ends[k][1] > 0.0:
 				at[k] = result.size()
 				if plane == Basis.IDENTITY:
