@@ -279,7 +279,7 @@ the color on the globe the way it does on a feature.
 **Line width** is how wide the feature's lines are drawn, as a multiple of what
 its type draws at: 1 is the width every feature had before there was a row,
 which is what a feature read from a file without a width shows. The box runs
-from 0.1 to 10 in steps of 0.05, and the row and its label carry the tooltip
+from 0.1 to 20 in steps of 0.05, and the row and its label carry the tooltip
 "How wide the feature's lines are drawn, as a multiple of what its type draws
 at". A new feature starts at the Default line width of the
 [Preferences](Shell.md#preferences) dialog and keeps its own width from then
@@ -492,7 +492,7 @@ undo version:
 | `set_feature_type`      | an unknown type, and one that does not hold the kind the feature holds |
 | `set_icon`              | a group, and an icon the catalog does not have      |
 | `set_time_range`        | a range that ends older than it starts             |
-| `set_line_width`        | a group, a feature with no lines to widen, and a width outside 0.1 to 10 |
+| `set_line_width`        | a group, a feature with no lines to widen, and a width outside 0.1 to 20 |
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |
 | `remove_vertex`         | a part or vertex that is not there                 |

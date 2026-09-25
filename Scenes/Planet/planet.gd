@@ -8,9 +8,11 @@ class_name Planet
 enum Primitive { TRIANGLE = 0, SEGMENT = 1, POINT = 2, SAMPLE = 3, CIRCLE = 4 }
 
 # How large a hotspot sample dot is against a multipoint marker, and how wide
-# the pole cross is against a feature line. planet.gdshader holds both.
+# the pole cross is against a feature line. planet.gdshader holds both. The
+# cross is as wide as a feature line: it was half of one until 0.29.0 halved
+# the line, and a tool's marker had no reason to get thinner with it.
 const SAMPLE_DOT_SCALE := 0.5
-const BOLD_SCALE := 0.5
+const BOLD_SCALE := 1.0
 
 # Radius of the globe, in the units planet.tscn is laid out in. The SphereMesh
 # is set to it in _ready(), and PlanetView casts a ray against a sphere of the
@@ -25,8 +27,14 @@ const POINT_HIT_RADIUS := 0.025
 
 # What the outline overlay draws its vertex markers and its lines at before the
 # preferences scale them. Both match the uniform defaults in planet.gdshader.
-const DEFAULT_DOT_RADIUS := 0.006
+# The markers were twice this until 0.29.0; see Config.get_vertex_marker_scale().
+const DEFAULT_DOT_RADIUS := 0.003
 const DEFAULT_LINE_WIDTH := 0.002
+
+# What a feature's lines are drawn at before Feature.line_scale(), from their
+# middle to their edge as a chord: planet.gdshader's geometry_line_width. Twice
+# this until 0.29.0; see Config.get_default_line_width().
+const GEOMETRY_LINE_WIDTH := 0.006
 
 # What a child of the selected feature is traced in, when the View menu
 # asks for it, and what tints its row in the tree. planet.gdshader
@@ -42,7 +50,7 @@ enum OutlineStyle {
 	OUTLINE = 4,        # closed like CLOSED, with no vertex markers
 	MARKERS = 5,        # the vertex markers only, drawn larger
 	CHILD = 6,          # closed like OUTLINE, in CHILD_COLOR
-	BOLD = 7,           # open like OPEN, BOLD_SCALE of a feature line, no markers
+	BOLD = 7,           # open like OPEN, BOLD_SCALE times a feature line, no markers
 	CIRCLE = 8,         # a center and a point of the rim, the circle drawn like CLOSED, no markers
 	OPEN_LINE = 9,      # open like OPEN, in the same white and width, with no markers
 	REFUSED = 10,       # open like OPEN, markers and all, in red: a cut the Split tool refused

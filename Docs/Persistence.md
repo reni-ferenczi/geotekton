@@ -231,9 +231,10 @@ valid for the type; see [Circles](#circles) for the keys it adds.
 without it shows the same row icon it showed before there were any. Nothing but
 the row reads it; see [Properties](Properties.md#the-icon).
 `line_width`, since 0.29.0, is how wide the feature's lines are drawn, as a
-multiple of what its type draws at, from 0.1 to 10. It is written only when it
+multiple of what its type draws at, from 0.1 to 20. It is written only when it
 is not 1, and a leaf without it reads as 1, which is what every feature was
-drawn at before there was a width to set; see
+drawn at before there was a width to set; 0.29.0 also halved the width 1
+stands for, so an older file draws its lines thinner; see
 [Properties](Properties.md#the-line-width-row). A value outside the range is
 brought into it on load.
 `geometry_kind` is `"polygon"`,

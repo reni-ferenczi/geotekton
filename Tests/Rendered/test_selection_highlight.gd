@@ -21,7 +21,7 @@ const EDGE_REACH := 10
 # The outline dot radius and the segment width of planet.gdshader, as chord
 # lengths on the unit sphere. test_shader_defaults.gd holds both to the shader.
 const DOT_RADIUS := Planet.DEFAULT_DOT_RADIUS
-const LINE_WIDTH := 0.012
+const LINE_WIDTH := Planet.GEOMETRY_LINE_WIDTH
 # OUTLINE_OPACITY and SELECTED_LINE_SCALE in planet.gdshader.
 const OUTLINE_OPACITY := 0.6
 const HALO_SCALE := 1.25
