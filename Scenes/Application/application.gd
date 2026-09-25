@@ -3686,6 +3686,10 @@ func split_at_selected_vertex() -> String:
 # See Docs/Editing.md#the-split-tool.
 
 var split_points := PackedVector2Array()
+# The points of the last cut refused, which is drawn in red for as long as the
+# points clicked are still those; see Planet.OutlineStyle.REFUSED. The status
+# bar says why.
+var split_refused := PackedVector2Array()
 
 
 # The Split tool needs a leaf polygon holding vertices of its own.
@@ -3735,6 +3739,8 @@ func split_along_points() -> String:
 		error = document.split_feature_along(feature, part, path, ridge, crust,
 			children_check.button_pressed)
 	if not error.is_empty():
+		split_refused = split_points
+		_refresh_selection_outline()
 		return error
 	# The halves, and the ridge and crust behind them, sit side by side where
 	# the polygon was, so the status bar reads them straight off the tree. The
@@ -4466,7 +4472,8 @@ func _refresh_selection_outline() -> void:
 	# The Split tool previews its cut over the polygon's outline, the way the
 	# Draw tool previews a shape.
 	if active_tool == Tool.SPLIT and not split_points.is_empty():
-		parts.append({"vertices": split_points, "style": Planet.OutlineStyle.OPEN})
+		parts.append({"vertices": split_points, "style": Planet.OutlineStyle.REFUSED
+			if split_points == split_refused else Planet.OutlineStyle.OPEN})
 	planet_view.planet.set_outline(parts)
 
 

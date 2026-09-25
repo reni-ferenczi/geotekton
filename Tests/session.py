@@ -4135,9 +4135,17 @@ def run_split_tool_session(client: AutomationClient) -> None:
     status = client.call("get_status")["status"]["measure"]
     check("crosses the edge" in status, f"a cut that crosses the edge is refused: {status!r}")
     check(undo_depth(client) == depth, "and records nothing")
+    check(client.call("get_tool")["split_refused"], "the refused cut is marked as such")
+    # Its last point is drawn in red, off the pointer so nothing else is lit.
+    last = client.call("latlon_to_screen", lat=SPLIT_CUT[2][0], lon=SPLIT_CUT[2][1])["screen"]
+    client.call("mouse_move", x=last[0] + 200, y=last[1] + 200)
+    pixel = client.call("get_pixel", x=last[0], y=last[1])["color"]
+    check(pixel[0] > 0.8 and pixel[1] < 0.4 and pixel[2] < 0.4,
+          f"and drawn in red on the globe: {pixel}")
 
     client.call("key", key="Escape")
-    check(client.call("get_tool")["split_points"] == [], "Escape lets the points go")
+    tool = client.call("get_tool")
+    check(tool["split_points"] == [] and not tool["split_refused"], "Escape lets the points go")
     if not draw(client, SPLIT_CUT):
         return
     client.call("key", key="Enter")

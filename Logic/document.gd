@@ -647,7 +647,7 @@ func _lies_in(feature: Feature, polygon: Feature) -> bool:
 	var world := Feature.world_basis(root, feature, current_time) * Kinematics.centroid(feature)
 	var local := Feature._xyz_to_latlon_s(
 		Feature.world_basis(root, polygon, current_time).transposed() * world)
-	return Geometry2D.is_point_in_polygon(local, polygon.rings[0])
+	return GeometryEdit.contains(polygon.rings[0], local)
 
 
 # Cut the span in effect at the current time there, the younger part following

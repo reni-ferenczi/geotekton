@@ -640,6 +640,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"can_split": app.vertex_split_problem().is_empty(),
 				"split_enabled": not app.split_button.disabled,
 				"split_points": _points_to_json(app.split_points),
+				"split_refused": not app.split_points.is_empty() \
+					and app.split_points == app.split_refused,
 				"ridge": app.ridge_check.button_pressed,
 				"ridge_visible": app.ridge_check.is_visible_in_tree(),
 				"ridge_enabled": not app.ridge_check.disabled,
