@@ -60,7 +60,9 @@ a 0.24.0 file is read as it stands; and 0.26.0 took circles and hotspots out of
 coupling, which has a step that drops every span naming one and says how many
 it dropped; and 0.27.0 renamed the program to Geotekton, so the `application`
 field says `geotekt` and the extension is `.geotekt`, and a file from before
-it is not read.
+it is not read; and 0.28.0 changed nothing in the file; and 0.29.0 gave a leaf
+feature its line width, and a leaf without one is drawn at the width it always
+was, so it reads a 0.27.0 file as it stands.
 
 The first public release will have major version 1.
 

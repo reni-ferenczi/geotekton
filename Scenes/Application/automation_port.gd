@@ -793,6 +793,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"planet_area_label": app.planet_area_label.text,
 				"vertex_marker_scale": Config.get_vertex_marker_scale(),
 				"line_width_scale": Config.get_line_width_scale(),
+				"default_line_width": Config.get_default_line_width(),
 				"export_width": Config.get_export_width(),
 				"ffmpeg": Config.get_ffmpeg(),
 				"snap_to_vertices": Config.get_snap_to_vertices(),
@@ -828,6 +829,8 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				app.marker_spin.value = float(wanted["vertex_marker_scale"])
 			if wanted.has("line_width_scale"):
 				app.line_spin.value = float(wanted["line_width_scale"])
+			if wanted.has("default_line_width"):
+				app.default_line_width_spin.value = float(wanted["default_line_width"])
 			if wanted.has("export_width"):
 				app.export_width_spin.value = float(wanted["export_width"])
 			if wanted.has("ffmpeg"):
@@ -1312,6 +1315,7 @@ func _feature_to_json(feature: Feature) -> Variant:
 		"time_range": [feature.time_range.x, feature.time_range.y],
 		"exists_now": feature.exists_at(time),
 		"color": [feature.color.r, feature.color.g, feature.color.b, feature.color.a],
+		"line_width": feature.line_width,
 		"rotation": [rotation.x, rotation.y, rotation.z],
 		"keyframes": Keyframe.list_to_json(feature.keyframes),
 		"couplings": Coupling.list_to_json(feature.couplings),

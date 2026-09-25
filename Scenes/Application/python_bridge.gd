@@ -474,6 +474,10 @@ func _edit_feature(request_: Dictionary) -> Dictionary:
 				var refused := app.document.set_time_range(feature, Vector2i(span[0], span[1]))
 				if not refused.is_empty():
 					return {"ok": false, "error": refused}
+			"line_width":
+				var problem := app.document.set_line_width(feature, float(value))
+				if not problem.is_empty():
+					return {"ok": false, "error": problem}
 			"rings":
 				if feature.is_group:
 					return {"ok": false, "error": "a group has no geometry"}

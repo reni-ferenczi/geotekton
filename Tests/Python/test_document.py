@@ -118,6 +118,28 @@ def test_the_icon_round_trips_and_no_icon_writes_no_key(tmp_path):
     assert "icon" not in bare.named("Drifting Craton").data
 
 
+def test_the_line_width_round_trips_and_one_writes_no_key(tmp_path):
+    """How wide a feature's lines are drawn, left out of the file at 1, since 0.29.0."""
+    document = Document.load(SAMPLES / "motion.geotekt")
+    craton = document.named("Drifting Craton")
+    assert craton.line_width == 1.0
+    assert "line_width" not in craton.data
+
+    craton.line_width = 2.5
+    reloaded = Document.load(document.save(tmp_path / "wide.geotekt"))
+    assert reloaded.named("Drifting Craton").line_width == 2.5
+
+    craton.line_width = 1
+    bare = Document.load(document.save(tmp_path / "bare.geotekt"))
+    assert bare.named("Drifting Craton").line_width == 1.0
+    assert "line_width" not in bare.named("Drifting Craton").data
+
+    with pytest.raises(ValueError):
+        craton.line_width = 0.0
+    with pytest.raises(ValueError):
+        craton.line_width = 11.0
+
+
 def test_saving_without_a_path_is_refused():
     with pytest.raises(ValueError):
         Document.empty("0.7.0").save()

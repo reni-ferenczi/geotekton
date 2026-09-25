@@ -145,7 +145,12 @@ the open file.
 
 ## Preferences
 
-In the dialog under File > Preferences:
+The dialog under File > Preferences has three tabs, so that it fits on a
+screen that is not full screen with its OK button in reach; one column of
+every setting had grown taller than that. The dialog is sized to the tallest
+tab and stays that size whichever is shown.
+
+**General**:
 
 - **Default folder for Open and Save** — where the file dialogs start, the same
   setting the dialogs update as files are opened and saved.
@@ -155,10 +160,6 @@ In the dialog under File > Preferences:
   It defaults to Earth's mean radius; see
   [Editing](Editing.md#the-planet-radius) for why it is a preference and not
   part of a document.
-- **Vertex marker size** and **Outline line width** — how large the outline
-  overlay draws the vertices of the selected feature and the lines between them,
-  as multiples of what the shader draws at. The white halo of a selected line
-  is sized from the line itself, so neither setting changes it.
 - **Export width (pixels)** — how wide File > Export Image writes its picture.
   The height comes from the projection, so this one number settles the size of
   every export; see [Exporting a picture of the map](#exporting-a-picture-of-the-map).
@@ -167,6 +168,18 @@ In the dialog under File > Preferences:
   on the path. A path naming a file that is not there means this machine has no
   encoder, and the frames are then left as they are; see
   [Exporting a video of the animation](#exporting-a-video-of-the-animation).
+
+**Drawing**:
+
+- **Vertex marker size** and **Outline line width** — how large the outline
+  overlay draws the vertices of the selected feature and the lines between them,
+  as multiples of what the shader draws at. The white halo of a selected line
+  is sized from the line itself, so neither setting changes it.
+- **Default line width** — the [line width](Properties.md#the-line-width-row)
+  a new feature starts with, as a multiple of what its type draws at, from 0.1
+  to 10. A feature keeps its own width once it exists, and one read from a
+  file without a width is drawn at 1, so changing this reaches only the
+  features added afterwards.
 - **Feature colors** — one color picker per [feature type](Properties.md#the-type-catalog),
   in catalog order, for the color a new feature of the type starts in, the
   one a type change and the swatch's right click go back to, and the one the
@@ -174,7 +187,10 @@ In the dialog under File > Preferences:
   colors** puts every picker back to the color the catalog comes with. Only
   the colors that differ from the catalog are saved, and features that already
   exist keep the color they hold.
-- **Interpreter** and **Script directories**, under a Python heading — which
+
+**Python**:
+
+- **Interpreter** and **Script directories** — which
   Python runs the scripting bridge and where the scripts that become menu
   entries are looked for. Leaving the interpreter empty means the project's own
   `.venv`; see [Scripting](Scripting.md#preferences).

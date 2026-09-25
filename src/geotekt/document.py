@@ -29,7 +29,7 @@ EXTENSION = ".geotekt"
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
-CURRENT_VERSION = "0.27.0"
+CURRENT_VERSION = "0.29.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.36, 0.60, 0.33, 1.0]
@@ -39,6 +39,12 @@ DEFAULT_FEATURE_TYPE = ""
 # The glyph a feature's tree row carries; empty is none, which is the default
 # and is left out of the file. Ids are in Logic/feature_icon.gd.
 DEFAULT_ICON = ""
+# How wide a feature's lines are drawn, as a multiple of what its type draws
+# at, since 0.29.0. 1 is what every feature was drawn at before and is left out
+# of the file, the way the application writes it.
+DEFAULT_LINE_WIDTH = 1.0
+MIN_LINE_WIDTH = 0.1
+MAX_LINE_WIDTH = 10.0
 
 
 def dumps(data: Any) -> str:
@@ -152,6 +158,27 @@ class Feature:
     def time_range(self, value) -> None:
         start, end = value
         self.data["time_range"] = [int(start), int(end)]
+
+    @property
+    def line_width(self) -> float:
+        """How wide the feature's lines are drawn, a multiple of its type's width.
+
+        Since 0.29.0; a leaf without the key is at 1, which is what every
+        feature was drawn at before. Only a feature drawn with lines reads it.
+        """
+        return float(self.data.get("line_width", DEFAULT_LINE_WIDTH))
+
+    @line_width.setter
+    def line_width(self, value: float) -> None:
+        width = float(value)
+        if not MIN_LINE_WIDTH <= width <= MAX_LINE_WIDTH:
+            raise ValueError(
+                f"the line width is {width}, outside {MIN_LINE_WIDTH} to {MAX_LINE_WIDTH}")
+        # 1 is written as no key, the way the application writes it.
+        if width == DEFAULT_LINE_WIDTH:
+            self.data.pop("line_width", None)
+        else:
+            self.data["line_width"] = width
 
     ### Geometry and motion
 

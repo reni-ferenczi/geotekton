@@ -1101,6 +1101,8 @@ def run_colour_session(client: AutomationClient) -> None:
 
     run_color_picker_checks(client)
     run_feature_colour_preference_checks(client)
+    run_line_width_checks(client)
+    run_default_line_width_checks(client)
 
 
 # The default colour of each feature type, in the order Logic/feature_type.gd
@@ -1238,6 +1240,80 @@ def run_feature_colour_preference_checks(client: AutomationClient) -> None:
     check(is_colour(probe_at(client, *PREFERENCE_PROBE), green),
           "and the Feature type style follows")
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+
+
+# A point 1.6 degrees east of Blue Ridge, which runs down longitude 40. The
+# shader draws a line 0.012 of the sphere's radius to either side of its middle,
+# about 0.69 degrees, so the point is off the line at width 1 and well inside
+# it at width 4, where the edge is about 2.75 degrees out.
+LINE_WIDTH_PROBE = (0.0, 41.6)
+MAGENTA = [1.0, 0.0, 1.0, 1.0]
+
+
+def is_magenta(pixel: list[float]) -> bool:
+    """Whether a probed pixel is the magenta line, selected and so drawn lighter."""
+    hue, saturation = hue_and_saturation(pixel)
+    return abs(hue - 5.0 / 6.0) < 0.05 and saturation > 0.3
+
+
+def run_line_width_checks(client: AutomationClient) -> None:
+    """The Line width row: a feature drawn with lines is drawn wider, one undo step per edit."""
+    open_mixed_geometry(client)
+    client.call("select", title="Red Triangle")
+    check("line_width" not in client.call("get_properties")["properties"],
+          "a polygon has no Line width row")
+    check("drawn with lines" in refusal(client, "set_property", field="line_width", value=2.0),
+          "and the port says so")
+    client.call("select", title="Green Stations")
+    check("line_width" not in client.call("get_properties")["properties"],
+          "nor has a multipoint")
+
+    client.call("select", title="Blue Ridge")
+    panel = client.call("get_properties")["properties"]
+    check(panel.get("line_width") == 1.0,
+          f"a line from a file without a width shows 1: {panel.get('line_width')}")
+    check(panel["tooltips"]["line_width"].startswith("How wide the feature's lines are drawn"),
+          f"with a hover description: {panel['tooltips']}")
+    client.call("set_property", field="color", value=MAGENTA)
+    pixel = probe_unhovered(client, *LINE_WIDTH_PROBE)
+    check(not is_magenta(pixel), f"1.6 degrees off the line is the planet at width 1: {pixel}")
+
+    depth = undo_depth(client)
+    client.call("set_property", field="line_width", value=4.0)
+    check(client.call("get_selected")["feature"]["line_width"] == 4.0, "the feature holds the width")
+    check(client.call("get_properties")["properties"]["line_width"] == 4.0, "and the row shows it")
+    check(undo_depth(client) == depth + 1, "in one undo step")
+    pixel = probe_unhovered(client, *LINE_WIDTH_PROBE)
+    check(is_magenta(pixel), f"and the line reaches the point at width 4: {pixel}")
+
+    client.call("menu", item="undo")
+    check(client.call("get_properties")["properties"]["line_width"] == 1.0, "undo puts it back to 1")
+    pixel = probe_unhovered(client, *LINE_WIDTH_PROBE)
+    check(not is_magenta(pixel), f"and the line is thin again: {pixel}")
+    client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+
+
+def run_default_line_width_checks(client: AutomationClient) -> None:
+    """The Default line width preference is what a new feature starts at, and only that."""
+    start_new_document(client)
+    before = client.call("get_preferences")["preferences"]["default_line_width"]
+    client.call("set_preferences", preferences={"default_line_width": 2.0})
+    check(client.call("get_preferences")["preferences"]["default_line_width"] == 2.0,
+          "the Preferences dialog changes the default line width")
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="feature_type", value="line")
+    check(client.call("get_properties")["properties"].get("line_width") == 2.0,
+          "a new feature starts at the default")
+    client.call("set_preferences", preferences={"default_line_width": 3.0})
+    check(client.call("get_properties")["properties"].get("line_width") == 2.0,
+          "and keeps its own width when the preference changes")
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="feature_type", value="line")
+    check(client.call("get_properties")["properties"].get("line_width") == 3.0,
+          "while the next one starts at the new default")
+    client.call("set_preferences", preferences={"default_line_width": before})
+    check(client.call("get_preferences")["preferences"]["default_line_width"] == before,
+          "the preference is put back for the scenarios after this one")
 
 
 def refusal(client: AutomationClient, cmd: str, **params) -> str:

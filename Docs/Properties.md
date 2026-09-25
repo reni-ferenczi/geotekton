@@ -139,6 +139,7 @@ follows the feature tree selection, through
 | Colour     | Colour picker, opacity | yes    |
 | Palette    | Selector           | only       |
 | Ramp       | Colour pickers, +, −, span | only |
+| Line width | Number             | no, features drawn with lines only |
 | Enabled    | Switch             | yes        |
 | From (Ma)  | Number             | no         |
 | To (Ma)    | Number             | no         |
@@ -272,6 +273,34 @@ Every row is shown whatever the mode, since the opacity applies in all of them
 and a color or a palette picked ahead is kept for when the mode is switched.
 Each change is one edit and one undo version, and dragging the picker previews
 the color on the globe the way it does on a feature.
+
+### The line width row
+
+**Line width** is how wide the feature's lines are drawn, as a multiple of what
+its type draws at: 1 is the width every feature had before there was a row,
+which is what a feature read from a file without a width shows. The box runs
+from 0.1 to 10 in steps of 0.05, and the row and its label carry the tooltip
+"How wide the feature's lines are drawn, as a multiple of what its type draws
+at". A new feature starts at the Default line width of the
+[Preferences](Shell.md#preferences) dialog and keeps its own width from then
+on, whatever the preference is later set to.
+
+The row is there only for a feature drawn with lines: a Line, a Circle, a
+Hotspot, whose mark and track both widen, an open Topology and a crust, whose
+isochrons and flowlines widen while its bands do not. A Polygon is a fill and
+Points are dots, so neither shows the row, and closing a topology takes it
+away until the topology is opened again; `Feature.draws_lines()` says which is
+which. A type's own thinness stays under the width, so a circle at 2 is drawn
+as wide as a plain line at 1; see [Shader](Shader.md#shader-uniforms). The
+halo of a selected line follows the width, as it is sized from the line. The
+outline overlay is not touched: its lines follow the Outline line width
+preference alone.
+
+Every edit goes through `Document.set_line_width()`, which refuses a group, a
+feature with no lines to widen and a width outside the range, and is one undo
+version. The automation port's `set_property` drives the row as `line_width`,
+and `get_properties` reports it under the same name while the row is shown,
+with its tooltip under `tooltips`.
 
 ### The circle rows
 
@@ -463,6 +492,7 @@ undo version:
 | `set_feature_type`      | an unknown type, and one that does not hold the kind the feature holds |
 | `set_icon`              | a group, and an icon the catalog does not have      |
 | `set_time_range`        | a range that ends older than it starts             |
+| `set_line_width`        | a group, a feature with no lines to widen, and a width outside 0.1 to 10 |
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |
 | `remove_vertex`         | a part or vertex that is not there                 |
@@ -525,3 +555,12 @@ A feature without the key, as in a 0.2.0 file, takes its type from its
 geometry. A file written before 0.9.0 names one of the eight types the catalog
 had then, which the migration maps onto the five; see
 [Persistence](Persistence.md#080-to-090).
+
+From 0.29.0 a leaf also carries `line_width`, written only when it is not 1:
+
+```json
+"line_width": 2.0
+```
+
+A feature without the key is drawn at the width it always was; see
+[Persistence](Persistence.md#feature-tree-serialization).

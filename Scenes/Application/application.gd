@@ -236,6 +236,8 @@ var radius_spin: SpinBox
 var planet_area_label: Label
 var marker_spin: SpinBox
 var line_spin: SpinBox
+# The line width a new feature starts with.
+var default_line_width_spin: SpinBox
 var export_width_spin: SpinBox
 var ffmpeg_edit: LineEdit
 # The colour picker of each feature type in the Preferences dialog, by type id.
@@ -1314,10 +1316,27 @@ func _build_about_content() -> Control:
 	return text
 
 
+# The Preferences dialog is three tabs rather than one column. A column of
+# every setting grew taller than a screen that is not full screen, with the OK
+# button out of reach below it, and a tab fits with room to spare.
 func _build_preferences_content() -> Control:
+	var tabs := TabContainer.new()
+	tabs.name = "Preferences"
+	tabs.custom_minimum_size = Vector2(520, 0)
+	# The dialog is sized to the tallest tab, so it stays put when the tab
+	# changes rather than growing and shrinking under the pointer.
+	tabs.use_hidden_tabs_for_min_size = true
+	tabs.add_child(_build_general_preferences())
+	tabs.add_child(_build_drawing_preferences())
+	tabs.add_child(_build_python_preferences())
+	return tabs
+
+
+# Where files come from and go to, what distances are read against, and how an
+# export comes out.
+func _build_general_preferences() -> Control:
 	var box := VBoxContainer.new()
-	box.name = "Preferences"
-	box.custom_minimum_size = Vector2(520, 0)
+	box.name = "General"
 
 	var folder_label := Label.new()
 	folder_label.text = "Default folder for Open and Save"
@@ -1344,10 +1363,6 @@ func _build_preferences_content() -> Control:
 	form.add_child(planet_area_label)
 	radius_spin.value_changed.connect(func(radius: float) -> void:
 		planet_area_label.text = "Surface area %s" % Measure.format_area(Measure.planet_area(radius)))
-	marker_spin = _form_spin(form, "VertexMarkerScale", "Vertex marker size",
-		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
-	line_spin = _form_spin(form, "LineWidthScale", "Outline line width",
-		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
 	export_width_spin = _form_spin(form, "ExportWidth", "Export width (pixels)",
 		Config.MIN_EXPORT_WIDTH, Config.MAX_EXPORT_WIDTH, Config.EXPORT_WIDTH_STEP)
 
@@ -1361,6 +1376,28 @@ func _build_preferences_content() -> Control:
 	ffmpeg_edit.name = "Ffmpeg"
 	ffmpeg_edit.placeholder_text = "Whatever is found on the path"
 	box.add_child(ffmpeg_edit)
+
+	return box
+
+
+# How the outline overlay and new features are drawn: the outline sizes, the
+# line width a new feature starts with, and the colour of each feature type.
+func _build_drawing_preferences() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "Drawing"
+
+	var form := GridContainer.new()
+	form.columns = 2
+	box.add_child(form)
+
+	marker_spin = _form_spin(form, "VertexMarkerScale", "Vertex marker size",
+		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
+	line_spin = _form_spin(form, "LineWidthScale", "Outline line width",
+		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
+	default_line_width_spin = _form_spin(form, "DefaultLineWidth", "Default line width",
+		Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH, 0.05)
+	default_line_width_spin.tooltip_text = ("The line width a new feature starts with, "
+		+ "as a multiple of what its type draws at; a feature keeps its own once it exists")
 
 	# The colour each feature type starts a feature in, in catalog order.
 	box.add_child(_view_section("Feature colors"))
@@ -1386,9 +1423,14 @@ func _build_preferences_content() -> Control:
 			feature_color_pickers[type_id].color = FeatureType.CATALOG[type_id]["color"])
 	box.add_child(catalog)
 
-	# Python: which interpreter runs the scripting bridge and where the scripts
-	# that become menu entries are looked for, one directory per line.
-	box.add_child(_view_section("Python"))
+	return box
+
+
+# Which interpreter runs the scripting bridge and where the scripts that become
+# menu entries are looked for, one directory per line.
+func _build_python_preferences() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "Python"
 
 	var interpreter_label := Label.new()
 	interpreter_label.text = "Interpreter"
@@ -1844,6 +1886,7 @@ func show_preferences() -> void:
 	radius_spin.value = Config.get_planet_radius()
 	marker_spin.value = Config.get_vertex_marker_scale()
 	line_spin.value = Config.get_line_width_scale()
+	default_line_width_spin.value = Config.get_default_line_width()
 	export_width_spin.value = Config.get_export_width()
 	ffmpeg_edit.text = Config.get_ffmpeg()
 	for type_id in feature_color_pickers:
@@ -1860,6 +1903,7 @@ func _on_preferences_confirmed() -> void:
 	Config.set_planet_radius(radius_spin.value)
 	Config.set_vertex_marker_scale(marker_spin.value)
 	Config.set_line_width_scale(line_spin.value)
+	Config.set_default_line_width(default_line_width_spin.value)
 	Config.set_export_width(int(export_width_spin.value))
 	Config.set_ffmpeg(ffmpeg_edit.text.strip_edges())
 	_save_feature_colors()

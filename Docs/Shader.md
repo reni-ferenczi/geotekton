@@ -333,10 +333,11 @@ The widths are chord lengths on the unit sphere, so 0.012 is about 0.7 degrees.
 `geometry_line_width` is the distance from the middle of a line to its edge.
 
 Each feature scales its line width by `Feature.line_scale()`, which reaches the
-shader in row 4 of [`feature_data`](#per-feature-rotation): 0.35 for a hotspot,
-0.5 for a circle and 1 for everything else. The scale applies before the halo
-and the feather, so a selected hotspot track keeps a thin halo too. A later per
-feature width setting would go into `line_scale()`.
+shader in row 4 of [`feature_data`](#per-feature-rotation): what its type draws
+at, 0.35 for a hotspot, 0.5 for a circle and 1 for everything else, times the
+feature's own [line width](Properties.md#the-line-width-row), 1 unless it was
+set. The scale applies before the halo and the feather, so a selected hotspot
+track keeps a thin halo too, and a widened line a wider one.
 
 A hotspot also gets a dot at every sample of its track, primitive kind 3
 (`Planet.Primitive.SAMPLE`): a marker drawn at `SAMPLE_DOT_SCALE`, 0.5, times

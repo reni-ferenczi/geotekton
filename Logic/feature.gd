@@ -125,6 +125,16 @@ var band_ages := PackedFloat64Array()
 # 0.25.0; before that both followed the Skip alone.
 var time_step := 0.0
 
+# How wide the feature's lines are drawn, as a multiple of the width its type
+# draws at, so 1 is what every feature was drawn at before there was a setting.
+# A new feature starts at the Default line width preference; a feature read
+# from a file without the key stays at 1, so the file draws as it did. Only what
+# is drawn with lines reads it, see draws_lines(). Since 0.29.0.
+const MIN_LINE_WIDTH := 0.1
+const MAX_LINE_WIDTH := 10.0
+const DEFAULT_LINE_WIDTH := 1.0
+var line_width := DEFAULT_LINE_WIDTH
+
 # What a Circle is built from: its center, the point its axis comes out of, as
 # (latitude, longitude) in degrees in the feature's own frame, its radius in
 # degrees, how many segments it is cut into, and whether the circle around the
@@ -201,6 +211,7 @@ static func create_feature(title_: String = "Feature",
 	feature.color = color_
 	feature.is_group = false
 	feature.time_range = time_range_
+	feature.line_width = Config.get_default_line_width()
 	# A new feature is a Polygon, which is what most of them turn out to be and
 	# what the Draw tool then produces. The panel changes it before the first
 	# shape is drawn.
@@ -370,16 +381,21 @@ func is_crust() -> bool:
 
 
 # How wide the feature's lines are drawn, against the shader's
-# geometry_line_width. A hotspot track is thin so the dots at its samples stand
-# out, and a circle is thinner than a line someone drew. A crust reads it for
-# its isochrons and flowlines; its bands are polygons and do not. A per feature
-# setting would go here.
+# geometry_line_width: what its type draws at, times its own line_width. A
+# hotspot track is thin so the dots at its samples stand out, and a circle is
+# thinner than a line someone drew. A crust reads it for its isochrons and
+# flowlines; its bands are polygons and do not.
 const HOTSPOT_LINE_SCALE := 0.35
 const CIRCLE_LINE_SCALE := 0.5
 const CRUST_LINE_SCALE := 0.5
 
 
 func line_scale() -> float:
+	return type_line_scale() * line_width
+
+
+# The width the feature's type draws its lines at, before its own line_width.
+func type_line_scale() -> float:
 	if is_hotspot():
 		return HOTSPOT_LINE_SCALE
 	if is_circle():
@@ -387,6 +403,22 @@ func line_scale() -> float:
 	if is_crust():
 		return CRUST_LINE_SCALE
 	return 1.0
+
+
+# Whether the feature is drawn with lines, which is what line_width scales: a
+# polyline, an open topology, a crust with its isochrons and flowlines, and an
+# empty feature of a type the tools draw a line into. A polygon is a fill and a
+# multipoint is dots, so neither has a width to set; the outline overlay traces
+# a selected polygon at the Outline line width preference instead.
+func draws_lines() -> bool:
+	if is_group:
+		return false
+	if is_crust():
+		return true
+	var kind := kind_name() if has_geometry() else str(FeatureType.kinds(feature_type)[0])
+	if kind == KIND_NAMES[GeometryKind.TOPOLOGY]:
+		return not closed
+	return kind == KIND_NAMES[GeometryKind.POLYLINE]
 
 
 # The color the feature's lines are drawn in, given the color its fill came out
@@ -426,6 +458,7 @@ func clone() -> Feature:
 	node.crust_ridge = crust_ridge
 	node.crust_edge = crust_edge
 	node.time_step = time_step
+	node.line_width = line_width
 	node.crust_line_rings.assign(crust_line_rings.map(
 		func(ring: PackedVector2Array) -> PackedVector2Array: return ring.duplicate()))
 	node.band_ages = band_ages.duplicate()
@@ -591,6 +624,10 @@ func to_json() -> Variant:
 		# what every hotspot and crust did before.
 		if time_step > 0.0:
 			data["time_step"] = time_step
+		# 0.29.0, and written only when the feature is not at 1, which is what
+		# every feature was drawn at before there was a width to set.
+		if not is_equal_approx(line_width, DEFAULT_LINE_WIDTH):
+			data["line_width"] = line_width
 	return data
 
 
@@ -648,6 +685,8 @@ static func from_json(data: Variant) -> Feature:
 			node.hotspot = Vector2(h[0], h[1])
 		node.plate_uuid = str(data.get("plate", ""))
 		node.time_step = float(data.get("time_step", 0.0))
+		node.line_width = clampf(float(data.get("line_width", DEFAULT_LINE_WIDTH)),
+			MIN_LINE_WIDTH, MAX_LINE_WIDTH)
 		# The parameters win over the rings the file holds. A hotspot's track
 		# needs the whole tree, so Hotspot.rebuild_all() redoes it before the
 		# geometry is collected.

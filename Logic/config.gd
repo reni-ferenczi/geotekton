@@ -141,6 +141,18 @@ static func set_line_width_scale(scale: float) -> void:
 	set_value("line_width_scale", clampf(scale, MIN_SCALE, MAX_SCALE))
 
 
+# The line width a new feature starts with, a multiple of what its type draws
+# at. A feature keeps its own width once it exists, so changing this reaches
+# only the features added afterwards.
+static func get_default_line_width() -> float:
+	return clampf(float(get_value("default_line_width", Feature.DEFAULT_LINE_WIDTH)),
+		Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH)
+
+
+static func set_default_line_width(width: float) -> void:
+	set_value("default_line_width", clampf(width, Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH))
+
+
 # How far the timeline's step buttons and their shortcuts jump, in millions of
 # years. A number beside the buttons rather than a dialog setting, since it is
 # changed on the spot: 50 for laying out an animation, 10 for one feature's

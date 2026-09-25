@@ -323,6 +323,23 @@ func check_time_step(time_step: float) -> String:
 	return ""
 
 
+# Give a feature another line width, a multiple of what its type draws at, in
+# one undo version. Refused on a group, which draws nothing, and on a feature
+# that has no lines to widen: a polygon, a multipoint or a closed topology.
+func set_line_width(feature: Feature, line_width: float) -> String:
+	if feature == null or feature.is_group:
+		return "Only a feature has a line width."
+	if not feature.draws_lines():
+		return "A %s%s has no lines to widen." % [
+			"closed " if feature.closed else "", feature.kind_name()]
+	if line_width < Feature.MIN_LINE_WIDTH or line_width > Feature.MAX_LINE_WIDTH:
+		return "The line width is %s, outside %s to %s." % [line_width,
+			Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH]
+	feature.line_width = line_width
+	record()
+	return ""
+
+
 # The vector is (younger, older), the order the file keeps. A range runs from
 # its older end to its younger one, so the end may not be older than the start.
 func set_time_range(feature: Feature, time_range: Vector2i) -> String:
@@ -1136,7 +1153,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.27.0"):
+	if not _is_older_than(version, "0.29.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -1193,9 +1210,10 @@ static func migrate(data: Dictionary) -> Dictionary:
 				+ "neither takes part in coupling.") % [dropped,
 				"" if dropped == 1 else "s", "was" if dropped == 1 else "were"])
 	# 0.27.0 renamed the program, so a file now says geotekt in its application
-	# field; a file from before it is not read. Nothing else in the file
-	# changed, so only the version moves.
-	data["version"] = "0.27.0"
+	# field; a file from before it is not read. 0.29.0 gave a leaf its line
+	# width, and a leaf without the key reads as 1, which is what every feature
+	# was drawn at. Nothing else in the file changed, so only the version moves.
+	data["version"] = "0.29.0"
 	return data
 
 
