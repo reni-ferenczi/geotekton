@@ -13,6 +13,10 @@ const ON_EQUATOR := Vector2(0.0, 0.0)
 const TURN := 30.0
 
 
+# The settings folder the runner gave the run, which the test goes back to.
+var kept_config_directory := Config.directory_override
+
+
 # A plate turning TURN degrees about the north pole between 30 Ma and the
 # present, and a hotspot not placed yet that exists over the same span. The
 # timeline's Skip is SKIP, in a config of the test's own, which _done() drops.
@@ -38,7 +42,7 @@ func _fixture() -> Array:
 
 func _done() -> void:
 	DirAccess.remove_absolute(Config.directory_override + "/config.json")
-	Config.directory_override = ""
+	Config.directory_override = kept_config_directory
 	Config.forget()
 
 

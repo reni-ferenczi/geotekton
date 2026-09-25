@@ -5,6 +5,8 @@ extends TestCase
 # width preference. See Feature.line_scale() and Document.set_line_width().
 
 const SCRATCH_CONFIG := "user://test_line_width_config"
+# The settings folder the runner gave the run, which the test goes back to.
+var kept_config_directory := Config.directory_override
 
 
 # A config of the test's own, so the preference under test is the one the
@@ -16,7 +18,7 @@ func _own_config() -> void:
 
 func _done() -> void:
 	DirAccess.remove_absolute(Config.directory_override + "/config.json")
-	Config.directory_override = ""
+	Config.directory_override = kept_config_directory
 	Config.forget()
 
 

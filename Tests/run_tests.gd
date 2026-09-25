@@ -10,6 +10,10 @@ const UNIT_DIR := "res://Tests/Unit"
 const RENDERED_DIR := "res://Tests/Rendered"
 const APPLICATION_SCENE := "res://Scenes/Application/application.tscn"
 const WINDOW_SIZE := Vector2i(1800, 900)
+# Where a headless run keeps its settings, under the user data directory, so no
+# test reads or changes those of whoever is at the keyboard. A rendered run's
+# application moves them to its own isolated folder as it starts.
+const TEST_SETTINGS_DIR := "test-settings"
 
 
 # A runtime error does not raise: the engine prints it, abandons the method and
@@ -67,6 +71,9 @@ func _initialize() -> void:
 func _run() -> void:
 	# The tree only exists once the main loop is iterating.
 	await process_frame
+
+	Config.directory_override = OS.get_user_data_dir().path_join(TEST_SETTINGS_DIR)
+	Config.clear()
 
 	var application: Node = null
 	var ready := true

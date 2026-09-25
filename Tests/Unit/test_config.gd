@@ -5,6 +5,8 @@ extends TestCase
 # free of duplicates and bounded.
 
 const SCRATCH := "user://test_config"
+# The settings folder the runner gave the run, which the test goes back to.
+var kept_config_directory := Config.directory_override
 
 
 func _use_a_scratch_config() -> void:
@@ -16,7 +18,7 @@ func _use_a_scratch_config() -> void:
 
 func _restore_the_real_config() -> void:
 	DirAccess.remove_absolute(Config.directory_override + "/config.json")
-	Config.directory_override = ""
+	Config.directory_override = kept_config_directory
 	Config.forget()
 
 
