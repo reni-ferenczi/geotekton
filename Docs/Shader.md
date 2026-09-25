@@ -326,10 +326,12 @@ the Draw preview.
 | `geometry_data` | `sampler2D` | — | Data texture holding the primitives |
 | `geometry_count` | `int` | `0` | Number of primitives to render |
 | `feature_data` | `sampler2D` | — | Where each feature is at the current time |
-| `geometry_line_width` | `float` | `0.012` | Width of a polyline segment, before the feature's line scale |
+| `geometry_line_width` | `float` | `0.006` | Width of a polyline segment, before the feature's line scale |
 | `geometry_point_radius` | `float` | `0.02` | Radius of a multipoint marker |
 
-The widths are chord lengths on the unit sphere, so 0.012 is about 0.7 degrees.
+The widths are chord lengths on the unit sphere, so 0.006 is about 0.34 degrees.
+`geometry_line_width` was 0.012 until 0.29.0 halved it; `Planet.GEOMETRY_LINE_WIDTH`
+holds the same number, and `test_shader_defaults.gd` holds the two together.
 `geometry_line_width` is the distance from the middle of a line to its edge.
 
 Each feature scales its line width by `Feature.line_scale()`, which reaches the
@@ -679,7 +681,7 @@ pass instead; see [The selected feature](#the-selected-feature).
 | `outline_data` | `sampler2D` | — | Vertex data texture, one texel per vertex |
 | `outline_vertex_count` | `int` | `0` | Number of outline vertices |
 | `outline_line_width` | `float` | `0.002` | Width of outline line segments |
-| `outline_dot_radius` | `float` | `0.006` | Radius of vertex dot markers |
+| `outline_dot_radius` | `float` | `0.003` | Radius of vertex dot markers |
 | `outline_closing_opacity` | `float` | `0.25` | How faint the closing segment of an unfinished polygon is |
 
 `OUTLINE_OPACITY`, 0.6, is a constant rather than a uniform: the opacity of the
@@ -706,7 +708,7 @@ the same for every vertex of a part:
 | 4 | Closed like 3, with no vertex markers — the rings of a selected polygon | `OUTLINE_OPACITY` |
 | 5 | The vertex markers only, twice the size — a selected multipoint | no segments |
 | 6 | Closed like 4, in `CHILD_COLOR`: the rings of a polygon that follows the selected feature | 1 |
-| 7 | Open like 0, at `BOLD_SCALE` (0.5) times `geometry_line_width` rather than at `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross | 1 |
+| 7 | Open like 0, at `BOLD_SCALE` (1.0) times `geometry_line_width` rather than at `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross | 1 |
 | 8 | Two vertices, a center and a point of the rim, drawn as the [circle](#circles) through that point, with no vertex markers: the circle being drawn | `OUTLINE_OPACITY` |
 | 9 | Open like 0, in the same white and at the same width, with no vertex markers: a run sampled too finely to mark, such as the [Measure tool](Editing.md#the-measure-tool)'s parallels | 1 |
 | 10 | Open like 0, vertex markers and all, in `REFUSED_COLOR`, an sRGB red: a cut the [Split tool](Editing.md#the-split-tool) refused | 1 |
@@ -728,7 +730,7 @@ divides the distance by `SELECTED_MARKER_SCALE`, which draws the same dot twice
 as large.
 
 **Line segments**: the same `arc_distance()` the geometry pass uses, which gives
-each segment rounded caps, feathered by `line_coverage()`. Style 7 segments are half as wide as a feature line,
+each segment rounded caps, feathered by `line_coverage()`. Style 7 segments are as wide as a feature line,
 `geometry_line_width` times `BOLD_SCALE`, so the Outline line width
 preference, which scales `outline_line_width`, leaves them alone.
 `test_shader_constants.gd` holds `BOLD_SCALE` to `Planet.BOLD_SCALE`.

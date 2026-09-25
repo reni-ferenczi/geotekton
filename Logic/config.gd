@@ -10,7 +10,7 @@ const MAX_RECENT_FILES := 10
 # large enough to be worth the setting, without letting a marker swallow the
 # shape it marks.
 const MIN_SCALE := 0.25
-const MAX_SCALE := 4.0
+const MAX_SCALE := 8.0
 
 # Where the config file lives; set to a scratch folder by the tests.
 static var directory_override: String = ""
@@ -125,12 +125,19 @@ static func set_planet_radius(km: float) -> void:
 	set_value("planet_radius_km", clampf(km, Measure.MIN_RADIUS_KM, Measure.MAX_RADIUS_KM))
 
 
+# How large the outline overlay draws a vertex marker, as a multiple of
+# Planet.DEFAULT_DOT_RADIUS. 0.29.0 halved that radius, so that 1
+# draws what 0.5 used to. The setting moved to a key of its own at the same
+# time, and a size saved under the old key reads as twice that, which draws the
+# markers as large as they were.
 static func get_vertex_marker_scale() -> float:
-	return clampf(float(get_value("vertex_marker_scale", 1.0)), MIN_SCALE, MAX_SCALE)
+	var scale: Variant = get_value("vertex_marker_size",
+		2.0 * float(get_value("vertex_marker_scale", 0.5)))
+	return clampf(float(scale), MIN_SCALE, MAX_SCALE)
 
 
 static func set_vertex_marker_scale(scale: float) -> void:
-	set_value("vertex_marker_scale", clampf(scale, MIN_SCALE, MAX_SCALE))
+	set_value("vertex_marker_size", clampf(scale, MIN_SCALE, MAX_SCALE))
 
 
 static func get_line_width_scale() -> float:
@@ -144,13 +151,18 @@ static func set_line_width_scale(scale: float) -> void:
 # The line width a new feature starts with, a multiple of what its type draws
 # at. A feature keeps its own width once it exists, so changing this reaches
 # only the features added afterwards.
+#
+# It moved to a key of its own when Planet.GEOMETRY_LINE_WIDTH was halved, and
+# a width saved under the old key reads as twice that, the way the vertex
+# marker size does.
 static func get_default_line_width() -> float:
-	return clampf(float(get_value("default_line_width", Feature.DEFAULT_LINE_WIDTH)),
-		Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH)
+	var width: Variant = get_value("feature_line_width",
+		2.0 * float(get_value("default_line_width", Feature.DEFAULT_LINE_WIDTH / 2.0)))
+	return clampf(float(width), Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH)
 
 
 static func set_default_line_width(width: float) -> void:
-	set_value("default_line_width", clampf(width, Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH))
+	set_value("feature_line_width", clampf(width, Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH))
 
 
 # The unit the Kinematics panel gives a plate's rate in: Measure.RATE_CM_PER_YEAR,

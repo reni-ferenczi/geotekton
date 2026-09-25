@@ -126,12 +126,13 @@ var band_ages := PackedFloat64Array()
 var time_step := 0.0
 
 # How wide the feature's lines are drawn, as a multiple of the width its type
-# draws at, so 1 is what every feature was drawn at before there was a setting.
-# A new feature starts at the Default line width preference; a feature read
-# from a file without the key stays at 1, so the file draws as it did. Only what
+# draws at. A new feature starts at the Default line width preference; a
+# feature read from a file without the key is at 1, what every feature was
+# drawn at before there was a setting. The width 1 stands for was halved in the
+# same version, Planet.GEOMETRY_LINE_WIDTH, so an older file draws thinner. Only what
 # is drawn with lines reads it, see draws_lines(). Since 0.29.0.
 const MIN_LINE_WIDTH := 0.1
-const MAX_LINE_WIDTH := 10.0
+const MAX_LINE_WIDTH := 20.0
 const DEFAULT_LINE_WIDTH := 1.0
 var line_width := DEFAULT_LINE_WIDTH
 

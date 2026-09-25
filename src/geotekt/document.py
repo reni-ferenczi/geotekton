@@ -44,7 +44,7 @@ DEFAULT_ICON = ""
 # of the file, the way the application writes it.
 DEFAULT_LINE_WIDTH = 1.0
 MIN_LINE_WIDTH = 0.1
-MAX_LINE_WIDTH = 10.0
+MAX_LINE_WIDTH = 20.0
 
 
 def dumps(data: Any) -> str:

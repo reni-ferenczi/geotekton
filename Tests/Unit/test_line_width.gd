@@ -158,3 +158,25 @@ func test_a_new_feature_starts_at_the_default_line_width_preference() -> void:
 	Config.forget()
 	assert_eq(Config.get_default_line_width(), Feature.MAX_LINE_WIDTH, "and survives a reload")
 	_done()
+
+
+# 0.29.0 halved what a line and a vertex marker are drawn at, and the two
+# preferences moved to keys of their own, so a value saved before reads as
+# twice that and draws what it drew.
+func test_a_size_saved_before_the_widths_were_halved_reads_as_twice_that() -> void:
+	_own_config()
+	assert_eq(Config.get_vertex_marker_scale(), 1.0, "a fresh installation draws markers at 1")
+	Config.set_value("vertex_marker_scale", 0.5)
+	Config.set_value("default_line_width", 0.5)
+	assert_eq(Config.get_vertex_marker_scale(), 1.0, "a marker size of 0.5 saved before is 1 now")
+	assert_eq(Config.get_default_line_width(), 1.0, "and so is a line width of 0.5")
+	Config.set_vertex_marker_scale(0.75)
+	Config.set_default_line_width(3.0)
+	Config.forget()
+	assert_eq(Config.get_vertex_marker_scale(), 0.75, "a size set now is what it says")
+	assert_eq(Config.get_default_line_width(), 3.0, "and so is a width")
+	Config.clear()
+	Config.set_value("vertex_marker_scale", Config.MAX_SCALE)
+	assert_eq(Config.get_vertex_marker_scale(), Config.MAX_SCALE,
+		"the largest old size is past the new range, and held to it")
+	_done()

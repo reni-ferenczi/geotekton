@@ -137,7 +137,7 @@ def test_the_line_width_round_trips_and_one_writes_no_key(tmp_path):
     with pytest.raises(ValueError):
         craton.line_width = 0.0
     with pytest.raises(ValueError):
-        craton.line_width = 11.0
+        craton.line_width = 21.0
 
 
 def test_saving_without_a_path_is_refused():

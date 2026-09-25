@@ -1242,11 +1242,11 @@ def run_feature_colour_preference_checks(client: AutomationClient) -> None:
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
 
-# A point 1.6 degrees east of Blue Ridge, which runs down longitude 40. The
-# shader draws a line 0.012 of the sphere's radius to either side of its middle,
-# about 0.69 degrees, so the point is off the line at width 1 and well inside
-# it at width 4, where the edge is about 2.75 degrees out.
-LINE_WIDTH_PROBE = (0.0, 41.6)
+# A point a degree east of Blue Ridge, which runs down longitude 40. The
+# shader draws a line 0.006 of the sphere's radius to either side of its middle,
+# about 0.34 degrees, so the point is off the line at width 1 and well inside
+# it at width 4, where the edge is about 1.37 degrees out.
+LINE_WIDTH_PROBE = (0.0, 41.0)
 MAGENTA = [1.0, 0.0, 1.0, 1.0]
 
 

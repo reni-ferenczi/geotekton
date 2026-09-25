@@ -11,8 +11,10 @@ extends RenderedCase
 
 # The shader's geometry_line_width: the distance from a line's middle to its
 # edge, as a chord. test_shader_defaults.gd holds it to the shader.
-const LINE_WIDTH := 0.012
-const ZOOM := 8.0
+const LINE_WIDTH := Planet.GEOMETRY_LINE_WIDTH
+# Twice what it was before the line was halved, so a line is as many pixels
+# across as the probes expect.
+const ZOOM := 16.0
 
 # A plate turning about the north pole from 30 Ma to 15 Ma and about another
 # axis after that, so the track of a hotspot on it bends at the 15 Ma sample.

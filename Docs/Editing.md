@@ -218,8 +218,8 @@ drag has turned it.
 
 The pole is drawn as a dot with a cross through it, in the same white the
 selection is traced in. Each arm reaches three degrees from the pole and is
-half as wide as a feature line (`geometry_line_width`), which still makes it
-wider than an outline line; the Outline line width preference does not change
+as wide as a feature line (`geometry_line_width`), which makes it wider than
+an outline line; the Outline line width preference does not change
 it. The pole stays while the
 Pole tool is armed, so several features can be turned about one pole in turn.
 Picking another tool takes it away. With [snapping](#snapping) on, a pole lands on
@@ -1079,7 +1079,9 @@ File > Preferences carries three settings that belong to the tools:
 | Outline line width | How wide it draws the lines between them |
 
 The two sizes are multiples of what `planet.gdshader` draws at, from
-`Config.MIN_SCALE` to `Config.MAX_SCALE`. A multiple is easier to pick than the
+`Config.MIN_SCALE` to `Config.MAX_SCALE`, 0.25 to 8. Since 0.29.0 a marker at 1
+is half the size it was before, and a size saved by an older version reads as
+twice what it said, so the markers look as they did. A multiple is easier to pick than the
 chord length on a unit sphere the shader uniform is in; see
 [Shader](Shader.md#outline-uniforms).
 
