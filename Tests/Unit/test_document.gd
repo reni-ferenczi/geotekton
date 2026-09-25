@@ -666,23 +666,25 @@ func test_a_split_with_children_splits_a_child_the_cut_crosses() -> void:
 		assert_true(_sits_on(document, piece, own, 100.0), "%s sat there at 100 Ma" % title)
 
 
-func test_a_split_with_children_moves_a_child_whole_by_its_middle() -> void:
+func test_a_split_with_children_moves_a_child_whole_and_cuts_a_line() -> void:
 	var line := Feature.create_feature("Fault")
 	line.add_ring(PackedVector2Array([Vector2(0, -3), Vector2(0, 8)]),
 		Feature.GeometryKind.POLYLINE)
 	var document := _split_with(
 		[_square("East", 2.0, Vector2(0, 5)), _square("West", 2.0, Vector2(0, -5)), line] 			as Array[Feature], true)
-	assert_eq(document.root.children.size(), 5, "nothing but the craton is split")
-	assert_true(document.split_children.is_empty(), "so the status bar names no piece")
+	assert_eq(document.root.children.size(), 6, "the craton and the fault are split")
+	assert_eq(document.split_children.map(func(n: Feature) -> String: return n.title),
+		["Fault", "Fault 2"], "and the fault's pieces named for the status bar")
 	var craton := _titled(document, "Craton")
 	var second := _titled(document, "Craton 2")
 	var east := second if not _west(second) else craton
-	for title in ["East", "Fault"]:
-		assert_eq(_follows(_titled(document, title), 0.0), east.uuid,
-			"%s, east of the cut, follows the eastern half" % title)
 	var west := craton if east == second else second
-	assert_eq(_follows(_titled(document, "West"), 0.0), west.uuid,
-		"West follows the western half")
+	assert_eq(_follows(_titled(document, "East"), 0.0), east.uuid, "East follows the eastern half")
+	assert_eq(_follows(_titled(document, "West"), 0.0), west.uuid, "West follows the western half")
+	for title in ["Fault", "Fault 2"]:
+		var piece := _titled(document, title)
+		assert_eq(_follows(piece, 0.0), west.uuid if _west(piece) else east.uuid,
+			"%s follows the half on its side" % title)
 
 
 func test_a_split_without_children_leaves_them_following_the_original() -> void:
@@ -715,3 +717,115 @@ func _mean_longitude(ring: PackedVector2Array) -> float:
 	for vertex in ring:
 		total += vertex.y
 	return total / ring.size()
+
+
+### A split under a craton
+#
+# The way the developers' worlds are built: the craton leads, and the continent
+# around it and the orogeny across it both follow the craton. The continent is
+# cut north to south east of the craton, through the orogeny.
+
+
+func _craton_world() -> Document:
+	var document := Document.new()
+	var craton := _square("Craton", 3.0, Vector2(0, -12))
+	var continent := _square("Continent", 20.0)
+	var orogeny := _square("Orogeny", 4.0, Vector2(0, 0))
+	var foothills := _square("Foothills", 1.0, Vector2(0, 3))
+	var island := _square("Island", 1.0, Vector2(0, 26))
+	document.root.children.append_array([craton, continent, orogeny, foothills, island])
+	for rider in [continent, orogeny]:
+		assert_eq(document.couple(rider, craton, 200.0), "")
+	assert_eq(document.couple(foothills, orogeny, 200.0), "")
+	assert_eq(document.couple(island, continent, 200.0), "")
+	document.current_time = 100.0
+	document.record()
+	return document
+
+
+func _cut_continent(document: Document, children := true) -> void:
+	assert_eq(document.split_feature_along(_titled(document, "Continent"), 0,
+		PackedVector2Array([Vector2(-21, 1), Vector2(21, 1)]), false, false, children), "")
+
+
+func test_the_half_away_from_the_craton_goes_free_where_it_stands() -> void:
+	var document := _craton_world()
+	_cut_continent(document)
+	var craton := _titled(document, "Craton")
+	var west := _titled(document, "Continent")
+	var east := _titled(document, "Continent 2")
+	if not _west(west):
+		var swap := west
+		west = east
+		east = swap
+	assert_eq(_follows(west, 0.0), craton.uuid, "the half holding the craton follows it on")
+	assert_eq(Coupling.span_at(east, 0.0), null, "the other half follows nothing after the split")
+	assert_eq(_follows(east, 150.0), craton.uuid, "and still followed the craton before it")
+	assert_eq(document.split_freed, east, "which the status bar is told")
+	assert_eq(craton.rings[0].size(), 4, "the craton itself is not cut")
+
+
+func test_a_sibling_the_cut_crosses_is_cut_and_each_piece_follows_its_side() -> void:
+	var document := _craton_world()
+	_cut_continent(document)
+	var craton := _titled(document, "Craton")
+	var free := document.split_freed
+	for title in ["Orogeny", "Orogeny 2"]:
+		var piece := _titled(document, title)
+		assert_true(piece != null, "%s is there" % title)
+		assert_eq(_follows(piece, 0.0), craton.uuid if _west(piece) else free.uuid,
+			"%s follows the craton on its side, or the freed half" % title)
+		assert_eq(_follows(piece, 150.0), craton.uuid, "%s followed the craton before" % title)
+
+
+func test_what_follows_a_cut_sibling_follows_its_piece_on_that_side() -> void:
+	var document := _craton_world()
+	_cut_continent(document)
+	var east_orogeny := _titled(document, "Orogeny 2")
+	if _west(east_orogeny):
+		east_orogeny = _titled(document, "Orogeny")
+	assert_eq(_follows(_titled(document, "Foothills"), 0.0), east_orogeny.uuid,
+		"the foothills east of the cut follow the orogeny's eastern piece")
+
+
+func test_an_island_off_the_far_coast_goes_with_the_far_half() -> void:
+	var document := _craton_world()
+	_cut_continent(document)
+	assert_eq(_follows(_titled(document, "Island"), 0.0), document.split_freed.uuid,
+		"outside both halves, by the side of the cut it is on")
+
+
+func test_without_children_only_the_continent_is_split_and_freed() -> void:
+	var document := _craton_world()
+	_cut_continent(document, false)
+	assert_true(_titled(document, "Orogeny 2") == null, "the orogeny is left whole")
+	assert_true(document.split_freed != null, "the far half still goes free")
+
+
+func test_the_parts_the_cut_misses_go_by_side() -> void:
+	var document := Document.new()
+	var land := _square("Land", 10.0)
+	land.add_ring(_square("East isle", 2.0, Vector2(0, 20)).rings[0], Feature.GeometryKind.POLYGON)
+	land.add_ring(_square("West isle", 2.0, Vector2(0, -20)).rings[0], Feature.GeometryKind.POLYGON)
+	document.root.children.append(land)
+	document.record()
+	assert_eq(document.split_feature_along(land, 0,
+		PackedVector2Array([Vector2(-11, 0), Vector2(11, 0)])), "")
+	for node in [land, _titled(document, "Land 2")]:
+		assert_eq(node.rings.size(), 2, "%s holds its half and the isle on its side" % node.title)
+		for ring in node.rings:
+			assert_eq(_mean_longitude(ring) < 0.0, _west(node), "all on one side")
+
+
+func test_a_divide_across_the_dateline_sends_each_part_to_its_side() -> void:
+	var document := Document.new()
+	var isles := _square("Isles", 2.0, Vector2(0, 176))
+	isles.add_ring(_square("Far", 2.0, Vector2(0, -176)).rings[0], Feature.GeometryKind.POLYGON)
+	document.root.children.append(isles)
+	document.record()
+	assert_eq(document.divide_feature(isles,
+		PackedVector2Array([Vector2(-10, 180), Vector2(10, 180)])), "")
+	var far := _titled(document, "Isles 2")
+	assert_eq(isles.rings.size(), 1, "one isle stays")
+	assert_true(far != null and far.rings.size() == 1, "and the other goes")
+	assert_true(_mean_longitude(far.rings[0]) < 0.0, "the one across 180°")

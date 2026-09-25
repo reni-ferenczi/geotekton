@@ -3767,7 +3767,8 @@ func split_along_points() -> String:
 	var group := features.root.find_parent(feature)
 	var at := group.find_child(feature)
 	var made := PackedStringArray()
-	for child in group.children.slice(at, at + 2 + int(ridge) + 4 * int(crust)):
+	var laid := document.split_ridge
+	for child in group.children.slice(at, at + 2 + int(laid) + 4 * int(laid and crust)):
 		made.append(child.title)
 	for piece in document.split_children:
 		made.append(piece.title)
@@ -3775,7 +3776,13 @@ func split_along_points() -> String:
 	features.reload()
 	refresh_geometry()
 	set_active_tool(Tool.MOVE)
-	return "Split into %s" % ", ".join(made)
+	var said := "Split into %s" % ", ".join(made)
+	if ridge and not laid:
+		said += "; no ridge, since the cut runs through in several places"
+	if document.split_freed != null:
+		said += "; %s follows nothing from %s Ma" % [document.split_freed.title,
+			KinematicsPanel.format_time(document.current_time)]
+	return said
 
 
 # Grey out Ridge while the points clicked would divide the parts rather than

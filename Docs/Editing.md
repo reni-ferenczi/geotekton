@@ -412,7 +412,8 @@ Split tool's [Children](#the-children) switch cuts it along.
 
 ## The Split tool
 
-The Split tool cuts the selected polygon in two along a line drawn across it.
+The Split tool cuts the selected polygon along a line drawn across it into two
+features, the pieces on one side of the line and those on the other.
 Click where the cut starts, any points it should bend through, and where it
 ends. The line is drawn over the polygon's outline as it grows, like the shape
 the Draw tool previews.
@@ -425,22 +426,25 @@ the Draw tool previews.
 | **Enter** | Split the polygon along the cut |
 | **Escape** | Start again with no points |
 
-The ends do not have to be clicked on the edge. On Enter an end clicked
-outside the polygon moves to where the line first crosses its boundary, or
-last for the far end, and the points clicked before that crossing are dropped.
-An end clicked inside moves to the nearest point of the boundary. Either way it
-becomes a new vertex there, or uses the vertex that is already there. The
-points between the ends go to both halves, so the two halves share the whole
-cut. A feature of several polygons is cut in the part whose edge is nearest the
-first point, when the cut touches a part at all; a cut drawn between the parts
-[divides](#dividing) them instead.
+The ends do not have to be clicked on the edge. The polygon is cut wherever
+the line runs inside it: each stretch from where the line crosses the outline
+to where it crosses back cuts the piece it lies in, the crossing points
+becoming new vertices and the points clicked in between going to both pieces.
+What is clicked outside the polygon is dropped. An end stopped short inside
+the outline is carried on, the way the line was going, to where it meets it.
 
-A cut is refused, with the reason in the status bar, when:
+A line that goes in and out, across both arms of a C or through a bay and out
+of it, cuts several times and makes more than two pieces. They are sorted by
+the side of the line they are on, in the direction it was drawn: the feature
+keeps one side and `Laurentia 2` takes the other, each holding its side's
+pieces as its parts. A line that goes in and out of the same edge takes a bite
+out of it, which is a piece of its own. A feature of several polygons is cut
+in every part the line crosses, and a part it misses goes to the side of the
+line its middle is on; a line that crosses no part at all [divides](#dividing)
+them instead.
 
-- both ends land on the same edge;
-- it runs outside the polygon, as a straight cut across the mouth of a bay
-  does;
-- it crosses the polygon's edge anywhere between its ends, or crosses itself.
+A cut is refused, with the reason in the status bar, when it runs outside the
+polygon altogether or crosses itself inside it.
 
 A refused cut keeps its points and turns red on the globe until one of them
 is taken back, another is added or Escape drops them, so the one at fault can
@@ -455,8 +459,20 @@ tool, with the first half selected. The status bar names what the cut left
 behind, `Split into Laurentia, Laurentia 2, Laurentia ridge, Laurentia crust,
 Laurentia 2 crust`.
 
-Each half's ring starts with the cut: its first vertices are the two ends and
-the points between them, which is how the ridge names that stretch.
+For a cut of one stretch each half's ring starts with the cut: its first
+vertices are the two ends and the points between them, which is how the ridge
+names that stretch. A cut of several stretches leaves no ridge and no crust
+yet, and the status bar says so.
+
+### The parent
+
+A split feature that follows another, a continent following its craton, keeps
+following it only on the craton's side. The half on the other side of the line
+from the parent's middle stops following it at the age of the cut, standing
+where it stood, so nothing moves; from then on it is a plate of its own and can
+be given its own motion. Before that age it follows the parent as the whole
+feature did. The status bar ends with `Laurentia 2 follows nothing from
+100 Ma`. The parent itself is never cut.
 
 ### Dividing
 
@@ -474,13 +490,13 @@ while the points are being clicked: `Enter splits the polygon along them` or
 
 A divide leaves no shared edge, so there is no ridge and no crust: the
 **Ridge** and **Crust** switches are greyed out while the points would divide.
-The **Children** switch works as for a cut, by the middle: a feature following
-the polygon at the current time follows the second feature from then on when
-its middle is on that side. A divide is refused when every part lands on one
+The **Children** switch works as for a cut, by the side each feature's middle
+is on, and so does [the parent](#the-parent). A divide is refused when every part lands on one
 side, `The cut leaves every part on one side`, and a cut beside a feature of
 one part is refused as running outside the shape, as before. One undo version
-either way. Implemented by `Document.divide_feature()` over
-`GeometryEdit.touches()`, `side_of()` and `far_parts()`.
+either way. The sides are worked out in a frame turned to the parts when they
+or the cut straddle ±180°. Implemented by `Document.divide_feature()` over
+`GeometryEdit.touches()`, `sides()` and `far_parts()`.
 
 ### The ridge
 
@@ -581,35 +597,37 @@ with the same functions.
 
 ### The children
 
-With **Children** on, which is how it starts, the cut also goes through the
-features that follow the polygon at the current time, such as a mountain range
-coupled to the craton it sits on. Only direct children are cut. A grandchild
-goes on following its own parent, and a circle follows nothing.
+With **Children** on, which is how it starts, the cut also goes through what
+rides along with the feature: everything that follows its parent at the
+current time, the orogeny across the craton as well as the continent around
+it, or everything that follows the feature itself when it follows nothing, and
+whatever follows those in turn, all the way down.
 
-Each polygon child is cut along the part of the cut that lies inside it: from
-where the line first crosses its edge to where it last crosses it, with the
-clicked points in between. The child keeps the first piece, and a copy named
-`Range 2` is placed right after it with the second. A child the cut misses, or
-crosses in a way the checks above would refuse, stays whole, and so does a
-line or a set of points.
+Each polygon and line the cut crosses is cut the same way as the feature: a
+polygon into the pieces on either side, a line where the cut crosses it. The
+feature keeps the pieces on the parent's side and a copy, `Orogeny 2`, is
+placed right after it with the rest. What the cut misses goes whole to the side
+of the cut its middle is on, and so does a polygon the cut would be refused on.
+Circles, hotspots, ridges and crusts are left as they are, as is anything that
+follows two parents.
 
-Then each piece, and each child left whole, is placed on one side of the cut by
-the middle of its vertices. One whose middle lies inside the second half
-follows that half from the age of the cut; its span is cut at that age, and the
-older part still names the original. Everything else keeps following the first
-half. The second half starts with the polygon's keyframes and couplings, so no
-piece moves at the cut, and as the halves drift apart each piece goes with its
-own half.
+Each piece then follows what stands in for its old parent on its own side:
+the parent itself on the parent's side, and on the other side its piece there,
+or for the craton the half that went free, or for something left whole on the
+other side whatever stands in for its own parent. The span is cut at the age
+of the cut and the older part still names the old parent, so no piece moves at
+the cut, and as the halves drift apart each piece goes with its own side.
 
-The child pieces are part of the split's one undo version, and the status bar
-names them after the halves, the ridge and the crust, as in
+The pieces are part of the split's one undo version, and the status bar names
+them after the halves, the ridge and the crust, as in
 `Split into Laurentia, Laurentia 2, Range, Range 2` with Ridge off. The first feature of a
 group is drawn on top of the ones after it, so a range meant to show over its
 craton goes above it in the tree.
 
-With the switch off, the children are left alone and all of them follow the
-first half. The Vertex tool's split has no such switch and always leaves them
-alone.
+With the switch off, nothing but the feature is cut and everything that follows
+it goes on following the half that kept its title. The half away from the
+parent still goes free. The Vertex tool's split has no such switch and leaves
+everything alone.
 
 ## Drawing a circle
 

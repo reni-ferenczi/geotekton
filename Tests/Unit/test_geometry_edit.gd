@@ -257,26 +257,73 @@ func test_the_halves_hold_every_vertex_once_and_the_ends_twice() -> void:
 		"nothing else: the five vertices, and the two ends and the points between twice")
 
 
-func test_a_cut_that_leaves_a_concave_polygon_is_refused() -> void:
-	# The pentagon is dented at vertex 3. Clicked beyond vertices 2 and 4, the
-	# ends land on them, and the line between runs across the mouth of the dent.
-	var ring := _pentagon()
-	assert_eq(GeometryEdit.split_along_problem(ring,
+func test_a_line_that_misses_the_shape_is_refused() -> void:
+	# The pentagon is dented at vertex 3; this runs past the mouth of the dent.
+	assert_eq(GeometryEdit.split_along_problem(_pentagon(),
 		PackedVector2Array([Vector2(15, 11), Vector2(0, 13)])),
 		"The cut runs outside the shape.")
-	# Through a point inside the dent, the cut crosses the edge on its way there.
-	assert_eq(GeometryEdit.split_along_problem(ring,
-		PackedVector2Array([Vector2(5, -1), Vector2(7, 9), Vector2(-1, 6)])),
-		"The cut crosses the edge of the shape between its ends.")
-
-
-func test_a_cut_with_both_ends_on_one_edge_is_refused() -> void:
-	var ring := PackedVector2Array(SQUARE)
-	assert_eq(GeometryEdit.split_along_problem(ring,
-		PackedVector2Array([Vector2(3, -1), Vector2(5, 5), Vector2(7, -1)])),
-		"Both ends of the cut land on the same edge.")
-	assert_true(not GeometryEdit.split_along_problem(ring,
+	assert_true(not GeometryEdit.split_along_problem(_pentagon(),
 		PackedVector2Array([Vector2(3, -1)])).is_empty(), "one point is no cut")
+
+
+# The pieces on each side, and their areas added up.
+func _side_areas(cut: Dictionary) -> Array:
+	var areas := []
+	for side in [GeometryEdit.LEFT, GeometryEdit.RIGHT]:
+		var total := 0.0
+		for piece: PackedVector2Array in cut["pieces"][side]:
+			total += _ring_area(piece)
+		areas.append(total)
+	return areas
+
+
+func test_a_cut_in_and_out_of_a_dent_makes_three_pieces_on_two_sides() -> void:
+	# In at the bottom, out into the dent, and in again to leave on the left:
+	# two stretches, so three pieces, the two ends of the pentagon on one side.
+	var ring := _pentagon()
+	var cut := GeometryEdit.cut_pieces(ring,
+		PackedVector2Array([Vector2(5, -1), Vector2(7, 9), Vector2(-1, 6)]))
+	assert_eq(cut["problem"], "")
+	assert_eq(cut["stretches"], 2)
+	var counts := [cut["pieces"][GeometryEdit.LEFT].size(), cut["pieces"][GeometryEdit.RIGHT].size()]
+	counts.sort()
+	assert_eq(counts, [1, 2], "one piece on one side and two on the other")
+	var areas := _side_areas(cut)
+	assert_close(areas[0] + areas[1], _ring_area(ring), 1e-3, "the pieces add up to the pentagon")
+
+
+func test_a_cut_across_both_arms_of_a_c_makes_two_features_of_two_parts() -> void:
+	# A C opening to the east; a line down the middle crosses both arms.
+	var ring := PackedVector2Array([Vector2(0, 0), Vector2(0, 10), Vector2(3, 10),
+		Vector2(3, 3), Vector2(7, 3), Vector2(7, 10), Vector2(10, 10), Vector2(10, 0)])
+	var cut := GeometryEdit.cut_pieces(ring, PackedVector2Array([Vector2(-1, 6), Vector2(11, 6)]))
+	assert_eq(cut["problem"], "")
+	assert_eq(cut["stretches"], 2)
+	assert_eq(cut["pieces"][GeometryEdit.LEFT].size() + cut["pieces"][GeometryEdit.RIGHT].size(), 3)
+	var areas := _side_areas(cut)
+	assert_close(areas[0] + areas[1], _ring_area(ring), 1e-3)
+	# The tips of the arms, 3 by 4 each, are on one side together.
+	assert_true(is_equal_approx(areas[0], 24.0) or is_equal_approx(areas[1], 24.0),
+		"the two tips are one side: %s" % [areas])
+
+
+func test_a_bite_out_of_one_edge_is_made() -> void:
+	var ring := PackedVector2Array(SQUARE)
+	var cut := GeometryEdit.cut_pieces(ring,
+		PackedVector2Array([Vector2(3, -1), Vector2(5, 5), Vector2(7, -1)]))
+	assert_eq(cut["problem"], "")
+	var areas := _side_areas(cut)
+	areas.sort()
+	# The triangle from where the line crosses the edge, (3 1/3, 0) and
+	# (6 2/3, 0), up to (5, 5).
+	assert_close(areas[0], 25.0 / 3.0, 1e-3, "the bite")
+	assert_close(areas[1], 275.0 / 3.0, 1e-3, "and the rest")
+
+
+func test_a_cut_that_crosses_itself_inside_is_refused() -> void:
+	assert_eq(GeometryEdit.split_along_problem(PackedVector2Array(SQUARE), PackedVector2Array([
+		Vector2(2, -1), Vector2(8, 11), Vector2(8, 5), Vector2(2, 5), Vector2(2, 11)])),
+		"The cut crosses itself.")
 
 
 # Three cratons of worlds/TestA.geotekt, as stored, on which a cut clicked
@@ -361,13 +408,17 @@ func test_an_end_clicked_outside_goes_where_the_cut_crosses_the_outline() -> voi
 	assert_eq(GeometryEdit.split_along_problem(ring, path), "")
 
 
-func test_an_end_clicked_inside_goes_to_the_nearest_point_of_the_outline() -> void:
+func test_an_end_stopped_inside_is_carried_on_to_the_outline() -> void:
+	# Stopped half a degree short of the edges, and not heading straight at
+	# them: each end goes on the way the line was going.
 	var ring := PackedVector2Array(SQUARE)
-	var cut := GeometryEdit.cut_across(ring,
+	var cut := GeometryEdit.cut_pieces(ring,
 		PackedVector2Array([Vector2(5, 0.5), Vector2(4, 5), Vector2(5, 9.5)]))
-	assert_eq(cut[0][cut[1]], Vector2(5, 0))
-	assert_eq(cut[0][cut[2]], Vector2(5, 10))
-	assert_eq(cut[3], PackedVector2Array([Vector2(4, 5)]), "the point between is kept")
+	assert_eq(cut["problem"], "")
+	var edge: PackedVector2Array = cut["edge"]
+	assert_eq(edge.size(), 5, "the reached ends, both clicks and the point between")
+	assert_true(edge[0].is_equal_approx(Vector2(5.1111111, 0.0)), "on from the start: %s" % edge[0])
+	assert_true(edge[4].is_equal_approx(Vector2(5.1111111, 10.0)), "and from the end: %s" % edge[4])
 
 
 # An octagon of radius 5° around (lat, lon), stored with longitudes in
