@@ -153,6 +153,19 @@ static func set_default_line_width(width: float) -> void:
 	set_value("default_line_width", clampf(width, Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH))
 
 
+# The unit the Kinematics panel gives a plate's rate in: Measure.RATE_CM_PER_YEAR,
+# the default, or Measure.RATE_KM_PER_MY. Anything else reads as the default.
+static func get_rate_unit() -> String:
+	var unit := str(get_value("rate_unit", Measure.RATE_CM_PER_YEAR))
+	if unit != Measure.RATE_KM_PER_MY:
+		return Measure.RATE_CM_PER_YEAR
+	return unit
+
+
+static func set_rate_unit(unit: String) -> void:
+	set_value("rate_unit", unit)
+
+
 # How far the timeline's step buttons and their shortcuts jump, in millions of
 # years. A number beside the buttons rather than a dialog setting, since it is
 # changed on the spot: 50 for laying out an animation, 10 for one feature's

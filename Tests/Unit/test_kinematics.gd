@@ -231,3 +231,17 @@ func _planet(feature: Feature) -> Feature:
 	root.children.append(feature)
 	_selected = feature
 	return root
+
+
+### The units the rate is given in
+
+
+func test_the_rate_row_gives_its_peak_in_the_unit_the_preference_names() -> void:
+	# A degree per million years on a planet whose radius makes that 20 km/My.
+	var radius := 20.0 / deg_to_rad(1.0)
+	assert_eq(KinematicsPanel.peak_labels(1.0, radius, Measure.RATE_CM_PER_YEAR),
+		["1.0000 °/My", "2.00 cm/yr"])
+	assert_eq(KinematicsPanel.peak_labels(1.0, radius, Measure.RATE_KM_PER_MY),
+		["1.0000 °/My", "20.00 km/My"])
+	assert_eq(KinematicsPanel.peak_labels(0.0, radius, Measure.RATE_CM_PER_YEAR),
+		["0 °/My", "0.00 cm/yr"], "a node that does not move peaks at nothing")

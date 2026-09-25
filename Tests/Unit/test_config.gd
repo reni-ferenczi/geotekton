@@ -182,3 +182,14 @@ func test_feature_colors_survive_a_reload() -> void:
 	Config.set_value("feature_colors", {FeatureType.LINE: "red"})
 	assert_eq(FeatureType.color(FeatureType.LINE), Color.CRIMSON, "and so is one that is not a color")
 	_restore_the_real_config()
+
+
+func test_the_rate_unit_is_cm_per_year_unless_set_to_the_distance() -> void:
+	_use_a_scratch_config()
+	assert_eq(Config.get_rate_unit(), Measure.RATE_CM_PER_YEAR, "no file, cm/yr")
+	Config.set_rate_unit(Measure.RATE_KM_PER_MY)
+	Config.forget()
+	assert_eq(Config.get_rate_unit(), Measure.RATE_KM_PER_MY, "the distance comes back")
+	Config.set_value("rate_unit", "furlongs per fortnight")
+	assert_eq(Config.get_rate_unit(), Measure.RATE_CM_PER_YEAR, "and anything else is cm/yr")
+	_restore_the_real_config()

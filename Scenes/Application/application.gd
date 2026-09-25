@@ -234,6 +234,9 @@ var default_folder_edit: LineEdit
 var radius_spin: SpinBox
 # The planet's surface under the radius box, following the box as it changes.
 var planet_area_label: Label
+# The unit the Kinematics panel gives a rate in; each item's metadata is one of
+# Measure's RATE_ units.
+var rate_unit_option: OptionButton
 var marker_spin: SpinBox
 var line_spin: SpinBox
 # The line width a new feature starts with.
@@ -1363,6 +1366,17 @@ func _build_general_preferences() -> Control:
 	form.add_child(planet_area_label)
 	radius_spin.value_changed.connect(func(radius: float) -> void:
 		planet_area_label.text = "Surface area %s" % Measure.format_area(Measure.planet_area(radius)))
+	var rate_label := Label.new()
+	rate_label.text = "Plate rate in"
+	form.add_child(rate_label)
+	rate_unit_option = OptionButton.new()
+	rate_unit_option.name = "RateUnit"
+	rate_unit_option.tooltip_text = "The unit the Kinematics panel gives a rate in, beside the angle per million years"
+	rate_unit_option.add_item("cm/yr")
+	rate_unit_option.set_item_metadata(0, Measure.RATE_CM_PER_YEAR)
+	rate_unit_option.add_item("km/My")
+	rate_unit_option.set_item_metadata(1, Measure.RATE_KM_PER_MY)
+	form.add_child(rate_unit_option)
 	export_width_spin = _form_spin(form, "ExportWidth", "Export width (pixels)",
 		Config.MIN_EXPORT_WIDTH, Config.MAX_EXPORT_WIDTH, Config.EXPORT_WIDTH_STEP)
 
@@ -1884,6 +1898,9 @@ func show_preferences() -> void:
 	default_folder_edit.text = Config.get_last_directory()
 	restore_session_check.button_pressed = bool(Config.get_value("restore_session", true))
 	radius_spin.value = Config.get_planet_radius()
+	for index in rate_unit_option.item_count:
+		if rate_unit_option.get_item_metadata(index) == Config.get_rate_unit():
+			rate_unit_option.select(index)
 	marker_spin.value = Config.get_vertex_marker_scale()
 	line_spin.value = Config.get_line_width_scale()
 	default_line_width_spin.value = Config.get_default_line_width()
@@ -1901,6 +1918,7 @@ func _on_preferences_confirmed() -> void:
 	Config.set_last_directory(default_folder_edit.text)
 	Config.set_value("restore_session", restore_session_check.button_pressed)
 	Config.set_planet_radius(radius_spin.value)
+	Config.set_rate_unit(str(rate_unit_option.get_selected_metadata()))
 	Config.set_vertex_marker_scale(marker_spin.value)
 	Config.set_line_width_scale(line_spin.value)
 	Config.set_default_line_width(default_line_width_spin.value)
@@ -1910,6 +1928,7 @@ func _on_preferences_confirmed() -> void:
 	_apply_outline_scale()
 	_show_measurement()
 	properties.show_radius()
+	kinematics.refresh()
 	_apply_python_preferences()
 
 

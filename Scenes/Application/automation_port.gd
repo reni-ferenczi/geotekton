@@ -793,6 +793,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"planet_radius_km": Config.get_planet_radius(),
 				"planet_area_km2": Measure.planet_area(Config.get_planet_radius()),
 				"planet_area_label": app.planet_area_label.text,
+				"rate_unit": Config.get_rate_unit(),
 				"vertex_marker_scale": Config.get_vertex_marker_scale(),
 				"line_width_scale": Config.get_line_width_scale(),
 				"default_line_width": Config.get_default_line_width(),
@@ -827,6 +828,16 @@ func _dispatch(request: Dictionary) -> Dictionary:
 					float(rgba[0]), float(rgba[1]), float(rgba[2]), float(rgba[3]))
 			if wanted.has("planet_radius_km"):
 				app.radius_spin.value = float(wanted["planet_radius_km"])
+			if wanted.has("rate_unit"):
+				var unit := str(wanted["rate_unit"])
+				var found := -1
+				for index in app.rate_unit_option.item_count:
+					if app.rate_unit_option.get_item_metadata(index) == unit:
+						found = index
+				if found < 0:
+					app.preferences_dialog.hide()
+					return {"ok": false, "error": "no rate unit called %s" % unit}
+				app.rate_unit_option.select(found)
 			if wanted.has("vertex_marker_scale"):
 				app.marker_spin.value = float(wanted["vertex_marker_scale"])
 			if wanted.has("line_width_scale"):

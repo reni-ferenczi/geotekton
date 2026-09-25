@@ -160,6 +160,9 @@ tab and stays that size whichever is shown.
   It defaults to Earth's mean radius; see
   [Editing](Editing.md#the-planet-radius) for why it is a preference and not
   part of a document.
+- **Plate rate in** — the unit the [Kinematics panel](Kinematics.md) gives a
+  rate in beside the angle per million years: cm/yr, which plate speeds are
+  quoted in, or km/My, a distance per million years.
 - **Export width (pixels)** — how wide File > Export Image writes its picture.
   The height comes from the projection, so this one number settles the size of
   every export; see [Exporting a picture of the map](#exporting-a-picture-of-the-map).

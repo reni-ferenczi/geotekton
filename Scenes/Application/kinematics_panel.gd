@@ -181,13 +181,13 @@ func _readout_text() -> String:
 	var time := _current_time()
 	var place := Kinematics.position_at(_root(), node, time)
 	var rate := Kinematics.rate_at(_segments, time)
-	return "%s at %s Ma:   %.2f° %s   %.2f° %s   %.4f °/My   %s/My" % [
+	return "%s at %s Ma:   %.2f° %s   %.2f° %s   %.4f °/My   %s" % [
 		node.title,
 		format_time(time),
 		absf(place.x), "N" if place.x >= 0.0 else "S",
 		absf(place.y), "E" if place.y >= 0.0 else "W",
 		rate["degrees_per_my"],
-		Measure.format_km(rate["km_per_my"]),
+		Measure.format_rate(rate["km_per_my"], Config.get_rate_unit()),
 	]
 
 
@@ -266,7 +266,7 @@ func _draw_place_row(row: int, label: String, key: String, limit: float,
 # through the middle of each span would draw as a slope that is not there.
 func _draw_rate_row(row: int) -> void:
 	var plot := _plot(row)
-	var peak := _peak_labels()
+	var peak := peak_labels(_peak, Config.get_planet_radius(), Config.get_rate_unit())
 	_draw_frame(plot, "Rate", peak[0], "0", peak[1])
 	if _peak > 0.0:
 		for segment in _segments:
@@ -279,15 +279,15 @@ func _draw_rate_row(row: int) -> void:
 
 
 # What the top of the rate row stands for, in both units: the fastest of the
-# spans as an angle and as a distance on the planet. The two are the same number
-# read against a different scale, which is why the row carries one set of bars
-# and two labels rather than a graph each. A node that does not move has no peak
-# to scale against, and the row is then an empty box from zero to zero.
-func _peak_labels() -> Array:
-	if _peak <= 0.0:
-		return ["0 °/My", "0 km/My"]
-	return ["%.4f °/My" % _peak,
-		"%s/My" % Measure.format_km(deg_to_rad(_peak) * Config.get_planet_radius())]
+# spans, `peak` in °/My, as an angle and as a rate on a planet of that radius in
+# the unit the preference names. The two are the same number read against a
+# different scale, which is why the row carries one set of bars and two labels
+# rather than a graph each. A node that does not move has no peak to scale
+# against, and the row is then an empty box from zero to zero.
+static func peak_labels(peak: float, radius: float, unit: String) -> Array:
+	if peak <= 0.0:
+		return ["0 °/My", Measure.format_rate(0.0, unit)]
+	return ["%.4f °/My" % peak, Measure.format_rate(deg_to_rad(peak) * radius, unit)]
 
 
 # The box of one row, with its name to the left of it and what its top and its
@@ -358,6 +358,7 @@ func to_json() -> Dictionary:
 		"samples": _samples,
 		"segments": _segments,
 		"current": _current_values(),
+		"peak_labels": peak_labels(_peak, Config.get_planet_radius(), Config.get_rate_unit()),
 		# Where the cursor is drawn across the plotting area, and how wide that
 		# is, so a run can check that it moved with the time.
 		"cursor": _time_x(_current_time(), _plot(0)) - LABEL_WIDTH,

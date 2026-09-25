@@ -5225,6 +5225,28 @@ CURSOR_TIME = 500.0
 CURSOR_TOLERANCE = 1.0
 
 
+def run_rate_unit_checks(client: AutomationClient, graphs: dict) -> None:
+    """The rate in cm/yr by default, and as a distance per million years once
+    Preferences asks for that."""
+    check(client.call("get_preferences")["preferences"]["rate_unit"] == "cm_per_year",
+          "the rate unit is cm/yr to begin with")
+    km = graphs["current"]["km_per_my"]
+    check(f"{km / 10.0:.2f} cm/yr" in graphs["readout"],
+          f"the readout gives the rate in cm/yr: {graphs['readout']}")
+    check(graphs["peak_labels"][1].endswith(" cm/yr"),
+          f"and so does the top of the rate row: {graphs['peak_labels']}")
+    client.call("set_preferences", preferences={"rate_unit": "km_per_my"})
+    switched = client.call("get_kinematics")["kinematics"]
+    check("/My" in switched["readout"].split("°/My", 1)[1] and "cm/yr" not in switched["readout"],
+          f"switched to the distance per million years, the readout follows: {switched['readout']}")
+    check(switched["peak_labels"][1].endswith("/My"),
+          f"and so does the top of the rate row: {switched['peak_labels']}")
+    refused = refusal(client, "set_preferences", preferences={"rate_unit": "knots"})
+    check("knots" in refused, f"a unit the dialog does not offer is refused: {refused!r}")
+    client.call("set_preferences", preferences={"rate_unit": "cm_per_year"})
+    check("cm/yr" in client.call("get_kinematics")["kinematics"]["readout"], "and back again")
+
+
 def run_kinematics_session(client: AutomationClient) -> None:
     """The kinematics panel: what it graphs, and how its cursor follows the time."""
     client.call("load", path=str(MOTION))
@@ -5275,6 +5297,7 @@ def run_kinematics_session(client: AutomationClient) -> None:
           f"and moving the time moves it to that time: {graphs['cursor']}")
     check(f"{CURSOR_TIME:g} Ma" in graphs["readout"],
           f"the readout says where the cursor is: {graphs['readout']}")
+    run_rate_unit_checks(client, graphs)
 
     # Where the feature is at that time, off the graph, is where the globe has
     # carried it as well.

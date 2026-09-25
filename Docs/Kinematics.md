@@ -31,7 +31,8 @@ craton that has hardly moved then reads as one that has hardly moved, instead of
 being blown up until its wobble fills the box.
 
 Above the rows is a line of the same numbers at the current time: the title,
-the time, the place, and the rate in both units. It gives the latitude and the
+the time, the place, and the rate both as an angle and in the unit
+Preferences > General > **Plate rate in** names, cm/yr unless it says km/My. It gives the latitude and the
 longitude whether or not their rows are drawn.
 
 ## The quantities
@@ -50,12 +51,17 @@ world path, not its keyframes relative to the parent.
 
 **The rate** is worked out between one keyframe time and the next: the single
 turn that carries where the node stands at one to where it stands at the other,
-divided by the millions of years between them. Two units of the same thing:
+divided by the millions of years between them. The same thing in two units,
+and the second in one of two:
 
-| Quantity          | Unit  | What it is                                            |
-| ----------------- | ----- | ----------------------------------------------------- |
-| Angular velocity  | °/My  | The angle of that turn per million years               |
-| Rate              | km/My | The same angle in radians times the planet radius      |
+| Quantity          | Unit           | What it is                                                     |
+| ----------------- | -------------- | -------------------------------------------------------------- |
+| Angular velocity  | °/My           | The angle of that turn per million years                        |
+| Rate              | cm/yr or km/My | The same angle in radians times the planet radius, in time      |
+
+The rate is given in centimeters per year unless **Plate rate in** asks for a
+distance per million years, which is written the way the status bar writes a
+distance, so a slow plate reads `850 m/My`. 1 cm/yr is 10 km/My.
 
 The distance is what a point a quarter turn away from the rotation axis covers,
 which is the fastest anything on the planet moves under that rotation. A point
