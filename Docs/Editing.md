@@ -456,8 +456,8 @@ line its middle is on; a line that crosses no part at all [divides](#dividing)
 them instead.
 
 A cut is refused, with the reason in the status bar, when it runs outside the
-polygon altogether, crosses itself inside it, or crosses the coast an older
-ridge lies along; see [Splitting a half again](#splitting-a-half-again).
+polygon altogether or crosses itself inside it. A cut across the coast an older
+ridge lies along makes a [triple junction](#triple-junctions).
 
 A refused cut keeps its points and turns red on the globe until one of them
 is taken back, another is added or Escape drops them, so the one at fault can
@@ -661,11 +661,39 @@ holds the vertices nearest it, which is the one with the coast beside it. The
 Vertex tool's split does the same, and it all belongs to the split's one
 undo version.
 
-A cut that crosses the coast an older ridge lies along would leave that coast
-on two pieces, and a ridge section can only name one. The split tool refuses
-such a cut and names the ridge in the status bar. A sibling the cut would cut
-that way under [Children](#the-children) stays whole on its middle's side.
-Splitting the older ridge there as well, a triple junction, is still to come.
+### Triple junctions
+
+Plates O and H split at t1, with ridge R between them and a crust on each side.
+By t2 H has an ocean between its coast and R. A cut of H at t2 that runs across
+its land and out over that coast, across H's crust to R, makes a triple
+junction where it reaches R: three plates, O and the two pieces of H, and three
+ridges meet there. No plate is added beyond the two pieces any split makes;
+the sea floor belongs to the plate it is attached to.
+
+- The cut runs across H's land as drawn. From J, where it leaves the coast R
+  lies along, it runs on along J's flowline to R, whatever was drawn out there.
+  The flowline is the path J's piece of sea floor was made along, so H's crust
+  splits cleanly between its bands. While the points are being clicked, the
+  Split tool draws that flowline over the path.
+- J is put on the great circle of the coast edge it crosses, and R is split
+  there into one ridge per piece of H, `Laurentia ridge` and `Laurentia ridge 2`,
+  end to end where R was. J goes into both of R's sides: on O's coast as a
+  vertex at the same place, which leaves O's shape as it was, or into a stretch
+  of sea.
+- Each of R's crusts is split the same way, since a crust is built from its
+  ridge. The pieces of H's crust move with the piece of H on their side after
+  t2, and O's crust, split at the same point, moves as it always did.
+- The new ridge between the two pieces of H runs along the whole cut: the land
+  as coast pieces and the flowline across the old crust as sea riding with the
+  piece on each side. Its crusts fill the widening gap between the two pieces
+  and their old crust, so the sea floor has no holes.
+- A cut that crosses the coast twice, in from the old crust and out again,
+  splits R in three, and the new ridge runs along both flowlines.
+
+A sibling cut under [Children](#the-children) across such a coast is split the
+same way. The Vertex tool's split splits R where the cut ends on its coast, and
+leaves no new ridge, as it never does. All of it is the split's one undo
+version. Implemented by `Document._split_older_ridges()`.
 
 ### The children
 
