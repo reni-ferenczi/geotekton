@@ -184,11 +184,11 @@ func test_every_built_in_palette_reads_without_error() -> void:
 		assert_eq(palette.name, str(Palette.BUILT_IN[key]["name"]), "%s is named" % key)
 
 
-# Rainbow is the one table the chooser offers without a file, and Custom is the
-# ramp the style carries itself.
-func test_the_chooser_offers_the_custom_ramp_and_rainbow() -> void:
-	assert_eq(Palette.choices(), {Palette.RAMP: "Custom", "rainbow": "Rainbow"},
-		"the two palettes offered without a file")
+# Rainbow and Blue are the tables the chooser offers without a file, and Custom
+# is the ramp the style carries itself.
+func test_the_chooser_offers_the_custom_ramp_rainbow_and_blue() -> void:
+	assert_eq(Palette.choices(), {Palette.RAMP: "Custom", "rainbow": "Rainbow", "blue": "Blue"},
+		"the three palettes offered without a file")
 	assert_close(Palette.built_in("rainbow").color_at(0.0), RED, 1e-3, "rainbow starts red")
 	assert_close(Palette.built_in("rainbow").color_at(400.0), GREEN, 1e-3, "and is green at 400")
 	assert_eq(Palette.built_in("no such palette").source, "rainbow",

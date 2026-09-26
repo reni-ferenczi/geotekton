@@ -90,11 +90,14 @@ works the colors out again whenever some feature is colored by age
 the geometry texture is not touched. See [Shader](Shader.md#per-feature-rotation).
 
 A [crust](Editing.md#the-crust) is the one feature drawn in more than one
-colour, since each of its bands holds crust of an age of its own: its own colour
-fills the band against the continent and is lightened band by band towards the
-ridge. `Styling.lighter_band()` is the whole of it. No group style reaches a
-crust or a ridge, since neither has a row under its group: both are drawn in
-their own colour at their own opacity, whatever the groups above them say.
+colour, since each of its bands holds crust of an age of its own. No group style
+reaches a crust or a ridge, since neither has a row under its group. Their
+colors are set for the whole document in the Sea floor section of the
+[View settings](Editing.md#view-settings) instead: one color for every ridge,
+one for the isochrons and flowlines, and a palette the bands are colored from by
+the age of their crust. `Styling.crust_color()` spreads the palette from 0 My to
+the oldest crust in the document at the time being viewed, so the whole palette
+is always in use, whatever range it covers.
 
 Picking a style changes nothing about the document's features. The colour a
 feature carries is still its own and still what the Properties panel edits; the
@@ -230,12 +233,13 @@ under its file name. The panel asks for the file through its
 dialog, reads the file and hands the path to `Properties.load_palette()`. The
 file is read again on every load, so the changes in an edited file show up.
 
-One built in table is left, written in the same format a file is and read by the
-same reader, so there is one way in:
+Two built in tables are there, written in the same format a file is and read by
+the same reader, so there is one way in:
 
 | Palette | What it is |
 | ------- | ---------- |
 | Rainbow | 0 to 1000 through red, yellow, green, cyan, blue and magenta |
+| Blue | 0 to 1000 from light blue through steel blue to dark ocean blue; what the crust is colored from by default |
 
 A style stores the palette as one string: the key of a built in palette, or
 the path of a file. `Palette.resolve()` takes it back either way. The

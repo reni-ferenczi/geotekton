@@ -441,19 +441,6 @@ func draws_lines() -> bool:
 	return kind == KIND_NAMES[GeometryKind.POLYLINE]
 
 
-# The color the feature's lines are drawn in, given the color its fill came out
-# of the draw style. Only a crust reads anything else: its bands are the fill
-# and its isochrons and flowlines are drawn in the crust lines color, at the
-# fill's opacity, so a group's opacity still reaches them. See
-# Docs/Editing.md#the-crust.
-func line_color(fill: Color) -> Color:
-	if not is_crust():
-		return fill
-	var lines := FeatureType.color(FeatureType.CRUST_LINES)
-	lines.a = fill.a
-	return lines
-
-
 ### Clone (preserves pnid) and Duplicate (new pnid)
 
 

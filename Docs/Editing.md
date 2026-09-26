@@ -516,8 +516,8 @@ or the cut straddle ±180°. Implemented by `Document.divide_feature()` over
 With the **Ridge** switch on, which is how it starts, the cut also leaves the
 rift or mid ocean ridge that opens between the two halves as they drift apart.
 It is a [midway topology](#midway-topologies) named after the polygon,
-`Laurentia ridge`, placed after the second half and colored like a Line, with no
-row in the feature tree; see [The feature tree](#the-feature-tree). Its two
+`Laurentia ridge`, placed after the second half and drawn in the ridge color of
+the [View settings](#view-settings), with no row in the feature tree; see [The feature tree](#the-feature-tree). Its two
 sections are the two halves' sides of the cut: the first half's run from the
 first vertex of its ring to the last point of the cut, and the same run on the
 second half, walked back, because the second half holds the cut the other way
@@ -542,8 +542,8 @@ never hidden by the sea floor beside it. At the age of the split the ridge lies
 under both halves and cannot be seen or clicked until they drift apart. The
 group they sit in neither hides nor styles them: a crust shows while its half
 does and the ridge while either half does, a half showing while it and every
-group above it are enabled, and each is drawn in its own color at its own
-opacity. See `Planet._drawing_order()`. Splitting a half again
+group above it are enabled, and both are drawn in the colors of the View
+settings. See `Planet._drawing_order()`. Splitting a half again
 keeps the ridge on its cut; see [Splitting a half again](#splitting-a-half-again).
 
 The **Ridges** switch in the View menu hides every ridge, and a hidden ridge
@@ -570,34 +570,35 @@ from the continent to the ridge.
 
 Each half gets one feature, `Laurentia crust`, placed after the ridge with the
 ridge's time range. It holds the bands between two isochrons in a row, one
-filled part each, in steel blue, with the oldest band against the continent, and
-it draws the isochrons and a flowline for each vertex of the cut over them, as
-thin lines in light steel blue. So the order in the document is `Laurentia`,
+filled part each, with the oldest band against the continent, and it draws the
+isochrons and a flowline for each vertex of the cut over them, as thin lines. So the order in the document is `Laurentia`,
 `Laurentia 2`, `Laurentia ridge`, `Laurentia crust` and `Laurentia 2 crust`, and
 the tree shows the first two.
 
 Each band is filled by the age of the crust in it, the way an age grid reads in
-GPlates: the band against the continent, which holds the crust laid down at the
-age of the cut, is the crust's own steel blue, and every band towards the ridge
-is a lighter shade of it, up to 55 percent of the way to white at the youngest.
-The age is the older of the band's two isochrons, counted from the current time,
-so the crust beside the ridge is new whatever time is being looked at. No group
-style reaches a crust, [Feature age](Styling.md#the-draw-styles) included. The
-color a crust carries is what its oldest band comes out, so the crust color in the
-Feature colors section of [Preferences](Shell.md#preferences) sets the old end
-of the ramp and every band moves with it.
+GPlates. The age is the older of the band's two isochrons, counted from the
+current time, so the crust beside the ridge is always the young color and a
+band moves towards the old color as the time goes forward. The colors come from
+the Sea floor section of the [View settings](#view-settings), one setting for
+the whole document: Blue by default, light blue for the youngest crust to dark
+ocean blue for the oldest, or Rainbow, or a custom ramp. Each is spread from
+0 My to the oldest crust in the document at the current time, so the band
+against the continent of the oldest split is the old end of the palette. No
+group style reaches a crust, [Feature age](Styling.md#the-draw-styles)
+included, and a crust has no Colour row in the Properties panel.
 
 A feature is drawn in one color, so a crust carries a second one for its lines:
-`Feature.line_color()` gives it the crust lines color and everything else its
-own, and the shader paints a feature's segments and markers in that color and
-its filled triangles in the first. The **Oceanic Crust** switch in the View menu
+`Styling.line_color_of()` gives it the isochrons and flowlines color of the view
+settings and everything else its own fill color, and the shader paints a
+feature's segments and markers in that color and its filled triangles in the
+first. The **Oceanic Crust** switch in the View menu
 hides every crust, and **Isochrons and Flowlines** hides only their lines,
 leaving the bands; a hidden crust cannot be picked on the globe. The bands themselves are drawn in as many colors as there are bands:
 each band takes a column of its own in the [per feature
 rows](Shader.md#per-feature-rotation) the shader already reads, so neither the
 shader nor the geometry texture carries a color or an age per band. `Crust`
 records the age of the crust in each band beside the rings and
-`Styling.lighter_band()` turns it into the color.
+`Styling.crust_color()` turns it into the color.
 
 At the age of the cut there is only the one isochron, so the crust draws
 nothing. As the time moves towards the present the halves drift and the bands
@@ -1105,14 +1106,17 @@ shows what is being chosen.
 | Planet color | The color of the planet where no raster covers it, ocean blue unless changed. The picker has no alpha, since the planet is never see-through |
 | Raster shown, Raster opacity | Whether the image is drawn and how much of the planet color it covers |
 | Raster | The image the planet wears, in PNG, JPEG, WebP or SVG. The field reads None when there is no image. **Browse...** picks a file, **Built in Earth** picks the Earth image that ships with Geotekton, and **Clear** takes the image away |
+| Sea floor: Ridge | The color every [ridge](#the-ridge) is drawn in. A new document takes the Line color of the Feature colors in [Preferences](Shell.md#preferences) |
+| Sea floor: Crust | What the [crust](#the-crust) is colored from by its age: **Blue** (the default), **Rainbow** or **Custom ramp**, which shows the ramp's colors below it, youngest first, with + and − to add and take away colors. Every choice is spread from 0 My to the oldest crust in the document |
+| Sea floor: Isochrons and flowlines | The color of the lines drawn over every crust |
 
 A new document has no raster, so its planet is the flat planet color. A file
 saved before 0.17.0 that named no image opens wearing the built in Earth, which
 is how it looked then; see
 [Persistence](Persistence.md#0160-to-0170).
 
-The dialog does not set what color the features come out. That is set per
-group, with the Style, Colour, Palette and Ramp rows of the
+Apart from the sea floor, the dialog does not set what color the features come
+out. That is set per group, with the Style, Colour, Palette and Ramp rows of the
 [Properties panel](Properties.md#the-properties-panel), which is also where a
 `.cpt` palette file is loaded. The root group's style is pinned to each
 feature's own color at full opacity, so a feature under no group of its own is

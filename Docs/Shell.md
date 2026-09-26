@@ -193,7 +193,8 @@ tab and stays that size whichever is shown.
   Feature type draw style paints. The pickers offer no alpha. **Catalog
   colors** puts every picker back to the color the catalog comes with. Only
   the colors that differ from the catalog are saved, and features that already
-  exist keep the color they hold.
+  exist keep the color they hold. The Line color is also the ridge color a new
+  document starts with; see [View settings](Editing.md#view-settings).
 
 **Python**:
 

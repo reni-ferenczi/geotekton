@@ -546,8 +546,8 @@ Selecting another feature re-uploads this texture and nothing else.
 Row 5 is the color the feature's segments, circles and markers come out in,
 while row 3 stays the color of its filled triangles. The two are the same for
 every feature but a [crust](Editing.md#the-crust), whose bands are filled in
-the crust color and whose isochrons and flowlines are drawn over them in the
-crust lines color; `Feature.line_color()` decides which it is.
+the color of their age and whose isochrons and flowlines are drawn over them in the
+crust lines color; `Styling.line_color_of()` decides which it is.
 
 The pointer is not the only thing that ends a hover. A change of the current
 time moves the features under a pointer that need not have moved at all, so
