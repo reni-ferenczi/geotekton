@@ -119,7 +119,7 @@ static func _resolve_section(root: Feature, node: Feature, section: TopologySect
 # neighbouring sections are not joined by a segment that no feature drew: a line
 # topology is the sections it names, not a shape closed around them. A closed
 # one gets all of them joined into one ring; see join(). A midway one gets the
-# one ring between its two sections; see Ridge.ring_at().
+# one ring between its two sides; see Ridge.ring_at().
 #
 # The runs come back in world coordinates and are put into the topology's own
 # frame, because that is the frame everything else reads a feature's rings in.
