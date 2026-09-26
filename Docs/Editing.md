@@ -521,7 +521,8 @@ where it is at any age.
 
 The ridge is part of the split's one undo version, so undo takes it away with
 the halves. Deleting a half afterwards leaves the ridge's section on that half
-broken, the ridge draws nothing, and undo mends it.
+broken, the ridge draws nothing, and undo mends it. Splitting a half again
+keeps the ridge on its cut; see [Splitting a half again](#splitting-a-half-again).
 
 With the switch off the cut leaves the two halves and nothing else, and the
 Crust switch is greyed out.
@@ -582,7 +583,8 @@ are filled and measured. A crust is a topology with no sections: the Properties
 panel shows a line such as `Crust of Laurentia, 4 chunks` in place of the
 section table, and the Area row is the sum of its bands. Copy Shape takes the
 bands as a polygon of several parts. The crust is part of the split's one undo
-version.
+version. A second split of its half keeps it on its coast; see [Splitting a half
+again](#splitting-a-half-again).
 
 The crust starts with a **Step (My)** of 0, which follows the timeline's Skip,
 so the band count on a fresh split depends on how the Skip happens to be set.
@@ -594,6 +596,27 @@ ridge.
 The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
 operation with no points between the ends, and `GeometryEdit` works both out
 with the same functions.
+
+### Splitting a half again
+
+A ridge section names its side of the cut by part and vertex range, and a split
+moves vertices around: its own cut goes to the front of each half's ring, the
+parts are renumbered, and the piece holding an older cut may be the copy rather
+than the original. So before a split changes any rings it notes the vertices
+every topology section runs along, and afterwards it points each section at the
+feature, part and range that now hold those same vertices, flipping the
+direction when the run turned round. A crust whose half gave up the older cut
+to the copy moves to the copy with it, so it goes on moving with the plate that
+carries its coast, including after that piece goes free of its parent. The
+older ridge and both of its crusts lie exactly where they did at every age.
+The Vertex tool's split does the same, and it all belongs to the split's one
+undo version.
+
+A cut that crosses the coast an older ridge lies along would leave that coast
+on two pieces, and a ridge section can only name one. The split tool refuses
+such a cut and names the ridge in the status bar. A sibling the cut would cut
+that way under [Children](#the-children) stays whole on its middle's side.
+Splitting the older ridge there as well, a triple junction, is still to come.
 
 ### The children
 

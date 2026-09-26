@@ -550,6 +550,10 @@ func _split_by_path(feature: Feature, part: int, path: PackedVector2Array,
 	var rings: Dictionary = sorted["rings"]
 	if (rings[first] as Array).is_empty() or (rings[-first] as Array).is_empty():
 		return "The cut leaves every part on one side."
+	var watched := _watch_sections()
+	var problem := _older_ridge_problem(watched, feature, rings)
+	if not problem.is_empty():
+		return problem
 
 	# What the feature follows, found before anything changes.
 	var span := Coupling.span_at(feature, current_time)
@@ -588,7 +592,9 @@ func _split_by_path(feature: Feature, part: int, path: PackedVector2Array,
 		_let_go(free, current_time)
 		split_freed = free
 	split_children.clear()
-	_sort_riders(riders, feature, world_path, stand_in, leader_side)
+	var changed := {feature.uuid: [feature, other]}
+	_sort_riders(riders, feature, world_path, stand_in, leader_side, watched, changed)
+	_repoint(watched, changed, {feature.uuid: sorted["ridge_part"], other.uuid: 0})
 
 	split_ridge = ridge and int(sorted["stretches"]) == 1
 	if split_ridge:
@@ -665,7 +671,7 @@ func _side_of_node(node: Feature, world_path: PackedVector2Array) -> int:
 # ridges and crusts are left alone, and so is anything that follows two
 # parents, and whatever follows them.
 func _sort_riders(riders: Array[Feature], split: Feature, world_path: PackedVector2Array,
-		stand_in: Dictionary, keep: int) -> void:
+		stand_in: Dictionary, keep: int, watched: Array, changed: Dictionary) -> void:
 	var pending: Array[Feature] = riders.filter(func(node: Feature) -> bool: return node != split)
 	var moved := true
 	while moved:
@@ -679,11 +685,11 @@ func _sort_riders(riders: Array[Feature], split: Feature, world_path: PackedVect
 			if not span.parent_b.is_empty() or rider.is_group or rider.is_circle() \
 					or rider.is_hotspot() or rider.geometry_kind == Feature.GeometryKind.TOPOLOGY:
 				continue
-			_sort_rider(rider, span.parent, world_path, stand_in, keep)
+			_sort_rider(rider, span.parent, world_path, stand_in, keep, watched, changed)
 
 
 func _sort_rider(rider: Feature, parent_uuid: String, world_path: PackedVector2Array,
-		stand_in: Dictionary, keep: int) -> void:
+		stand_in: Dictionary, keep: int, watched: Array, changed: Dictionary) -> void:
 	var local := Feature.apply_basis(world_path,
 		Feature.world_basis(root, rider, current_time).transposed())
 	var rings: Dictionary
@@ -693,9 +699,11 @@ func _sort_rider(rider: Feature, parent_uuid: String, world_path: PackedVector2A
 			rings[_side_of_ring(ring, local)].append(ring)
 	else:
 		var sorted := _rings_by_side(rider.rings, local, rider.geometry_kind, 0)
-		if not str(sorted["problem"]).is_empty():
-			# A path the checks refuse here, crossing itself inside the rider,
-			# leaves it whole on its middle's side.
+		if not str(sorted["problem"]).is_empty() \
+				or not _older_ridge_problem(watched, rider, sorted["rings"]).is_empty():
+			# A path the checks refuse here, crossing itself inside the rider or
+			# crossing the coast an older ridge lies along, leaves it whole on its
+			# middle's side.
 			rings = {GeometryEdit.LEFT: [], GeometryEdit.RIGHT: []}
 			rings[_side_of_node(rider, world_path)].assign(rider.rings)
 		else:
@@ -718,6 +726,7 @@ func _sort_rider(rider: Feature, parent_uuid: String, world_path: PackedVector2A
 		group.children.insert(group.find_child(rider) + 1, copy)
 		pieces[-stays] = copy
 		split_children.append_array([rider, copy])
+	changed[rider.uuid] = pieces.values()
 	var parent_stand_in: Dictionary = stand_in[parent_uuid]
 	var own_stand_in := {}
 	for side in [GeometryEdit.LEFT, GeometryEdit.RIGHT]:
@@ -737,7 +746,14 @@ func _split_into(feature: Feature, part: int, halves: Array[PackedVector2Array])
 	var parent := root.find_parent(feature)
 	if parent == null:
 		return "%s is not in the tree." % feature.title
-	_split_off(parent, feature, part, halves)
+	var watched := _watch_sections()
+	var rings: Array = feature.rings.duplicate()
+	rings[part] = halves[0]
+	var problem := _older_ridge_problem(watched, feature, {0: rings, 1: [halves[1]]})
+	if not problem.is_empty():
+		return problem
+	var other := _split_off(parent, feature, part, halves)
+	_repoint(watched, {feature.uuid: [feature, other]})
 	record()
 	return ""
 
@@ -778,6 +794,128 @@ func _follow_instead(child: Feature, uuid: String, instead: Feature) -> void:
 	_rebase(child, worlds, nodes)
 	Keyframe.upsert(child.keyframes, current_time,
 		Coupling.rotation_for(child, current_time, here, nodes))
+
+
+# Every topology section in the tree with the run of vertices it names now, in
+# its feature's own frame and ring order, taken before a split changes the rings
+# so _repoint() can find the run again afterwards. A section whose feature or part
+# is gone is left out: there is nothing to follow.
+func _watch_sections() -> Array:
+	var watched: Array = []
+	var stack: Array[Feature] = [root]
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		stack.append_array(node.children)
+		for section in node.sections:
+			var target := root.get_node_by_uuid(section.feature_uuid)
+			if target == null or section.part < 0 or section.part >= target.rings.size():
+				continue
+			var ring: PackedVector2Array = target.rings[section.part]
+			var low := clampi(mini(section.from_index, section.to_index), 0, ring.size() - 1)
+			var high := clampi(maxi(section.from_index, section.to_index), 0, ring.size() - 1)
+			watched.append({"topology": node, "section": section,
+				"run": ring.slice(low, high + 1)})
+	return watched
+
+
+# Why a split giving the node these rings, by side, would break an older ridge:
+# the run of one of its sections is no longer whole in any one of them, because
+# the cut crosses it. Splitting the ridge there as well waits for GP-0121. Empty
+# when nothing breaks.
+func _older_ridge_problem(watched: Array, node: Feature, rings: Dictionary) -> String:
+	for entry: Dictionary in watched:
+		var topology: Feature = entry["topology"]
+		var section: TopologySection = entry["section"]
+		if not topology.midway or section.feature_uuid != node.uuid:
+			continue
+		var found := false
+		for side_rings: Array in rings.values():
+			for ring: PackedVector2Array in side_rings:
+				found = found or not _find_run(ring, entry["run"]).is_empty()
+		if not found:
+			return "The cut crosses the coast %s lies along, and an older ridge cannot be split yet." \
+				% topology.title
+	return ""
+
+
+# Point every watched section of a feature the split changed at the feature, part
+# and range now holding its run: a section names its run by index, and a split
+# moves the run within the ring, to another part, or to the copy. A crust whose
+# half was that feature moves with its ridge's section, so it goes on moving with
+# the plate that carries its coast. `changed` gives each changed feature's uuid
+# the pieces its run may now be in. A run found nowhere is left as it was.
+#
+# A run that goes round past the end of its new ring has the ring turned to start
+# with it, since a range cannot go round; the Vertex tool's halves start at the
+# far vertex of the split, not at the cut. `pinned` gives, by uuid, the part a new
+# ridge is about to be laid along from vertex 0, which must stay as it is.
+func _repoint(watched: Array, changed: Dictionary, pinned := {}) -> void:
+	for entry: Dictionary in watched:
+		var section: TopologySection = entry["section"]
+		if not changed.has(section.feature_uuid):
+			continue
+		for piece: Feature in changed[section.feature_uuid]:
+			for part in piece.rings.size():
+				var found := _find_run(piece.rings[part], entry["run"])
+				if found.is_empty() or found[0] + entry["run"].size() <= piece.rings[part].size() \
+						or pinned.get(piece.uuid, -1) == part:
+					continue
+				var ring: PackedVector2Array = piece.rings[part]
+				piece.rings[part] = ring.slice(found[0]) + ring.slice(0, found[0])
+				piece.rebuild_triangles()
+	for entry: Dictionary in watched:
+		var section: TopologySection = entry["section"]
+		if changed.has(section.feature_uuid):
+			_point(entry["topology"], section, entry["run"], changed[section.feature_uuid])
+
+
+# Point the section at the first of the pieces holding the run whole.
+func _point(topology: Feature, section: TopologySection, run: PackedVector2Array,
+		pieces: Array) -> void:
+	for piece: Feature in pieces:
+		for part in piece.rings.size():
+			var found := _find_run(piece.rings[part], run)
+			if found.is_empty() or found[0] + run.size() > piece.rings[part].size():
+				continue
+			if topology.midway and piece.uuid != section.feature_uuid:
+				_move_crusts(topology, section.feature_uuid, piece.uuid)
+			section.feature_uuid = piece.uuid
+			section.part = part
+			section.from_index = found[0]
+			section.to_index = found[0] + run.size() - 1
+			section.reversed = section.reversed != found[1]
+			return
+
+
+func _move_crusts(ridge: Feature, from_uuid: String, to_uuid: String) -> void:
+	var stack: Array[Feature] = [root]
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		stack.append_array(node.children)
+		if node.is_crust() and node.crust_ridge == ridge.uuid and node.crust_half == from_uuid:
+			node.crust_half = to_uuid
+
+
+# Where a run lies in a ring vertex for vertex, as [first index, walked the other
+# way], or empty when it is not there whole. The run may go round past the ring's
+# last vertex. The vertices of a cut piece come back through the turned frame, so
+# they are matched to about ten meters, not exactly.
+static func _find_run(ring: PackedVector2Array, run: PackedVector2Array) -> Array:
+	const CLOSE := 1e-4
+	var count := run.size()
+	if count > ring.size():
+		return []
+	for start in ring.size():
+		for backwards: bool in [false, true]:
+			var whole := true
+			for k in count:
+				var want := run[count - 1 - k] if backwards else run[k]
+				if ring[(start + k) % ring.size()].distance_to(want) > CLOSE:
+					whole = false
+					break
+			if whole:
+				return [start, backwards]
+	return []
 
 
 # The rift the cut leaves behind: a midway topology between the two halves'

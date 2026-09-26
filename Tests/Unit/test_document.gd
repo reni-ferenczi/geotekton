@@ -719,6 +719,137 @@ func _mean_longitude(ring: PackedVector2Array) -> float:
 	return total / ring.size()
 
 
+### A second split of a half
+#
+# The square split west from east at 100 Ma with Ridge and Crust on, then its
+# eastern half split again at 50 Ma. The ridge names each side of the first cut
+# by a range of vertices, which the second split moves; GP-0122.
+
+
+func _east_half(document: Document) -> Feature:
+	for index in [0, 1]:
+		var half: Feature = document.root.children[index]
+		if not _west(half):
+			return half
+	return null
+
+
+func _ridge_of(document: Document) -> Feature:
+	return _titled(document, "Square ridge")
+
+
+func _crust_of(document: Document, ridge: Feature, west: bool) -> Feature:
+	for node in document.root.children:
+		if node.is_crust() and node.crust_ridge == ridge.uuid:
+			var half := document.root.get_node_by_uuid(node.crust_half)
+			if half != null and _west(half) == west:
+				return node
+	return null
+
+
+# A cut north to south through the eastern half, east of the first cut, in one
+# direction or the other: which way it runs decides which piece keeps the title.
+func _second_cut(northward: bool) -> PackedVector2Array:
+	var path := PackedVector2Array([Vector2(-11, 6), Vector2(11, 6)])
+	if not northward:
+		path.reverse()
+	return path
+
+
+func _crust_areas(document: Document, ridge: Feature) -> Array:
+	var areas := []
+	for west in [true, false]:
+		var crust := _crust_of(document, ridge, west)
+		Crust.rebuild(document.root, crust, 0.0, 25.0)
+		areas.append(Measure.geometry_area(crust))
+	return areas
+
+
+func test_a_second_split_keeps_the_older_ridge_on_the_first_cut() -> void:
+	for northward in [true, false]:
+		var document := _split_square(true)
+		var ridge := _ridge_of(document)
+		var before := {}
+		for age in [100.0, 50.0, 0.0]:
+			before[age] = Ridge.ring_at(document.root, ridge, age)
+		var areas := _crust_areas(document, ridge)
+		document.current_time = 50.0
+		assert_eq(document.split_feature_along(_east_half(document), 0,
+			_second_cut(northward)), "", "the second cut is made")
+		for age in [100.0, 50.0, 0.0]:
+			_assert_same_ring(Ridge.ring_at(document.root, ridge, age), before[age], 1e-3,
+				"the older ridge at %s Ma" % age)
+		var after := _crust_areas(document, ridge)
+		for i in 2:
+			assert_close(after[i], areas[i], 1.0, "crust %d keeps its area to the km²" % i)
+
+
+func test_the_older_ridge_and_crust_move_to_the_piece_holding_the_first_cut() -> void:
+	var in_copy := false
+	for northward in [true, false]:
+		var document := _split_square(false)
+		var east := _east_half(document)
+		var craton := _square("Craton", 1.0, Vector2(0, 8))
+		document.root.children.append(craton)
+		assert_eq(document.set_keyframe(craton, 100.0, Vector3.ZERO), "")
+		assert_eq(document.set_keyframe(craton, 0.0, Vector3(0, 0, 10)), "")
+		assert_eq(document.couple(east, craton, 100.0), "")
+		var ridge := _ridge_of(document)
+		var crust := _crust_of(document, ridge, false)
+		var at := 0 if ridge.sections[0].feature_uuid == east.uuid else 1
+		document.current_time = 50.0
+		document.record()
+		assert_eq(document.split_feature_along(east, 0, _second_cut(northward), false, false),
+			"", "the second cut is made")
+		var coast := document.split_freed
+		assert_true(coast != null, "the piece west of the craton goes free")
+		in_copy = in_copy or coast != east
+		var section: TopologySection = ridge.sections[at]
+		assert_eq(section.feature_uuid, coast.uuid, "the section names the piece with the cut")
+		assert_eq(crust.crust_half, coast.uuid, "and so does the crust")
+		# Whichever piece holds it, the crust's oldest isochron stays on the
+		# coast it opened from, before and after that piece went free.
+		for time in [75.0, 25.0, 0.0]:
+			var lines := Crust.isochrons(document.root, crust, time, 25.0)
+			var run: PackedVector2Array = coast.rings[section.part].slice(
+				section.from_index, section.to_index + 1)
+			if section.reversed:
+				run.reverse()
+			_assert_same_ring(lines[0], _world(document, coast, run, time), 1e-3,
+				"the oldest isochron at %s Ma" % time)
+		document.undo()
+		ridge = _ridge_of(document)
+		assert_eq(ridge.sections[at].feature_uuid, east.uuid, "undo puts the section back")
+		assert_eq(_crust_of(document, ridge, false).crust_half, east.uuid,
+			"and the crust's half")
+	assert_true(in_copy, "one of the two directions leaves the first cut in the copy")
+
+
+func test_a_second_cut_across_the_older_ridge_is_refused() -> void:
+	var document := _split_square(true)
+	var count := document.root.children.size()
+	document.current_time = 50.0
+	var east := _east_half(document)
+	var ring := east.rings[0].duplicate()
+	var problem := document.split_feature_along(east, 0,
+		PackedVector2Array([Vector2(5, -1), Vector2(5, 11)]))
+	assert_true(problem.contains("Square ridge"), "the cut names the ridge it crosses: %s" % problem)
+	assert_eq(document.root.children.size(), count, "and nothing is split")
+	assert_eq(east.rings[0], ring, "the half is untouched")
+
+
+func test_the_vertex_tool_split_keeps_the_older_ridge_too() -> void:
+	var document := _split_square(true)
+	var ridge := _ridge_of(document)
+	var before := Ridge.ring_at(document.root, ridge, 0.0)
+	var east := _east_half(document)
+	var size := east.rings[0].size()
+	# From the last vertex of the cut to the corner two on, away from the cut.
+	assert_eq(document.split_feature(east, 0, 2, (2 + 2) % size), "")
+	_assert_same_ring(Ridge.ring_at(document.root, ridge, 0.0), before, 1e-6,
+		"the older ridge after a Vertex tool split")
+
+
 ### A split under a craton
 #
 # The way the developers' worlds are built: the craton leads, and the continent
