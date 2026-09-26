@@ -5176,7 +5176,7 @@ def run_styling_round_trip(client: AutomationClient, folder: Path) -> None:
     """A group's style, its colour and palette file, and the switches survive the file."""
     palette = ROOT / "Tests" / "Data" / "Palettes" / "discrete.cpt"
     colour = [0.3, 0.7, 0.2, 1.0]
-    hidden = ["points", "topologies"]
+    hidden = ["points", "crust_lines"]
     select_shapes(client)
     client.call("set_property", field="style", value="age")
     client.call("set_property", field="color", value=colour)
