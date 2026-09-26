@@ -551,8 +551,12 @@ func split_feature(feature: Feature, part: int, first: int, second: int = -1) ->
 # With `ridge` on and a cut of one stretch, a midway topology is left along the
 # cut as well, between the two halves; see _add_ridge() and
 # Docs/Editing.md#the-ridge. With `crust` on as well, each half gets a crust of
-# bands between isochrons and a feature holding the isochrons and flowlines;
-# see _add_crust(). A cut of several stretches leaves neither yet.
+# bands between isochrons, with the isochrons and flowlines drawn over them; see
+# _add_crust(). A cut of several stretches leaves neither yet.
+#
+# An older ridge or topology running along a feature the split changes is
+# pointed at the piece now holding its vertices, and a cut across an older
+# ridge's coast is refused; see _repoint() and _older_ridge_problem().
 #
 # When the feature follows a parent, the half on the other side of the path
 # from the parent stops following it at the current time, where it stands. With
