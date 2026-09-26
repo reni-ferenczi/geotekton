@@ -97,9 +97,9 @@ var sections: Array[TopologySection] = []
 # Whether a topology joins its sections into one ring and is filled like a
 # polygon. See Topology.rebuild().
 var closed := false
-# Whether a topology is the line midway between its two sections, vertex by
-# vertex, the way a mid-ocean ridge lies between the plates it opens. See
-# Logic/ridge.gd.
+# Whether a topology is the line midway between its two sides, vertex by
+# vertex, the way a mid-ocean ridge lies between the plates it opens. Each
+# section says which side it is on; see Logic/ridge.gd.
 var midway := false
 
 # What a crust is built from: the half of a split plate it lies beside, the
@@ -389,7 +389,7 @@ func is_sea_floor() -> bool:
 
 
 # The uuids of the halves a ridge or crust is built from: a crust's half, or the
-# features a ridge's two sections run along.
+# features a ridge's sections name, its coasts and the plates its gaps ride on.
 func halves() -> PackedStringArray:
 	var uuids := PackedStringArray()
 	if is_crust():
