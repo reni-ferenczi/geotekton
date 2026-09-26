@@ -456,7 +456,8 @@ line its middle is on; a line that crosses no part at all [divides](#dividing)
 them instead.
 
 A cut is refused, with the reason in the status bar, when it runs outside the
-polygon altogether or crosses itself inside it.
+polygon altogether, crosses itself inside it, or crosses the coast an older
+ridge lies along; see [Splitting a half again](#splitting-a-half-again).
 
 A refused cut keeps its points and turns red on the globe until one of them
 is taken back, another is added or Escape drops them, so the one at fault can
@@ -934,7 +935,8 @@ vertices run back towards the last one, and **Remove** takes it out.
 A section is never dropped. One whose feature has been deleted, or is not there
 at the current time, is drawn in the panel in a warning colour with the reason
 as its tooltip, contributes no vertices, and stays in the file. So deleting a
-feature and undoing it mends the topology by itself.
+feature and undoing it mends the topology by itself. A ridge is the exception:
+it is deleted with either of its halves; see [The feature tree](#the-feature-tree).
 
 That is what the persisted `uuid` is for. A section names its feature by an id
 that survives a save and a load, and survives the tree being replaced by a clone

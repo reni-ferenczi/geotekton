@@ -1,7 +1,7 @@
 # Documentation
 
 - [Draw](Draw.md) — Drawing polygons, polylines and multipoints on the planet surface
-- [Editing](Editing.md) — The tools and their keys, the feature tree rows, highlighting children, turning features, editing vertices, splitting and dividing between parts, measuring, circles and axis circles, hotspots, topologies, closed and midway topologies, the ridge and the crust of bands, isochrons and flowlines a split leaves, with the bands colored by the age of the crust in them, the children it cuts along, the light, the view settings, navigating the planet and the view toolbar
+- [Editing](Editing.md) — The tools and their keys, the feature tree rows, highlighting children, turning features, editing vertices, splitting and dividing between parts, measuring, circles and axis circles, hotspots, topologies, closed and midway topologies, the ridge and the crust of bands, isochrons and flowlines a split leaves, with the bands colored by the age of the crust in them, kept off the tree and drawn under everything, what a second split of a half does to them, the children it cuts along, the light, the view settings, navigating the planet and the view toolbar
 - [Import](Import.md) — Bringing a GPlates project, or its feature collections and rotations, in as a document
 - [Kinematics](Kinematics.md) — The motion graphs: where a feature has been and how fast it turns
 - [Moving](Moving.md) — Craton movement implementation: rotation math, turning about an axis, Basis indexing, mouse tracking
