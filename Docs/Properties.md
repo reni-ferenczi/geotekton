@@ -474,6 +474,9 @@ switch nor the table, since it is built from its half and its ridge. The line
 says which half it lies beside and how many bands it has at the current time and
 step, as in `Crust of Laurentia, 4 chunks`. Above the form a crust has the
 [Step (My)](#the-step-row) row, the one thing about it that is edited.
+Neither a ridge nor a crust has a row in the feature tree, so the panel shows one
+after it is clicked on the globe; see
+[The feature tree](Editing.md#the-feature-tree).
 `get_properties` reports the line as `topology_note` and, on a crust, the count
 as `crust_chunks` and the step as `crust_step`.
 

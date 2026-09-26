@@ -4512,6 +4512,12 @@ def run_crust_probes(client: AutomationClient, title: str) -> None:
           f"lighter band by band from the continent to the ridge: {brightness}")
     pixel = probe_unhovered(client, *on_75)
     check(is_colour(pixel, CRUST_LINES_COLOR), f"and the isochron at {on_75} is drawn: {pixel}")
+    # A crust has no row in the feature tree (GP-0123), so a click on a band is
+    # how a person selects it.
+    if click_at(client, inside[1]):
+        selected = client.call("get_selected")["feature"]
+        check(selected is not None and selected["title"] == title,
+              f"a click on a band selects {title}: {selected and selected['title']}")
 
 
 # The children scenario: a range on the northern part of the crust scenario's
