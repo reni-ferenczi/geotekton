@@ -997,7 +997,7 @@ func _add_crust(parent: Feature, ridge: Feature, halves: Array, edge_size: int) 
 	var at := parent.find_child(ridge)
 	for half: Feature in halves:
 		var crust := Feature.create_feature(Feature.clamp_title("%s crust" % half.title),
-			FeatureType.color(FeatureType.CRUST), ridge.time_range)
+			Color.WHITE, ridge.time_range)
 		crust.feature_type = "topology"
 		crust.geometry_kind = Feature.GeometryKind.TOPOLOGY
 		crust.closed = true

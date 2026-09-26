@@ -63,12 +63,6 @@ const MODES := {
 # picks another.
 const DEFAULT_SINGLE := Color(0.9, 0.9, 0.9, 1.0)
 
-# How much lighter the youngest band of a crust is drawn than the oldest. The
-# oldest band, the one against the continent, keeps the crust's own colour, so
-# the colour the crust carries is still the colour of the crust; see
-# lighter_band().
-const YOUNGEST_LIGHTER := 0.55
-
 # The switches, and the palettes read so far by source, shared with whoever
 # built this so a file is read once rather than on every rebuild.
 var settings: ViewSettings
@@ -106,7 +100,7 @@ static func of(settings_: ViewSettings, root: Feature = null, palettes_: Diction
 func _walk(node: Feature, deciding: GroupStyle, opacity: float) -> void:
 	if node.is_sea_floor():
 		# A ridge or crust has no row under its group, so the group's style does
-		# not reach it: it is drawn in its own colour at its own opacity.
+		# not reach it: it is drawn in the sea floor colors of the view settings.
 		return
 	if not node.is_group:
 		_deciding[node] = deciding
@@ -166,6 +160,8 @@ func shows_crust_lines() -> bool:
 # with the alpha multiplied by the opacity of every group above the feature. The
 # age style reads the feature's age at `time`.
 func color_of(feature: Feature, time: float = 0.0) -> Color:
+	if feature.midway:
+		return settings.ridge_color
 	var style: GroupStyle = _deciding.get(feature)
 	var color := feature.color
 	if style != null:
@@ -180,13 +176,32 @@ func color_of(feature: Feature, time: float = 0.0) -> Color:
 	return color
 
 
-# The colour one band of a crust is filled in, given the crust's own colour and
-# where the band falls in the ramp, 0 at the oldest and 1 at the youngest: the
-# crust's colour lightened towards the ridge, so a colour picked for the crust is
-# what the oldest band comes out and the ramp moves with it. No group style
-# reaches a crust; see _walk(). See Docs/Editing.md#the-crust.
-static func lighter_band(fill: Color, shade: float) -> Color:
-	return fill.lightened(shade * YOUNGEST_LIGHTER)
+# The color a feature's lines are drawn in, given the color its fill came out:
+# the fill, except for a crust, whose isochrons and flowlines are drawn in the
+# crust lines color of the view settings.
+func line_color_of(feature: Feature, fill: Color) -> Color:
+	return settings.crust_lines_color if feature.is_crust() else fill
+
+
+# The color of crust `age` My old, with the crust palette spread from 0 My to
+# `oldest`, the oldest crust in the document at the time being viewed, so the
+# whole palette is in use whatever it covers. No group style reaches a crust;
+# see _walk() and Docs/Editing.md#the-crust.
+func crust_color(age: float, oldest: float) -> Color:
+	var palette := crust_palette()
+	var along := clampf(age / oldest, 0.0, 1.0) if oldest > 0.0 else 0.0
+	return palette.color_at(lerpf(palette.low(), palette.high(), along))
+
+
+# The palette the view settings color the crust from: a built in one, or the
+# custom ramp, whose colors are spaced one apart since crust_color() stretches
+# it anyway.
+func crust_palette() -> Palette:
+	if settings.crust_palette != Palette.RAMP:
+		return palette_of(settings.crust_palette)
+	if not _ramps.has(settings):
+		_ramps[settings] = Palette.ramp(settings.crust_ramp_colors, 1.0)
+	return _ramps[settings]
 
 
 # The palette a style's age mode reads: its own ramp, or a palette by source.

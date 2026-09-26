@@ -710,8 +710,6 @@ func test_a_0_22_0_crust_becomes_bands() -> void:
 			"beside its half, opened by the ridge, along a cut of three")
 		assert_true(crust.sections.is_empty(), "with no sections")
 		assert_eq(crust.color, Color(0, 0, 1, 1), "keeping its colour")
-		assert_eq(crust.line_color(crust.color), FeatureType.color(FeatureType.CRUST_LINES),
-			"and drawing its lines in their own colour")
 	var other: Dictionary = migrated["features"]["children"][1]
 	assert_eq(other, _split_0_22_0()["features"]["children"][1],
 		"a closed topology along two plates is left alone")

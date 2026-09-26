@@ -99,6 +99,10 @@ drawn the way its author chose:
 | `raster_opacity`    | 0 to 1            | `1`                 | How much of the planet color it covers |
 | `raster_visible`    | bool              | `true`              | Whether it is drawn at all |
 | `hidden_classes`    | list of names     | `[]`                | Which classes of geometry are switched off |
+| `ridge_color`       | `[r, g, b, a]`    | the Line color      | The color every ridge is drawn in |
+| `crust_palette`     | `blue`, `rainbow` or `ramp` | `blue`    | What the crust is colored from by its age; a name this version does not know reads as `blue` |
+| `crust_ramp_colors` | list of `[r, g, b, a]`, at least two | Blue's three stops | The custom ramp, youngest first, read while `crust_palette` is `ramp` |
+| `crust_lines_color` | `[r, g, b, a]`    | light steel blue    | The color of the isochrons and flowlines |
 
 `hidden_classes` is the [styling](Styling.md#the-visibility-switches): which
 features are drawn. Since 0.10.0 the color they come out is decided by the

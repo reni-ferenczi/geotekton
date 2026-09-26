@@ -1549,6 +1549,8 @@ func _build_view_content() -> Control:
 		_on_view_field_changed())
 	row.add_child(clear)
 
+	_build_sea_floor_fields(box)
+
 	var defaults := HBoxContainer.new()
 	box.add_child(defaults)
 	var remember := Button.new()
@@ -1580,6 +1582,44 @@ func _build_view_content() -> Control:
 	box.add_child(raster_warning)
 
 	return box
+
+
+# The colors of every ridge and crust in the document, which no group style
+# reaches: the ridge, the palette the crust is colored from by its age, with
+# the custom ramp under it while that is picked, and the isochrons and
+# flowlines. See Docs/Editing.md#the-crust.
+func _build_sea_floor_fields(box: VBoxContainer) -> void:
+	box.add_child(_view_section("Sea floor"))
+	var form := GridContainer.new()
+	form.columns = 2
+	box.add_child(form)
+	_view_color(form, "ridge_color", "Ridge")
+
+	var label := Label.new()
+	label.text = "Crust"
+	form.add_child(label)
+	var crust := VBoxContainer.new()
+	crust.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	form.add_child(crust)
+	var palette := OptionButton.new()
+	palette.name = "CrustPalette"
+	palette.tooltip_text = "What the crust is colored from, youngest to oldest"
+	for key in ViewSettings.CRUST_PALETTES:
+		palette.add_item(str(ViewSettings.CRUST_PALETTES[key]))
+		palette.set_item_metadata(palette.item_count - 1, key)
+	palette.item_selected.connect(func(_index: int) -> void: _on_view_field_changed())
+	crust.add_child(palette)
+	view_fields["crust_palette"] = palette
+	# The ramp is spread over the ages of the crust in the document, so it has
+	# no span of its own.
+	var ramp := RampRow.new(1.0)
+	ramp.span_spin.visible = false
+	ramp.previewed.connect(_on_view_field_changed.bind(false))
+	ramp.committed.connect(_on_view_field_changed)
+	crust.add_child(ramp)
+	view_fields["crust_ramp_colors"] = ramp
+
+	_view_color(form, "crust_lines_color", "Isochrons and flowlines")
 
 
 func _view_spin(form: GridContainer, key: String, text: String,
@@ -1671,6 +1711,12 @@ func _fill_view_fields() -> void:
 	view_fields["raster_visible"].set_pressed_no_signal(settings.raster_visible)
 	view_fields["raster_opacity"].set_value_no_signal(settings.raster_opacity)
 	view_fields["raster_path"].text = settings.raster_path
+	view_fields["ridge_color"].color = settings.ridge_color
+	view_fields["crust_palette"].select(
+		ViewSettings.CRUST_PALETTES.keys().find(settings.crust_palette))
+	view_fields["crust_ramp_colors"].colors = settings.crust_ramp_colors
+	view_fields["crust_ramp_colors"].visible = settings.crust_palette == Palette.RAMP
+	view_fields["crust_lines_color"].color = settings.crust_lines_color
 
 
 # One field moved: take the whole block off the dialog and hand it to the
@@ -1690,6 +1736,12 @@ func _on_view_field_changed(commit: bool = true) -> void:
 	settings.raster_visible = view_fields["raster_visible"].button_pressed
 	settings.raster_opacity = view_fields["raster_opacity"].value
 	settings.raster_path = view_fields["raster_path"].text
+	settings.ridge_color = view_fields["ridge_color"].color
+	var palette: OptionButton = view_fields["crust_palette"]
+	settings.crust_palette = str(palette.get_item_metadata(palette.selected))
+	settings.crust_ramp_colors = view_fields["crust_ramp_colors"].colors
+	view_fields["crust_ramp_colors"].visible = settings.crust_palette == Palette.RAMP
+	settings.crust_lines_color = view_fields["crust_lines_color"].color
 	if commit:
 		document.view_edited()
 	apply_view_settings()

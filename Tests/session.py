@@ -4366,13 +4366,12 @@ CRUST_CUT = [(-12.0, 3.0), (1.0, 4.0), (12.0, 3.0)]
 CRUST_AGE = 100.0
 CRUST_DRIFT = 12.0
 CRUST_SKIP = 25.0
-# Steel blue, the colour the Split tool gives the crust, and light steel blue,
-# the colour of its isochrons and flowlines. The band against the continent is
-# the crust colour itself and the one against the ridge is it lightened by
-# Styling.YOUNGEST_LIGHTER, with the bands between evenly spaced.
-CRUST_COLOR = [0.275, 0.510, 0.706]
+# The stops of the Blue palette the crust is colored from by default, youngest
+# first (Palette.BUILT_IN in Logic/palette.gd), and light steel blue, the colour
+# of its isochrons and flowlines. The palette is spread from 0 My to the oldest
+# crust, so the band against the continent is the dark end.
+BLUE_STOPS = [[0.776, 0.859, 0.937], [0.275, 0.510, 0.706], [0.063, 0.204, 0.380]]
 CRUST_LINES_COLOR = [0.690, 0.769, 0.871]
-YOUNGEST_LIGHTER = 0.55
 CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust", "Plate 2 crust"]
 CRUSTS = ["Plate crust", "Plate 2 crust"]
 
@@ -4479,9 +4478,11 @@ def run_crust_step_checks(client: AutomationClient) -> None:
           f"undo puts it back on the Skip: {panel['crust_step']}, {panel['crust_chunks']}")
 
 
-def lighter_band(shade: float) -> list[float]:
-    """The crust colour as the age ramp lightens it, 0 at the oldest band and 1 at the youngest."""
-    return [c + (1.0 - c) * shade * YOUNGEST_LIGHTER for c in CRUST_COLOR]
+def blue_at(along: float) -> list[float]:
+    """The Blue palette at a fraction of the way from the youngest crust to the oldest."""
+    low, high = (BLUE_STOPS[0], BLUE_STOPS[1]) if along <= 0.5 else (BLUE_STOPS[1], BLUE_STOPS[2])
+    t = along * 2.0 if along <= 0.5 else along * 2.0 - 1.0
+    return [a + (b - a) * t for a, b in zip(low, high)]
 
 
 def run_crust_probes(client: AutomationClient, title: str) -> None:
@@ -4503,10 +4504,10 @@ def run_crust_probes(client: AutomationClient, title: str) -> None:
     on_75 = midpoint(bands[1][0], bands[1][1])
     client.call("select", title=None)
     shades = [probe_unhovered(client, *place) for place in inside]
-    check(is_colour(shades[0], CRUST_COLOR),
-          f"{title} fills the band against the continent in the crust colour: {shades[0]}")
-    check(is_colour(shades[-1], lighter_band(1.0)),
-          f"and the one against the ridge in the lightest shade of it: {shades[-1]}")
+    check(is_colour(shades[0], blue_at(1.0)),
+          f"{title} fills the band against the continent in the dark end of Blue: {shades[0]}")
+    check(is_colour(shades[-1], blue_at(0.25)),
+          f"and the one against the ridge, 25 My old, a quarter of the way: {shades[-1]}")
     brightness = [sum(shade[:3]) for shade in shades]
     check(all(a + 0.1 < b for a, b in zip(brightness, brightness[1:])),
           f"lighter band by band from the continent to the ridge: {brightness}")
