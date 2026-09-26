@@ -468,8 +468,8 @@ rather than being dropped. The table is filled again whenever the current time
 moves, since a section can be followed at one time and not at another.
 
 A [midway topology](Editing.md#midway-topologies), such as a ridge, has no
-Closed switch. A line above the table says `Midway between two sections`, and
-Pick refuses a third section. A [crust](Editing.md#the-crust) has neither the
+Closed switch. A line above the table says `Midway between two sides`, and
+Pick refuses a section once both sides are there. A [crust](Editing.md#the-crust) has neither the
 switch nor the table, since it is built from its half and its ridge. The line
 says which half it lies beside and how many bands it has at the current time and
 step, as in `Crust of Laurentia, 4 chunks`. Above the form a crust has the
@@ -506,7 +506,7 @@ undo version:
 | `couple`                | a group or a topology on either side, the feature itself, a feature already following something at that time, a parent that follows the feature down any chain, and a parent not there over the whole span |
 | `decouple`              | a feature following nothing at that time, and the present on a span that runs to it |
 | `remove_coupling`       | a span that is not there                           |
-| `add_section`           | a group, a feature holding vertices of its own, a crust, a midway topology that has two sections, and a target that is a group, a topology that is not midway (any topology for a midway one), the topology itself or has no vertices |
+| `add_section`           | a group, a feature holding vertices of its own, a crust, a midway topology that has both its sides, and a target that is a group, a topology that is not midway (any topology for a midway one), the topology itself or has no vertices |
 | `remove_section`        | anything but a topology, and a section that is not there |
 | `reverse_section`       | the same                                           |
 | `set_section_range`     | the same, and a vertex number below one            |

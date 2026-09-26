@@ -545,14 +545,14 @@ func split_feature(feature: Feature, part: int, first: int, second: int = -1) ->
 # misses goes by the side of the path its middle is on. The feature keeps its
 # side, with its title and every other property, and a copy, "<title> 2"
 # beside it, takes the other; either may end up with several parts. `part` is
-# the part a ridge is laid along when the cut crosses more than one. One
+# the part whose side the feature keeps when the cut crosses more than one. One
 # version.
 #
-# With `ridge` on and a cut of one stretch, a midway topology is left along the
-# cut as well, between the two halves; see _add_ridge() and
-# Docs/Editing.md#the-ridge. With `crust` on as well, each half gets a crust of
-# bands between isochrons, with the isochrons and flowlines drawn over them; see
-# _add_crust(). A cut of several stretches leaves neither yet.
+# With `ridge` on, one midway topology is left along the whole cut as well,
+# between the two sides, bays and the sea between islands included; see
+# _ridge_sections() and Docs/Editing.md#the-ridge. With `crust` on as well, each
+# half gets a crust of bands between isochrons, with the isochrons and flowlines
+# drawn over them; see _add_crust().
 #
 # An older ridge or topology running along a feature the split changes is
 # pointed at the piece now holding its vertices, and a cut across an older
@@ -576,16 +576,18 @@ func split_feature_along(feature: Feature, part: int, path: PackedVector2Array,
 # Divide a feature of several polygons along a path that touches none of them:
 # the same as a cut that crosses no part, each part going to the side of the
 # path its middle is on, the first part's side staying with the feature. See
-# GeometryEdit.far_parts() and Docs/Editing.md#dividing. Nothing is shared
-# between the two, so no ridge and no crust. One version.
-func divide_feature(feature: Feature, path: PackedVector2Array, children := false) -> String:
+# GeometryEdit.far_parts() and Docs/Editing.md#dividing. With `ridge` on the
+# whole path is the ridge, and `crust` fills the sea on either side of it. One
+# version.
+func divide_feature(feature: Feature, path: PackedVector2Array, children := false,
+		ridge := false, crust := false) -> String:
 	if feature == null or feature.is_group \
 			or feature.geometry_kind != Feature.GeometryKind.POLYGON:
 		return "Only a polygon is split along a cut."
 	var problem := GeometryEdit.divide_problem(feature.rings, path)
 	if not problem.is_empty():
 		return problem
-	return _split_by_path(feature, 0, path, false, false, children)
+	return _split_by_path(feature, 0, path, ridge, crust, children)
 
 
 func _split_by_path(feature: Feature, part: int, path: PackedVector2Array,
@@ -604,6 +606,7 @@ func _split_by_path(feature: Feature, part: int, path: PackedVector2Array,
 	var problem := _older_ridge_problem(watched, feature, rings)
 	if not problem.is_empty():
 		return problem
+	_cut_edges = {}
 
 	# What the feature follows, found before anything changes.
 	var span := Coupling.span_at(feature, current_time)
@@ -644,26 +647,171 @@ func _split_by_path(feature: Feature, part: int, path: PackedVector2Array,
 	split_children.clear()
 	var changed := {feature.uuid: [feature, other]}
 	_sort_riders(riders, feature, world_path, stand_in, leader_side, watched, changed)
-	_repoint(watched, changed, {feature.uuid: sorted["ridge_part"], other.uuid: 0})
+	_repoint(watched, changed)
 
-	split_ridge = ridge and int(sorted["stretches"]) == 1
+	_cut_edges[feature.uuid] = sorted["edges"]
+	var sections: Array[TopologySection] = []
+	if ridge:
+		sections = _ridge_sections(world_path, stand_in, feature.uuid, first)
+	split_ridge = not sections.is_empty()
 	if split_ridge:
-		var laid := _add_ridge(parent, feature, other, sorted["ridge_part"], sorted["edge_size"])
+		var laid := _add_ridge(parent, feature, other, sections)
 		if crust:
-			_add_crust(parent, laid, [feature, other], sorted["edge_size"])
+			var edge := 0
+			for section in sections:
+				if section.side == 0:
+					edge += section.points.size() if section.is_gap() \
+						else absi(section.to_index - section.from_index) + 1
+			_add_crust(parent, laid, [feature, other], edge)
 	record()
 	return ""
 
 
+# The edge of every stretch a split cut, by the uuid of the feature it cut, in
+# that feature's own frame; see GeometryEdit.cut_pieces(). Filled while a split
+# cuts, for _ridge_sections().
+var _cut_edges := {}
+
+# How close to the path, along it, a vertex has to be to count as reached: a
+# fraction of a segment of the path.
+const ALONG_CLOSE := 1e-6
+
+
+# The two sides of the ridge a cut leaves, as the sections of a midway topology
+# in the order the cut runs, side 0 the side the split feature keeps; see
+# Logic/ridge.gd. Empty when the cut leaves no ridge of two vertices or more.
+#
+# The cut line runs from where it first enters to where it last leaves any
+# polygon it cut, the split feature or anything cut under Children. Where it
+# runs through land, each side is the coast that land's piece on that side has:
+# a coast piece, naming the piece, the part and the run of its vertices. Where
+# two edges overlap, a continent and the craton on it, the one reached first
+# along the path is followed until it ends. Where the cut crosses sea, a bay or
+# the strait between two islands, each side is a gap piece: the path's points
+# there, riding with the split feature's half on that side, which is the plate
+# everything on that side moves with. A divide is all gap.
+func _ridge_sections(world_path: PackedVector2Array, stand_in: Dictionary,
+		split_uuid: String, first: int) -> Array[TopologySection]:
+	var runs := []
+	for uuid: String in _cut_edges:
+		var basis := Feature.world_basis(root, stand_in[uuid][first], current_time)
+		for edge: PackedVector2Array in _cut_edges[uuid]:
+			var along := PackedFloat64Array()
+			for vertex in Feature.apply_basis(edge, basis):
+				along.append(_along(world_path, vertex))
+			if along[0] > along[-1]:
+				edge = edge.duplicate()
+				edge.reverse()
+				along.reverse()
+			runs.append({"uuid": uuid, "edge": edge, "along": along})
+	runs.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["along"][0] < b["along"][0])
+
+	# Walk the path: the coast of each edge from where the last one ended, and
+	# the path's own points between two coasts.
+	var pieces := []
+	var reached := -INF
+	for run: Dictionary in runs:
+		var along: PackedFloat64Array = run["along"]
+		var from := 0
+		while from < along.size() and along[from] <= reached + ALONG_CLOSE:
+			from += 1
+		if from == along.size():
+			continue
+		if not pieces.is_empty():
+			var sea := PackedVector2Array()
+			for k in world_path.size():
+				if k > reached + ALONG_CLOSE and k < along[from] - ALONG_CLOSE:
+					sea.append(world_path[k])
+			if not sea.is_empty():
+				pieces.append(sea)
+		pieces.append({"uuid": run["uuid"], "run": (run["edge"] as PackedVector2Array).slice(from)})
+		reached = along[-1]
+	if pieces.is_empty():
+		pieces.append(world_path)
+
+	var sections: Array[TopologySection] = []
+	for side in [first, -first]:
+		var plate: Feature = stand_in[split_uuid][side]
+		var count := 0
+		for piece: Variant in pieces:
+			if piece is PackedVector2Array:
+				var local := Feature.apply_basis(piece,
+					Feature.world_basis(root, plate, current_time).transposed())
+				sections.append(TopologySection.gap(plate.uuid, local, int(side != first)))
+				count += local.size()
+				continue
+			var found := _coast_sections(stand_in[piece["uuid"]][side], piece["run"],
+				int(side != first))
+			if found.is_empty():
+				return [] as Array[TopologySection]
+			sections.append_array(found)
+			count += (piece["run"] as PackedVector2Array).size()
+		if count < 2:
+			return [] as Array[TopologySection]
+	return sections
+
+
+# How far along the path a point lies, in segments: k and a fraction on the
+# k-th segment, measured on the sphere. A point off either end of the path
+# falls before 0 or past the last segment.
+static func _along(path: PackedVector2Array, point: Vector2) -> float:
+	var p := Feature._latlon_to_xyz_s(point)
+	var best := INF
+	var at := 0.0
+	for k in path.size() - 1:
+		var a := Feature._latlon_to_xyz_s(path[k])
+		var b := Feature._latlon_to_xyz_s(path[k + 1])
+		var normal := a.cross(b)
+		var length := a.angle_to(b)
+		if normal.length() < 1e-12 or length < 1e-12:
+			continue
+		normal = normal.normalized()
+		var t := atan2(a.cross(p).dot(normal), a.dot(p)) / length
+		var low := -INF if k == 0 else 0.0
+		var high := INF if k == path.size() - 2 else 1.0
+		var off := absf(p.dot(normal))
+		if t < low or t > high:
+			off = minf(p.angle_to(a), p.angle_to(b))
+			t = clampf(t, 0.0, 1.0)
+		if off < best:
+			best = off
+			at = k + t
+	return at
+
+
+# The run of a piece's coast as sections on one side of a ridge: one, or two
+# when the run goes round past the end of its ring, since a range cannot.
+func _coast_sections(piece: Feature, run: PackedVector2Array, side: int) -> Array[TopologySection]:
+	var sections: Array[TopologySection] = []
+	for part in piece.rings.size():
+		var found := _find_run(piece.rings[part], run)
+		if found.is_empty():
+			continue
+		var size := piece.rings[part].size()
+		var start: int = found[0]
+		var head := mini(run.size(), size - start)
+		var chunks := [[start, start + head - 1]]
+		if head < run.size():
+			chunks.append([0, run.size() - head - 1])
+		if found[1]:
+			chunks.reverse()
+		for chunk: Array in chunks:
+			var section := TopologySection.create(piece.uuid, part, chunk[0], chunk[1], found[1])
+			section.side = side
+			sections.append(section)
+		return sections
+	return sections
+
+
 # The rings of a feature by the side of the path they end up on, as a
 # dictionary: problem, rings {LEFT: [...], RIGHT: [...]}, first (the side the
-# feature keeps), stretches, and for a ridge the index of the cut part's kept
-# piece among the kept rings and the size of the edge. The other half's rings
-# start with the cut part's other piece, so the ridge names it as part 0.
+# feature keeps), and edges, the edge of every stretch the path cut, in the
+# order and direction it runs through each part. The other half's rings start
+# with the cut part's other piece.
 func _rings_by_side(parts: Array[PackedVector2Array], path: PackedVector2Array,
 		kind: Feature.GeometryKind, part: int) -> Dictionary:
 	var result := {"problem": "", "rings": {GeometryEdit.LEFT: [], GeometryEdit.RIGHT: []},
-		"first": 0, "stretches": 0, "ridge_part": 0, "edge_size": 0}
+		"first": 0, "edges": []}
 	var rings: Dictionary = result["rings"]
 	var lead := -1
 	var lead_other := -1
@@ -673,7 +821,6 @@ func _rings_by_side(parts: Array[PackedVector2Array], path: PackedVector2Array,
 			var runs := GeometryEdit.cut_runs(ring, path)
 			for side in runs:
 				rings[side].append_array(runs[side])
-			result["stretches"] += runs[GeometryEdit.LEFT].size() + runs[GeometryEdit.RIGHT].size() - 1
 			continue
 		var cut := GeometryEdit.cut_pieces(ring, path) if kind == Feature.GeometryKind.POLYGON \
 			else {"problem": GeometryEdit.OUTSIDE_PROBLEM}
@@ -683,13 +830,11 @@ func _rings_by_side(parts: Array[PackedVector2Array], path: PackedVector2Array,
 		if not str(cut["problem"]).is_empty():
 			result["problem"] = cut["problem"]
 			return result
-		result["stretches"] += cut["stretches"]
+		result["edges"].append_array(cut["edges"])
 		var side: int = cut["first"]
 		if lead < 0 or i == part:
 			lead = i
 			result["first"] = side
-			result["ridge_part"] = rings[side].size()
-			result["edge_size"] = (cut["edge"] as PackedVector2Array).size()
 			lead_other = rings[-side].size()
 		for on in [GeometryEdit.LEFT, GeometryEdit.RIGHT]:
 			rings[on].append_array(cut["pieces"][on])
@@ -758,6 +903,8 @@ func _sort_rider(rider: Feature, parent_uuid: String, world_path: PackedVector2A
 			rings[_side_of_node(rider, world_path)].assign(rider.rings)
 		else:
 			rings = sorted["rings"]
+			if rider.geometry_kind == Feature.GeometryKind.POLYGON:
+				_cut_edges[rider.uuid] = sorted["edges"]
 	var stays := keep if not (rings[keep] as Array).is_empty() else -keep
 	var pieces := {}
 	var own: Array[PackedVector2Array] = []
@@ -857,6 +1004,10 @@ func _watch_sections() -> Array:
 		var node: Feature = stack.pop_back()
 		stack.append_array(node.children)
 		for section in node.sections:
+			if section.is_gap():
+				watched.append({"topology": node, "section": section, "run": section.points,
+					"gap": true})
+				continue
 			var target := root.get_node_by_uuid(section.feature_uuid)
 			if target == null or section.part < 0 or section.part >= target.rings.size():
 				continue
@@ -876,7 +1027,7 @@ func _older_ridge_problem(watched: Array, node: Feature, rings: Dictionary) -> S
 	for entry: Dictionary in watched:
 		var topology: Feature = entry["topology"]
 		var section: TopologySection = entry["section"]
-		if not topology.midway or section.feature_uuid != node.uuid:
+		if not topology.midway or section.feature_uuid != node.uuid or entry.has("gap"):
 			continue
 		var found := false
 		for side_rings: Array in rings.values():
@@ -897,26 +1048,51 @@ func _older_ridge_problem(watched: Array, node: Feature, rings: Dictionary) -> S
 #
 # A run that goes round past the end of its new ring has the ring turned to start
 # with it, since a range cannot go round; the Vertex tool's halves start at the
-# far vertex of the split, not at the cut. `pinned` gives, by uuid, the part a new
-# ridge is about to be laid along from vertex 0, which must stay as it is.
-func _repoint(watched: Array, changed: Dictionary, pinned := {}) -> void:
+# far vertex of the split, not at the cut. A gap piece goes with the piece
+# nearest its points; see _point_gap().
+func _repoint(watched: Array, changed: Dictionary) -> void:
 	for entry: Dictionary in watched:
 		var section: TopologySection = entry["section"]
-		if not changed.has(section.feature_uuid):
+		if not changed.has(section.feature_uuid) or entry.has("gap"):
 			continue
 		for piece: Feature in changed[section.feature_uuid]:
 			for part in piece.rings.size():
 				var found := _find_run(piece.rings[part], entry["run"])
-				if found.is_empty() or found[0] + entry["run"].size() <= piece.rings[part].size() \
-						or pinned.get(piece.uuid, -1) == part:
+				if found.is_empty() or found[0] + entry["run"].size() <= piece.rings[part].size():
 					continue
 				var ring: PackedVector2Array = piece.rings[part]
 				piece.rings[part] = ring.slice(found[0]) + ring.slice(0, found[0])
 				piece.rebuild_triangles()
 	for entry: Dictionary in watched:
 		var section: TopologySection = entry["section"]
-		if changed.has(section.feature_uuid):
+		if not changed.has(section.feature_uuid):
+			continue
+		if entry.has("gap"):
+			_point_gap(entry["topology"], section, changed[section.feature_uuid])
+		else:
 			_point(entry["topology"], section, entry["run"], changed[section.feature_uuid])
+
+
+# Give a gap piece to the piece of its plate nearest its points, in the frame
+# the pieces share: the one holding the coast beside the gap. A ridge side of
+# gaps alone, a divide's, takes its crust along, the way a coast does in
+# _point().
+func _point_gap(topology: Feature, section: TopologySection, pieces: Array) -> void:
+	var nearest := INF
+	var carrier: Feature = null
+	for piece: Feature in pieces:
+		for ring in piece.rings:
+			for vertex in ring:
+				for point in section.points:
+					if vertex.distance_squared_to(point) < nearest:
+						nearest = vertex.distance_squared_to(point)
+						carrier = piece
+	if carrier == null or carrier.uuid == section.feature_uuid:
+		return
+	if topology.sections.all(func(other: TopologySection) -> bool:
+			return other.side != section.side or other.is_gap()):
+		_move_crusts(topology, section.feature_uuid, carrier.uuid)
+	section.feature_uuid = carrier.uuid
 
 
 # Point the section at the first of the pieces holding the run whole.
@@ -968,22 +1144,18 @@ static func _find_run(ring: PackedVector2Array, run: PackedVector2Array) -> Arra
 	return []
 
 
-# The rift the cut leaves behind: a midway topology between the two halves'
-# sides of the cut, from the current time to the present. The first half runs
-# its side of the cut one way and the second the other, so the second section
-# is walked back to pair the vertices up. The ridge has no motion of its own;
-# see Logic/ridge.gd. Part of the split's own undo version.
-func _add_ridge(parent: Feature, first: Feature, second: Feature, part: int,
-		edge_size: int) -> Feature:
+# The rift the cut leaves behind: a midway topology between the two sides of the
+# cut, from the current time to the present, with the sections
+# _ridge_sections() found. The ridge has no motion of its own; see
+# Logic/ridge.gd. Part of the split's own undo version.
+func _add_ridge(parent: Feature, first: Feature, second: Feature,
+		sections: Array[TopologySection]) -> Feature:
 	var ridge := Feature.create_feature(Feature.clamp_title("%s ridge" % first.title),
 		FeatureType.color(FeatureType.LINE), Vector2i(0, int(round(current_time))))
 	ridge.feature_type = "topology"
 	ridge.geometry_kind = Feature.GeometryKind.TOPOLOGY
 	ridge.midway = true
-	ridge.sections.assign([
-		TopologySection.create(first.uuid, part, 0, edge_size - 1),
-		TopologySection.create(second.uuid, 0, 0, edge_size - 1, true),
-	])
+	ridge.sections = sections
 	parent.children.insert(parent.find_child(second) + 1, ridge)
 	Topology.rebuild(root, ridge, current_time)
 	return ridge
@@ -1044,7 +1216,10 @@ func add_section(feature: Feature, target: Feature, part: int) -> String:
 		return "%s has no part %d." % [target.title, part + 1]
 
 	feature.geometry_kind = Feature.GeometryKind.TOPOLOGY
-	feature.sections.append(TopologySection.whole_part(target, part))
+	var section := TopologySection.whole_part(target, part)
+	# A midway topology's second section is its second side.
+	section.side = int(feature.midway and not feature.sections.is_empty())
+	feature.sections.append(section)
 	record()
 	return ""
 
@@ -1458,7 +1633,7 @@ func resolve_raster() -> String:
 # version field it carries. See Docs/Persistence.md for the formats themselves.
 static func migrate(data: Dictionary) -> Dictionary:
 	var version := str(data.get("version", "0.1.0"))
-	if not _is_older_than(version, "0.29.0"):
+	if not _is_older_than(version, "0.30.0"):
 		return data
 	data = data.duplicate(true)
 	if _is_older_than(version, "0.2.0"):
@@ -1517,8 +1692,11 @@ static func migrate(data: Dictionary) -> Dictionary:
 	# 0.27.0 renamed the program, so a file now says geotekt in its application
 	# field; a file from before it is not read. 0.29.0 gave a leaf its line
 	# width, and a leaf without the key reads as 1, which is what every feature
-	# was drawn at. Nothing else in the file changed, so only the version moves.
-	data["version"] = "0.29.0"
+	# was drawn at. 0.30.0 let a ridge's sections say their side and hold
+	# points of their own, and a ridge of two sections without sides reads as
+	# one a side; see Feature.from_json(). Nothing else in the file changed, so
+	# only the version moves.
+	data["version"] = "0.30.0"
 	return data
 
 

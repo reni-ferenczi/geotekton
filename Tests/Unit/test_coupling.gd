@@ -711,9 +711,11 @@ func test_a_ridge_stays_midway_while_one_half_turns() -> void:
 	assert_eq(document.set_keyframe(second, 300.0, Vector3.ZERO), "")
 	assert_eq(document.set_keyframe(second, 0.0, Vector3(40, 0, 0)), "")
 
-	# The one half turned forty degrees and the ridge turned twenty.
-	var turned := Feature.apply_basis(first.rings[0].slice(0, 3),
-		Feature.build_rotation_basis(Vector3(20, 0, 0)))
+	# The one half turned forty degrees and the ridge turned twenty. The ridge
+	# runs the way the cut was drawn, which the first half holds the other way.
+	var cut := first.rings[0].slice(0, 3)
+	cut.reverse()
+	var turned := Feature.apply_basis(cut, Feature.build_rotation_basis(Vector3(20, 0, 0)))
 	var on_ridge := Ridge.ring_at(document.root, ridge, 0.0)
 	assert_eq(on_ridge.size(), 3, "a vertex for each of the cut's")
 	for i in on_ridge.size():

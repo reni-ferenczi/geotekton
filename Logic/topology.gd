@@ -34,28 +34,33 @@ static func resolve(root: Feature, node: Feature, time: float) -> Array:
 	for section in node.sections:
 		resolved.append(_resolve_section(root, node, section, time))
 	if node.midway:
-		_check_midway(resolved)
+		_check_midway(node, resolved)
 	return resolved
 
 
-# A midway topology pairs the vertices of two sections, so it needs exactly two
-# of the same length. What does not fit is reported on the section at fault.
-static func _check_midway(resolved: Array) -> void:
-	var empty := PackedVector2Array()
-	for index in range(2, resolved.size()):
-		resolved[index]["problem"] = "a midway topology takes two sections"
-		resolved[index]["vertices"] = empty
-	if resolved.size() == 1 and str(resolved[0]["problem"]).is_empty():
-		resolved[0]["problem"] = "a midway topology needs a second section"
-		resolved[0]["vertices"] = empty
-	if resolved.size() < 2 or not str(resolved[0]["problem"]).is_empty() \
-			or not str(resolved[1]["problem"]).is_empty():
+# A midway topology pairs the vertices of its two sides, one after the other,
+# so each side needs a section and both the same number of vertices. What does
+# not fit is reported on the last section of the second side.
+static func _check_midway(node: Feature, resolved: Array) -> void:
+	var counts := [0, 0]
+	var last := -1
+	for index in resolved.size():
+		var side: int = node.sections[index].side
+		counts[side] += (resolved[index]["vertices"] as PackedVector2Array).size()
+		if side == 1:
+			last = index
+	if resolved.is_empty() or resolved.any(func(entry: Dictionary) -> bool:
+			return not str(entry["problem"]).is_empty()):
 		return
-	var first: int = (resolved[0]["vertices"] as PackedVector2Array).size()
-	var second: int = (resolved[1]["vertices"] as PackedVector2Array).size()
-	if first != second:
-		resolved[1]["problem"] = "it has %d vertices and the first section %d" % [second, first]
-		resolved[1]["vertices"] = empty
+	if last < 0:
+		resolved[-1]["problem"] = "a midway topology needs a second side"
+	elif counts[0] != counts[1]:
+		resolved[last]["problem"] = "its side has %d vertices and the first side %d" \
+			% [counts[1], counts[0]]
+	else:
+		return
+	for entry: Dictionary in resolved:
+		entry["vertices"] = PackedVector2Array()
 
 
 static func _resolve_section(root: Feature, node: Feature, section: TopologySection,
@@ -79,15 +84,18 @@ static func _resolve_section(root: Feature, node: Feature, section: TopologySect
 	if not target.exists_at(time):
 		return {"vertices": empty, "problem": "it is not there at this time",
 			"title": target.title}
-	if section.part < 0 or section.part >= target.rings.size():
-		return {"vertices": empty, "problem": "part %d of it is gone" % (section.part + 1),
-			"title": target.title}
-
-	var ring: PackedVector2Array = target.rings[section.part]
-	var low := clampi(mini(section.from_index, section.to_index), 0, ring.size() - 1)
-	var high := clampi(maxi(section.from_index, section.to_index), 0, ring.size() - 1)
-	var run := ring.slice(low, high + 1)
-	if run.size() < MINIMUM_VERTICES:
+	var run := section.points.duplicate()
+	if not section.is_gap():
+		if section.part < 0 or section.part >= target.rings.size():
+			return {"vertices": empty, "problem": "part %d of it is gone" % (section.part + 1),
+				"title": target.title}
+		var ring: PackedVector2Array = target.rings[section.part]
+		var low := clampi(mini(section.from_index, section.to_index), 0, ring.size() - 1)
+		var high := clampi(maxi(section.from_index, section.to_index), 0, ring.size() - 1)
+		run = ring.slice(low, high + 1)
+	# A piece of a ridge side may be a single vertex; the side as a whole is
+	# the line.
+	if run.size() < (1 if node.midway else MINIMUM_VERTICES):
 		return {"vertices": empty,
 			"problem": "it names fewer than %d vertices" % MINIMUM_VERTICES,
 			"title": target.title}
@@ -101,6 +109,7 @@ static func _resolve_section(root: Feature, node: Feature, section: TopologySect
 		"title": target.title,
 		"local": run,
 		"basis": basis,
+		"side": section.side,
 	}
 
 
@@ -198,7 +207,7 @@ static func section_problem(node: Feature, target: Feature) -> String:
 	if target.is_group:
 		return "%s is a group, which has no vertices of its own." % target.title
 	if node.midway and node.sections.size() >= 2:
-		return "%s is midway between the two sections it has." % node.title
+		return "%s is midway between the two sides it has." % node.title
 	if node.is_crust():
 		return "%s is built from its half and its ridge." % node.title
 	if target.geometry_kind == Feature.GeometryKind.TOPOLOGY \
