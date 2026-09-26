@@ -1005,6 +1005,15 @@ func _fill_view_dialog(block: Dictionary) -> String:
 				float(parts[3]) if parts.size() > 3 else 1.0)
 		elif field is LineEdit:
 			(field as LineEdit).text = str(block[key])
+		elif field is OptionButton:
+			var at := ViewSettings.CRUST_PALETTES.keys().find(str(block[key]))
+			if at < 0:
+				return "no crust palette called %s" % block[key]
+			(field as OptionButton).select(at)
+		elif field is RampRow:
+			if block[key] is not Array or (block[key] as Array).size() < Palette.MIN_RAMP_COLORS:
+				return "a ramp takes a list of at least %d colours" % Palette.MIN_RAMP_COLORS
+			(field as RampRow).colors = GroupStyle.colors_from(block[key])
 	app._on_view_field_changed()
 	return ""
 

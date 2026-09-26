@@ -23,6 +23,13 @@ const DEFAULT_LIGHT := Vector2(0.0, 0.0)
 const DEFAULT_AMBIENT := 0.0
 const DEFAULT_RASTER_OPACITY := 1.0
 
+# The palettes the crust may be colored from, in the order the View settings
+# dialog lists them, and the one a document starts with.
+const CRUST_PALETTES := {"blue": "Blue", "rainbow": "Rainbow", Palette.RAMP: "Custom ramp"}
+const DEFAULT_CRUST_PALETTE := "blue"
+const DEFAULT_CRUST_RAMP: Array[Color] = [Color(0.776, 0.859, 0.937),
+	Color(0.275, 0.510, 0.706), Color(0.063, 0.204, 0.380)]
+
 # The planet under any raster: an ocean blue. Unlike the scene settings above,
 # this is not how files were drawn before it existed; those carried the built in
 # Earth, and Document.migrate() gives it back to them as their raster.
@@ -82,7 +89,23 @@ var raster_visible: bool = true
 var hidden_classes: PackedStringArray = PackedStringArray()
 
 # What colour the features come out is not here: since 0.10.0 it is the style
-# of the root group. See GroupStyle.
+# of the root group. See GroupStyle. The sea floor is the exception, since no
+# group style reaches it: the colors of every ridge and crust are here.
+
+# The color every ridge is drawn in. A document that says nothing takes the
+# Line color from the preferences, which is what a ridge was given before.
+var ridge_color: Color = FeatureType.color(FeatureType.LINE)
+
+# What the crust is colored from, by its age: a key of Palette.BUILT_IN, or
+# Palette.RAMP for crust_ramp_colors. Spread from 0 My to the oldest crust in
+# the document; see Styling.crust_color().
+var crust_palette: String = DEFAULT_CRUST_PALETTE
+
+# The custom ramp, youngest first. It starts as the Blue palette's stops.
+var crust_ramp_colors: Array[Color] = DEFAULT_CRUST_RAMP.duplicate()
+
+# The color of the isochrons and flowlines drawn over every crust.
+var crust_lines_color: Color = FeatureType.color(FeatureType.CRUST_LINES)
 
 
 func clone() -> ViewSettings:
@@ -102,6 +125,10 @@ func to_json() -> Dictionary:
 		"raster_opacity": raster_opacity,
 		"raster_visible": raster_visible,
 		"hidden_classes": Array(hidden_classes),
+		"ridge_color": _color_to_json(ridge_color),
+		"crust_palette": crust_palette,
+		"crust_ramp_colors": crust_ramp_colors.map(func(color: Color) -> Array: return _color_to_json(color)),
+		"crust_lines_color": _color_to_json(crust_lines_color),
 	}
 
 
@@ -135,6 +162,15 @@ static func from_json(data: Variant) -> ViewSettings:
 	if hidden is Array:
 		for name in hidden:
 			settings.hide_class(str(name), true)
+	settings.ridge_color = _color_from_json(data.get("ridge_color"), settings.ridge_color)
+	var palette := str(data.get("crust_palette", DEFAULT_CRUST_PALETTE))
+	settings.crust_palette = palette if CRUST_PALETTES.has(palette) else DEFAULT_CRUST_PALETTE
+	var ramp: Variant = data.get("crust_ramp_colors")
+	if ramp is Array and (ramp as Array).size() >= Palette.MIN_RAMP_COLORS:
+		settings.crust_ramp_colors.assign((ramp as Array).map(
+			func(value: Variant) -> Color: return _color_from_json(value, Color.BLACK)))
+	settings.crust_lines_color = _color_from_json(
+		data.get("crust_lines_color"), settings.crust_lines_color)
 	return settings
 
 

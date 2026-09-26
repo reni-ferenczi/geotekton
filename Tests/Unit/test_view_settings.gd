@@ -51,7 +51,29 @@ func test_every_setting_round_trips_through_json() -> void:
 	assert_eq(back.raster_path, settings.raster_path, "the raster path")
 	assert_eq(back.raster_opacity, settings.raster_opacity, "the raster opacity")
 	assert_eq(back.raster_visible, settings.raster_visible, "the raster switch")
-	assert_eq(back.hidden_classes, settings.hidden_classes, "and the classes switched off")
+	assert_eq(back.hidden_classes, settings.hidden_classes, "the classes switched off")
+	assert_eq(back.ridge_color, settings.ridge_color, "the ridge color")
+	assert_eq(back.crust_palette, settings.crust_palette, "the crust palette")
+	assert_eq(back.crust_ramp_colors, settings.crust_ramp_colors, "its custom ramp")
+	assert_eq(back.crust_lines_color, settings.crust_lines_color,
+		"and the isochrons and flowlines color")
+
+
+# GP-0127: a block written before the sea floor colors were settable colors the
+# crust Blue, and a palette this version does not offer falls back to it.
+func test_an_older_block_colors_the_crust_blue() -> void:
+	var settings := ViewSettings.from_json({"ambient": 0.4})
+	assert_eq(settings.crust_palette, "blue", "Blue")
+	assert_eq(settings.crust_ramp_colors, ViewSettings.DEFAULT_CRUST_RAMP,
+		"with the custom ramp starting as Blue's stops")
+	assert_eq(settings.ridge_color, FeatureType.color(FeatureType.LINE),
+		"the ridge in the Line color")
+	assert_eq(settings.crust_lines_color, FeatureType.color(FeatureType.CRUST_LINES),
+		"and the lines in the crust lines color")
+	assert_eq(ViewSettings.from_json({"crust_palette": "sepia"}).crust_palette, "blue",
+		"an unknown palette is Blue")
+	assert_eq(ViewSettings.from_json({"crust_ramp_colors": [[1, 0, 0]]}).crust_ramp_colors,
+		ViewSettings.DEFAULT_CRUST_RAMP, "and a ramp of one colour is no ramp")
 
 
 func test_a_block_that_says_nothing_gets_every_default() -> void:
@@ -219,4 +241,8 @@ func _edited() -> ViewSettings:
 	settings.raster_visible = false
 	settings.hide_class(Styling.POINTS, true)
 	settings.hide_class(Styling.CRUST_LINES, true)
+	settings.ridge_color = Color(0.9, 0.8, 0.1, 1.0)
+	settings.crust_palette = Palette.RAMP
+	settings.crust_ramp_colors.assign([Color(1, 0, 0), Color(0, 1, 0), Color(0, 0, 1)])
+	settings.crust_lines_color = Color(0.1, 0.2, 0.3, 1.0)
 	return settings

@@ -180,11 +180,12 @@ class Geometry extends RefCounted:
 	# feature sits, whether it is shown and what colour it comes out are all
 	# answered per column. A feature takes one column, except a crust, which
 	# takes one per band so that the age ramp can colour each band on its own;
-	# `bands` then holds that band's age and where it falls in the ramp, 0 at
-	# the oldest and 1 at the youngest.
+	# `bands` then holds the age of the crust in that band, and oldest_crust the
+	# oldest age of any band, which is where the ramp ends.
 	var features: Array[Feature] = []
 	var index_of := {}
 	var bands := {}
+	var oldest_crust := 0.0
 
 	# How many features were left out because MAX_PRIMITIVES was reached.
 	var dropped: int = 0
@@ -219,8 +220,8 @@ class Geometry extends RefCounted:
 	var colors: Array[Color] = []
 
 	# The color each feature's lines are drawn in, which is the color above for
-	# everything but a crust; see Feature.line_color(). One entry per column,
-	# in the same order.
+	# everything but a crust; see Styling.line_color_of(). One entry per
+	# column, in the same order.
 	var line_colors: Array[Color] = []
 
 	# The styling the colors were last worked out with, kept so resolve() can
@@ -246,7 +247,7 @@ class Geometry extends RefCounted:
 		bases.append(Basis())
 		shown.append(true)
 		colors.append(feature.color)
-		line_colors.append(feature.line_color(feature.color))
+		line_colors.append(feature.color)
 		starts.append(primitives.size())
 		ends.append(primitives.size())
 		cap_centres.append(Vector3.UP)
@@ -298,19 +299,20 @@ class Geometry extends RefCounted:
 
 	# Work out the color of every column again at the resolved time, without
 	# touching the primitives. Without a styling each feature is drawn in the
-	# color it carries. A band of a crust takes a shade of the crust's color,
-	# which is why a change of color reaches the bands without the geometry
-	# being collected again.
+	# color it carries, and the sea floor in the default view settings' colors.
+	# A band of a crust takes the crust palette's color at its age, which is why
+	# a change of palette reaches the bands without the geometry being
+	# collected again.
 	func recolor(styling_: Styling) -> void:
 		styling = styling_
+		var drawing := styling if styling != null else Styling.of(null)
 		for index in features.size():
 			var node: Feature = features[index]
-			var color: Color = styling.color_of(node, time) if styling != null else node.color
+			var color := drawing.color_of(node, time)
 			if bands.has(index):
-				var band: Vector2 = bands[index]
-				color = Styling.lighter_band(color, band.y)
+				color = drawing.crust_color(bands[index], oldest_crust)
 			colors[index] = color
-			line_colors[index] = node.line_color(color)
+			line_colors[index] = drawing.line_color_of(node, color)
 
 
 # Upload the feature geometry to the planet shader. Where the features sit, what
@@ -515,7 +517,7 @@ static func _drawing_order(root: Feature) -> Array[Feature]:
 
 
 # The bands of a crust, each in a column of its own, so the age ramp can fill
-# each one in the color of the crust it holds; see Styling.lighter_band(). The
+# each one in the color of the crust it holds; see Styling.crust_color(). The
 # triangles of ring k are the k-th run of Feature.ring_triangles, and the ages
 # run oldest first, the oldest band lying against the continent. Answers with
 # the column the last band took, which the isochrons and the flowlines are then
@@ -525,16 +527,14 @@ static func _collect_bands(geometry: Geometry, node: Feature, first: int) -> int
 	var count := mini(node.ring_triangles.size(), ages.size())
 	if count == 0:
 		return first
-	var oldest := ages[0]
-	var span := oldest - ages[count - 1]
+	geometry.oldest_crust = maxf(geometry.oldest_crust, ages[0])
 	var verts := node.triangles
 	var at := 0
 	var index := first
 	for k in count:
 		if k > 0:
 			index = geometry.column_for(node)
-		geometry.bands[index] = Vector2(ages[k],
-			0.0 if span <= 0.0 else (oldest - ages[k]) / span)
+		geometry.bands[index] = ages[k]
 		for _t in node.ring_triangles[k]:
 			geometry.primitives.append(_primitive(Primitive.TRIANGLE,
 				[verts[at], verts[at + 1], verts[at + 2]], node, index))

@@ -150,3 +150,61 @@ func test_a_band_under_another_polygon_draws_as_the_polygon() -> void:
 		return
 	var color := await probe(screen)
 	assert_eq(dominant_channel(color), "red", "the cover, not the band: %s" % color)
+
+
+### Colors (GP-0127)
+
+
+# How far a probed pixel may be from the colour it was meant to be, in sRGB.
+const COLOR_TOLERANCE := 0.03
+
+
+# A point inside the k-th band of the crust, where it stands in the world:
+# halfway between the first stretch of its older isochron and the same stretch
+# of its younger one, away from the flowlines.
+func _inside_band(crust: Feature, k: int) -> Vector2:
+	var band: PackedVector2Array = crust.rings[k]
+	var older := (band[0] + band[1]) * 0.5
+	var younger := (band[band.size() - 1] + band[band.size() - 2]) * 0.5
+	var basis := Feature.world_basis(app.document.root, crust, app.document.current_time)
+	return Feature.apply_basis(PackedVector2Array([(older + younger) * 0.5]), basis)[0]
+
+
+func _assert_color(at: Vector2, expected: Color, tolerance: float, what: String) -> void:
+	var screen: Variant = await _screen(at)
+	if screen == null:
+		return
+	var color := await probe(screen)
+	var off := maxf(maxf(absf(color.r - expected.r), absf(color.g - expected.g)),
+		absf(color.b - expected.b))
+	assert_true(off <= tolerance, "%s at %s reads %s, not %s" % [what, at, color, expected])
+
+
+# Each band is drawn in the palette's color at its age, spread over the oldest
+# crust in the document: 100 My here, at the dark end of Blue or the violet
+# end of Rainbow.
+func test_a_crust_draws_band_by_band_in_blue_and_in_rainbow() -> void:
+	await _split_square()
+	var crust := _titled("Square crust")
+	assert_eq(Array(crust.band_ages), [100.0, 75.0, 50.0, 25.0], "four bands")
+	for palette in ["blue", "rainbow"]:
+		app.document.view.crust_palette = palette
+		app.refresh_geometry()
+		await frames(2)
+		for k in 4:
+			var expected := Palette.built_in(palette).color_at(10.0 * crust.band_ages[k])
+			await _assert_color(_inside_band(crust, k), expected, COLOR_TOLERANCE,
+				"band %d in %s" % [k, palette])
+	app.document.view.crust_palette = ViewSettings.DEFAULT_CRUST_PALETTE
+
+
+func test_a_changed_ridge_color_draws_the_ridge_in_it() -> void:
+	await _split_square()
+	var ridge := _titled("Square ridge")
+	var yellow := Color(1.0, 1.0, 0.0)
+	app.document.view.ridge_color = yellow
+	app.refresh_geometry()
+	await frames(2)
+	var on := (ridge.rings[0][0] + ridge.rings[0][1]) * 0.5
+	await _assert_color(on, yellow, 0.1, "the ridge")
+	app.document.view.ridge_color = FeatureType.color(FeatureType.LINE)

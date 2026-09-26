@@ -137,6 +137,8 @@ var line_width_spin: SpinBox
 # Every row of the form, each a label and the control beside it, and whether a
 # group and a feature have it.
 var _rows: Array[Dictionary] = []
+# The Colour row, which a ridge or crust does not show.
+var _color_row: Dictionary = {}
 # The caption of the Area row, which shows only for what is drawn as a polygon.
 var _area_caption: Label
 # The Closed switch, the section table and its buttons, which only a topology
@@ -245,6 +247,7 @@ func _build() -> void:
 	var color_row := HBoxContainer.new()
 	color_row.name = "ColorRow"
 	_row(form, "Colour", color_row, true)
+	_color_row = _rows[-1]
 
 	color_button = Helpers.color_button("Color", Helpers.COLOR_TOOLTIP)
 	color_button.custom_minimum_size = Vector2(0, 28)
@@ -679,6 +682,10 @@ func show_node(node_: Feature) -> void:
 	# its Pick toggle can add the first one.
 	var is_topology := is_feature and (node.geometry_kind == Feature.GeometryKind.TOPOLOGY
 		or node.feature_type == "topology")
+	# A ridge or crust takes its colors from the View settings, not its own.
+	if is_feature and node.is_sea_floor():
+		(_color_row["label"] as Control).visible = false
+		(_color_row["control"] as Control).visible = false
 	# A crust is built from its half and its ridge, so it has no table, and a
 	# ridge is a line between its two sections, so it cannot be closed.
 	var is_crust := is_feature and node.is_crust()

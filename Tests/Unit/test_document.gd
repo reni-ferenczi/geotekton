@@ -333,9 +333,6 @@ func test_a_split_with_ridge_and_crust_leaves_five_features_in_order() -> void:
 	for index in [3, 4]:
 		var crust: Feature = document.root.children[index]
 		assert_true(crust.is_crust() and crust.closed, "a crust")
-		assert_eq(crust.color, FeatureType.color(FeatureType.CRUST), "in the crust colour")
-		assert_eq(crust.line_color(crust.color),
-			FeatureType.color(FeatureType.CRUST_LINES), "with its lines in theirs")
 		assert_eq(crust.line_scale(), Feature.CRUST_LINE_SCALE, "and drawn thin")
 		assert_eq(crust.time_range, Vector2i(0, 100), "over the ridge's time range")
 		assert_eq(crust.crust_ridge, ridge.uuid, "opened by the ridge")
@@ -502,10 +499,10 @@ func _crust_geometry(document: Document, crust: Feature, styling: Styling = null
 	return Planet.collect_geometry(document.root, document.current_time, styling)
 
 
-# GP-0103: the bands are colored by the age of the crust in them. The oldest
-# band, the one lying against the continent, keeps the crust's own color, and
-# each younger band towards the ridge is a lighter shade of it.
-func test_the_bands_are_colored_by_the_age_of_the_crust() -> void:
+# GP-0127: the bands are colored by the age of the crust in them at the time
+# being viewed, from the crust palette of the view settings, Blue unless
+# another is picked, spread from 0 My to the oldest crust in the document.
+func test_the_bands_are_colored_by_their_age_from_the_blue_palette() -> void:
 	var document := _split_square(true)
 	document.current_time = 0.0
 	var crust: Feature = document.root.children[3]
@@ -513,13 +510,16 @@ func test_the_bands_are_colored_by_the_age_of_the_crust() -> void:
 	assert_eq(Array(crust.band_ages), [100.0, 75.0, 50.0, 25.0],
 		"the band ages run oldest at the continent to youngest at the ridge")
 	assert_eq(crust.ring_triangles.size(), 4, "with every band triangulated on its own")
+	assert_eq(geometry.oldest_crust, 100.0, "the ramp ends at the oldest crust")
 
 	var columns := _columns_of(geometry, crust)
-	var base := FeatureType.color(FeatureType.CRUST)
+	var blue := Palette.built_in("blue")
 	assert_eq(columns.size(), 4, "a column of the feature rows per band")
-	assert_eq(geometry.colors[columns[0]], base, "the oldest band is the crust colour itself")
-	assert_eq(geometry.colors[columns[3]], base.lightened(Styling.YOUNGEST_LIGHTER),
-		"and the youngest the lightest shade of it")
+	for k in columns.size():
+		assert_eq(geometry.colors[columns[k]], blue.color_at(1000.0 * crust.band_ages[k] / 100.0),
+			"band %d is Blue at its age over the oldest crust" % k)
+	assert_eq(geometry.colors[columns[0]], blue.color_at(1000.0),
+		"so the oldest band is the dark end")
 	for k in columns.size() - 1:
 		assert_true(geometry.colors[columns[k]].v < geometry.colors[columns[k + 1]].v,
 			"band %d is darker than the one nearer the ridge" % k)
@@ -528,54 +528,102 @@ func test_the_bands_are_colored_by_the_age_of_the_crust() -> void:
 			"while the isochrons and the flowlines keep their own colour")
 
 
-# GP-0123: no group style reaches a crust, the age style included, so its bands
-# are its own ramp whatever the group says.
-func test_the_age_style_leaves_the_crust_its_own_ramp() -> void:
+# A band's color moves towards the old end as the time moves on: at 50 Ma the
+# crust is 50 My old at most and the band beside the continent is the dark end.
+func test_the_band_ages_count_from_the_time_being_viewed() -> void:
+	var document := _split_square(true)
+	document.current_time = 50.0
+	var crust: Feature = document.root.children[3]
+	var geometry := _crust_geometry(document, crust)
+	assert_eq(Array(crust.band_ages), [50.0, 25.0], "two bands at 50 Ma")
+	assert_eq(geometry.oldest_crust, 50.0, "the oldest crust is 50 My old then")
+	var columns := _columns_of(geometry, crust)
+	assert_eq(geometry.colors[columns[0]], Palette.built_in("blue").color_at(1000.0),
+		"the band against the continent is the dark end")
+
+
+func test_the_bands_under_rainbow_and_a_custom_ramp() -> void:
 	var document := _split_square(true)
 	document.current_time = 0.0
-	var from := Color(1.0, 0.0, 0.0, 1.0)
-	var to := Color(0.0, 0.0, 1.0, 1.0)
+	var crust: Feature = document.root.children[3]
+	var settings := ViewSettings.new()
+	settings.crust_palette = "rainbow"
+	var geometry := _crust_geometry(document, crust, Styling.of(settings, document.root))
+	var columns := _columns_of(geometry, crust)
+	var rainbow := Palette.built_in("rainbow")
+	for k in columns.size():
+		assert_eq(geometry.colors[columns[k]], rainbow.color_at(10.0 * crust.band_ages[k]),
+			"Rainbow over 0 to 100 My at band %d" % k)
+
+	var red := Color(1, 0, 0, 1)
+	var green := Color(0, 1, 0, 1)
+	var blue := Color(0, 0, 1, 1)
+	settings.crust_palette = Palette.RAMP
+	settings.crust_ramp_colors.assign([red, green, blue])
+	geometry = _crust_geometry(document, crust, Styling.of(settings, document.root))
+	var expected := [blue, green.lerp(blue, 0.5), green, red.lerp(green, 0.5)]
+	for k in columns.size():
+		assert_close(geometry.colors[columns[k]], expected[k], 1e-5,
+			"the custom ramp spread over 0 to 100 My at band %d" % k)
+
+
+# A second split, older than the first, moves the old end of the ramp to it for
+# every crust in the document.
+# GP-0123: no group style reaches a crust, the age style included.
+func test_the_age_style_leaves_the_crust_to_the_view_settings() -> void:
+	var document := _split_square(true)
+	document.current_time = 0.0
 	document.root.style.mode = Styling.BY_AGE
-	document.root.style.palette = Palette.RAMP
-	document.root.style.ramp_colors = [from, to]
-	document.root.style.ramp_span = 200.0
+	document.root.style.palette = "rainbow"
 	var crust: Feature = document.root.children[3]
 	var geometry := _crust_geometry(document, crust,
 		Styling.of(ViewSettings.new(), document.root))
 	var columns := _columns_of(geometry, crust)
-	assert_eq(columns.size(), 4, "the four bands are drawn")
 	for k in columns.size():
-		assert_close(geometry.colors[columns[k]],
-			Styling.lighter_band(crust.color, float(k) / 3.0), 1e-5,
-			"the band holding crust %s My old" % crust.band_ages[k])
+		assert_eq(geometry.colors[columns[k]],
+			Palette.built_in("blue").color_at(10.0 * crust.band_ages[k]),
+			"the band holding crust %s My old is still Blue" % crust.band_ages[k])
 
 
-# The crust colour preference sets the old end of the ramp: a crust starts in
-# the colour the preference holds, and every band is a shade of that.
-func test_the_crust_colour_preference_moves_the_whole_ramp() -> void:
-	var kept := Config.directory_override
-	Config.directory_override = ProjectSettings.globalize_path(CONFIG_SCRATCH)
-	DirAccess.make_dir_recursive_absolute(Config.directory_override)
-	DirAccess.remove_absolute(Config.directory_override + "/config.json")
-	Config.forget()
-	var picked := Color(0.7, 0.3, 0.1, 1.0)
-	Config.set_feature_colors({FeatureType.CRUST: picked})
-
+func test_the_ramp_spans_the_oldest_crust_in_the_document() -> void:
 	var document := _split_square(true)
+	var older := Feature.create_feature("Older")
+	older.add_ring(PackedVector2Array([Vector2(30, -10), Vector2(30, 10),
+		Vector2(50, 10), Vector2(50, -10)]), Feature.GeometryKind.POLYGON)
+	document.root.children.append(older)
+	document.current_time = 200.0
+	assert_eq(document.split_feature_along(older, 0,
+		PackedVector2Array([Vector2(29, 0), Vector2(51, 0)]), true, true), "")
+	for title in ["Older", "Older 2"]:
+		var half: Feature = document.root.children.filter(
+			func(n: Feature) -> bool: return n.title == title)[0]
+		var west := _mean_longitude(half.rings[0]) < 0.0
+		assert_eq(document.set_keyframe(half, 200.0, Vector3.ZERO), "")
+		assert_eq(document.set_keyframe(half, 0.0,
+			Vector3(20, 0, 4) if west else Vector3(-15, 0, -3)), "")
 	document.current_time = 0.0
 	var crust: Feature = document.root.children[3]
 	var geometry := _crust_geometry(document, crust)
-	var columns := _columns_of(geometry, crust)
-	assert_eq(crust.color, picked, "the crust starts in the colour the preference holds")
-	assert_eq(columns.size(), 4, "in four bands")
-	for k in columns.size():
-		assert_eq(geometry.colors[columns[k]],
-			Styling.lighter_band(picked, float(k) / 3.0),
-			"band %d is a shade of the picked colour" % k)
+	assert_eq(geometry.oldest_crust, 200.0, "the older split's crust is the oldest")
+	assert_eq(geometry.colors[_columns_of(geometry, crust)[0]],
+		Palette.built_in("blue").color_at(500.0), "so a 100 My old band is halfway")
 
-	DirAccess.remove_absolute(Config.directory_override + "/config.json")
-	Config.directory_override = kept
-	Config.forget()
+
+func test_the_ridge_is_drawn_in_the_ridge_color() -> void:
+	var document := _split_square(true)
+	document.current_time = 0.0
+	var ridge: Feature = document.root.children[2]
+	var settings := ViewSettings.new()
+	assert_eq(settings.ridge_color, FeatureType.color(FeatureType.LINE),
+		"a new document takes the Line color")
+	settings.ridge_color = Color(0.9, 0.8, 0.1, 1.0)
+	settings.crust_lines_color = Color(0.1, 0.2, 0.3, 1.0)
+	var geometry := Planet.collect_geometry(document.root, 0.0,
+		Styling.of(settings, document.root))
+	assert_eq(geometry.colors[geometry.index_for(ridge)], settings.ridge_color, "the ridge")
+	var crust: Feature = document.root.children[3]
+	assert_eq(geometry.line_colors[geometry.index_for(crust)], settings.crust_lines_color,
+		"and the isochrons and flowlines in theirs")
 
 
 ### The children a split takes along
