@@ -67,6 +67,12 @@ GDScript tests live in two directories and are discovered by file name:
   `TestCase` and adds helpers for loading a sample file, turning the globe, reading
   pixels and injecting clicks.
 
+`Tests/Rendered/test_sea_floor.gd` splits a square with Ridge and Crust on and
+checks that the ridge and crusts have no rows, that one is selected with no row
+selected, that Cut, Copy and Duplicate refuse it and Delete takes it to its
+half, that a click on a band selects the crust, and that a red square over a
+band draws red with the crust at the top of the tree.
+
 `Tests/Rendered/test_feature_tree.gd` drags tree rows with the mouse. While a
 drag is on, Godot finds the control under it from the real pointer rather than
 from injected motion, so that test moves the system pointer with
@@ -450,7 +456,8 @@ inside each band reads the age ramp: the band against the continent is the
 crust's steel blue, the one against the ridge is that lightened by 55 percent of
 the way to white, and each band between is lighter than the one before it. A
 pixel on the 75 Ma isochron is its lines' light steel blue. The pointer is moved
-away for all of them, so no hover highlight is read. A skip of 50 My leaves two chunks. A Step (My) of
+away for all of them, so no hover highlight is read. A crust has no row in the
+feature tree, so a click on its second band is what selects it. A skip of 50 My leaves two chunks. A Step (My) of
 25 on the first crust, which is one undo version, brings its four bands back
 and holds them through a skip of 10, while the other half, still at 0, follows
 that skip to ten bands; undo puts the first one back on the skip. Last, a topology clicked together from two

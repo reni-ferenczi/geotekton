@@ -298,7 +298,7 @@ class Geometry extends RefCounted:
 
 	# Work out the color of every column again at the resolved time, without
 	# touching the primitives. Without a styling each feature is drawn in the
-	# color it carries. A band of a crust takes the color the age ramp gives it,
+	# color it carries. A band of a crust takes a shade of the crust's color,
 	# which is why a change of color reaches the bands without the geometry
 	# being collected again.
 	func recolor(styling_: Styling) -> void:
@@ -308,8 +308,7 @@ class Geometry extends RefCounted:
 			var color: Color = styling.color_of(node, time) if styling != null else node.color
 			if bands.has(index):
 				var band: Vector2 = bands[index]
-				color = styling.band_color(node, color, band.x, band.y) if styling != null \
-					else Styling.lighter_band(color, band.y)
+				color = Styling.lighter_band(color, band.y)
 			colors[index] = color
 			line_colors[index] = node.line_color(color)
 
@@ -418,6 +417,8 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 # feature comes out; without one every feature is drawn in the colour it carries,
 # which is what a document said before there were any styles. A feature its class
 # is switched off for is left out here, so it is neither drawn nor hit tested.
+#
+# The ridges and crusts go first, under everything else; see _drawing_order().
 static func collect_geometry(root: Feature, time: float = 0.0,
 		styling: Styling = null) -> Geometry:
 	Topology.rebuild_all(root, time)
@@ -425,14 +426,7 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 	Crust.rebuild_all(root, time, Config.get_skip_increment())
 	var geometry := Geometry.new()
 	geometry.nodes = Coupling.index(root)
-	var stack: Array[Feature] = [root]
-	while not stack.is_empty():
-		var node: Feature = stack.pop_back()
-		if not node.enabled:
-			continue
-		if node.is_group:
-			stack.append_array(node.children)
-			continue
+	for node in _drawing_order(root):
 		if styling != null and not styling.shows(node):
 			continue
 		# A feature is drawn whole or not at all, so what it needs is counted
@@ -485,8 +479,42 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 	return geometry
 
 
+# The features to draw, first drawn first, so each lies over the ones before it
+# and is hit tested ahead of them. The first feature of a group is drawn on top.
+# Every crust goes under every ridge and the ridges under everything else, so the
+# sea floor never hides a feature on the tree and a ridge stays over its bands.
+#
+# A ridge or crust has no row, so the group it sits in does not hide it: a crust
+# shows while its half does and a ridge while either of its halves does, a half
+# showing when it and every group above it are enabled.
+static func _drawing_order(root: Feature) -> Array[Feature]:
+	var rest: Array[Feature] = []
+	var shown := {}
+	var stack: Array[Feature] = [root]
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		if not node.enabled or node.is_sea_floor():
+			continue
+		if node.is_group:
+			stack.append_array(node.children)
+			continue
+		shown[node.uuid] = true
+		rest.append(node)
+	var crusts: Array[Feature] = []
+	var ridges: Array[Feature] = []
+	stack.assign([root])
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		stack.append_array(node.children)
+		if not node.is_sea_floor() or not node.enabled \
+				or not Array(node.halves()).any(func(uuid: String) -> bool: return shown.has(uuid)):
+			continue
+		(crusts if node.is_crust() else ridges).append(node)
+	return crusts + ridges + rest
+
+
 # The bands of a crust, each in a column of its own, so the age ramp can fill
-# each one in the color of the crust it holds; see Styling.band_color(). The
+# each one in the color of the crust it holds; see Styling.lighter_band(). The
 # triangles of ring k are the k-th run of Feature.ring_triangles, and the ages
 # run oldest first, the oldest band lying against the continent. Answers with
 # the column the last band took, which the isochrons and the flowlines are then

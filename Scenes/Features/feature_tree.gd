@@ -35,6 +35,13 @@ var root: Feature = null
 var items: Dictionary[int, TreeItem] = {}
 var editable_item: TreeItem
 
+# The ridges and crusts, by pnid. They have no row: see Feature.is_sea_floor().
+var sea_floor: Dictionary[int, Feature] = {}
+
+# The selection when it is one of them, which no row can hold; null otherwise,
+# when the selected row is the selection.
+var selected_off_tree: Feature = null
+
 # The time the rows are shown for. Rebuilding the tree keeps it, so a reload in
 # the middle of an animation does not put the greyed out rows back.
 var time: float = 0.0
@@ -54,6 +61,8 @@ func _ready() -> void:
 func load_root_group(root_group: Feature) -> void:
 	clear()
 	items.clear()
+	sea_floor.clear()
+	selected_off_tree = null
 	self.root = root_group
 	load_group(null, root, true)
 	get_root().set_editable(0, false)
@@ -83,6 +92,8 @@ func load_group(parent: TreeItem, group: Feature, enabled: bool):
 	for child in group.children:
 		if child.is_group:
 			load_group(item, child, enabled and group.enabled)
+		elif child.is_sea_floor():
+			sea_floor[child.pnid] = child
 		else:
 			load_feature(item, child)
 
@@ -151,20 +162,40 @@ func _apply_time(item: TreeItem) -> void:
 
 
 func get_selected_node() -> Feature:
+	if selected_off_tree != null:
+		return selected_off_tree
 	var item := get_selected()
 	if item == null:
 		return null
 	return item.get_metadata(0) as Feature
 
 
+# Whether the node is one the tree can select: a row, or a ridge or crust.
+func holds_node(pnid: int) -> bool:
+	return items.has(pnid) or sea_floor.has(pnid)
+
+
 func select_root():
 	if root != null:
+		selected_off_tree = null
 		set_selected(get_root(), 0)
 
 
+# Select a node by its pnid, so a node of a tree that has since been cloned, by
+# an undo or a reload, finds the one standing in for it. A ridge or crust is
+# selected with no row selected, and the selection is announced here, since no
+# row does it.
 func select_node(node: Feature) -> void:
-	if node == null or not items.has(node.pnid):
+	if node == null:
 		return
+	if sea_floor.has(node.pnid):
+		selected_off_tree = sea_floor[node.pnid]
+		deselect_all()
+		notify_feature_selected()
+		return
+	if not items.has(node.pnid):
+		return
+	selected_off_tree = null
 	var item := items[node.pnid]
 
 	# Expand all ancestor groups before selecting
@@ -293,6 +324,7 @@ func _node_at(at_position: Vector2) -> Feature:
 
 
 func _on_item_selected() -> void:
+	selected_off_tree = null
 	if editable_item != null:
 		editable_item.set_editable(0, false)
 		editable_item = null

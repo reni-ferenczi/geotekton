@@ -56,7 +56,7 @@ func _on_root_replaced(_same_document: bool = false) -> void:
 	# reload() puts the selection back by pnid, which a clone keeps, so undo and
 	# redo stay on the feature that was selected. A file that was just opened
 	# holds none of the old ids, and then the root is the selection.
-	if selected == null or not feature_tree.items.has(selected.pnid):
+	if selected == null or not feature_tree.holds_node(selected.pnid):
 		feature_tree.select_root()
 
 
@@ -94,7 +94,7 @@ func update_button_availability() -> void:
 	var is_root_selected := selected == null or selected.is_root
 	undo_button.disabled = not document.can_undo()
 	redo_button.disabled = not document.can_redo()
-	duplicate_button.disabled = is_root_selected
+	duplicate_button.disabled = is_root_selected or selected.is_sea_floor()
 	commands_changed.emit()
 
 
@@ -174,6 +174,10 @@ func add_new_feature_at(parent: Feature, index: int) -> void:
 ### Delete
 
 
+# Delete the node, with the ridges and crusts built from it; see
+# Document.delete_node(). A feature with a row hands the selection to its next
+# row, its previous one or its group. A ridge or crust has no row beside it, so
+# a crust hands it to its half and a ridge to nothing.
 func delete_node(node: Feature) -> void:
 	if node == null or node.is_root:
 		return
@@ -182,20 +186,24 @@ func delete_node(node: Feature) -> void:
 	if parent == null:
 		return
 
-	var index := parent.find_child(node)
-	parent.children.remove_at(index)
-	document.record()
-
-	# Select next sibling, previous sibling, or parent
-	if index < parent.child_count():
-		reload()
-		feature_tree.select_node(parent.children[index])
-	elif index > 0:
-		reload()
-		feature_tree.select_node(parent.children[index - 1])
+	var next := parent
+	if node.is_sea_floor():
+		next = root.get_node_by_uuid(node.crust_half) if node.is_crust() else null
 	else:
-		reload()
-		feature_tree.select_node(parent)
+		var rows := parent.children.filter(func(child: Feature) -> bool:
+			return child == node or not child.is_sea_floor())
+		var at := rows.find(node)
+		if at + 1 < rows.size():
+			next = rows[at + 1]
+		elif at > 0:
+			next = rows[at - 1]
+	if not document.delete_node(node).is_empty():
+		return
+	reload()
+	if next == null or (next != root and root.find_parent(next) == null):
+		feature_tree.select_root()
+	else:
+		feature_tree.select_node(next)
 
 
 ### Duplicate
@@ -206,8 +214,10 @@ func _on_duplicate_pressed() -> void:
 	duplicate_node(selected)
 
 
+# A ridge or crust is built from its halves, so it is not duplicated, copied or
+# pasted: the copy would name the same halves and draw over the one it came from.
 func duplicate_node(node: Feature) -> void:
-	if node == null or node.is_root:
+	if node == null or node.is_root or node.is_sea_floor():
 		return
 
 	var parent := root.find_parent(node)
@@ -234,7 +244,7 @@ func copy_selected() -> void:
 
 func cut_selected() -> void:
 	var selected := feature_tree.get_selected_node()
-	if selected == null or selected.is_root:
+	if selected == null or selected.is_root or selected.is_sea_floor():
 		return
 	copy(selected)
 	delete_node(selected)
@@ -254,7 +264,7 @@ func paste_at_selected() -> void:
 
 
 func copy(node: Feature) -> void:
-	if node == null or node.is_root:
+	if node == null or node.is_root or node.is_sea_floor():
 		return
 	var data: Variant = node.to_json()
 	data["application"] = Document.APPLICATION
@@ -286,6 +296,8 @@ func paste(parent: Feature, index: int = -1) -> void:
 	# duplicate() rather than the node as it was read: the clipboard carries the
 	# ids of the feature it was copied from, and a paste is another feature.
 	var node := Feature.from_json(data).duplicate()
+	if node.is_sea_floor():
+		return
 	if index < 0:
 		parent.children.append(node)
 	else:

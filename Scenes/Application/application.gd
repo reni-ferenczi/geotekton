@@ -600,14 +600,16 @@ func _update_edit_menu() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var is_node := selected != null and not selected.is_root
 	var is_leaf := is_node and not selected.is_group
+	# A ridge or crust is built from its halves: it is deleted, never copied.
+	var copyable := is_node and not selected.is_sea_floor()
 	var pasteable := Document.APPLICATION in DisplayServer.clipboard_get()
 	var disabled := {
 		EditItem.UNDO: not document.can_undo() and _tool_points().is_empty(),
 		EditItem.REDO: not document.can_redo() and taken_back.is_empty(),
-		EditItem.CUT: not is_node,
-		EditItem.COPY: not is_node,
+		EditItem.CUT: not copyable,
+		EditItem.COPY: not copyable,
 		EditItem.PASTE: not pasteable,
-		EditItem.DUPLICATE: not is_node,
+		EditItem.DUPLICATE: not copyable,
 		EditItem.DELETE: not is_node,
 		EditItem.COPY_SHAPE: not (is_leaf and selected.has_geometry()),
 		EditItem.PASTE_SHAPE: shape_clipboard.is_empty() or not is_leaf,

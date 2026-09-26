@@ -381,6 +381,25 @@ func is_crust() -> bool:
 	return not is_group and not crust_half.is_empty()
 
 
+# A ridge or a crust a split left: built from its halves, so it has no row in the
+# feature tree, shows while they do and draws under every other feature. See
+# Docs/Editing.md#the-ridge.
+func is_sea_floor() -> bool:
+	return not is_group and (midway or is_crust())
+
+
+# The uuids of the halves a ridge or crust is built from: a crust's half, or the
+# features a ridge's two sections run along.
+func halves() -> PackedStringArray:
+	var uuids := PackedStringArray()
+	if is_crust():
+		uuids.append(crust_half)
+	elif midway:
+		for section in sections:
+			uuids.append(section.feature_uuid)
+	return uuids
+
+
 # How wide the feature's lines are drawn, against the shader's
 # geometry_line_width: what its type draws at, times its own line_width. A
 # hotspot track is thin so the dots at its samples stand out, and a circle is

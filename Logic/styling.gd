@@ -61,7 +61,7 @@ const DEFAULT_SINGLE := Color(0.9, 0.9, 0.9, 1.0)
 # How much lighter the youngest band of a crust is drawn than the oldest. The
 # oldest band, the one against the continent, keeps the crust's own colour, so
 # the colour the crust carries is still the colour of the crust; see
-# band_color().
+# lighter_band().
 const YOUNGEST_LIGHTER := 0.55
 
 # The switches, and the palettes read so far by source, shared with whoever
@@ -99,6 +99,10 @@ static func of(settings_: ViewSettings, root: Feature = null, palettes_: Diction
 # draws each feature's own colour. A loaded document's root carries that style
 # itself.
 func _walk(node: Feature, deciding: GroupStyle, opacity: float) -> void:
+	if node.is_sea_floor():
+		# A ridge or crust has no row under its group, so the group's style does
+		# not reach it: it is drawn in its own colour at its own opacity.
+		return
 	if not node.is_group:
 		_deciding[node] = deciding
 		_opacity[node] = opacity
@@ -163,24 +167,11 @@ func color_of(feature: Feature, time: float = 0.0) -> Color:
 	return color
 
 
-# The colour one band of a crust is filled in, given the colour the style gave
-# the crust as a whole, the age of the crust in the band and where the band
-# falls in the ramp, 0 at the oldest and 1 at the youngest. Under the age style
-# the band is read from the palette at its own age, the way an age grid is
-# painted; under every other style the crust's colour is lightened towards the
-# ridge, so a colour picked for the crust is what the oldest band comes out and
-# the ramp moves with it. See Docs/Editing.md#the-crust.
-func band_color(feature: Feature, fill: Color, age: float, shade: float) -> Color:
-	var style: GroupStyle = _deciding.get(feature)
-	if style != null and style.mode == BY_AGE:
-		var color := age_palette(style).color_at(age)
-		color.a = fill.a
-		return color
-	return Styling.lighter_band(fill, shade)
-
-
-# The fixed ramp on its own, which is what a geometry collected without a
-# styling colours its bands with.
+# The colour one band of a crust is filled in, given the crust's own colour and
+# where the band falls in the ramp, 0 at the oldest and 1 at the youngest: the
+# crust's colour lightened towards the ridge, so a colour picked for the crust is
+# what the oldest band comes out and the ramp moves with it. No group style
+# reaches a crust; see _walk(). See Docs/Editing.md#the-crust.
 static func lighter_band(fill: Color, shade: float) -> Color:
 	return fill.lightened(shade * YOUNGEST_LIGHTER)
 

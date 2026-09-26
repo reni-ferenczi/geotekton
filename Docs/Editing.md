@@ -98,6 +98,18 @@ the [Properties](Properties.md) panel, so the colour is picked where it is
 shown; a right click puts the colour back to the one the feature's type gives.
 Everything else about a feature is edited in the Properties panel.
 
+The [ridge](#the-ridge) and the [crusts](#the-crust) a split leaves have no
+row. They are selected by clicking them on the globe, and then no row is
+selected while the Properties panel, the highlight, the Edit menu and the keys
+work on them as on any feature. Delete works on them, from the Edit menu, the
+Delete key or the globe's right-click menu, and a deleted crust hands the
+selection to its half and a deleted ridge to nothing. Cut, Copy, Duplicate and
+Paste refuse them, since they are built from their halves. Deleting a half, or
+a group holding one, deletes its crust, every ridge running along it and that
+ridge's other crust with it, in the same undo step. `FeatureTree.sea_floor`
+holds them by pnid and `selected_off_tree` the one selected, so
+`get_selected_node()` and `select_node()` work for them as for a row.
+
 Dragging a row moves the feature or group. Where it lands depends on the part
 of the row the pointer is over when the button is released, and the tree marks
 that part while the drag is on:
@@ -503,7 +515,8 @@ or the cut straddle ±180°. Implemented by `Document.divide_feature()` over
 With the **Ridge** switch on, which is how it starts, the cut also leaves the
 rift or mid ocean ridge that opens between the two halves as they drift apart.
 It is a [midway topology](#midway-topologies) named after the polygon,
-`Laurentia ridge`, placed after the second half and colored like a Line. Its two
+`Laurentia ridge`, placed after the second half and colored like a Line, with no
+row in the feature tree; see [The feature tree](#the-feature-tree). Its two
 sections are the two halves' sides of the cut: the first half's run from the
 first vertex of its ring to the last point of the cut, and the same run on the
 second half, walked back, because the second half holds the cut the other way
@@ -520,8 +533,16 @@ keyframes and follows nothing; `Ridge.ring_at()` in `Logic/ridge.gd` works out
 where it is at any age.
 
 The ridge is part of the split's one undo version, so undo takes it away with
-the halves. Deleting a half afterwards leaves the ridge's section on that half
-broken, the ridge draws nothing, and undo mends it. Splitting a half again
+the halves. Deleting a half deletes the ridge and its crusts with it.
+
+The ridge and the crusts are drawn under every other feature, crusts first and
+the ridge over them, wherever they sit among the features, so a continent is
+never hidden by the sea floor beside it. At the age of the split the ridge lies
+under both halves and cannot be seen or clicked until they drift apart. The
+group they sit in neither hides nor styles them: a crust shows while its half
+does and the ridge while either half does, a half showing while it and every
+group above it are enabled, and each is drawn in its own color at its own
+opacity. See `Planet._drawing_order()`. Splitting a half again
 keeps the ridge on its cut; see [Splitting a half again](#splitting-a-half-again).
 
 With the switch off the cut leaves the two halves and nothing else, and the
@@ -547,19 +568,18 @@ Each half gets one feature, `Laurentia crust`, placed after the ridge with the
 ridge's time range. It holds the bands between two isochrons in a row, one
 filled part each, in steel blue, with the oldest band against the continent, and
 it draws the isochrons and a flowline for each vertex of the cut over them, as
-thin lines in light steel blue. So the order in the tree is `Laurentia`,
-`Laurentia 2`, `Laurentia ridge`, `Laurentia crust` and `Laurentia 2 crust`.
+thin lines in light steel blue. So the order in the document is `Laurentia`,
+`Laurentia 2`, `Laurentia ridge`, `Laurentia crust` and `Laurentia 2 crust`, and
+the tree shows the first two.
 
 Each band is filled by the age of the crust in it, the way an age grid reads in
 GPlates: the band against the continent, which holds the crust laid down at the
 age of the cut, is the crust's own steel blue, and every band towards the ridge
 is a lighter shade of it, up to 55 percent of the way to white at the youngest.
 The age is the older of the band's two isochrons, counted from the current time,
-so the crust beside the ridge is new whatever time is being looked at. A crust
-in a group on the [Feature age](Styling.md#the-draw-styles) style is painted
-band by band from that style's palette instead, each band read at its own age
-rather than the whole crust at the age of the split. Either way the color a
-crust carries is what its oldest band comes out, so the crust color in the
+so the crust beside the ridge is new whatever time is being looked at. No group
+style reaches a crust, [Feature age](Styling.md#the-draw-styles) included. The
+color a crust carries is what its oldest band comes out, so the crust color in the
 Feature colors section of [Preferences](Shell.md#preferences) sets the old end
 of the ramp and every band moves with it.
 
@@ -572,7 +592,7 @@ each band takes a column of its own in the [per feature
 rows](Shader.md#per-feature-rotation) the shader already reads, so neither the
 shader nor the geometry texture carries a color or an age per band. `Crust`
 records the age of the crust in each band beside the rings and
-`Styling.band_color()` turns it into the color.
+`Styling.lighter_band()` turns it into the color.
 
 At the age of the cut there is only the one isochron, so the crust draws
 nothing. As the time moves towards the present the halves drift and the bands
@@ -645,7 +665,8 @@ The pieces are part of the split's one undo version, and the status bar names
 them after the halves, the ridge and the crust, as in
 `Split into Laurentia, Laurentia 2, Range, Range 2` with Ridge off. The first feature of a
 group is drawn on top of the ones after it, so a range meant to show over its
-craton goes above it in the tree.
+craton goes above it in the tree. Ridges and crusts are the exception: they are
+drawn under everything; see [The ridge](#the-ridge).
 
 With the switch off, nothing but the feature is cut and everything that follows
 it goes on following the half that kept its title. The half away from the

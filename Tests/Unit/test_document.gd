@@ -528,9 +528,9 @@ func test_the_bands_are_colored_by_the_age_of_the_crust() -> void:
 			"while the isochrons and the flowlines keep their own colour")
 
 
-# Under the age style each band is read from the palette at its own age, the way
-# an age grid is painted, rather than the whole crust at the age of the split.
-func test_the_age_style_paints_each_band_at_its_own_age() -> void:
+# GP-0123: no group style reaches a crust, the age style included, so its bands
+# are its own ramp whatever the group says.
+func test_the_age_style_leaves_the_crust_its_own_ramp() -> void:
 	var document := _split_square(true)
 	document.current_time = 0.0
 	var from := Color(1.0, 0.0, 0.0, 1.0)
@@ -545,9 +545,9 @@ func test_the_age_style_paints_each_band_at_its_own_age() -> void:
 	var columns := _columns_of(geometry, crust)
 	assert_eq(columns.size(), 4, "the four bands are drawn")
 	for k in columns.size():
-		var age: float = crust.band_ages[k]
-		assert_close(geometry.colors[columns[k]], from.lerp(to, age / 200.0), 1e-5,
-			"the band holding crust %s My old" % age)
+		assert_close(geometry.colors[columns[k]],
+			Styling.lighter_band(crust.color, float(k) / 3.0), 1e-5,
+			"the band holding crust %s My old" % crust.band_ages[k])
 
 
 # The crust colour preference sets the old end of the ramp: a crust starts in
@@ -717,6 +717,115 @@ func _mean_longitude(ring: PackedVector2Array) -> float:
 	for vertex in ring:
 		total += vertex.y
 	return total / ring.size()
+
+
+### Ridges and crusts off the tree
+#
+# GP-0123: a ridge or crust has no row in the feature tree. Deleting a half takes
+# them with it, they draw under everything else, and they show while their halves
+# do, whatever their group says.
+
+
+func _titles(document: Document) -> Array:
+	return document.root.children.map(func(n: Feature) -> String: return n.title)
+
+
+func test_deleting_a_half_takes_its_ridge_and_both_crusts() -> void:
+	var document := _split_square(false)
+	assert_eq(document.delete_node(document.root.children[0]), "")
+	assert_eq(_titles(document), ["Square 2"],
+		"the half, the ridge running along it, its crust and the ridge's other crust go")
+	document.undo()
+	assert_eq(_titles(document), CRUST_TITLES, "one undo brings all four back")
+
+
+func test_deleting_a_crust_takes_only_the_crust() -> void:
+	var document := _split_square(false)
+	assert_eq(document.delete_node(_titled(document, "Square crust")), "")
+	assert_eq(_titles(document), ["Square", "Square 2", "Square ridge", "Square 2 crust"])
+	document.undo()
+	assert_eq(_titles(document), CRUST_TITLES, "undo restores it")
+
+
+func test_deleting_the_ridge_takes_its_crusts() -> void:
+	var document := _split_square(false)
+	assert_eq(document.delete_node(_titled(document, "Square ridge")), "")
+	assert_eq(_titles(document), ["Square", "Square 2"], "a crust is nothing without its ridge")
+
+
+func test_the_sea_floor_draws_under_every_other_feature() -> void:
+	var document := _split_square(true)
+	document.current_time = 0.0
+	# Put the crusts and the ridge at the top of the tree, where a feature would
+	# be drawn over everything.
+	var root := document.root
+	var moved := root.children.slice(2)
+	for node in moved:
+		root.children.erase(node)
+	moved.append_array(root.children)
+	root.children.assign(moved)
+	var geometry := Planet.collect_geometry(root, 0.0)
+	var order := geometry.features.map(func(n: Feature) -> String: return n.title)
+	var first_ridge := order.find("Square ridge")
+	assert_true(first_ridge >= 0, "the ridge is drawn: %s" % [order])
+	for title in ["Square crust", "Square 2 crust"]:
+		var at := order.find(title)
+		assert_true(at >= 0 and at < first_ridge, "%s under the ridge: %s" % [title, order])
+	for title in ["Square", "Square 2"]:
+		assert_true(order.find(title) > first_ridge, "%s over the sea floor: %s" % [title, order])
+
+
+func test_the_sea_floor_shows_while_its_halves_do() -> void:
+	var document := _split_square(true)
+	document.current_time = 0.0
+	var root := document.root
+	# The ridge and crusts in a disabled group of their own, the halves outside it.
+	var group := Feature.create_group("Sea")
+	for node in root.children.slice(2):
+		root.children.erase(node)
+		group.children.append(node)
+	group.enabled = false
+	root.children.append(group)
+	var drawn := func() -> Array:
+		return Planet.collect_geometry(root, 0.0).features.map(
+			func(n: Feature) -> String: return n.title)
+	var titles: Array = drawn.call()
+	for title in ["Square ridge", "Square crust", "Square 2 crust"]:
+		assert_true(title in titles, "%s shows although its group is off: %s" % [title, titles])
+
+	_titled(document, "Square").enabled = false
+	titles = drawn.call()
+	assert_true(not "Square crust" in titles, "a crust goes with its half: %s" % [titles])
+	assert_true("Square ridge" in titles, "a ridge stays while either half shows")
+	assert_true("Square 2 crust" in titles, "and so does the other crust")
+
+	_titled(document, "Square 2").enabled = false
+	titles = drawn.call()
+	assert_true(not "Square ridge" in titles, "with both halves off the ridge goes: %s" % [titles])
+
+
+func test_no_group_style_reaches_the_sea_floor() -> void:
+	var document := _split_square(true)
+	var group := Feature.create_group("Plates")
+	group.style = GroupStyle.new()
+	group.style.mode = Styling.BY_SINGLE
+	group.style.color = Color(1, 0, 0, 1)
+	group.style.opacity = 0.5
+	group.children.assign(document.root.children)
+	document.root.children.assign([group])
+	var styling := Styling.of(ViewSettings.new(), document.root)
+	var half := _titled_in(group, "Square")
+	assert_eq(styling.color_of(half), Color(1, 0, 0, 0.5), "a half takes the group's style")
+	for title in ["Square ridge", "Square crust"]:
+		var node := _titled_in(group, title)
+		assert_eq(styling.color_of(node), node.color, "%s keeps its own colour" % title)
+
+
+func _titled_in(group: Feature, title: String) -> Feature:
+	for node in group.children:
+		if node.title == title:
+			return node
+	return null
 
 
 ### A second split of a half

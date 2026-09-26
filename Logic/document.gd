@@ -178,6 +178,52 @@ func rename(node: Feature, title: String) -> void:
 	record()
 
 
+# Take a node out of the tree, and with it every ridge and crust built from a
+# feature under it: a ridge running along one, and a crust whose half or ridge
+# goes. They have no row in the feature tree to be found by and deleted from
+# afterwards. One version.
+func delete_node(node: Feature) -> String:
+	if node == null or node.is_root:
+		return "Select a feature or a group to delete."
+	var parent := root.find_parent(node)
+	if parent == null:
+		return "%s is not in the tree." % node.title
+	var gone := {}
+	var stack: Array[Feature] = [node]
+	while not stack.is_empty():
+		var inside: Feature = stack.pop_back()
+		gone[inside.uuid] = true
+		stack.append_array(inside.children)
+	var doomed: Array[Feature] = [node]
+	# Ridges before crusts, so a crust whose ridge was just marked goes too.
+	for crusts_now in [false, true]:
+		for leaf in _sea_floor():
+			if gone.has(leaf.uuid) or leaf.is_crust() != crusts_now:
+				continue
+			var built_from := Array(leaf.halves())
+			if leaf.is_crust():
+				built_from.append(leaf.crust_ridge)
+			if built_from.any(func(uuid: String) -> bool: return gone.has(uuid)):
+				gone[leaf.uuid] = true
+				doomed.append(leaf)
+	for leaf in doomed:
+		root.find_parent(leaf).children.erase(leaf)
+	record()
+	return ""
+
+
+# Every ridge and crust in the tree, in tree order.
+func _sea_floor() -> Array[Feature]:
+	var found: Array[Feature] = []
+	var stack: Array[Feature] = [root]
+	while not stack.is_empty():
+		var node: Feature = stack.pop_front()
+		if node.is_sea_floor():
+			found.append(node)
+		stack.append_array(node.children)
+	return found
+
+
 func set_enabled(node: Feature, enabled: bool) -> void:
 	node.enabled = enabled
 	if node.is_group and not enabled:

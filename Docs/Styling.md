@@ -81,11 +81,11 @@ works the colors out again whenever some feature is colored by age
 the geometry texture is not touched. See [Shader](Shader.md#per-feature-rotation).
 
 A [crust](Editing.md#the-crust) is the one feature drawn in more than one
-colour, since each of its bands holds crust of an age of its own. Under Feature
-age each band is read from the palette at that age, the way an age grid is
-painted; under every other style the colour the style gave the crust fills the
-band against the continent and is lightened band by band towards the ridge.
-`Styling.band_color()` is the whole of it.
+colour, since each of its bands holds crust of an age of its own: its own colour
+fills the band against the continent and is lightened band by band towards the
+ridge. `Styling.lighter_band()` is the whole of it. No group style reaches a
+crust or a ridge, since neither has a row under its group: both are drawn in
+their own colour at their own opacity, whatever the groups above them say.
 
 Picking a style changes nothing about the document's features. The colour a
 feature carries is still its own and still what the Properties panel edits; the
@@ -109,7 +109,7 @@ place. Every group carries a **style**:
 not inherit, and that group's style decides the color. The opacity works
 differently: every group above the feature multiplies its own into the alpha,
 whichever group decides the color. A feature at 80 percent under two groups at
-50 percent is drawn at 20 percent.
+50 percent is drawn at 20 percent. Neither reaches a ridge or a crust.
 
 The **root group's style is pinned** to Feature colour at full opacity, with
 the default palette and ramp (`GroupStyle.for_root()`). Nothing is above the
