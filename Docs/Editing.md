@@ -546,6 +546,9 @@ group above it are enabled, and each is drawn in its own color at its own
 opacity. See `Planet._drawing_order()`. Splitting a half again
 keeps the ridge on its cut; see [Splitting a half again](#splitting-a-half-again).
 
+The **Ridges** switch in the View menu hides every ridge, and a hidden ridge
+cannot be picked on the globe; see [Styling](Styling.md#the-visibility-switches).
+
 With the switch off the cut leaves the two halves and nothing else, and the
 Crust switch is greyed out.
 
@@ -587,8 +590,9 @@ of the ramp and every band moves with it.
 A feature is drawn in one color, so a crust carries a second one for its lines:
 `Feature.line_color()` gives it the crust lines color and everything else its
 own, and the shader paints a feature's segments and markers in that color and
-its filled triangles in the first. Hiding the lines on their own is left for
-later. The bands themselves are drawn in as many colors as there are bands:
+its filled triangles in the first. The **Oceanic Crust** switch in the View menu
+hides every crust, and **Isochrons and Flowlines** hides only their lines,
+leaving the bands; a hidden crust cannot be picked on the globe. The bands themselves are drawn in as many colors as there are bands:
 each band takes a column of its own in the [per feature
 rows](Shader.md#per-feature-rotation) the shader already reads, so neither the
 shader nor the geometry texture carries a color or an age per band. `Crust`
@@ -1115,7 +1119,8 @@ feature's own color at full opacity, so a feature under no group of its own is
 drawn in its own color.
 
 Which classes of geometry are drawn at all is in the View menu itself, one check
-item each for polygons, polylines, points, circles and topologies. See
+item each for polygons, polylines, points, circles, ridges and oceanic crust,
+and one more for the isochrons and flowlines drawn over the crust. See
 [Styling](Styling.md) for what is in each class, what the group styles resolve
 to and which part of the palette format is read.
 

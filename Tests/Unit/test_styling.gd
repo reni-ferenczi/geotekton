@@ -13,20 +13,20 @@ const POLYLINE_RING := [Vector2(0, 40), Vector2(20, 40)]
 const POINT_RING := [Vector2(-30, -30), Vector2(30, -30)]
 const CIRCLE_RING := [Vector2(50, 100), Vector2(60, 110), Vector2(50, 120)]
 
-# What each feature of the fixture is called, by the class it belongs to.
+# What each feature of the fixture is called, by the class it belongs to. The
+# sea floor switches have a fixture of their own, a split; see _sea_floor().
 const TITLES := {
 	Styling.POLYGONS: "Shield",
 	Styling.POLYLINES: "Ridge",
 	Styling.POINTS: "Stations",
 	Styling.CIRCLES: "Circle",
-	Styling.TOPOLOGIES: "Boundary",
 }
 
 const SINGLE := Color(0.2, 0.4, 0.6, 1.0)
 const OTHER_SINGLE := Color(0.7, 0.1, 0.3, 1.0)
 
 
-# Root > Shield, Ridge, Stations, Circle and Boundary, which runs along Ridge.
+# Root > Shield, Ridge, Stations and Circle.
 func _build_tree() -> Feature:
 	var root := Feature.create_group("Planet")
 	root.is_root = true
@@ -56,13 +56,6 @@ func _build_tree() -> Feature:
 	circle.time_range = Vector2i(0, 250)
 	circle.add_ring(PackedVector2Array(CIRCLE_RING), Feature.GeometryKind.POLYGON)
 	root.children.append(circle)
-
-	var boundary := Feature.create_feature(TITLES[Styling.TOPOLOGIES], Color.MAGENTA)
-	boundary.feature_type = "topology"
-	boundary.geometry_kind = Feature.GeometryKind.TOPOLOGY
-	boundary.time_range = Vector2i(0, 700)
-	boundary.sections = [TopologySection.create(ridge.uuid, 0, 0, 1)]
-	root.children.append(boundary)
 	return root
 
 
@@ -79,7 +72,7 @@ func _feature(root: Feature, class_id: String) -> Feature:
 
 func test_every_feature_of_the_fixture_lands_in_its_own_class() -> void:
 	var root := _build_tree()
-	for class_id in Styling.CLASSES:
+	for class_id in TITLES:
 		assert_eq(Styling.class_of(_feature(root, class_id)), class_id,
 			"%s is a %s" % [TITLES[class_id], class_id])
 
@@ -94,6 +87,24 @@ func test_the_type_decides_a_circle_rather_than_the_geometry() -> void:
 	assert_eq(Styling.class_of(feature), Styling.CIRCLES, "and now a circle")
 
 
+# GP-0128: a topology other than a ridge or crust has no switch of its own. It
+# goes with the geometry it is drawn as.
+func test_a_topology_goes_with_the_line_or_polygon_it_is_drawn_as() -> void:
+	var topology := Feature.create_feature("Boundary")
+	topology.feature_type = "topology"
+	topology.geometry_kind = Feature.GeometryKind.TOPOLOGY
+	assert_eq(Styling.class_of(topology), Styling.POLYLINES, "an open one is a line")
+	topology.closed = true
+	assert_eq(Styling.class_of(topology), Styling.POLYGONS, "and a closed one a polygon")
+
+
+func test_a_ridge_and_a_crust_have_classes_of_their_own() -> void:
+	var document := _sea_floor()
+	assert_eq(Styling.class_of(document.root.children[2]), Styling.RIDGES, "the ridge")
+	for index in [3, 4]:
+		assert_eq(Styling.class_of(document.root.children[index]), Styling.CRUST, "a crust")
+
+
 ### The visibility switches
 
 
@@ -102,16 +113,16 @@ func test_the_type_decides_a_circle_rather_than_the_geometry() -> void:
 func test_a_switch_removes_its_own_class_and_nothing_else() -> void:
 	var root := _build_tree()
 	var whole := _primitives_by_class(root, ViewSettings.new())
-	for class_id in Styling.CLASSES:
+	for class_id in TITLES:
 		assert_true(int(whole.get(class_id, 0)) > 0,
 			"%s draws something to begin with" % class_id)
 
-	for hidden in Styling.CLASSES:
+	for hidden in TITLES:
 		var settings := ViewSettings.new()
 		settings.hide_class(hidden, true)
 		var drawn := _primitives_by_class(root, settings)
 		assert_eq(drawn.get(hidden, 0), 0, "%s is gone" % hidden)
-		for other in Styling.CLASSES:
+		for other in TITLES:
 			if other == hidden:
 				continue
 			assert_eq(drawn.get(other, 0), whole[other],
@@ -145,6 +156,73 @@ func test_a_name_that_is_not_a_class_is_ignored() -> void:
 	assert_eq(Array(settings.hidden_classes), ["polygons"], "only the class it knows")
 
 
+# GP-0128: Topologies is no longer a switch, so a file that had it off opens
+# with its ridges and crusts shown.
+func test_a_file_with_topologies_hidden_shows_the_sea_floor() -> void:
+	var settings := ViewSettings.from_json({"hidden_classes": ["topologies", "points"]})
+	assert_eq(Array(settings.hidden_classes), ["points"], "topologies is dropped")
+	for class_id in [Styling.RIDGES, Styling.CRUST, Styling.CRUST_LINES]:
+		assert_true(settings.shows_class(class_id), "%s is shown" % class_id)
+
+
+### The sea floor switches
+
+
+# Ridges and Oceanic Crust each take away their own class and nothing else.
+# Isochrons and Flowlines takes the segments off every crust and leaves its
+# bands; hiding the crust takes both.
+func test_each_sea_floor_switch_hides_only_its_own_share() -> void:
+	var document := _sea_floor()
+	var whole := _sea_floor_primitives(document, ViewSettings.new())
+	for share in whole:
+		assert_true(int(whole[share]) > 0, "%s draws something to begin with" % share)
+
+	var settings := ViewSettings.new()
+	settings.hide_class(Styling.RIDGES, true)
+	assert_eq(_sea_floor_primitives(document, settings), whole.merged({"ridge": 0}, true),
+		"Ridges takes the ridge and nothing else")
+
+	settings = ViewSettings.new()
+	settings.hide_class(Styling.CRUST_LINES, true)
+	assert_eq(_sea_floor_primitives(document, settings), whole.merged({"lines": 0}, true),
+		"Isochrons and Flowlines takes the lines and leaves the bands and the ridge")
+
+	settings = ViewSettings.new()
+	settings.hide_class(Styling.CRUST, true)
+	assert_eq(_sea_floor_primitives(document, settings),
+		whole.merged({"bands": 0, "lines": 0}, true),
+		"Oceanic Crust takes the bands and the lines and leaves the ridge")
+
+
+# A hidden ridge or crust is left out of the geometry, so a click on the globe
+# goes through it.
+func test_a_hidden_ridge_or_crust_is_not_picked() -> void:
+	var document := _sea_floor()
+	var ridge: Feature = document.root.children[2]
+	var crust: Feature = document.root.children[3]
+	Planet.collect_geometry(document.root, 0.0)
+	var on_ridge := ridge.rings[0][1]
+	var on_crust := _inside(document, crust)
+	var settings := ViewSettings.new()
+	assert_eq(_hit(document.root, settings, on_ridge.x, on_ridge.y), ridge.title, "the ridge")
+	assert_eq(_hit(document.root, settings, on_crust.x, on_crust.y), crust.title, "the crust")
+	settings.hide_class(Styling.RIDGES, true)
+	assert_true(_hit(document.root, settings, on_ridge.x, on_ridge.y) != ridge.title,
+		"a hidden ridge is not picked")
+	settings.hide_class(Styling.CRUST, true)
+	assert_eq(_hit(document.root, settings, on_crust.x, on_crust.y), "",
+		"and neither is a hidden crust")
+
+
+func test_the_sea_floor_switches_round_trip() -> void:
+	var settings := ViewSettings.new()
+	for class_id in [Styling.RIDGES, Styling.CRUST, Styling.CRUST_LINES]:
+		settings.hide_class(class_id, true)
+	var back := ViewSettings.from_json(JSON.parse_string(JSON.stringify(settings.to_json())))
+	assert_eq(Array(back.hidden_classes), ["ridges", "crust", "crust_lines"],
+		"the three switches are written and read back by name")
+
+
 ### The draw styles, set on the root group
 
 
@@ -154,14 +232,13 @@ func test_the_feature_colour_style_gives_each_feature_its_own_colour() -> void:
 	assert_eq(colors[Styling.POLYGONS], Color.RED, "the shield")
 	assert_eq(colors[Styling.POLYLINES], Color.BLUE, "the ridge")
 	assert_eq(colors[Styling.POINTS], Color.GREEN, "the stations")
-	assert_eq(colors[Styling.TOPOLOGIES], Color.MAGENTA, "the boundary")
 
 
 func test_the_single_colour_style_gives_every_feature_the_same_one() -> void:
 	var root := _styled(Styling.BY_SINGLE)
 	root.style.color = SINGLE
 	var colors := _colors_by_class(root)
-	for class_id in Styling.CLASSES:
+	for class_id in TITLES:
 		assert_eq(colors[class_id], SINGLE, "%s is the one colour" % class_id)
 
 
@@ -175,7 +252,6 @@ func test_the_feature_age_style_reads_the_palette_at_the_age_so_far() -> void:
 	assert_eq(colors[Styling.POLYGONS], palette.color_at(100.0), "the shield, 100 My old")
 	assert_eq(colors[Styling.POLYLINES], palette.color_at(500.0), "the ridge, 500")
 	assert_eq(colors[Styling.POINTS], palette.color_at(900.0), "the stations, 900")
-	assert_eq(colors[Styling.TOPOLOGIES], palette.color_at(700.0), "the boundary, 700")
 	var stations := _feature(root, Styling.POINTS)
 	assert_eq(Styling.age_of(stations), 900.0, "the older end of the range, not the younger")
 	assert_eq(Styling.age_of(stations, 600.0), 300.0, "and 300 My old at 600 Ma")
@@ -518,6 +594,63 @@ func _colors_by_class(root: Feature) -> Dictionary:
 	for index in geometry.features.size():
 		colors[Styling.class_of(geometry.features[index])] = geometry.colors[index]
 	return colors
+
+
+# A square split at 100 Ma with a ridge and crust, the halves drifting apart
+# since, so that at the present the ridge lies between two crusts of four bands.
+func _sea_floor() -> Document:
+	var document := Document.new()
+	var square := Feature.create_feature("Square")
+	square.add_ring(PackedVector2Array([Vector2(-10, -10), Vector2(-10, 10),
+		Vector2(10, 10), Vector2(10, -10)]), Feature.GeometryKind.POLYGON)
+	document.root.children.append(square)
+	document.current_time = 100.0
+	document.record()
+	assert_eq(document.split_feature_along(square, 0,
+		PackedVector2Array([Vector2(-11, 0), Vector2(0, 2), Vector2(11, 0)]), true, true), "")
+	for index in [0, 1]:
+		var half: Feature = document.root.children[index]
+		var lon := 0.0
+		for v in half.rings[0]:
+			lon += v.y
+		assert_eq(document.set_keyframe(half, 100.0, Vector3.ZERO), "")
+		assert_eq(document.set_keyframe(half, 0.0,
+			Vector3(20, 0, 4) if lon < 0.0 else Vector3(-15, 0, -3)), "")
+	for index in [3, 4]:
+		assert_eq(document.set_crust_step(document.root.children[index], 25.0), "")
+	document.current_time = 0.0
+	return document
+
+
+# How many primitives the sea floor is drawn with at the present, as the
+# ridge, the crusts' bands and their isochrons and flowlines.
+func _sea_floor_primitives(document: Document, settings: ViewSettings) -> Dictionary:
+	var counts := {"ridge": 0, "bands": 0, "lines": 0}
+	var geometry := Planet.collect_geometry(document.root, 0.0,
+		Styling.of(settings, document.root))
+	for primitive in geometry.primitives:
+		var feature: Feature = primitive["feature"]
+		if feature.midway:
+			counts["ridge"] += 1
+		elif feature.is_crust():
+			var band: bool = primitive["kind"] == Planet.Primitive.TRIANGLE
+			counts["bands" if band else "lines"] += 1
+	return counts
+
+
+# A point well inside a crust at the present: the middle of its largest
+# triangle, in world coordinates.
+func _inside(document: Document, crust: Feature) -> Vector2:
+	var world := Feature.apply_basis(crust.triangles,
+		Feature.world_basis(document.root, crust, 0.0))
+	var best := Vector2.ZERO
+	var largest := 0.0
+	for j in range(0, world.size() - 2, 3):
+		var area := absf((world[j + 1] - world[j]).cross(world[j + 2] - world[j]))
+		if area > largest:
+			largest = area
+			best = (world[j] + world[j + 1] + world[j + 2]) / 3.0
+	return best
 
 
 # The title of the feature covering a point, empty when nothing is there.

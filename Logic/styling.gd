@@ -8,22 +8,27 @@ extends RefCounted
 
 # The geometry classes the View menu switches on and off, by the name the file
 # stores against the label the menu shows. A feature belongs to exactly one:
-# a topology by the geometry it holds, a circle by its feature type, and
-# everything else by its geometry kind. Every switch therefore takes away its
-# own class and nothing else.
+# a ridge or a crust to its own, a circle by its feature type, and everything
+# else by the geometry it is drawn as. Every switch therefore takes away its own
+# class and nothing else. Isochrons and Flowlines is the one switch that is not
+# a class of feature: it takes the lines off every crust and leaves the bands.
 const CLASSES := {
 	"polygons": "Polygons",
 	"polylines": "Polylines",
 	"points": "Points",
 	"circles": "Circles",
-	"topologies": "Topologies",
+	"ridges": "Ridges",
+	"crust": "Oceanic Crust",
+	"crust_lines": "Isochrons and Flowlines",
 }
 
 const POLYGONS := "polygons"
 const POLYLINES := "polylines"
 const POINTS := "points"
 const CIRCLES := "circles"
-const TOPOLOGIES := "topologies"
+const RIDGES := "ridges"
+const CRUST := "crust"
+const CRUST_LINES := "crust_lines"
 
 # How a feature's colour is chosen, by the name the file stores against the
 # label the chooser shows. `feature` is the colour the feature itself carries,
@@ -114,13 +119,16 @@ func _walk(node: Feature, deciding: GroupStyle, opacity: float) -> void:
 		_walk(child, handed, opacity * style.opacity)
 
 
-# The class a feature is switched on and off with.
+# The class a feature is switched on and off with. A topology other than a
+# ridge or crust goes with the line or polygon it is drawn as.
 static func class_of(feature: Feature) -> String:
-	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
-		return TOPOLOGIES
+	if feature.midway:
+		return RIDGES
+	if feature.is_crust():
+		return CRUST
 	if feature.feature_type == FeatureType.CIRCLE:
 		return CIRCLES
-	match feature.geometry_kind:
+	match feature.drawn_as():
 		Feature.GeometryKind.POLYLINE:
 			return POLYLINES
 		Feature.GeometryKind.MULTIPOINT:
@@ -147,6 +155,11 @@ static func age_of(feature: Feature, time: float = 0.0) -> float:
 
 func shows(feature: Feature) -> bool:
 	return settings.shows_class(class_of(feature))
+
+
+# Whether the isochrons and flowlines are drawn over the crusts' bands.
+func shows_crust_lines() -> bool:
+	return settings.shows_class(CRUST_LINES)
 
 
 # The color a feature is drawn in: what the nearest group not on inherit says,

@@ -426,12 +426,13 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 	Crust.rebuild_all(root, time, Config.get_skip_increment())
 	var geometry := Geometry.new()
 	geometry.nodes = Coupling.index(root)
+	var crust_lines := styling == null or styling.shows_crust_lines()
 	for node in _drawing_order(root):
 		if styling != null and not styling.shows(node):
 			continue
 		# A feature is drawn whole or not at all, so what it needs is counted
 		# before any of it is added. A later, smaller feature may still fit.
-		if geometry.primitives.size() + _primitive_count(node) > MAX_PRIMITIVES:
+		if geometry.primitives.size() + _primitive_count(node, crust_lines) > MAX_PRIMITIVES:
 			geometry.dropped += 1
 			continue
 
@@ -469,7 +470,7 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 		# color; see Logic/crust.gd. Every band carries that one line color, so
 		# they go under the last band's column and stay contiguous with it.
 		for ring in node.crust_line_rings:
-			for j in range(ring.size() - 1):
+			for j in range(ring.size() - 1) if crust_lines else []:
 				geometry.primitives.append(_primitive(
 					Primitive.SEGMENT, [ring[j], ring[j + 1]], node, index))
 		geometry.ends[index] = geometry.primitives.size()
@@ -546,11 +547,11 @@ static func _collect_bands(geometry: Geometry, node: Feature, first: int) -> int
 # ring of n vertices is cut into n - 2 triangles, a polyline ring of n into
 # n - 1 segments, and a multipoint into one marker per vertex. A circle drawn
 # as curves is one primitive per ring. A hotspot's sample dots and a crust's
-# isochrons and flowlines come on top.
-static func _primitive_count(node: Feature) -> int:
+# isochrons and flowlines come on top, while they are shown.
+static func _primitive_count(node: Feature, crust_lines: bool = true) -> int:
 	var total := Hotspot.samples(node).size()
 	for ring in node.crust_line_rings:
-		total += maxi(0, ring.size() - 1)
+		total += maxi(0, ring.size() - 1) if crust_lines else 0
 	if node.draws_true_circles():
 		return node.rings.size()
 	match node.drawn_as():

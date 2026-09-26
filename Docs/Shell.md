@@ -82,7 +82,9 @@ adding an item means adding an enum value and one `add_item` line.
 | Polylines   |          | The same for the polylines                |
 | Points      |          | The same for the multipoints              |
 | Circles     |          | The same for the features typed as circles |
-| Topologies  |          | The same for the line topologies          |
+| Ridges      |          | The same for the ridges a split leaves    |
+| Oceanic Crust |        | The same for the crusts a split leaves, their bands and lines |
+| Isochrons and Flowlines | | The lines drawn over every crust; the bands stay while this is off |
 | View Settings... |     | The scene around the features; see [Editing](Editing.md#view-settings) |
 | Full Screen | F11      | Enter or leave full screen                |
 

@@ -25,21 +25,30 @@ The View menu carries one check item per class of geometry:
 
 | Class | What is in it |
 | ----- | ------------- |
-| Polygons | A feature holding polygon rings |
-| Polylines | A feature holding polyline rings, hotspots included |
+| Polygons | A feature drawn as polygon rings, closed [topologies](Editing.md#topologies) included |
+| Polylines | A feature drawn as polyline rings, hotspots and open topologies included |
 | Points | A multipoint |
 | Circles | A feature whose type is `circle`, whatever geometry it holds |
-| Topologies | A [line topology](Editing.md#topologies) |
+| Ridges | The [ridge](Editing.md#the-ridge) a split leaves |
+| Oceanic Crust | The [crust](Editing.md#the-crust) a split leaves, bands and lines |
 
 A feature belongs to **exactly one** of them. `Styling.class_of()` decides in
-that order: a topology by the geometry it holds, then a circle by its feature
-type, and everything else by its geometry kind. A circle is drawn as a polygon
+that order: a ridge, then a crust, then a circle by its feature type, and
+everything else by the geometry it is drawn as. A circle is drawn as a polygon
 or a polyline, so its type is the only thing that tells it apart; that is why
 the type is asked about before the kind.
 
 Because each feature is in one class, each switch takes away its own class and
-leaves the other four untouched, which is what
-`Tests/Unit/test_styling.gd` measures.
+leaves the others untouched, which is what `Tests/Unit/test_styling.gd`
+measures.
+
+One more switch, **Isochrons and Flowlines**, is not a class of feature. The
+lines of a crust are drawn from the crust itself, so this switch drops the
+segments of every crust and leaves its bands. Hiding Oceanic Crust takes both.
+
+A file written while there was a Topologies switch may still list `topologies`
+among the hidden classes. No switch has that name now, so it is dropped on load
+and the file's ridges and crusts show.
 
 A feature its class is switched off for is left out of the geometry altogether,
 so it is neither drawn nor hit tested: a click goes through where it was to

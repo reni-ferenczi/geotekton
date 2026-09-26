@@ -218,5 +218,5 @@ func _edited() -> ViewSettings:
 	settings.raster_opacity = 0.5
 	settings.raster_visible = false
 	settings.hide_class(Styling.POINTS, true)
-	settings.hide_class(Styling.TOPOLOGIES, true)
+	settings.hide_class(Styling.CRUST_LINES, true)
 	return settings
