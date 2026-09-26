@@ -72,7 +72,10 @@ checks that the ridge and crusts have no rows, that one is selected with no row
 selected, that Cut, Copy and Duplicate refuse it and Delete takes it to its
 half, that a click on a band selects the crust, and that a red square over a
 band draws red with the crust at the top of the tree. It also draws the bands
-band by band in Blue and in Rainbow, and the ridge in a changed ridge color.
+band by band in Blue and in Rainbow, and the ridge in a changed ridge color. Last, it
+cuts the eastern half at 50 Ma across its crust to the ridge, turns one piece
+away, and checks at 25 Ma that crust, not the planet, is drawn between the two
+pieces.
 
 `Tests/Rendered/test_feature_tree.gd` drags tree rows with the mouse. While a
 drag is on, Godot finds the control under it from the real pointer rather than
