@@ -67,7 +67,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "geotekt",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "features": { ... },
   "view": { ... }
 }
@@ -341,9 +341,21 @@ A closed topology adds `"closed": true`, and the sections are then joined into
 one filled ring; see [Editing](Editing.md#closed-topologies). An open topology
 writes no `closed` key, and a topology without one is open.
 
-A midway topology adds `"midway": true`: it has two sections and is the line
-between them, the way a [ridge](Editing.md#the-ridge) is. A topology without
-the key is not midway.
+A midway topology adds `"midway": true`: it is the line between its two sides,
+the way a [ridge](Editing.md#the-ridge) is. Since 0.30.0 a section on the
+second side says `"side": 1`, and one on the first writes no key. A section on
+a stretch of sea holds `points`, `[lat, lon]` pairs in the frame of the feature
+it names, in place of a run of that feature's vertices; its `part`, `from` and
+`to` are 0 and not read:
+
+```json
+{"feature": "3e1d...", "part": 0, "from": 0, "to": 0, "reversed": false,
+ "side": 1, "points": [[0.0, 6.0]]}
+```
+
+A midway topology of two sections, none of them with a side, is one a side,
+which is what every ridge was before 0.30.0. A topology without `midway` is not
+midway.
 
 A [crust](Editing.md#the-crust) is a topology with no sections and a `crust`
 object naming what it is built from:
@@ -706,6 +718,13 @@ version.
 [`line_width`](#feature-tree-serialization). Nothing but the version moves: a
 leaf from before has no key, which reads as 1, and 1 is the width every feature
 was drawn at.
+
+#### 0.29.0 to 0.30.0
+
+0.30.0 gave the sections of a ridge a `side` and `points`; see
+[Topologies](#topologies). Nothing but the version moves: a ridge from before
+has two sections without a side, which `Feature.from_json()` reads as one a
+side.
 
 ## The config file
 

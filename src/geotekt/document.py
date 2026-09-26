@@ -29,7 +29,7 @@ EXTENSION = ".geotekt"
 # What a document this package writes from scratch says it is. It follows
 # `application/config/version` in `project.godot`, which is what the
 # application writes, and a test holds the two together.
-CURRENT_VERSION = "0.29.0"
+CURRENT_VERSION = "0.30.0"
 
 # What a feature without the key is taken to be, matching Logic/feature.gd.
 DEFAULT_COLOR = [0.36, 0.60, 0.33, 1.0]
@@ -199,7 +199,11 @@ class Feature:
 
     @property
     def midway(self) -> bool:
-        """Whether a topology is the line midway between its two sections, since 0.23.0."""
+        """Whether a topology is the line midway between its two sides, since 0.23.0.
+
+        Since 0.30.0 each section says its `side`, 0 or 1, and a section on a
+        stretch of sea holds `points` of its own; see Docs/Persistence.md.
+        """
         return bool(self.data.get("midway", False))
 
     @property

@@ -62,7 +62,10 @@ it dropped; and 0.27.0 renamed the program to Geotekton, so the `application`
 field says `geotekt` and the extension is `.geotekt`, and a file from before
 it is not read; and 0.28.0 changed nothing in the file; and 0.29.0 gave a leaf
 feature its line width, and a leaf without one is drawn at the width it always
-was, so it reads a 0.27.0 file as it stands.
+was, so it reads a 0.27.0 file as it stands; and 0.30.0 let each section of a
+ridge say which side it is on and hold points of its own where the cut crossed
+sea, and a ridge of two sections without sides is one a side, so it reads a
+0.29.0 file as it stands too.
 
 The first public release will have major version 1.
 

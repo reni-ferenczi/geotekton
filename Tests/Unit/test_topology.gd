@@ -404,6 +404,7 @@ func _midway_tree(north: Array) -> Feature:
 	midway.geometry_kind = Feature.GeometryKind.TOPOLOGY
 	midway.midway = true
 	midway.sections = [TopologySection.whole_part(south, 0), TopologySection.whole_part(far, 0)]
+	midway.sections[1].side = 1
 	var along := Feature.create_feature("Along")
 	along.feature_type = "topology"
 	along.geometry_kind = Feature.GeometryKind.TOPOLOGY
@@ -436,11 +437,11 @@ func test_a_midway_topology_of_unequal_sections_is_empty_and_says_why() -> void:
 	assert_eq(Ridge.ring_at(root, midway, 0.0).size(), 0, "and no ridge")
 	var resolved := Topology.resolve(root, midway, 0.0)
 	assert_eq(resolved[0]["problem"], "", "the first section is fine")
-	assert_eq(resolved[1]["problem"], "it has 3 vertices and the first section 4",
+	assert_eq(resolved[1]["problem"], "its side has 3 vertices and the first side 4",
 		"the second is reported")
 	midway.sections.pop_back()
 	assert_eq(Topology.resolve(root, midway, 0.0)[0]["problem"],
-		"a midway topology needs a second section", "one section is reported too")
+		"a midway topology needs a second side", "one side is reported too")
 
 
 func test_a_section_may_run_along_a_midway_topology_wherever_it_sits() -> void:

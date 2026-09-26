@@ -3795,12 +3795,12 @@ func split_along_points() -> String:
 	if split_points.size() < 2:
 		return "Click where the cut starts and where it ends."
 	var path := _split_path(feature)
-	# Neither a ridge nor a crust follows a divide, since the two share no edge.
-	var ridge := ridge_check.button_pressed and not ridge_check.disabled
+	var ridge := ridge_check.button_pressed
 	var crust := ridge and crust_check.button_pressed
 	var error: String
 	if _split_divides(feature):
-		error = document.divide_feature(feature, path, children_check.button_pressed)
+		error = document.divide_feature(feature, path, children_check.button_pressed,
+			ridge, crust)
 	else:
 		var part := 0
 		var nearest := INF
@@ -3831,21 +3831,16 @@ func split_along_points() -> String:
 	refresh_geometry()
 	set_active_tool(Tool.MOVE)
 	var said := "Split into %s" % ", ".join(made)
-	if ridge and not laid:
-		said += "; no ridge, since the cut runs through in several places"
 	if document.split_freed != null:
 		said += "; %s follows nothing from %s Ma" % [document.split_freed.title,
 			KinematicsPanel.format_time(document.current_time)]
 	return said
 
 
-# Grey out Ridge while the points clicked would divide the parts rather than
-# cut one, since the two sides of a divide share no edge to leave a ridge
-# along; and Crust whenever there is no ridge, since the crust lies between the
-# ridge and the halves.
+# Grey out Crust whenever there is no ridge, since the crust lies between the
+# ridge and the halves. A divide leaves a ridge along the whole path too.
 func _update_split_switches() -> void:
-	ridge_check.disabled = _split_divides(features.feature_tree.get_selected_node())
-	crust_check.disabled = ridge_check.disabled or not ridge_check.button_pressed
+	crust_check.disabled = not ridge_check.button_pressed
 
 
 # The points clicked so far, in the selected feature's own frame: they were

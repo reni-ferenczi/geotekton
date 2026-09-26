@@ -432,7 +432,7 @@ checks that the switch is shown with the tool alone, that the cut and the ridge
 are one undo version, that the status bar names all three features, and that the
 ridge is a midway topology there from 400 Ma to the present, with no keyframes
 or couplings, whose two sections name the halves, the second walked back. The
-panel says `Midway between two sections` and has the section table but no
+panel says `Midway between two sides` and has the section table but no
 Coupled to row or Closed switch, and a Pick click on a half leaves the ridge
 with two sections and a status bar saying why. Every
 vertex of the ridge is on both halves at the cut. The second half is then held
