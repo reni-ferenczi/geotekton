@@ -811,7 +811,7 @@ func _show_topology_note() -> void:
 	if node.is_crust():
 		topology_note.text = Crust.describe(document.root if document != null else null, node)
 	elif node.midway:
-		topology_note.text = "Midway between two sections"
+		topology_note.text = "Midway between two sides"
 
 
 func _fill_sections() -> void:

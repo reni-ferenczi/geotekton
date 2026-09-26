@@ -673,6 +673,11 @@ static func from_json(data: Variant) -> Feature:
 		node.sections = TopologySection.list_from_json(data.get("sections", []))
 		node.closed = bool(data.get("closed", false))
 		node.midway = bool(data.get("midway", false))
+		# A ridge written before its sections said their side is one coast piece
+		# a side, the first section on side 0 and the second on side 1.
+		if node.midway and node.sections.size() == 2 \
+				and node.sections.all(func(s: TopologySection) -> bool: return s.side == 0):
+			node.sections[1].side = 1
 		var crust: Variant = data.get("crust")
 		if crust is Dictionary:
 			node.crust_half = str(crust.get("half", ""))

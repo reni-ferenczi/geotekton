@@ -351,10 +351,13 @@ func test_the_ridge_is_the_half_stage_line() -> void:
 	var first: Feature = document.root.children[0]
 	var second: Feature = document.root.children[1]
 	var ridge: Feature = document.root.children[2]
-	# The line the 0.22.0 ridge was: the cut carried by the half stage rotation.
+	# The line the 0.22.0 ridge was: the cut carried by the half stage rotation,
+	# in the order the cut was drawn, which the first half holds the other way.
 	var half := Basis(Quaternion(Feature.world_basis(document.root, first, 50.0)).slerp(
 		Quaternion(Feature.world_basis(document.root, second, 50.0)), 0.5))
-	var expected := Feature.apply_basis(first.rings[0].slice(0, 3), half)
+	var cut := first.rings[0].slice(0, 3)
+	cut.reverse()
+	var expected := Feature.apply_basis(cut, half)
 	_assert_same_ring(Ridge.ring_at(document.root, ridge, 50.0), expected, 1e-6,
 		"the ridge at 50 Ma")
 	Topology.rebuild(document.root, ridge, 50.0)
@@ -1117,3 +1120,210 @@ func test_a_divide_across_the_dateline_sends_each_part_to_its_side() -> void:
 	assert_eq(isles.rings.size(), 1, "one isle stays")
 	assert_true(far != null and far.rings.size() == 1, "and the other goes")
 	assert_true(_mean_longitude(far.rings[0]) < 0.0, "the one across 180°")
+
+
+### One ridge along the whole cut
+#
+# GP-0125: a cut across a bay, across several islands, or under Children
+# through a craton and what rides on it leaves one ridge along the whole cut.
+# Where the cut crosses sea, each side of the ridge holds the path's own points
+# there, riding with the plate on that side.
+
+
+# A square with a bay opening east, lat -4 to 4 and lon 2 to 10.
+func _bay() -> Feature:
+	var land := Feature.create_feature("Bay")
+	land.add_ring(PackedVector2Array([Vector2(-10, -10), Vector2(10, -10), Vector2(10, 10),
+		Vector2(4, 10), Vector2(4, 2), Vector2(-4, 2), Vector2(-4, 10), Vector2(-10, 10)]),
+		Feature.GeometryKind.POLYGON)
+	return land
+
+
+# The land split north to south along lon 6 at 100 Ma with Ridge and Crust on,
+# through a point in the middle, and the halves drifting apart since.
+func _split_and_drift(land: Feature, path: PackedVector2Array, divide := false) -> Document:
+	var document := Document.new()
+	document.root.children.append(land)
+	document.current_time = 100.0
+	document.record()
+	if divide:
+		assert_eq(document.divide_feature(land, path, false, true, true), "")
+	else:
+		assert_eq(document.split_feature_along(land, 0, path, true, true), "")
+	for index in [0, 1]:
+		var half: Feature = document.root.children[index]
+		var west: bool = index == 0 if divide else _mean_longitude(half.rings[0]) < path[0].y
+		assert_eq(document.set_keyframe(half, 100.0, Vector3.ZERO), "")
+		assert_eq(document.set_keyframe(half, 0.0,
+			Vector3(20, 0, 4) if west else Vector3(-15, 0, -3)), "")
+	return document
+
+
+const ALONG_SIX := [Vector2(-11, 6), Vector2(0, 6), Vector2(11, 6)]
+
+
+func _midways(document: Document) -> Array:
+	return document.root.children.filter(func(n: Feature) -> bool: return n.midway)
+
+
+func _crust_area(document: Document) -> float:
+	var total := 0.0
+	for node in document.root.children:
+		if node.is_crust():
+			Crust.rebuild(document.root, node, 0.0, 25.0)
+			total += Measure.geometry_area(node)
+	return total
+
+
+func test_a_cut_across_a_bay_leaves_one_ridge_across_it() -> void:
+	var document := _split_and_drift(_bay(), PackedVector2Array(ALONG_SIX))
+	assert_eq(_titles(document), ["Bay", "Bay 2", "Bay ridge", "Bay crust", "Bay 2 crust"],
+		"the halves, one ridge and a crust each")
+	var ridge: Feature = _midways(document)[0]
+	var gaps := ridge.sections.filter(func(s: TopologySection) -> bool: return s.is_gap())
+	assert_eq(gaps.size(), 2, "a gap piece a side, across the bay")
+	for gap: TopologySection in gaps:
+		assert_eq(gap.points.size(), 1, "holding the cut's point in the bay")
+		assert_true(gap.feature_uuid in [document.root.children[0].uuid,
+			document.root.children[1].uuid], "riding with a half")
+	var line := Ridge.ring_at(document.root, ridge, 100.0)
+	_assert_same_ring(line, PackedVector2Array([Vector2(-10, 6), Vector2(-4, 6), Vector2(0, 6),
+		Vector2(4, 6), Vector2(10, 6)]), 1e-3, "the ridge at the split runs the whole cut")
+
+	# The same cut through a square without the bay opens the same sea floor.
+	var square := _square("Square", 10.0)
+	var plain := _split_and_drift(square, PackedVector2Array(ALONG_SIX))
+	assert_close(_crust_area(document), _crust_area(plain), _crust_area(plain) * 0.01,
+		"the crusts cover the bay's share as well")
+
+
+func test_the_split_is_one_undo_version() -> void:
+	var document := Document.new()
+	document.root.children.append(_bay())
+	document.current_time = 100.0
+	document.record()
+	assert_eq(document.split_feature_along(document.root.children[0], 0,
+		PackedVector2Array(ALONG_SIX), true, true), "")
+	assert_eq(document.root.children.size(), 5, "halves, ridge and crusts")
+	document.undo()
+	assert_eq(_titles(document), ["Bay"], "one undo takes them all")
+
+
+# Two islands of one feature, lat 0 and lat 10, and a cut across both with a
+# point in the strait between them.
+func _isles() -> Feature:
+	var isles := _square("Isles", 2.0)
+	isles.add_ring(_square("North", 2.0, Vector2(10, 0)).rings[0], Feature.GeometryKind.POLYGON)
+	return isles
+
+
+func test_a_cut_across_two_islands_leaves_one_ridge_along_it() -> void:
+	var document := _split_and_drift(_isles(),
+		PackedVector2Array([Vector2(-5, 0), Vector2(5, 0.5), Vector2(15, 0)]))
+	assert_eq(_midways(document).size(), 1, "one ridge")
+	var ridge: Feature = _midways(document)[0]
+	var line := Ridge.ring_at(document.root, ridge, 100.0)
+	assert_eq(line.size(), 5, "both coasts and the strait between: %s" % line)
+	assert_true(line[2].distance_to(Vector2(5, 0.5)) < 1e-3, "through the strait's point")
+	for side in [0, 1]:
+		var parts := ridge.sections.filter(func(s: TopologySection) -> bool:
+			return s.side == side and not s.is_gap()).map(
+			func(s: TopologySection) -> int: return s.part)
+		assert_eq(parts.size(), 2, "side %d has a coast on each island" % side)
+
+
+func test_a_divide_between_two_islands_leaves_a_ridge_of_the_path() -> void:
+	var path := PackedVector2Array([Vector2(5, -5), Vector2(5, 0), Vector2(5, 5)])
+	var document := _split_and_drift(_isles(), path, true)
+	assert_eq(_titles(document), ["Isles", "Isles 2", "Isles ridge", "Isles crust",
+		"Isles 2 crust"], "a ridge and two crusts for a divide too")
+	var ridge: Feature = _midways(document)[0]
+	assert_true(ridge.sections.all(func(s: TopologySection) -> bool: return s.is_gap()),
+		"all of it sea")
+	_assert_same_ring(Ridge.ring_at(document.root, ridge, 100.0), path, 1e-3,
+		"along the whole path")
+	assert_true(_crust_area(document) > 0.0, "and the crusts open from it")
+
+
+# A craton with a continent around it and an island off its coast, both riding
+# on it, cut north to south with Children on.
+func test_a_cut_under_children_leaves_one_ridge_with_the_craton() -> void:
+	var document := Document.new()
+	var craton := _square("Craton", 10.0)
+	var continent := _square("Continent", 15.0)
+	var island := _square("Island", 2.0, Vector2(25, 0))
+	document.root.children.append_array([craton, continent, island])
+	for rider in [continent, island]:
+		assert_eq(document.couple(rider, craton, 200.0), "")
+	document.current_time = 100.0
+	document.record()
+	assert_eq(document.split_feature_along(craton, 0,
+		PackedVector2Array([Vector2(-20, 0), Vector2(19, 0.5), Vector2(30, 0)]),
+		true, true, true), "")
+	assert_eq(_midways(document).size(), 1, "one ridge, not one per feature cut")
+	var ridge: Feature = _midways(document)[0]
+	var named := {}
+	for section in ridge.sections:
+		named[document.root.get_node_by_uuid(section.feature_uuid).title.trim_suffix(" 2")] = true
+	assert_eq(named.keys(), ["Continent", "Craton", "Island"],
+		"the continent's coast, the sea riding with the craton, and the island's coast")
+	var line := Ridge.ring_at(document.root, ridge, 100.0)
+	assert_true(absf(line[0].x + 15.0) < 1e-3 and absf(line[-1].x - 27.0) < 1e-3,
+		"from the continent's coast to the island's far side: %s" % line)
+
+	var halves := [craton.uuid, _titled(document, "Craton 2").uuid]
+	var crusts := document.root.children.filter(func(n: Feature) -> bool: return n.is_crust())
+	assert_eq(crusts.size(), 2, "a crust a side")
+	for crust: Feature in crusts:
+		assert_true(crust.crust_half in halves, "%s moves with a half of the craton" % crust.title)
+
+
+# A second split of the half holding the bay's shore, away from the first cut:
+# the ridge's coasts and its piece across the bay go with the piece that holds
+# the shore, and the ridge stays where it was at every age.
+func test_a_second_split_keeps_a_ridge_across_a_bay() -> void:
+	var document := _split_and_drift(_bay(), PackedVector2Array(ALONG_SIX))
+	var ridge: Feature = _midways(document)[0]
+	var before := {}
+	for age in [100.0, 50.0, 0.0]:
+		before[age] = Ridge.ring_at(document.root, ridge, age)
+	var shore: Feature = document.root.children[0]
+	if _mean_longitude(shore.rings[0]) > 6.0:
+		shore = document.root.children[1]
+	document.current_time = 50.0
+	assert_eq(document.split_feature_along(shore, 0,
+		PackedVector2Array([Vector2(-11, 0), Vector2(11, 0)])), "", "the second cut is made")
+	for age in [100.0, 50.0, 0.0]:
+		_assert_same_ring(Ridge.ring_at(document.root, ridge, age), before[age], 1e-3,
+			"the ridge at %s Ma" % age)
+	for section in ridge.sections:
+		var holder := document.root.get_node_by_uuid(section.feature_uuid)
+		assert_true(holder != null and _mean_longitude(holder.rings[0]) > 0.0,
+			"%s lies east of the second cut" % holder.title)
+
+
+func test_moving_a_coast_vertex_moves_the_ridge_halfway() -> void:
+	var document := _split_square(false)
+	var first: Feature = document.root.children[0]
+	var ridge: Feature = document.root.children[2]
+	var before := Ridge.ring_at(document.root, ridge, 100.0)
+	var moved := first.rings[0][1] + Vector2(0, 2)
+	assert_eq(document.set_vertex(first, 0, 1, moved), "")
+	var after := Ridge.ring_at(document.root, ridge, 100.0)
+	assert_close(after[1].y - before[1].y, 1.0, 1e-2, "the middle of the ridge moves halfway")
+	assert_true(after[0].is_equal_approx(before[0]), "and its ends stay")
+
+
+# A ridge written before sections said their side reads as one coast a side.
+func test_a_ridge_without_sides_reads_as_one_coast_a_side() -> void:
+	var document := _split_square(true)
+	var ridge: Feature = document.root.children[2]
+	var data: Dictionary = ridge.to_json()
+	for section: Dictionary in data["sections"]:
+		section.erase("side")
+	var read := Feature.from_json(data)
+	assert_eq(read.sections.map(func(s: TopologySection) -> int: return s.side), [0, 1],
+		"the second section on the second side")
+	document.root.children[2] = read
+	_assert_same_ring(Ridge.ring_at(document.root, read, 50.0),
+		Ridge.ring_at(document.root, ridge, 50.0), 1e-9, "and the ridge is the same line")
