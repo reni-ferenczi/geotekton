@@ -100,7 +100,7 @@ static func of(settings_: ViewSettings, root: Feature = null, palettes_: Diction
 func _walk(node: Feature, deciding: GroupStyle, opacity: float) -> void:
 	if node.is_sea_floor():
 		# A ridge or crust has no row under its group, so the group's style does
-		# not reach it: it is drawn in its own colour at its own opacity.
+		# not reach it: it is drawn in the sea floor colors of the view settings.
 		return
 	if not node.is_group:
 		_deciding[node] = deciding
