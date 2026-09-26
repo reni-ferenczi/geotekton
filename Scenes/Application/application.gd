@@ -4549,6 +4549,10 @@ func _refresh_selection_outline() -> void:
 	if active_tool == Tool.SPLIT and not split_points.is_empty():
 		parts.append({"vertices": split_points, "style": Planet.OutlineStyle.REFUSED
 			if split_points == split_refused else Planet.OutlineStyle.OPEN})
+		# Across older sea floor the cut runs along the flowline to the older
+		# ridge instead of the points clicked out there.
+		for line in document.cut_flowlines(selected, split_points):
+			parts.append({"vertices": line, "style": Planet.OutlineStyle.OPEN})
 	planet_view.planet.set_outline(parts)
 
 

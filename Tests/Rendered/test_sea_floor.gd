@@ -208,3 +208,64 @@ func test_a_changed_ridge_color_draws_the_ridge_in_it() -> void:
 	var on := (ridge.rings[0][0] + ridge.rings[0][1]) * 0.5
 	await _assert_color(on, yellow, 0.1, "the ridge")
 	app.document.view.ridge_color = FeatureType.color(FeatureType.LINE)
+
+
+### A triple junction (GP-0124)
+
+
+# The eastern half cut at 50 Ma across its land and out across its crust to the
+# ridge, one piece then turning away from the other: at 25 Ma the sea floor
+# between the two pieces is crust, drawn, with the planet showing nowhere.
+func test_a_triple_junction_draws_crust_between_the_pieces() -> void:
+	await _split_square()
+	var document: Document = app.document
+	var east: Feature = null
+	for title in ["Square", "Square 2"]:
+		if _middle(_titled(title).rings[0]).y > 0.0:
+			east = _titled(title)
+	document.set_time(50.0)
+	var basis := Feature.world_basis(document.root, east, 50.0)
+	var land := Feature.apply_basis(east.rings[0], basis)
+	var ridge := Ridge.ring_at(document.root, _titled("Square ridge"), 50.0)
+	var coast := -INF
+	var west := INF
+	var far := INF
+	for v in land:
+		coast = maxf(coast, v.y)
+		west = minf(west, v.y)
+	for v in ridge:
+		far = minf(far, v.y)
+	var path := PackedVector2Array([Vector2(-4, coast + 2.0), Vector2(-4, west - 1.0),
+		Vector2(2, (far + west) * 0.5), Vector2(5, far - 3.0)])
+	assert_eq(document.split_feature_along(east, 0,
+		Feature.apply_basis(path, basis.transposed()), true, true), "", "the cut is made")
+	var moving := _titled(east.title + " 2") if _titled(east.title + " 2") != null else east
+	assert_eq(document.set_keyframe(moving, 50.0, moving.rotation_at(50.0)), "")
+	assert_eq(document.set_keyframe(moving, 0.0, moving.rotation_at(50.0) + Vector3(0, 0, 6)), "")
+	for crust in _crusts():
+		assert_eq(document.set_crust_step(crust, 25.0), "")
+	document.set_time(25.0)
+	app.features.reload()
+	app.refresh_geometry()
+	await frames(2)
+
+	var young: Feature = null
+	for node in document.root.children:
+		if node.midway and node.time_range.y == 50:
+			young = node
+	assert_true(young != null, "the new ridge is there")
+	var sides := [PackedVector2Array(), PackedVector2Array()]
+	for entry: Dictionary in Topology.resolve(document.root, young, 25.0):
+		sides[entry["side"]].append_array(entry["vertices"])
+	var count: int = sides[0].size()
+	for i in [1, count / 2, count - 2]:
+		var at := Feature._xyz_to_latlon_s(Feature._latlon_to_xyz_s(sides[0][i]).slerp(
+			Feature._latlon_to_xyz_s(sides[1][i]), 0.3))
+		var screen: Variant = await _screen(at)
+		if screen == null:
+			continue
+		var color := await probe(screen)
+		var planet := ViewSettings.DEFAULT_PLANET_COLOR
+		var off := maxf(maxf(absf(color.r - planet.r), absf(color.g - planet.g)),
+			absf(color.b - planet.b))
+		assert_true(off > COLOR_TOLERANCE, "sea floor is drawn at %s: %s" % [at, color])
