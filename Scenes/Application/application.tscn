@@ -350,7 +350,10 @@ vertical_alignment = 1
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 3.0
 vertical_alignment = 1
+text_overrun_behavior = 3
 
 [node name="StatusFile" type="Label" parent="StatusBar/Fields" unique_id=843647232]
 unique_name_in_owner = true
