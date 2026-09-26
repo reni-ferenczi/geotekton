@@ -25,21 +25,30 @@ The View menu carries one check item per class of geometry:
 
 | Class | What is in it |
 | ----- | ------------- |
-| Polygons | A feature holding polygon rings |
-| Polylines | A feature holding polyline rings, hotspots included |
+| Polygons | A feature drawn as polygon rings, closed [topologies](Editing.md#topologies) included |
+| Polylines | A feature drawn as polyline rings, hotspots and open topologies included |
 | Points | A multipoint |
 | Circles | A feature whose type is `circle`, whatever geometry it holds |
-| Topologies | A [line topology](Editing.md#topologies) |
+| Ridges | The [ridge](Editing.md#the-ridge) a split leaves |
+| Oceanic Crust | The [crust](Editing.md#the-crust) a split leaves, bands and lines |
 
 A feature belongs to **exactly one** of them. `Styling.class_of()` decides in
-that order: a topology by the geometry it holds, then a circle by its feature
-type, and everything else by its geometry kind. A circle is drawn as a polygon
+that order: a ridge, then a crust, then a circle by its feature type, and
+everything else by the geometry it is drawn as. A circle is drawn as a polygon
 or a polyline, so its type is the only thing that tells it apart; that is why
 the type is asked about before the kind.
 
 Because each feature is in one class, each switch takes away its own class and
-leaves the other four untouched, which is what
-`Tests/Unit/test_styling.gd` measures.
+leaves the others untouched, which is what `Tests/Unit/test_styling.gd`
+measures.
+
+One more switch, **Isochrons and Flowlines**, is not a class of feature. The
+lines of a crust are drawn from the crust itself, so this switch drops the
+segments of every crust and leaves its bands. Hiding Oceanic Crust takes both.
+
+A file written while there was a Topologies switch may still list `topologies`
+among the hidden classes. No switch has that name now, so it is dropped on load
+and the file's ridges and crusts show.
 
 A feature its class is switched off for is left out of the geometry altogether,
 so it is neither drawn nor hit tested: a click goes through where it was to
@@ -259,7 +268,7 @@ of colors and cut the built in palettes down to Rainbow; see
 | Test | What it covers |
 | ---- | -------------- |
 | `Tests/Unit/test_palette.gd` | The reader: the fixtures in `Tests/Data/Palettes`, the built in palettes, boundary and gap lookups, and every palette GPlates ships when that checkout is beside this one |
-| `Tests/Unit/test_styling.gd` | Which class a feature lands in, that each switch removes its own class and no other, the colour each style resolves to, the age so far, and the group styles: inherit shown as Same as parent, inherit through two levels, a nested group following its parent where one on Feature colour does not, the nearest group deciding, the root as the default, a file's root style (Single color at half opacity) pinned on load, opacity multiplying down, the file, clones, undo, and the root refused. A feature born at 500 Ma under a 200 My ramp is color A at 500, halfway at 400 and color B at 300 and at 0, moved only by `Geometry.resolve()` |
+| `Tests/Unit/test_styling.gd` | Which class a feature lands in, a ridge and a crust included, that each switch removes its own class and no other, that Isochrons and Flowlines leaves the bands, that a hidden ridge or crust is not picked and that a file with `topologies` hidden shows its sea floor, the colour each style resolves to, the age so far, and the group styles: inherit shown as Same as parent, inherit through two levels, a nested group following its parent where one on Feature colour does not, the nearest group deciding, the root as the default, a file's root style (Single color at half opacity) pinned on load, opacity multiplying down, the file, clones, undo, and the root refused. A feature born at 500 Ma under a 200 My ramp is color A at 500, halfway at 400 and color B at 300 and at 0, moved only by `Geometry.resolve()` |
 | `Tests/Unit/test_migration.gd` | A 0.7.0 view block's style landing on the root group, and a 0.10.0 style reading with the default ramp |
 | `Tests/Rendered/test_styling.gd` | Pixel probes of each style on the globe, a group on a single colour beside a group on own colours, a group's opacity, a 0.7.0 file drawn in a single colour opening in the feature colors, one polygon under the ramp red at 500 Ma and blue at 300 Ma without the geometry texture being uploaded again, the Earth showing where a switched off class was, a palette file loaded on a group's Palette row coloring that group, and no Palette row on the root |
 | `Tests/session.py` | The styling scenario: the View settings dialog refusing the six style fields, a group's styles on a running application, its ramp, a palette file and a malformed one loaded through the group's Load button, the switches through the View menu, and the whole lot through a save and a load, with the root's pinned style in the file. The Properties scenario sets a group's style and ramp through the panel, probes them and undoes them |
