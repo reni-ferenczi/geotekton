@@ -85,7 +85,7 @@ func _on_redo_pressed() -> void:
 func reload() -> void:
 	var selected := feature_tree.get_selected_node()
 	feature_tree.load_root_group(root)
-	feature_tree.select_node(selected)
+	feature_tree.select_node(selected, false)
 	update_button_availability()
 
 

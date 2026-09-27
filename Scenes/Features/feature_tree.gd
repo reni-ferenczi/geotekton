@@ -58,7 +58,12 @@ func _ready() -> void:
 	pass
 
 
+# Rebuild the rows from the tree. The rows scroll only when the user scrolls
+# them, so the scroll is kept across the rebuild that follows every edit, which
+# clear() would otherwise send back to the top (GP-0134).
 func load_root_group(root_group: Feature) -> void:
+	var bar := _v_scroll()
+	var kept := bar.value if bar != null else 0.0
 	clear()
 	items.clear()
 	sea_floor.clear()
@@ -66,6 +71,16 @@ func load_root_group(root_group: Feature) -> void:
 	self.root = root_group
 	load_group(null, root, true)
 	get_root().set_editable(0, false)
+	if bar != null:
+		bar.value = kept
+
+
+# The tree's own vertical scroll bar, an internal child Tree has no setter for.
+func _v_scroll() -> VScrollBar:
+	for child in get_children(true):
+		if child is VScrollBar:
+			return child
+	return null
 
 
 func load_group(parent: TreeItem, group: Feature, enabled: bool):
@@ -186,8 +201,10 @@ func select_root():
 # Select a node by its pnid, so a node of a tree that has since been cloned, by
 # an undo or a reload, finds the one standing in for it. A ridge or crust is
 # selected with no row selected, and the selection is announced here, since no
-# row does it.
-func select_node(node: Feature) -> void:
+# row does it. A row chosen somewhere other than the tree, a click on the planet
+# say, is scrolled into view when it is out of it; `scroll` false keeps the tree
+# where it is, which is what a rebuild wants.
+func select_node(node: Feature, scroll := true) -> void:
 	if node == null:
 		return
 	if sea_floor.has(node.pnid):
@@ -210,7 +227,8 @@ func select_node(node: Feature) -> void:
 	# Deselect current item first to force the Tree to update visually
 	deselect_all()
 	item.select(0)
-	scroll_to_item(item, true)
+	if scroll:
+		scroll_to_item(item, false)
 
 
 func notify_feature_selected():
