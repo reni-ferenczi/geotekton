@@ -38,3 +38,24 @@ static func ring_at(root: Feature, node: Feature, time: float) -> PackedVector2A
 		var half := Basis((a[1] as Quaternion).slerp(b[1] as Quaternion, 0.5))
 		ring.append(Feature._xyz_to_latlon_s(half * ((a[0] as Vector3) + (b[0] as Vector3)).normalized()))
 	return ring
+
+
+# One side of the ridge at that time, in world coordinates, in the order the cut
+# runs. Empty when the sides cannot be resolved.
+static func side_at(root: Feature, node: Feature, time: float, side: int) -> PackedVector2Array:
+	var ring := PackedVector2Array()
+	for entry: Dictionary in Topology.resolve(root, node, time):
+		if not str(entry["problem"]).is_empty():
+			return PackedVector2Array()
+		if entry["side"] == side:
+			ring.append_array(entry["vertices"])
+	return ring
+
+
+# Which side of the ridge runs along that feature: the side one of whose
+# sections names it, or -1 when neither does.
+static func side_of(node: Feature, feature: Feature) -> int:
+	for section in node.sections:
+		if section.feature_uuid == feature.uuid:
+			return section.side
+	return -1

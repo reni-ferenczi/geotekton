@@ -764,6 +764,9 @@ func test_a_0_23_0_crust_keeps_its_bands_and_drops_its_lines_leaf() -> void:
 
 # The crust that survives the migration is a working one, drawing between them
 # what the two 0.23.0 rows drew: the bands, and the isochrons and the flowlines.
+# The two sides of the ridge do not lie on each other at 100 Ma and the halves
+# never move, so there is one band from each coast to the ridge and the four
+# after it have no area.
 func test_a_migrated_0_23_0_crust_draws_the_bands_and_the_lines() -> void:
 	var root := Feature.from_json(Document.migrate(_split_0_23_0())["features"])
 	root.is_root = true
@@ -772,10 +775,11 @@ func test_a_migrated_0_23_0_crust_draws_the_bands_and_the_lines() -> void:
 	for index in [3, 4]:
 		var crust: Feature = plates.children[index]
 		Crust.rebuild(root, crust, 0.0, 25.0)
-		assert_eq(crust.rings.size(), 4, "%s: four bands from 100 Ma at 25 My" % crust.title)
-		assert_eq(Crust.chunks(crust), 4, "counted as four chunks")
-		assert_eq(crust.crust_line_rings.size(), 5 + 3,
-			"with five isochrons and three flowlines over them")
+		assert_eq(crust.rings.size(), 1 + 4,
+			"%s: a band from the coast and four from 100 Ma at 25 My" % crust.title)
+		assert_eq(Crust.chunks(crust), 1, "counted as one chunk, the only one with an area")
+		assert_eq(crust.crust_line_rings.size(), 6 + 3,
+			"with six isochrons and three flowlines over them")
 
 
 ### 0.24.0 to 0.25.0: a hotspot and a crust carry their own time step

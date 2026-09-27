@@ -6,11 +6,16 @@ class_name Crust
 #
 # An isochron is where the ridge was at some age, carried with the half since:
 # at the current time T the ridge of age a is at B(T) * B(a)^T * R(a), where B
-# is the half's rotation into the world and R(a) the ridge at a. The oldest
-# isochron, at the split age, is the half's side of the cut, and the youngest,
+# is the half's rotation into the world and R(a) the ridge at a. The youngest,
 # at T, is the ridge itself. The ages between are the multiples of the crust's
 # own time step, or of the timeline's Skip when it carries none, as for a
 # hotspot track; see Hotspot.step_of().
+#
+# The oldest isochron is the half's side of the ridge at the split age, carried
+# the same way, which is the half's coast along the cut. When the halves touched
+# at the split age the ridge lay on it then, and the ridge of that age is left
+# out. When they were already apart, it is kept, so the first band runs from the
+# coast out to the ridge of the split age and there is no gap in the sea floor.
 #
 # A flowline follows one vertex of the cut across every isochron, from the
 # continent to the ridge.
@@ -32,14 +37,36 @@ static func isochrons(root: Feature, node: Feature, time: float,
 	if half == null or ridge == null or not ridge.midway:
 		return result
 	var now := Feature.world_basis(root, half, time)
-	for age in Hotspot.sample_ages(Hotspot.step_of(node, skip), float(node.time_range.y), time):
+	var carry := func(ring: PackedVector2Array, age: float) -> PackedVector2Array:
+		return Feature.apply_basis(ring, now * Feature.world_basis(root, half, age).transposed())
+	var split := float(node.time_range.y)
+	var side := Ridge.side_of(ridge, half)
+	if side >= 0:
+		var coast := Ridge.side_at(root, ridge, split, side)
+		if coast.is_empty():
+			return result
+		result.append(carry.call(coast, split))
+	for age in Hotspot.sample_ages(Hotspot.step_of(node, skip), split, time):
 		var ring := Ridge.ring_at(root, ridge, age)
 		if ring.is_empty():
 			result.clear()
 			return result
-		result.append(Feature.apply_basis(ring,
-			now * Feature.world_basis(root, half, age).transposed()))
+		ring = carry.call(ring, age)
+		if result.size() != 1 or not _same_line(result[0], ring):
+			result.append(ring)
 	return result
+
+
+# Whether two isochrons lie on each other, to about ten meters: the ridge at the
+# split age and the coast when the halves touched then.
+static func _same_line(a: PackedVector2Array, b: PackedVector2Array) -> bool:
+	const CLOSE := 1e-4
+	if a.size() != b.size():
+		return false
+	for i in a.size():
+		if a[i].distance_to(b[i]) > CLOSE:
+			return false
+	return true
 
 
 # The isochrons and the flowlines of the crust at that time, in world
@@ -76,11 +103,15 @@ static func bands(lines: Array[PackedVector2Array]) -> Array[PackedVector2Array]
 # the older of its two isochrons, counted from the time rather than from the
 # present, so the crust beside the ridge is new whenever it is looked at. The
 # ages come from the same sampling the isochrons do, so the k-th is the k-th
-# band's; `count` is how many bands there are.
+# band's; `count` is how many bands there are. One band more than the sampling
+# gives is the band between the coast and the ridge of the split age, which
+# isochrons() adds when the halves were apart then, and it has the split age.
 static func band_ages(node: Feature, time: float, skip: float,
 		count: int) -> PackedFloat64Array:
 	var sampled := Hotspot.sample_ages(Hotspot.step_of(node, skip),
 		float(node.time_range.y), time)
+	if count >= sampled.size():
+		sampled.insert(0, sampled[0])
 	var ages := PackedFloat64Array()
 	for k in mini(count, sampled.size()):
 		ages.append(sampled[k] - time)
@@ -104,9 +135,12 @@ static func rebuild(root: Feature, node: Feature, time: float, skip: float) -> v
 	node.rebuild_triangles()
 
 
-# How many bands the crust has, read off the rings rebuild() last gave it.
+# How many bands the crust has, read off the rings rebuild() last gave it. A band
+# with no area, from a time the plates did not move apart, is not counted.
 static func chunks(node: Feature) -> int:
-	return node.rings.size()
+	const EMPTY_KM2 := 1.0
+	return node.rings.filter(func(ring: PackedVector2Array) -> bool:
+		return Measure.ring_area(ring) > EMPTY_KM2).size()
 
 
 # What the Properties panel says about a crust.

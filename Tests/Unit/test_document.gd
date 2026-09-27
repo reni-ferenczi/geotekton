@@ -419,6 +419,45 @@ func test_the_crust_is_bands_between_isochrons_at_the_skip() -> void:
 		assert_eq(Crust.chunks(crust), 2, "a longer skip gives fewer chunks")
 
 
+# Halves already apart at the split age, which do not move after it: the crust
+# runs from each coast to the ridge in one band of the split age, and the bands
+# after it have no area. See GP-0129.
+func test_halves_apart_at_the_split_age_have_crust_from_the_coast() -> void:
+	var document := _split_square(false)
+	var root := document.root
+	for index in [0, 1]:
+		var half: Feature = root.children[index]
+		var west := _mean_longitude(half.rings[0]) < 0.0
+		for time: float in [100.0, 0.0]:
+			assert_eq(document.set_keyframe(half, time,
+				Vector3(20, 0, 4) if west else Vector3(-15, 0, -3)), "")
+	for index in [3, 4]:
+		var crust: Feature = root.children[index]
+		var half: Feature = root.get_node_by_uuid(crust.crust_half)
+		for time: float in [100.0, 0.0]:
+			Crust.rebuild(root, crust, time, 25.0)
+			var lines := crust.crust_line_rings
+			var cut := _world(document, half, half.rings[0].slice(0, 3), time)
+			var outer := lines[0].duplicate()
+			if outer[0].distance_to(cut[0]) > outer[0].distance_to(cut[2]):
+				outer.reverse()
+			_assert_same_ring(outer, cut, 1e-3,
+				"%s at %d Ma: the oldest isochron is the half's cut edge" % [crust.title, time])
+
+			var ridge := Ridge.ring_at(root, root.children[2], time)
+			var between := lines[0].duplicate()
+			var back := ridge.duplicate()
+			back.reverse()
+			between.append_array(back)
+			var expected := Measure.ring_area(between)
+			assert_true(expected > 1000.0, "%s at %d Ma: the halves are apart" % [crust.title, time])
+			assert_close(Measure.geometry_area(crust), expected, 1e-6 * expected,
+				"%s at %d Ma: the crust covers the sea from the coast to the ridge" % [crust.title, time])
+			assert_eq(Crust.chunks(crust), 1, "%s at %d Ma: in one chunk" % [crust.title, time])
+			assert_eq(crust.band_ages[0], 100.0 - time, "of the split age")
+			var flowline := lines[lines.size() - 3]
+			assert_eq(flowline[0], lines[0][0], "a flowline starts on the coast")
+
 # The step on the crust wins over the Skip the rebuild is handed, so the same
 # file opens with the same bands wherever the Skip happens to sit.
 func test_a_crust_samples_at_its_own_step() -> void:

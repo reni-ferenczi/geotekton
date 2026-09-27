@@ -579,15 +579,19 @@ sea floor spreading: with isochrons and flowlines. New crust is next to the
 ridge and older crust is next to the continent.
 
 An **isochron** is a line of equal crust age: where the ridge was at that age,
-carried along with the half since. The oldest one, at the age of the cut, is the
-half's side of the cut, and the youngest, at the current time, is the ridge
-itself. Between them there is one at every multiple of the crust's **Step
-(My)**, the same setting a [hotspot](#hotspots) track is sampled at, and at
-every multiple of the timeline's [Skip](Time.md#the-time-control) while the
-step is 0. A **flowline** follows one vertex of the cut across every isochron,
-from the continent to the ridge. Along a stretch of sea the oldest isochron is
-the line the cut was drawn along, so a bay or the strait between two islands
-fills with crust as well, and the crust has no holes.
+carried along with the half since. The youngest, at the current time, is the
+ridge itself. Before it there is one at the age of the cut and one at every
+multiple of the crust's **Step (My)**, the same setting a [hotspot](#hotspots)
+track is sampled at, and at every multiple of the timeline's
+[Skip](Time.md#the-time-control) while the step is 0. The oldest isochron is
+always the half's side of the cut, carried with the half. When the halves still
+touched at the age of the cut, the ridge lay on that side then and the two are
+one line. When their plates had already moved them apart, the ridge of that age
+lies out in the gap, and the first band runs from the coast out to it, with the
+age of the cut. A **flowline** follows one vertex of the cut across every
+isochron, from the continent to the ridge. Along a stretch of sea the oldest
+isochron is the line the cut was drawn along, so a bay or the strait between two
+islands fills with crust as well, and the crust has no holes.
 
 Each half gets one feature, `Laurentia crust`, placed after the ridge with the
 ridge's time range. It holds the bands between two isochrons in a row, one
@@ -621,14 +625,17 @@ shader nor the geometry texture carries a color or an age per band. `Crust`
 records the age of the crust in each band beside the rings and
 `Styling.crust_color()` turns it into the color.
 
-At the age of the cut there is only the one isochron, so the crust draws
-nothing. As the time moves towards the present the halves drift and the bands
-open, one more at each step. `Logic/crust.gd` rebuilds the crust after the
+At the age of the cut there is only the one isochron when the halves touch, so
+the crust draws nothing; halves already apart have their first band. As the
+time moves towards the present the halves drift and the bands open, one more at
+each step. `Logic/crust.gd` rebuilds the crust after the
 topologies whenever the tree, the time, the step or the Skip changes, and keeps
 the bands in the feature's rings and the lines beside them, so only the bands
 are filled and measured. A crust is a topology with no sections: the Properties
 panel shows a line such as `Crust of Laurentia, 4 chunks` in place of the
-section table, and the Area row is the sum of its bands. Copy Shape takes the
+section table, counting only the bands with an area, so a stretch of time in
+which the plates did not move apart adds no chunk. The Area row is the sum of
+its bands. Copy Shape takes the
 bands as a polygon of several parts. The crust is part of the split's one undo
 version. A second split of its half keeps it on its coast; see [Splitting a half
 again](#splitting-a-half-again).

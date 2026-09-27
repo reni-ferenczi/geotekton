@@ -471,8 +471,8 @@ A [midway topology](Editing.md#midway-topologies), such as a ridge, has no
 Closed switch. A line above the table says `Midway between two sides`, and
 Pick refuses a section once both sides are there. A [crust](Editing.md#the-crust) has neither the
 switch nor the table, since it is built from its half and its ridge. The line
-says which half it lies beside and how many bands it has at the current time and
-step, as in `Crust of Laurentia, 4 chunks`. Above the form a crust has the
+says which half it lies beside and how many bands with an area it has at the
+current time and step, as in `Crust of Laurentia, 4 chunks`. Above the form a crust has the
 [Step (My)](#the-step-row) row, the one thing about it that is edited.
 Neither a ridge nor a crust has a row in the feature tree, so the panel shows one
 after it is clicked on the globe; see
