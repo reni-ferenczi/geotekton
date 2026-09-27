@@ -1,7 +1,7 @@
 extends TestCase
 
 # What the kinematics panel graphs: where the middle of a feature is over time
-# and how fast it turns between its keyframes. Logic/kinematics.gd needs no
+# and how fast that middle moves between its keyframes. Logic/kinematics.gd needs no
 # scene, so all of it is checked here rather than through the port.
 
 # A radius that is not the Earth's, so a distance worked out from it cannot
@@ -112,21 +112,91 @@ func test_a_span_that_is_not_a_span_has_no_path() -> void:
 ### The rate between keyframes
 
 
-func test_the_rate_is_the_angle_over_the_time_between_two_keyframes() -> void:
+func test_the_rate_is_the_speed_of_the_middle_under_the_stage_rotation() -> void:
 	var feature := _moving_feature()
 	var segments := Kinematics.segments(_planet(feature), feature, RADIUS)
 	assert_eq(segments.size(), 1, "two keyframes make one span")
 	if segments.is_empty():
 		return
 
-	var turn := Quaternion(Feature.build_rotation_basis(FIRST)).angle_to(
-		Quaternion(Feature.build_rotation_basis(SECOND)))
-	assert_close(float(segments[0]["degrees_per_my"]), rad_to_deg(turn) / 1000.0, 1e-9,
-		"the angle between the two keyframes over the time between them")
-	assert_close(float(segments[0]["km_per_my"]), turn / 1000.0 * RADIUS, 1e-9,
-		"and the distance that angle covers on a planet of this radius")
+	# The turn from the older keyframe to the younger one, and how far from its
+	# axis the middle stands at the younger end.
+	var younger := Feature.build_rotation_basis(FIRST)
+	var stage := (younger * Feature.build_rotation_basis(SECOND).inverse()).get_rotation_quaternion()
+	var point := younger * Kinematics.centroid(feature)
+	var off_axis := stage.get_axis().normalized().cross(point).length()
+	assert_close(float(segments[0]["km_per_my"]), stage.get_angle() / 1000.0 * RADIUS * off_axis, 1e-4,
+		"the angle over the time, times the middle's distance from the axis on this planet")
+	assert_true(off_axis < 0.99, "which is less than the fastest point would move: %s" % off_axis)
 	assert_eq(str([segments[0]["from"], segments[0]["to"]]), str([0.0, 1000.0]),
 		"the span runs from the younger keyframe to the older one")
+
+
+# Along the equator by 5 degrees in 10 My: 0.5 degrees of arc per My, heading
+# east.
+func test_a_move_along_the_equator_reads_its_arc_per_my_and_heads_east() -> void:
+	var feature := _square()
+	Keyframe.upsert(feature.keyframes, 0.0, Vector3.ZERO)
+	Keyframe.upsert(feature.keyframes, 10.0, Vector3(5, 0, 0))
+	var segments := Kinematics.segments(_planet(feature), feature, RADIUS)
+	assert_eq(segments.size(), 1, "one span")
+	if segments.is_empty():
+		return
+	assert_close(float(segments[0]["km_per_my"]), deg_to_rad(0.5) * RADIUS, 1e-4, "0.5 degrees a My")
+	assert_close(float(segments[0]["bearing"]), 90.0, 1e-3, "heading east")
+
+
+# One My between keyframes and a move 1% longer each step: every step reads
+# its own speed and each one more than the last. With 32-bit quaternions some
+# steps read the same as the one before.
+func test_one_my_between_keyframes_reads_every_step() -> void:
+	var feature := _square()
+	var steps: Array[float] = []
+	var angle := 0.0
+	Keyframe.upsert(feature.keyframes, 6.0, Vector3.ZERO)
+	for i in range(6):
+		steps.append(0.03 * pow(1.01, i))
+		angle += steps[i]
+		Keyframe.upsert(feature.keyframes, 5.0 - i, Vector3(angle, 0, 0))
+	var segments := Kinematics.segments(_planet(feature), feature, RADIUS)
+	assert_eq(segments.size(), 6, "six spans")
+	if segments.size() < 6:
+		return
+	# Youngest first, so the last step made is the first span.
+	for i in range(6):
+		var expected := deg_to_rad(steps[5 - i]) * RADIUS
+		assert_close(float(segments[i]["km_per_my"]), expected, expected * 1e-3, "the span %d" % i)
+		if i > 0:
+			assert_true(float(segments[i - 1]["km_per_my"]) > float(segments[i]["km_per_my"]),
+				"span %d is faster than the one before it" % i)
+
+
+# A spin about the feature's own middle leaves the middle where it is.
+func test_a_spin_about_the_middle_reads_near_zero() -> void:
+	var feature := _square()
+	Keyframe.upsert(feature.keyframes, 0.0, Vector3.ZERO)
+	Keyframe.upsert(feature.keyframes, 10.0, Vector3(0, 30, 0))
+	var segments := Kinematics.segments(_planet(feature), feature, RADIUS)
+	assert_eq(segments.size(), 1, "one span")
+	if not segments.is_empty():
+		assert_close(float(segments[0]["km_per_my"]), 0.0, 1e-3, "the middle stays put")
+
+
+# A feature that follows another moves with it, so its rate is the parent's
+# motion at its own middle, though it has no motion of its own.
+func test_a_coupled_feature_reads_its_parents_motion() -> void:
+	var parent := _square()
+	Keyframe.upsert(parent.keyframes, 0.0, Vector3.ZERO)
+	Keyframe.upsert(parent.keyframes, 10.0, Vector3(5, 0, 0))
+	var child := _feature([Vector2(-2, 18), Vector2(2, 18), Vector2(2, 22), Vector2(-2, 22)])
+	Keyframe.upsert(child.keyframes, 10.0, Vector3.ZERO)
+	child.couplings.append(Coupling.create(10.0, 0.0, parent.uuid))
+	var root := _planet(parent)
+	root.children.append(child)
+	var segments := Kinematics.segments(root, child, RADIUS)
+	var rate := Kinematics.rate_at(segments, 5.0)
+	assert_close(float(rate["km_per_my"]), deg_to_rad(0.5) * RADIUS, 1e-3,
+		"the parent's half a degree a My, at the child's middle on the equator")
 
 
 func test_a_feature_that_has_been_moved_once_does_not_move_at_all() -> void:
@@ -136,8 +206,7 @@ func test_a_feature_that_has_been_moved_once_does_not_move_at_all() -> void:
 	assert_eq(segments.size(), 0, "one keyframe is no span")
 
 	var rate := Kinematics.rate_at(segments, 500.0)
-	assert_close(float(rate["degrees_per_my"]), 0.0, 1e-9, "so it turns at nothing")
-	assert_close(float(rate["km_per_my"]), 0.0, 1e-9, "and covers nothing")
+	assert_close(float(rate["km_per_my"]), 0.0, 1e-9, "so it covers nothing")
 	assert_close(Kinematics.peak_rate(segments), 0.0, 1e-9, "and there is no peak to scale by")
 
 
@@ -149,17 +218,21 @@ func test_the_rate_is_read_off_the_span_the_time_falls_in() -> void:
 	if segments.size() < 2:
 		return
 
-	assert_close(float(Kinematics.rate_at(segments, 400.0)["degrees_per_my"]),
-		float(segments[0]["degrees_per_my"]), 1e-9, "inside the younger span")
-	assert_close(float(Kinematics.rate_at(segments, 1500.0)["degrees_per_my"]),
-		float(segments[1]["degrees_per_my"]), 1e-9, "inside the older one")
-	assert_close(float(Kinematics.rate_at(segments, 1000.0)["degrees_per_my"]),
-		float(segments[0]["degrees_per_my"]), 1e-9,
-		"a time where two spans meet belongs to the younger of them")
-	assert_close(float(Kinematics.rate_at(segments, 2500.0)["degrees_per_my"]), 0.0, 1e-9,
+	assert_true(absf(float(segments[0]["km_per_my"]) - float(segments[1]["km_per_my"])) > 0.01,
+		"the two spans differ, so the checks below can tell them apart")
+	assert_close(float(Kinematics.rate_at(segments, 400.0)["km_per_my"]),
+		float(segments[0]["km_per_my"]), 1e-9, "inside the younger span")
+	assert_close(float(Kinematics.rate_at(segments, 1500.0)["km_per_my"]),
+		float(segments[1]["km_per_my"]), 1e-9, "inside the older one")
+	assert_close(float(Kinematics.rate_at(segments, 1000.0)["km_per_my"]),
+		float(segments[1]["km_per_my"]), 1e-9,
+		"a time where two spans meet belongs to the older one, the move that brought it there")
+	assert_close(float(Kinematics.rate_at(segments, 2000.0)["km_per_my"]), 0.0, 1e-9,
+		"at the oldest keyframe it has not moved yet")
+	assert_close(float(Kinematics.rate_at(segments, 2500.0)["km_per_my"]), 0.0, 1e-9,
 		"older than every keyframe the feature stands still")
 	assert_close(Kinematics.peak_rate(segments),
-		maxf(float(segments[0]["degrees_per_my"]), float(segments[1]["degrees_per_my"])),
+		maxf(float(segments[0]["km_per_my"]), float(segments[1]["km_per_my"])),
 		1e-9, "the peak is the faster of the two")
 
 
@@ -195,7 +268,7 @@ func test_the_motion_sample_moves_faster_the_further_back_it_goes() -> void:
 	assert_eq(segments.size(), 2, "three keyframes, two spans")
 	if segments.size() < 2:
 		return
-	assert_true(float(segments[1]["degrees_per_my"]) > float(segments[0]["degrees_per_my"]) * 1.5,
+	assert_true(float(segments[1]["km_per_my"]) > float(segments[0]["km_per_my"]) * 1.5,
 		"the older span is clearly the faster of the two, so the two bars differ")
 
 
@@ -212,6 +285,12 @@ func _feature(vertices: Array[Vector2]) -> Feature:
 	var ring := PackedVector2Array(vertices)
 	feature.add_ring(ring, Feature.GeometryKind.POLYGON)
 	return feature
+
+
+# A square round the point on the equator at the prime meridian, so its middle
+# is there.
+func _square() -> Feature:
+	return _feature([Vector2(-10, -10), Vector2(10, -10), Vector2(10, 10), Vector2(-10, 10)])
 
 
 # A triangle that turns from one rotation to the other over a thousand million
@@ -237,9 +316,7 @@ func _planet(feature: Feature) -> Feature:
 
 
 func test_the_rate_row_gives_its_peak_in_the_unit_the_preference_names() -> void:
-	# A degree per million years on a planet whose radius makes that 20 km/My.
-	var radius := 20.0 / deg_to_rad(1.0)
-	assert_eq(KinematicsPanel.peak_label(1.0, radius, Measure.RATE_CM_PER_YEAR), "2.00 cm/yr")
-	assert_eq(KinematicsPanel.peak_label(1.0, radius, Measure.RATE_KM_PER_MY), "20.00 km/My")
-	assert_eq(KinematicsPanel.peak_label(0.0, radius, Measure.RATE_CM_PER_YEAR), "0.00 cm/yr",
+	assert_eq(KinematicsPanel.peak_label(20.0, Measure.RATE_CM_PER_YEAR), "2.00 cm/yr")
+	assert_eq(KinematicsPanel.peak_label(20.0, Measure.RATE_KM_PER_MY), "20.00 km/My")
+	assert_eq(KinematicsPanel.peak_label(0.0, Measure.RATE_CM_PER_YEAR), "0.00 cm/yr",
 		"a node that does not move peaks at nothing")

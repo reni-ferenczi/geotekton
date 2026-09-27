@@ -1,7 +1,7 @@
 class_name Kinematics
 
 # What the kinematics panel draws: where the middle of a feature has been over
-# time, and how fast it is turning between its keyframes. Nothing here touches
+# time, and how fast that middle moves between its keyframes. Nothing here touches
 # the scene, so a graph can be worked out headless and checked without a window.
 # See Docs/Kinematics.md.
 #
@@ -105,54 +105,103 @@ static func _add_time(times: PackedFloat64Array, time: float) -> void:
 	times.append(time)
 
 
-# How fast the node turns between each pair of those times. One dictionary per
-# span: `from`, the younger end, `to`, the older one, `degrees_per_my` and
-# `km_per_my`.
+# How fast the middle of the node moves between each pair of those times. One
+# dictionary per span: `from`, the younger end, `to`, the older one,
+# `km_per_my`, the speed of the middle, and `bearing`, the compass direction it
+# moves in, in degrees clockwise from north.
 #
-# The angle is the one turn that carries where the node stands at one end to
-# where it stands at the other, so the rate is what the motion averages over the
-# span rather than anything instantaneous. It has no direction: a turn back the
-# way it came is as fast as the turn out. The distance is what a point a quarter
-# turn from the axis covers, which is the fastest any part of the feature moves.
+# The arithmetic is GPlates' calculate_velocity_vector_and_omega(): the stage
+# rotation that carries the world rotation at the older end to the one at the
+# younger end, its angle over the length of the span, and the velocity that
+# gives the middle where it stands at the younger end. A spin about the middle
+# moves the middle by nothing and reads zero. Between two keyframes the
+# feature turns about one axis at one steady rate, so the speed holds over the
+# whole span.
 #
 # A node with fewer than two times to itself has no span and no rate at all.
 static func segments(root: Feature, node: Feature, radius: float) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var times := motion_times(root, node)
+	var middle := centroid(node)
 	for i in range(1, times.size()):
 		var span := times[i] - times[i - 1]
 		if span <= 0.0:
 			continue
-		var from_rotation := Quaternion(Feature.world_basis(root, node, times[i - 1]))
-		var to_rotation := Quaternion(Feature.world_basis(root, node, times[i]))
-		var degrees := rad_to_deg(from_rotation.angle_to(to_rotation)) / span
+		var younger := Feature.world_basis(root, node, times[i - 1])
+		var older := Feature.world_basis(root, node, times[i])
+		var point := younger * middle
+		var velocity := stage_velocity(older, younger, span, point) * radius
 		result.append({
 			"from": times[i - 1],
 			"to": times[i],
-			"degrees_per_my": degrees,
-			"km_per_my": deg_to_rad(degrees) * radius,
+			"km_per_my": velocity.length(),
+			"bearing": bearing(point, velocity),
 		})
 	return result
 
 
-# How fast the node is turning at a time: the span the time falls in, both ends
-# counted as inside, and nothing at all outside every span. A time where two
-# spans meet belongs to the younger of the two, so one answer comes back rather
-# than two.
+# The velocity of a point on the unit sphere under the stage rotation from one
+# world rotation to another `span` My later, per My. The angle is worked out in
+# doubles from the quaternion's parts: the angle between two nearby rotations
+# taken from 32-bit quaternions moved in steps of about 0.03 cm/yr with one My
+# between keyframes. Of q and -q the shorter turn is taken.
+static func stage_velocity(older: Basis, younger: Basis, span: float, point: Vector3) -> Vector3:
+	var a := Quaternion(younger)
+	var b := Quaternion(older)
+	var aw := a.w
+	var ax := a.x
+	var ay := a.y
+	var az := a.z
+	# The conjugate of b, which is its inverse.
+	var bw := b.w
+	var bx := -b.x
+	var by := -b.y
+	var bz := -b.z
+	var w := aw * bw - ax * bx - ay * by - az * bz
+	var x := aw * bx + ax * bw + ay * bz - az * by
+	var y := aw * by - ax * bz + ay * bw + az * bx
+	var z := aw * bz + ax * by - ay * bx + az * bw
+	if w < 0.0:
+		w = -w
+		x = -x
+		y = -y
+		z = -z
+	var sine := sqrt(x * x + y * y + z * z)
+	if sine <= 0.0 or span <= 0.0:
+		return Vector3.ZERO
+	var angle := 2.0 * atan2(sine, w)
+	var axis := Vector3(x / sine, y / sine, z / sine)
+	return axis.cross(point) * (angle / span)
+
+
+# The compass bearing of a velocity at a point on the unit sphere, in degrees
+# clockwise from north. Zero at a pole, where north is every way, and for a
+# point that does not move.
+static func bearing(point: Vector3, velocity: Vector3) -> float:
+	var east := Vector3(-point.z, 0.0, point.x)
+	if east.length() < 1e-9 or velocity.length() <= 0.0:
+		return 0.0
+	east = east.normalized()
+	var north := east.cross(point)
+	return fposmod(rad_to_deg(atan2(velocity.dot(east), velocity.dot(north))), 360.0)
+
+
+# How fast the node moves at a time: the span that brought it there, the way
+# GPlates reads the motion from t + dt to t. A time where two spans meet
+# belongs to the older of the two, so the readout at a keyframe gives the move
+# that was just made there. Nothing at all outside every span, and nothing at
+# the oldest time, where the feature has not moved yet.
 static func rate_at(segments_: Array[Dictionary], time: float) -> Dictionary:
 	for segment in segments_:
-		if time >= segment["from"] and time <= segment["to"]:
-			return {
-				"degrees_per_my": segment["degrees_per_my"],
-				"km_per_my": segment["km_per_my"],
-			}
-	return {"degrees_per_my": 0.0, "km_per_my": 0.0}
+		if time >= segment["from"] and time < segment["to"]:
+			return {"km_per_my": segment["km_per_my"], "bearing": segment["bearing"]}
+	return {"km_per_my": 0.0, "bearing": 0.0}
 
 
-# The fastest of the spans, which is what the rate graph is drawn against. Zero
-# when the node does not move, and never negative.
+# The fastest of the spans in km/My, which is what the rate graph is drawn
+# against. Zero when the node does not move, and never negative.
 static func peak_rate(segments_: Array[Dictionary]) -> float:
 	var peak := 0.0
 	for segment in segments_:
-		peak = maxf(peak, float(segment["degrees_per_my"]))
+		peak = maxf(peak, float(segment["km_per_my"]))
 	return peak

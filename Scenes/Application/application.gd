@@ -2418,7 +2418,8 @@ func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 
 
 # Dragging writes the keyframe at the current time as it goes, so what is on the
-# globe is what will be committed. Only the release records an undo version.
+# globe is what will be committed, and the kinematics panel reads the speed of
+# the move while it is made. Only the release records an undo version.
 # The children of the dragged feature go with it, since refresh_motion()
 # resolves every child from its parent.
 func _on_move_to(lat: float, lon: float) -> void:
@@ -2433,6 +2434,7 @@ func _on_move_to(lat: float, lon: float) -> void:
 				Feature.build_rotation_basis(new_rot), Coupling.index(features.root))
 		Keyframe.upsert(selected.keyframes, document.current_time, new_rot)
 		refresh_motion()
+		kinematics.refresh()
 
 
 func _on_move_ended() -> void:
@@ -2447,6 +2449,7 @@ func _on_move_cancelled() -> void:
 	if selected != null and not selected.is_group:
 		selected.keyframes = move_base_keyframes
 	refresh_motion()
+	kinematics.refresh()
 
 
 ### The Rotate and Pole tools
@@ -2566,6 +2569,7 @@ func _spin_to(lat: float, lon: float) -> void:
 			Feature.build_rotation_basis(rotation), Coupling.index(features.root))
 	Keyframe.upsert(spin_feature.keyframes, document.current_time, rotation)
 	refresh_motion()
+	kinematics.refresh()
 	_show_measurement()
 
 
@@ -2586,6 +2590,7 @@ func _spin_cancel() -> void:
 	if spin_feature != null:
 		spin_feature.keyframes = spin_base_keyframes
 		refresh_motion()
+		kinematics.refresh()
 	spin_axis = Vector3.ZERO
 	spin_feature = null
 	spin_press_at = NO_POLE
