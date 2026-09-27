@@ -78,6 +78,7 @@ adding an item means adding an enum value and one `add_item` line.
 | Console     |          | Show or hide the Python prompt; see [Scripting](Scripting.md) |
 | Status Bar  |          | Show or hide the status bar               |
 | Highlight children |     | Mark the children of the selected feature, orange on the planet and tinted in the tree; off by default. See [Editing](Editing.md#highlighting-children) |
+| Ridge markers |     | A red dot on the timeline where each ridge of the selected feature appears; on by default. See [Time](Time.md#ridge-markers) |
 | Polygons    |          | Draw the polygons, or leave them off; see [Styling](Styling.md#the-visibility-switches) |
 | Polylines   |          | The same for the polylines                |
 | Points      |          | The same for the multipoints              |

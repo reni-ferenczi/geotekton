@@ -753,6 +753,7 @@ more than the last change.
 | `panel_features`, `panel_properties`, `panel_timeline`, `panel_kinematics`, `panel_console`, `panel_status_bar` | Which panels are shown. Everything but the kinematics graphs and the console is shown when the file says nothing |
 | `kinematics_place` | Whether the kinematics panel graphs latitude and longitude above the rate. Off when the file says nothing |
 | `highlight_children` | Whether the children of the selected feature are highlighted. Off when the file says nothing. When the key is absent, `highlight_riders`, the name an older version wrote, is read instead |
+| `ridge_markers` | Whether the timeline marks where the selected feature's ridges appear. On when the file says nothing |
 | `animation`                        | The playback range, the speed and the loop switch    |
 | `skip_increment`                   | How far the timeline's `<` and `>` buttons jump, in millions of years, and how finely a hotspot track and a crust are sampled when they carry no step of their own |
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |

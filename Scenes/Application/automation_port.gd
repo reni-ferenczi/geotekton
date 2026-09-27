@@ -241,6 +241,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"kinematics": app.kinematics.visible,
 				"kinematics_place": app.kinematics.show_place,
 				"highlight_children": app.highlight_children,
+				"ridge_markers": app.timeline.show_ridges,
 				"console": app.console.visible,
 				"status_bar": app.status_bar.visible,
 			}}
@@ -1151,6 +1152,7 @@ func _menu_item(name: String) -> Array:
 		"kinematics": return [app.view_menu, Application.ViewItem.KINEMATICS]
 		"kinematics_place": return [app.view_menu, Application.ViewItem.KINEMATICS_PLACE]
 		"highlight_children": return [app.view_menu, Application.ViewItem.HIGHLIGHT_CHILDREN]
+		"ridge_markers": return [app.view_menu, Application.ViewItem.RIDGE_MARKERS]
 		"console": return [app.view_menu, Application.ViewItem.CONSOLE]
 		"status_bar": return [app.view_menu, Application.ViewItem.STATUS_BAR]
 		"run_script": return [app.file_menu, Application.FileItem.RUN_SCRIPT]

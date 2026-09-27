@@ -4532,6 +4532,53 @@ def probe_unhovered(client: AutomationClient, lat: float, lon: float) -> list[fl
     return client.call("get_pixel", x=screen[0], y=screen[1])["color"]
 
 
+# A feature beside the plate that is never split, so it has no ridge.
+LONER_SQUARE = [(30.0, -10.0), (30.0, 10.0), (45.0, 10.0), (45.0, -10.0)]
+
+
+def run_ridge_marker_session(client: AutomationClient) -> None:
+    """GP-0132: a red dot on the timeline at the split age of a ridge, for
+    either half, the ridge and its crusts, none for a feature with no ridge,
+    and View > Ridge markers hides them."""
+    start_new_document(client)
+    client.call("set_animation", animation={"start": 200.0, "end": 0.0})
+    client.call("set_time", time=CRUST_AGE)
+    add_drawn(client, "Loner", LONER_SQUARE)
+    add_drawn(client, "Plate", CRUST_SQUARE)
+    client.call("set_tool", tool="split", ridge=True, crust=True)
+    if not draw(client, CRUST_CUT):
+        return
+    client.call("key", key="Enter")
+    client.call("set_tool", tool="move")
+    check(client.call("get_panels")["panels"]["ridge_markers"], "the ridge markers are on by default")
+
+    for title in CRUST_TITLES:
+        client.call("select", title=title)
+        dots = client.call("get_timeline")["timeline"]["ridges"]
+        check(len(dots) == 1 and dots[0]["time"] == CRUST_AGE,
+              f"{title}: one dot at the split age: {dots}")
+        if dots:
+            check(dots[0]["tooltip"] == f"Ridge between Plate and Plate 2 from {CRUST_AGE} Ma",
+                  f"{title}: the dot names the halves: {dots[0]['tooltip']!r}")
+    client.call("select", title="Plate")
+    client.call("set_time", time=20.0)
+    dot = client.call("get_timeline")["timeline"]["ridges"][0]
+    client.call("click", x=dot["screen"][0], y=dot["screen"][1])
+    check(client.call("get_time")["time"] == CRUST_AGE,
+          f"a click on the dot goes to the split age: {client.call('get_time')['time']}")
+
+    client.call("select", title="Loner")
+    check(client.call("get_timeline")["timeline"]["ridges"] == [], "a feature with no ridge has no dot")
+
+    client.call("select", title="Plate 2")
+    client.call("menu", item="ridge_markers")
+    check(not client.call("get_panels")["panels"]["ridge_markers"]
+          and client.call("get_timeline")["timeline"]["ridges"] == [],
+          "View > Ridge markers hides the dots")
+    client.call("menu", item="ridge_markers")
+    check(len(client.call("get_timeline")["timeline"]["ridges"]) == 1, "and shows them again")
+
+
 def run_crust_session(client: AutomationClient) -> None:
     """The Split tool leaving oceanic crust that opens as the halves drift apart."""
     start_new_document(client)
@@ -5990,6 +6037,7 @@ def main(argv: list[str]) -> int:
         run_divide_session(client)
         run_ridge_session(client)
         run_crust_session(client)
+        run_ridge_marker_session(client)
         run_split_children_session(client)
         run_copy_shape_session(client)
         run_rotate_session(client)
