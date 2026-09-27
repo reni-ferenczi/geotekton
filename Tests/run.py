@@ -11,7 +11,8 @@ Usage:
     uv run Tests/run.py all
     uv run Tests/run.py performance [--triangles=N] [--budget=MS]
 
-Set the GODOT environment variable to use a different engine binary.
+Set the GODOT environment variable to use a different engine binary, and
+GEOTEKTON_SKIP_IMPORT=1 to leave out the import step.
 See Docs/Testing.md.
 """
 
@@ -108,7 +109,9 @@ def main(argv: list[str]) -> int:
                        "python", "golden", "performance", "all"):
         print(f"unknown command: {command}\n{USAGE}", file=sys.stderr)
         return 2
-    if import_project() != 0:
+    # A caller that already imported, and runs modes side by side, skips it:
+    # imports running at once would write the same cache.
+    if not os.environ.get("GEOTEKTON_SKIP_IMPORT") and import_project() != 0:
         print("the Godot import step failed", file=sys.stderr)
         return 1
 

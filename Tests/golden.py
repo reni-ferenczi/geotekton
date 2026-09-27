@@ -5,6 +5,11 @@ regenerated, and never again: a run compares pixels, it does not ask anyone to
 judge a screenshot. A built-in negative control proves on every run that the
 comparison can still tell two different scenes apart.
 
+GPUs draw thin lines and text a pixel apart, so each kind of GPU has its own
+references: Tests/Golden for NVIDIA, Tests/Golden/AMD, and Tests/Golden/Software
+for a software renderer such as llvmpipe. A run picks the set of the GPU the
+application reports.
+
 Usage:
     uv run Tests/golden.py check [--port N]
     uv run Tests/golden.py update [--port N]
@@ -214,7 +219,17 @@ def update(shots: dict[str, Path]) -> bool:
     return True
 
 
+def references_for(adapter: str) -> Path:
+    """The reference set of the GPU the application draws on."""
+    if "llvmpipe" in adapter or "lavapipe" in adapter.lower() or "SwiftShader" in adapter:
+        return GOLDEN / "Software"
+    if "AMD" in adapter or "Radeon" in adapter:
+        return GOLDEN / "AMD"
+    return GOLDEN
+
+
 def main(argv: list[str]) -> int:
+    global GOLDEN
     if not argv or argv[0] not in ("check", "update"):
         print(USAGE, file=sys.stderr)
         return 2
@@ -226,13 +241,16 @@ def main(argv: list[str]) -> int:
             return 2
         port = int(argv[2])
 
-    GOLDEN.mkdir(parents=True, exist_ok=True)
     process = launch_app(port)
     client = AutomationClient(port)
     connected = False
     try:
         client.connect()
         connected = True
+        adapter = client.call("ping").get("adapter", "")
+        GOLDEN = references_for(adapter)
+        GOLDEN.mkdir(parents=True, exist_ok=True)
+        print(f"{adapter}: references in {GOLDEN.relative_to(ROOT)}")
         with tempfile.TemporaryDirectory(prefix="geotekt-golden-") as temp:
             shots = capture(client, Path(temp))
             ok = check(shots) if command == "check" else update(shots)
