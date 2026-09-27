@@ -95,7 +95,7 @@ const vec3 REFUSED_COLOR = vec3(1.0, 0.033105, 0.033105);
 // halo and feather included: Feature.line_scale(). The line color is the
 // color for everything but a crust, whose bands are filled in its color and
 // whose isochrons and flowlines are drawn in the line color over them:
-// Feature.line_color(). A crust also takes a column per band, each filled in
+// Styling.line_color_of(). A crust also takes a column per band, each filled in
 // what the age ramp gives the crust in it, which is why this is a column
 // rather than a feature as far as the shader is concerned.
 uniform sampler2D feature_data : filter_nearest, repeat_disable;

@@ -30,6 +30,17 @@ const BUILT_IN := {
 B\t255 0 0
 F\t255 0 255""",
 	},
+	# Light blue for new crust to dark ocean blue for crust 200 My old, by way
+	# of steel blue at 100 My; what the sea floor is colored with until someone
+	# picks another. It covers the ages sea floor has, where Rainbow covers
+	# 1000 My. See ViewSettings.crust_palette.
+	"blue": {
+		"name": "Blue",
+		"cpt": """0\t198 219 239\t100\t70 130 180
+100\t70 130 180\t200\t16 52 97
+B\t198 219 239
+F\t16 52 97""",
+	},
 }
 
 # The custom ramp a group style carries itself; see GroupStyle.ramp(). It is

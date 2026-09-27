@@ -150,3 +150,127 @@ func test_a_band_under_another_polygon_draws_as_the_polygon() -> void:
 		return
 	var color := await probe(screen)
 	assert_eq(dominant_channel(color), "red", "the cover, not the band: %s" % color)
+
+
+### Colors (GP-0127)
+
+
+# How far a probed pixel may be from the colour it was meant to be, in sRGB.
+const COLOR_TOLERANCE := 0.03
+
+
+# A point inside the k-th band of the crust, where it stands in the world:
+# halfway between the first stretch of its older isochron and the same stretch
+# of its younger one, away from the flowlines.
+func _inside_band(crust: Feature, k: int) -> Vector2:
+	var band: PackedVector2Array = crust.rings[k]
+	var older := (band[0] + band[1]) * 0.5
+	var younger := (band[band.size() - 1] + band[band.size() - 2]) * 0.5
+	var basis := Feature.world_basis(app.document.root, crust, app.document.current_time)
+	return Feature.apply_basis(PackedVector2Array([(older + younger) * 0.5]), basis)[0]
+
+
+func _assert_color(at: Vector2, expected: Color, tolerance: float, what: String) -> void:
+	var screen: Variant = await _screen(at)
+	if screen == null:
+		return
+	var color := await probe(screen)
+	var off := maxf(maxf(absf(color.r - expected.r), absf(color.g - expected.g)),
+		absf(color.b - expected.b))
+	assert_true(off <= tolerance, "%s at %s reads %s, not %s" % [what, at, color, expected])
+
+
+# Each band is drawn in the palette's color at its age, and every band in the
+# one color under Single color.
+func test_a_crust_draws_band_by_band_in_blue_and_in_rainbow() -> void:
+	await _split_square()
+	var crust := _titled("Square crust")
+	assert_eq(Array(crust.band_ages), [100.0, 75.0, 50.0, 25.0], "four bands")
+	for palette in ["blue", "rainbow"]:
+		app.document.view.crust_palette = palette
+		app.refresh_geometry()
+		await frames(2)
+		for k in 4:
+			var expected := Palette.built_in(palette).color_at(crust.band_ages[k])
+			await _assert_color(_inside_band(crust, k), expected, COLOR_TOLERANCE,
+				"band %d in %s" % [k, palette])
+	app.document.view.crust_palette = ViewSettings.CRUST_SINGLE
+	app.refresh_geometry()
+	await frames(2)
+	for k in 4:
+		await _assert_color(_inside_band(crust, k), ViewSettings.DEFAULT_CRUST_COLOR,
+			COLOR_TOLERANCE, "band %d in the single color" % k)
+	app.document.view.crust_palette = ViewSettings.DEFAULT_CRUST_PALETTE
+
+
+func test_a_changed_ridge_color_draws_the_ridge_in_it() -> void:
+	await _split_square()
+	var ridge := _titled("Square ridge")
+	var yellow := Color(1.0, 1.0, 0.0)
+	app.document.view.ridge_color = yellow
+	app.refresh_geometry()
+	await frames(2)
+	var on := (ridge.rings[0][0] + ridge.rings[0][1]) * 0.5
+	await _assert_color(on, yellow, 0.1, "the ridge")
+	app.document.view.ridge_color = FeatureType.color(FeatureType.LINE)
+
+
+### A triple junction (GP-0124)
+
+
+# The eastern half cut at 50 Ma across its land and out across its crust to the
+# ridge, one piece then turning away from the other: at 25 Ma the sea floor
+# between the two pieces is crust, drawn, with the planet showing nowhere.
+func test_a_triple_junction_draws_crust_between_the_pieces() -> void:
+	await _split_square()
+	var document: Document = app.document
+	var east: Feature = null
+	for title in ["Square", "Square 2"]:
+		if _middle(_titled(title).rings[0]).y > 0.0:
+			east = _titled(title)
+	document.set_time(50.0)
+	var basis := Feature.world_basis(document.root, east, 50.0)
+	var land := Feature.apply_basis(east.rings[0], basis)
+	var ridge := Ridge.ring_at(document.root, _titled("Square ridge"), 50.0)
+	var coast := -INF
+	var west := INF
+	var far := INF
+	for v in land:
+		coast = maxf(coast, v.y)
+		west = minf(west, v.y)
+	for v in ridge:
+		far = minf(far, v.y)
+	var path := PackedVector2Array([Vector2(-4, coast + 2.0), Vector2(-4, west - 1.0),
+		Vector2(2, (far + west) * 0.5), Vector2(5, far - 3.0)])
+	assert_eq(document.split_feature_along(east, 0,
+		Feature.apply_basis(path, basis.transposed()), true, true), "", "the cut is made")
+	var moving := _titled(east.title + " 2") if _titled(east.title + " 2") != null else east
+	assert_eq(document.set_keyframe(moving, 50.0, moving.rotation_at(50.0)), "")
+	assert_eq(document.set_keyframe(moving, 0.0, moving.rotation_at(50.0) + Vector3(0, 0, 6)), "")
+	for crust in _crusts():
+		assert_eq(document.set_crust_step(crust, 25.0), "")
+	document.set_time(25.0)
+	app.features.reload()
+	app.refresh_geometry()
+	await frames(2)
+
+	var young: Feature = null
+	for node in document.root.children:
+		if node.midway and node.time_range.y == 50:
+			young = node
+	assert_true(young != null, "the new ridge is there")
+	var sides := [PackedVector2Array(), PackedVector2Array()]
+	for entry: Dictionary in Topology.resolve(document.root, young, 25.0):
+		sides[entry["side"]].append_array(entry["vertices"])
+	var count: int = sides[0].size()
+	for i in [1, count / 2, count - 2]:
+		var at := Feature._xyz_to_latlon_s(Feature._latlon_to_xyz_s(sides[0][i]).slerp(
+			Feature._latlon_to_xyz_s(sides[1][i]), 0.3))
+		var screen: Variant = await _screen(at)
+		if screen == null:
+			continue
+		var color := await probe(screen)
+		var planet := ViewSettings.DEFAULT_PLANET_COLOR
+		var off := maxf(maxf(absf(color.r - planet.r), absf(color.g - planet.g)),
+			absf(color.b - planet.b))
+		assert_true(off > COLOR_TOLERANCE, "sea floor is drawn at %s: %s" % [at, color])

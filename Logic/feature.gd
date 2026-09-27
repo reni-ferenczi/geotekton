@@ -97,9 +97,9 @@ var sections: Array[TopologySection] = []
 # Whether a topology joins its sections into one ring and is filled like a
 # polygon. See Topology.rebuild().
 var closed := false
-# Whether a topology is the line midway between its two sections, vertex by
-# vertex, the way a mid-ocean ridge lies between the plates it opens. See
-# Logic/ridge.gd.
+# Whether a topology is the line midway between its two sides, vertex by
+# vertex, the way a mid-ocean ridge lies between the plates it opens. Each
+# section says which side it is on; see Logic/ridge.gd.
 var midway := false
 
 # What a crust is built from: the half of a split plate it lies beside, the
@@ -389,7 +389,7 @@ func is_sea_floor() -> bool:
 
 
 # The uuids of the halves a ridge or crust is built from: a crust's half, or the
-# features a ridge's two sections run along.
+# features a ridge's sections name, its coasts and the plates its gaps ride on.
 func halves() -> PackedStringArray:
 	var uuids := PackedStringArray()
 	if is_crust():
@@ -439,19 +439,6 @@ func draws_lines() -> bool:
 	if kind == KIND_NAMES[GeometryKind.TOPOLOGY]:
 		return not closed
 	return kind == KIND_NAMES[GeometryKind.POLYLINE]
-
-
-# The color the feature's lines are drawn in, given the color its fill came out
-# of the draw style. Only a crust reads anything else: its bands are the fill
-# and its isochrons and flowlines are drawn in the crust lines color, at the
-# fill's opacity, so a group's opacity still reaches them. See
-# Docs/Editing.md#the-crust.
-func line_color(fill: Color) -> Color:
-	if not is_crust():
-		return fill
-	var lines := FeatureType.color(FeatureType.CRUST_LINES)
-	lines.a = fill.a
-	return lines
 
 
 ### Clone (preserves pnid) and Duplicate (new pnid)
@@ -686,6 +673,11 @@ static func from_json(data: Variant) -> Feature:
 		node.sections = TopologySection.list_from_json(data.get("sections", []))
 		node.closed = bool(data.get("closed", false))
 		node.midway = bool(data.get("midway", false))
+		# A ridge written before its sections said their side is one coast piece
+		# a side, the first section on side 0 and the second on side 1.
+		if node.midway and node.sections.size() == 2 \
+				and node.sections.all(func(s: TopologySection) -> bool: return s.side == 0):
+			node.sections[1].side = 1
 		var crust: Variant = data.get("crust")
 		if crust is Dictionary:
 			node.crust_half = str(crust.get("half", ""))

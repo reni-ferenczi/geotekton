@@ -221,6 +221,8 @@ const OUTSIDE_PROBLEM := "The cut runs outside the shape."
 #   first     the side of the piece the feature keeps
 #   stretches how many stretches of the line run inside the ring
 #   edge      for a cut of one stretch, the edge the two pieces share
+#   edges     the edge of every stretch, in the order and direction the line
+#             runs; each is a run of vertices of one piece on each side
 # An end clicked inside the ring is carried on along the line to the outline,
 # so a cut stopped a little short still goes through. A cut of one stretch
 # keeps the order split_polygon() gives, each piece starting with the edge, the
@@ -228,7 +230,7 @@ const OUTSIDE_PROBLEM := "The cut runs outside the shape."
 # the ridge is laid along.
 static func cut_pieces(ring: PackedVector2Array, path: PackedVector2Array) -> Dictionary:
 	var result := {"problem": "", "pieces": {LEFT: [], RIGHT: []}, "first": LEFT,
-		"stretches": 0, "edge": PackedVector2Array()}
+		"stretches": 0, "edge": PackedVector2Array(), "edges": []}
 	if path.size() < 2:
 		result["problem"] = "A cut needs a start and an end."
 		return result
@@ -264,6 +266,7 @@ static func cut_pieces(ring: PackedVector2Array, path: PackedVector2Array) -> Di
 		if k == 0:
 			result["first"] = LEFT if _holds(halves[0], _beside(stretch, LEFT)) else RIGHT
 			result["edge"] = _back_all(stretch, plane)
+		result["edges"].append(_back_all(stretch, plane))
 		pieces[at] = halves[0]
 		pieces.append(halves[1])
 
