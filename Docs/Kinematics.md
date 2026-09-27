@@ -51,13 +51,9 @@ world path, not its keyframes relative to the parent.
 
 **The rate** is worked out between one keyframe time and the next: the single
 turn that carries where the node stands at one to where it stands at the other,
-divided by the millions of years between them. The same thing in two units,
-and the second in one of two:
-
-| Quantity          | Unit           | What it is                                                     |
-| ----------------- | -------------- | -------------------------------------------------------------- |
-| Angular velocity  | °/My           | The angle of that turn per million years                        |
-| Rate              | cm/yr or km/My | The same angle in radians times the planet radius, in time      |
+divided by the millions of years between them: the angle in radians times the
+planet radius, per unit of time. The panel gives no angle per million years,
+only this distance.
 
 The rate is given in centimeters per year unless **Plate rate in** asks for a
 distance per million years, which is written the way the status bar writes a

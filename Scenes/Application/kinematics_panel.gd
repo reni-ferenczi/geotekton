@@ -181,12 +181,11 @@ func _readout_text() -> String:
 	var time := _current_time()
 	var place := Kinematics.position_at(_root(), node, time)
 	var rate := Kinematics.rate_at(_segments, time)
-	return "%s at %s Ma:   %.2f° %s   %.2f° %s   %.4f °/My   %s" % [
+	return "%s at %s Ma:   %.2f° %s   %.2f° %s   %s" % [
 		node.title,
 		format_time(time),
 		absf(place.x), "N" if place.x >= 0.0 else "S",
 		absf(place.y), "E" if place.y >= 0.0 else "W",
-		rate["degrees_per_my"],
 		Measure.format_rate(rate["km_per_my"], Config.get_rate_unit()),
 	]
 
@@ -266,8 +265,7 @@ func _draw_place_row(row: int, label: String, key: String, limit: float,
 # through the middle of each span would draw as a slope that is not there.
 func _draw_rate_row(row: int) -> void:
 	var plot := _plot(row)
-	var peak := peak_labels(_peak, Config.get_planet_radius(), Config.get_rate_unit())
-	_draw_frame(plot, "Rate", peak[0], "0", peak[1])
+	_draw_frame(plot, "Rate", peak_label(_peak, Config.get_planet_radius(), Config.get_rate_unit()), "0")
 	if _peak > 0.0:
 		for segment in _segments:
 			var left := _time_x(float(segment["to"]), plot)
@@ -278,23 +276,17 @@ func _draw_rate_row(row: int) -> void:
 	_draw_cursor(plot)
 
 
-# What the top of the rate row stands for, in both units: the fastest of the
-# spans, `peak` in °/My, as an angle and as a rate on a planet of that radius in
-# the unit the preference names. The two are the same number read against a
-# different scale, which is why the row carries one set of bars and two labels
-# rather than a graph each. A node that does not move has no peak to scale
-# against, and the row is then an empty box from zero to zero.
-static func peak_labels(peak: float, radius: float, unit: String) -> Array:
-	if peak <= 0.0:
-		return ["0 °/My", Measure.format_rate(0.0, unit)]
-	return ["%.4f °/My" % peak, Measure.format_rate(deg_to_rad(peak) * radius, unit)]
+# What the top of the rate row stands for: the fastest of the spans, `peak` in
+# °/My, as a rate on a planet of that radius in the unit the preference names.
+# A node that does not move has no peak to scale against, and the row is then
+# an empty box from zero to zero.
+static func peak_label(peak: float, radius: float, unit: String) -> String:
+	return Measure.format_rate(deg_to_rad(maxf(peak, 0.0)) * radius, unit)
 
 
 # The box of one row, with its name to the left of it and what its top and its
-# bottom edge stand for to the right. The rate row says what its top is worth in
-# a second unit as well, which goes on the line under the first.
-func _draw_frame(plot: Rect2, label: String, top: String, bottom: String,
-		second: String = "") -> void:
+# bottom edge stand for to the right.
+func _draw_frame(plot: Rect2, label: String, top: String, bottom: String) -> void:
 	graphs.draw_rect(plot, FRAME_COLOR, false, 1.0)
 	var font := get_theme_default_font()
 	graphs.draw_string(font, Vector2(0.0, plot.get_center().y + FONT_SIZE * 0.4), label,
@@ -303,10 +295,6 @@ func _draw_frame(plot: Rect2, label: String, top: String, bottom: String,
 		HORIZONTAL_ALIGNMENT_LEFT, VALUE_WIDTH - 6, FONT_SIZE, TEXT_COLOR)
 	graphs.draw_string(font, Vector2(plot.end.x + 6.0, plot.end.y - 1.0), bottom,
 		HORIZONTAL_ALIGNMENT_LEFT, VALUE_WIDTH - 6, FONT_SIZE, TEXT_COLOR)
-	if not second.is_empty():
-		graphs.draw_string(font,
-			Vector2(plot.end.x + 6.0, plot.position.y + FONT_SIZE * 2.4), second,
-			HORIZONTAL_ALIGNMENT_LEFT, VALUE_WIDTH - 6, FONT_SIZE, TEXT_COLOR)
 
 
 # The two ends of the time axis, under the last row: the oldest on the left, the
@@ -358,7 +346,7 @@ func to_json() -> Dictionary:
 		"samples": _samples,
 		"segments": _segments,
 		"current": _current_values(),
-		"peak_labels": peak_labels(_peak, Config.get_planet_radius(), Config.get_rate_unit()),
+		"peak_label": peak_label(_peak, Config.get_planet_radius(), Config.get_rate_unit()),
 		# Where the cursor is drawn across the plotting area, and how wide that
 		# is, so a run can check that it moved with the time.
 		"cursor": _time_x(_current_time(), _plot(0)) - LABEL_WIDTH,

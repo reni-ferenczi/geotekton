@@ -5233,14 +5233,16 @@ def run_rate_unit_checks(client: AutomationClient, graphs: dict) -> None:
     km = graphs["current"]["km_per_my"]
     check(f"{km / 10.0:.2f} cm/yr" in graphs["readout"],
           f"the readout gives the rate in cm/yr: {graphs['readout']}")
-    check(graphs["peak_labels"][1].endswith(" cm/yr"),
-          f"and so does the top of the rate row: {graphs['peak_labels']}")
+    check(graphs["peak_label"].endswith(" cm/yr"),
+          f"and so does the top of the rate row: {graphs['peak_label']}")
+    check("°/My" not in graphs["readout"] and "°/My" not in graphs["peak_label"],
+          f"with no angle per million years beside it: {graphs['readout']}")
     client.call("set_preferences", preferences={"rate_unit": "km_per_my"})
     switched = client.call("get_kinematics")["kinematics"]
-    check("/My" in switched["readout"].split("°/My", 1)[1] and "cm/yr" not in switched["readout"],
+    check("/My" in switched["readout"] and "cm/yr" not in switched["readout"],
           f"switched to the distance per million years, the readout follows: {switched['readout']}")
-    check(switched["peak_labels"][1].endswith("/My"),
-          f"and so does the top of the rate row: {switched['peak_labels']}")
+    check(switched["peak_label"].endswith("/My"),
+          f"and so does the top of the rate row: {switched['peak_label']}")
     refused = refusal(client, "set_preferences", preferences={"rate_unit": "knots"})
     check("knots" in refused, f"a unit the dialog does not offer is refused: {refused!r}")
     client.call("set_preferences", preferences={"rate_unit": "cm_per_year"})
