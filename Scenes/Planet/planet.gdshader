@@ -171,7 +171,12 @@ float robinson_latitude(float distance) {
 //
 // The counterpart of MapProjection.inverse(), and the reason it exists twice:
 // every fragment of the map needs it here, and every click needs it there.
-vec3 map_inverse(vec2 plane) {
+//
+// `sine` is the sine of the latitude where the projection gives it directly,
+// Mollweide, and 2.0 elsewhere, so the fragment can build its point on the
+// sphere without the round trip through the latitude.
+vec3 map_inverse(vec2 plane, out float sine) {
+	sine = 2.0;
 	float lat = 0.0;
 	float lon = 0.0;
 
@@ -186,9 +191,20 @@ vec3 map_inverse(vec2 plane) {
 		if (abs(sin_theta) > 1.0 + MAP_EDGE_SLACK) {
 			return vec3(0.0);
 		}
-		float theta = asin(clamp(sin_theta, -1.0, 1.0));
-		float cos_theta = cos(theta);
-		lat = asin(clamp((2.0 * theta + sin(2.0 * theta)) / PI, -1.0, 1.0));
+		// No asin: the drivers' asin is off by up to about 1e-4 rad, and the
+		// latitude amplifies an error in theta by 1/cos(lat), three times at
+		// 70 degrees, which drew the map a pixel off on AMD and llvmpipe
+		// (GP-0140). Theta comes from atan with one Newton step on
+		// sin(theta) = s, and the latitude from its sine and cosine.
+		float s = clamp(sin_theta, -1.0, 1.0);
+		float cos_theta = sqrt(max(1.0 - s * s, 0.0));
+		float theta = atan(s, cos_theta);
+		if (cos_theta > 1e-3) {
+			theta -= (sin(theta) - s) / cos(theta);
+		}
+		float sin_lat = clamp((2.0 * theta + 2.0 * s * cos_theta) / PI, -1.0, 1.0);
+		lat = atan(sin_lat, sqrt(max(1.0 - sin_lat * sin_lat, 0.0)));
+		sine = sin_lat;
 		// The two poles are single points of the ellipse: every meridian
 		// reaches them, so the central one answers for all of them.
 		if (cos_theta >= 1e-6) {
@@ -285,8 +301,9 @@ void fragment() {
 	float lat = (0.5 - UV.y) * PI;
 	float lon = (UV.x - 0.5) * TAU;
 	vec2 surface_uv = UV;
+	float sine = 2.0;
 	if (!is_globe) {
-		vec3 point = map_inverse(vec2((UV.x - 0.5) * 2.0, (0.5 - UV.y) * 2.0 * map_extent));
+		vec3 point = map_inverse(vec2((UV.x - 0.5) * 2.0, (0.5 - UV.y) * 2.0 * map_extent), sine);
 		if (point.z < 0.5) {
 			discard;
 		}
@@ -320,6 +337,10 @@ void fragment() {
 
 	// Precompute sphere position for the geometry and the outline
 	vec3 p = latlon_to_unit(vec2(lat, lon));
+	if (sine <= 1.0) {
+		float cos_lat = sqrt(max(1.0 - sine * sine, 0.0));
+		p = vec3(cos_lat * cos(lon), sine, cos_lat * sin(lon));
+	}
 
 	// Feature geometry. Every primitive of one column follows the last, so the
 	// rotation and the color are fetched once per column rather than once per

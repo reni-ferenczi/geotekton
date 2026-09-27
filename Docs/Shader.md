@@ -209,6 +209,19 @@ outside the sheet or around the globe leave alpha 0. The sheet writes
 viewport size. A video frame skips this step and keeps the background. See
 [Shell](Shell.md#exporting-a-picture-of-the-map).
 
+### Mollweide without asin
+
+The Mollweide inverse needs `theta = asin(2y)` and `lat = asin((2 theta + sin
+2 theta) / pi)`. GPU drivers' `asin` is off by up to about 1e-4 rad, and the
+latitude multiplies an error in `theta` by 1/cos(lat), three times at 70°,
+which drew the map a pixel or two off on AMD (RADV) and llvmpipe and failed
+the circle halo check (GP-0140). So `map_inverse()` takes `theta` from `atan`
+with one Newton step on `sin(theta) = 2y`, writes `sin 2 theta` as
+`2 s cos(theta)`, and hands the sine of the latitude back through its `sine`
+parameter. The fragment builds its point on the sphere from that sine and
+`sqrt(1 - sine^2)` instead of going through the latitude and back. The other
+projections leave `sine` at 2.0 and take the ordinary path.
+
 ### Off the map
 
 Not every point of the sheet is a place on the planet. `MapProjection.inverse()`
