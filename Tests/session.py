@@ -4066,7 +4066,7 @@ def run_divide_session(client: AutomationClient) -> None:
         return
     depth = undo_depth(client)
 
-    client.call("set_tool", tool="split")
+    client.call("set_tool", tool="split", ridge=True, crust=False)
     tool = client.call("get_tool")
     check(tool["ridge_enabled"], "Ridge is offered before any point is clicked")
 
@@ -4084,15 +4084,16 @@ def run_divide_session(client: AutomationClient) -> None:
     status = client.call("get_status")["status"]["measure"]
     check("divides the parts" in status, f"the status bar says Enter divides: {status!r}")
     tool = client.call("get_tool")
-    check(not tool["ridge_enabled"] and not tool["crust_enabled"],
-          "Ridge and Crust are greyed out, since a divide leaves no shared edge")
+    check(tool["ridge_enabled"], "Ridge is still offered, since a divide leaves one along the path")
     client.call("key", key="Enter")
     status = client.call("get_status")["status"]["measure"]
-    check(status == "Split into Isles, Isles 2", f"the status bar names the two: {status!r}")
+    check(status == "Split into Isles, Isles 2, Isles ridge",
+          f"the status bar names the two and the ridge: {status!r}")
     check(undo_depth(client) == depth + 1, "the divide recorded one version")
     check(client.call("get_tool")["tool"] == "move", "and went back to the Move tool")
     titles = titles_of(client)
-    check(titles == ["Planet", "Isles", "Isles 2"], f"the feature became two: {titles}")
+    check(titles == ["Planet", "Isles", "Isles 2", "Isles ridge"],
+          f"the feature became two with a ridge between: {titles}")
     for title, part in [("Isles", DIVIDE_WEST), ("Isles 2", DIVIDE_EAST)]:
         client.call("select", title=title)
         rings = client.call("get_selected")["feature"]["world_rings"]
@@ -4300,7 +4301,7 @@ def run_ridge_session(client: AutomationClient) -> None:
           f"midway between the halves' sides of the cut: {sections}")
     client.call("select", title="Old Shield ridge")
     panel = client.call("get_properties")["properties"]
-    check(panel.get("topology_note") == "Midway between two sections",
+    check(panel.get("topology_note") == "Midway between two sides",
           f"which the panel says: {panel.get('topology_note')!r}")
     check("coupling" not in panel and "closed" not in panel and len(panel["sections"]) == 2,
           f"with the section table and no Coupled to row or Closed switch: {sorted(panel)}")
