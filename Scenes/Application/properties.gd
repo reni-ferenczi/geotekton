@@ -69,6 +69,8 @@ const SECTION_COLUMNS = ["Feature", "From", "To", "Way"]
 # The pointer on the Follow row, which picks the parent off the planet, and on
 # the section table, which picks sections.
 const PICK_PARENT_ICON := "res://Assets/Icons/Pointer.svg"
+# The Geotekton icon on the Follow row's pick button, a stem under FeatureIcon.DIR.
+const CLICK_ICON := "Icons1-Click"
 
 # A section whose feature can no longer be found, or cannot be followed at the
 # current time, is drawn in this rather than dropped, so a topology says what it
@@ -566,7 +568,9 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	pick_parent_button = Button.new()
 	pick_parent_button.name = "PickParent"
 	pick_parent_button.toggle_mode = true
-	pick_parent_button.icon = load(PICK_PARENT_ICON)
+	pick_parent_button.icon = FeatureIcon.shrunk(CLICK_ICON, "Click")
+	# Drawn no wider than the pointer glyphs beside it, so the row keeps its height.
+	pick_parent_button.add_theme_constant_override("icon_max_width", 20)
 	pick_parent_button.tooltip_text = "Click a feature on the planet to follow it"
 	pick_parent_button.toggled.connect(
 		func(on: bool) -> void: pick_parent_requested.emit(on))

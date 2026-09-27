@@ -105,10 +105,12 @@ func load_feature(parent: TreeItem, feature: Feature):
 
 	item.set_metadata(0, feature)
 	item.set_text(0, feature.title)
-	# The feature's own glyph when it has one, else the rule icon as before.
-	# Each comes in one form only, so a disabled row greys it the way an absent
-	# feature is greyed rather than showing a second picture.
+	# The feature's own glyph when it has one, else its type's picture, else the
+	# rule icon as before. Each comes in one form only, so a disabled row greys
+	# it the way an absent feature is greyed rather than showing a second picture.
 	var glyph := FeatureIcon.texture(feature.icon)
+	if glyph == null:
+		glyph = FeatureIcon.for_type(feature.feature_type)
 	item.set_icon(0, glyph if glyph != null else rule_icon)
 	item.set_icon_max_width(0, ICON_WIDTH)
 	item.set_icon_modulate(0, Color.WHITE if feature.enabled else ABSENT_COLOR)

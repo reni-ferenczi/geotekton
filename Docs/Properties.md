@@ -86,10 +86,23 @@ does through an undo that takes the geometry off again.
 
 ## The icon
 
-A feature's tree row can carry one of eleven built in glyphs, so that a
+A feature's tree row can carry one of fifteen built in glyphs, so that a
 mountain range and a continent are told apart at a glance. The Icon row of the
 Properties panel lists them with their pictures, None first, and a feature
 starts with none.
+
+A feature with no glyph shows the picture of its type, so a Line reads as a
+line before anything is picked. `FeatureIcon.TYPE_FILES` holds these:
+
+| Type     | Picture                    |
+| -------- | -------------------------- |
+| Polygon  | `Icons1-Features`, the rule icon |
+| Line     | `Icons1-Line`              |
+| Points   | `Icons1-Points`            |
+| Circle   | `Icons1-Circle`            |
+| Hotspot  | `Icons1-Hotspot`           |
+
+A Topology, and a feature with no type, shows the rule icon.
 
 | Id              | Name          | What it shows                          |
 | --------------- | ------------- | -------------------------------------- |
@@ -104,6 +117,10 @@ starts with none.
 | `moon`          | Moon          | A crescent                             |
 | `shield`        | Shield        | A heraldic shield                      |
 | `star`          | Star          | A star                                 |
+| `points`        | Points        | Scattered dots, the Points type        |
+| `line`          | Line          | A bent line, the Line type             |
+| `circle`        | Circle        | A ring, the Circle type                |
+| `hotspot`       | Hotspot       | An island chain, the Hotspot type      |
 
 `Logic/feature_icon.gd` holds the catalog. Nothing else in the program reads
 the icon: it changes what the row shows and no more. A group's row says whether
@@ -120,7 +137,7 @@ replace one:
    and the file's stem against the id in `FeatureIcon.FILES`.
 
 A file written by hand can name an icon this version does not know. Such a
-feature keeps the name, shows the rule icon on its row, and the Icon row of the
+feature keeps the name, shows its type's picture on its row, and the Icon row of the
 panel stands empty until something is picked.
 
 ## The Properties panel

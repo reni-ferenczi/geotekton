@@ -17,7 +17,7 @@ const DIR := "res://Assets/Geotekton Icons"
 const SIZE := 32
 
 # No icon at all, which is what every feature carries until one is picked. The
-# tree row then shows the rule icon, as it did before there were any.
+# tree row then shows its type's picture, see for_type(), else the rule icon.
 const NONE := ""
 
 # Id to name, in the order the Icon selector lists them.
@@ -33,6 +33,10 @@ const CATALOG := {
 	"moon": "Moon",
 	"shield": "Shield",
 	"star": "Star",
+	"points": "Points",
+	"line": "Line",
+	"circle": "Circle",
+	"hotspot": "Hotspot",
 }
 
 # Id to the stem of its picture under DIR.
@@ -48,9 +52,25 @@ const FILES := {
 	"moon": "Icons1-Moon",
 	"shield": "Icons1-Shield",
 	"star": "Icons1-Star",
+	"points": "Icons1-Points",
+	"line": "Icons1-Line",
+	"circle": "Icons1-Circle",
+	"hotspot": "Icons1-Hotspot",
+}
+
+# FeatureType id to the stem of the picture a feature of that type shows while
+# it carries no icon of its own. A type not listed, such as a Topology, shows
+# the rule icon. The texture is named after its stem, as the rule icon is.
+const TYPE_FILES := {
+	"polygon": "Icons1-Features",
+	"line": "Icons1-Line",
+	"points": "Icons1-Points",
+	"circle": "Icons1-Circle",
+	"hotspot": "Icons1-Hotspot",
 }
 
 static var _textures: Dictionary[String, Texture2D] = {}
+static var _type_textures: Dictionary[String, Texture2D] = {}
 
 
 static func label(id: String) -> String:
@@ -66,6 +86,16 @@ static func texture(id: String) -> Texture2D:
 	if not _textures.has(id):
 		_textures[id] = _shrunk(id)
 	return _textures[id]
+
+
+# The picture a feature of the type shows when it has no glyph, or null for a
+# type without one.
+static func for_type(type_id: String) -> Texture2D:
+	if not TYPE_FILES.has(type_id):
+		return null
+	if not _type_textures.has(type_id):
+		_type_textures[type_id] = shrunk(TYPE_FILES[type_id], TYPE_FILES[type_id])
+	return _type_textures[type_id]
 
 
 # A picture under DIR shrunk to SIZE: done once, in software, rather than by

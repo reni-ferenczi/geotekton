@@ -1347,6 +1347,10 @@ def run_icon_checks(client: AutomationClient, folder: Path) -> None:
           f"the selector offers None first and the glyphs after it: {panel['icons']}")
     check(row_icon(client, "Red Triangle") == RULE_ICON,
           "and its row shows the rule icon, as it did before there were any")
+    # With no glyph a row shows its type's picture: the Polygon's is the rule icon.
+    for title, wanted in (("Blue Ridge", "Icons1-Line"), ("Green Stations", "Icons1-Points")):
+        got = row_icon(client, title)
+        check(got == wanted, f"{title} shows its type's picture {wanted}: {got}")
 
     check(refusal(client, "set_property", field="icon", value="sombrero") != "",
           "an icon the selector does not offer is refused")
