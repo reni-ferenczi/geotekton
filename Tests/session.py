@@ -5249,6 +5249,62 @@ def run_rate_unit_checks(client: AutomationClient, graphs: dict) -> None:
     check("cm/yr" in client.call("get_kinematics")["kinematics"]["readout"], "and back again")
 
 
+# The follower of the drag checks: the blue quad follows the red triangle from
+# COUPLED_AT to the present, and is dragged at a time after that, where it has
+# no keyframe yet.
+DRAGGED_AT = 450.0
+# How far each drag carries the middle, in degrees of longitude.
+KINEMATICS_DRAG = 3.0
+
+
+def great_circle_km(a: tuple[float, float], b: tuple[float, float], radius: float) -> float:
+    ua, ub = unit(*a), unit(*b)
+    return math.acos(max(-1.0, min(1.0, sum(x * y for x, y in zip(ua, ub))))) * radius
+
+
+def run_kinematics_drag_session(client: AutomationClient) -> None:
+    """GP-0136: a feature that follows another reads the speed of the drag just
+    made at the current time, while it is made, and the rate says what speeds
+    are typical."""
+    client.call("load", path=str(COUPLING_SAMPLE))
+    radius = client.call("get_preferences")["preferences"]["planet_radius_km"]
+    client.call("set_tool", tool="move")
+    client.call("select", title="Blue Quad")
+    client.call("set_time", time=COUPLED_AT)
+    client.call("coupling", button="Couple", parent="Red Triangle")
+    start = world_centroid(client)
+    client.call("set_time", time=DRAGGED_AT)
+    client.call("set_view", lat=start[0], lon=start[1], angle=0.0)
+
+    rates = []
+    for step in (1, 2):
+        before = client.call("get_kinematics")["kinematics"]["readout"]
+        lat, lon = world_centroid(client)
+        grab = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        target = client.call("latlon_to_screen", lat=lat, lon=lon + KINEMATICS_DRAG)["screen"]
+        if not check(grab is not None and target is not None, "the drag is on screen"):
+            return
+        client.call("press", x=grab[0], y=grab[1])
+        client.call("mouse_move", x=target[0], y=target[1])
+        during = client.call("get_kinematics")["kinematics"]["readout"]
+        check(during != before, f"drag {step}: the readout changes before the release: {during!r}")
+        client.call("release", x=target[0], y=target[1])
+
+        graphs = client.call("get_kinematics")["kinematics"]
+        moved = great_circle_km(start, world_centroid(client), radius) / (COUPLED_AT - DRAGGED_AT)
+        rate = graphs["current"]["km_per_my"]
+        check(abs(rate - moved) < 0.05 * moved,
+              f"drag {step}: at {DRAGGED_AT} Ma the rate is how fast the middle moved since "
+              f"{COUPLED_AT} Ma: {rate:.3f} km/My, moved {moved:.3f}")
+        rates.append(rate)
+    check(rates[1] > rates[0], f"a drag further at the same time reads higher: {rates}")
+
+    graphs = client.call("get_kinematics")["kinematics"]
+    check(" toward " in graphs["readout"], f"the readout gives a bearing: {graphs['readout']}")
+    for speed in ("8 to 20 cm/yr", "6 cm/yr", "3 cm/yr", "under 1 cm/yr", "Worldbuilding Pasta"):
+        check(speed in graphs["tooltip"], f"the rate's tooltip lists {speed!r}: {graphs['tooltip']!r}")
+
+
 def run_kinematics_session(client: AutomationClient) -> None:
     """The kinematics panel: what it graphs, and how its cursor follows the time."""
     client.call("load", path=str(MOTION))
@@ -5285,8 +5341,8 @@ def run_kinematics_session(client: AutomationClient) -> None:
 
     # The rate at the present is the one of the younger of the two spans.
     younger = min(graphs["segments"], key=lambda segment: segment["to"])
-    check(abs(graphs["current"]["degrees_per_my"] - younger["degrees_per_my"]) < 1e-9,
-          f"and on the rate at the current time: {graphs['current']['degrees_per_my']}")
+    check(abs(graphs["current"]["km_per_my"] - younger["km_per_my"]) < 1e-9,
+          f"and on the rate at the current time: {graphs['current']['km_per_my']}")
 
     # The cursor sits where the time is, measured across the plotting area: the
     # oldest end on the left, the youngest on the right.
@@ -5787,6 +5843,7 @@ def main(argv: list[str]) -> int:
         run_hotspot_session(client)
         run_topology_session(client)
         run_kinematics_session(client)
+        run_kinematics_drag_session(client)
         run_python_session(client)
         folder = Path(tempfile.mkdtemp(prefix="geotekt-import-"))
         try:

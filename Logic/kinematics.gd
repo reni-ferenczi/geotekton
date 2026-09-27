@@ -122,6 +122,8 @@ static func _add_time(times: PackedFloat64Array, time: float) -> void:
 static func segments(root: Feature, node: Feature, radius: float) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var times := motion_times(root, node)
+	if times.size() < 2:
+		return result
 	var middle := centroid(node)
 	for i in range(1, times.size()):
 		var span := times[i] - times[i - 1]
