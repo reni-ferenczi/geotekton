@@ -315,8 +315,8 @@ func _planet(feature: Feature) -> Feature:
 ### The units the rate is given in
 
 
-func test_the_rate_row_gives_its_peak_in_the_unit_the_preference_names() -> void:
-	assert_eq(KinematicsPanel.peak_label(20.0, Measure.RATE_CM_PER_YEAR), "2.00 cm/yr")
-	assert_eq(KinematicsPanel.peak_label(20.0, Measure.RATE_KM_PER_MY), "20.00 km/My")
-	assert_eq(KinematicsPanel.peak_label(0.0, Measure.RATE_CM_PER_YEAR), "0.00 cm/yr",
-		"a node that does not move peaks at nothing")
+func test_the_rate_row_gives_the_rate_in_the_unit_the_preference_names() -> void:
+	assert_eq(KinematicsPanel.rate_label(20.0, Measure.RATE_CM_PER_YEAR), "2.00 cm/yr")
+	assert_eq(KinematicsPanel.rate_label(20.0, Measure.RATE_KM_PER_MY), "20.00 km/My")
+	assert_eq(KinematicsPanel.rate_label(0.0, Measure.RATE_CM_PER_YEAR), "0.00 cm/yr",
+		"a node that does not move reads nothing")

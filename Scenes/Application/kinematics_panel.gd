@@ -191,13 +191,10 @@ func _readout_text() -> String:
 		return "%s has no geometry yet." % node.title
 
 	var time := _current_time()
-	var place := Kinematics.position_at(_root(), node, time)
 	var rate := Kinematics.rate_at(_segments, time)
-	var text := "%s at %s Ma:   %.2f° %s   %.2f° %s   %s" % [
+	var text := "%s at %s Ma:   %s" % [
 		node.title,
 		format_time(time),
-		absf(place.x), "N" if place.x >= 0.0 else "S",
-		absf(place.y), "E" if place.y >= 0.0 else "W",
 		Measure.format_rate(rate["km_per_my"], Config.get_rate_unit()),
 	]
 	if rate["km_per_my"] > 0.0:
@@ -280,7 +277,7 @@ func _draw_place_row(row: int, label: String, key: String, limit: float,
 # through the middle of each span would draw as a slope that is not there.
 func _draw_rate_row(row: int) -> void:
 	var plot := _plot(row)
-	_draw_frame(plot, "Rate", peak_label(_peak, Config.get_rate_unit()), "0")
+	_draw_frame(plot, "Rate", rate_label(_current_rate(), Config.get_rate_unit()), "0")
 	if _peak > 0.0:
 		for segment in _segments:
 			var left := _time_x(float(segment["to"]), plot)
@@ -291,11 +288,16 @@ func _draw_rate_row(row: int) -> void:
 	_draw_cursor(plot)
 
 
-# What the top of the rate row stands for: the fastest of the spans, `peak` in
-# km/My, in the unit the preference names. A node that does not move has no
-# peak to scale against, and the row is then an empty box from zero to zero.
-static func peak_label(peak: float, unit: String) -> String:
-	return Measure.format_rate(maxf(peak, 0.0), unit)
+# What the rate row says beside its top: the rate at the current time, `km` in
+# km/My, in the unit the preference names, the same number as the readout. The
+# fastest span the bars are scaled against is not written anywhere; it says
+# nothing about where the feature is now (GP-0136).
+static func rate_label(km: float, unit: String) -> String:
+	return Measure.format_rate(maxf(km, 0.0), unit)
+
+
+func _current_rate() -> float:
+	return float(Kinematics.rate_at(_segments, _current_time())["km_per_my"])
 
 
 # The box of one row, with its name to the left of it and what its top and its
@@ -360,7 +362,7 @@ func to_json() -> Dictionary:
 		"samples": _samples,
 		"segments": _segments,
 		"current": _current_values(),
-		"peak_label": peak_label(_peak, Config.get_rate_unit()),
+		"rate_label": rate_label(_current_rate(), Config.get_rate_unit()),
 		"tooltip": readout.tooltip_text,
 		# Where the cursor is drawn across the plotting area, and how wide that
 		# is, so a run can check that it moved with the time.

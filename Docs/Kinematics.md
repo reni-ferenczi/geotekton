@@ -30,12 +30,15 @@ longitude can be, rather than against what this feature happens to cover. A
 craton that has hardly moved then reads as one that has hardly moved, instead of
 being blown up until its wobble fills the box.
 
-Above the rows is a line of the same numbers at the current time: the title,
-the time, the place, the rate in the unit Preferences > General > **Plate rate
-in** names, cm/yr unless it says km/My, and the compass bearing the middle
-moves toward, in degrees clockwise from north. It gives the latitude and the
-longitude whether or not their rows are drawn, and leaves the bearing out when
-the feature stands still.
+Above the rows is a line of what it comes to at the current time: the title,
+the time, the rate in the unit Preferences > General > **Plate rate in**
+names, cm/yr unless it says km/My, and the compass bearing the middle moves
+toward, in degrees clockwise from north, left out when the feature stands
+still. The rate row gives the same current rate beside its top. The bars are
+scaled against the fastest span, but that figure is not written anywhere: it
+says nothing about the motion at the current time, and a reader took it for
+the rate (GP-0136). The place is only graphed, in the latitude and longitude
+rows.
 
 ## The quantities
 
