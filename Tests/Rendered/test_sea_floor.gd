@@ -180,9 +180,8 @@ func _assert_color(at: Vector2, expected: Color, tolerance: float, what: String)
 	assert_true(off <= tolerance, "%s at %s reads %s, not %s" % [what, at, color, expected])
 
 
-# Each band is drawn in the palette's color at its age, spread over the oldest
-# crust in the document: 100 My here, at the dark end of Blue or the violet
-# end of Rainbow.
+# Each band is drawn in the palette's color at its age, and every band in the
+# one color under Single color.
 func test_a_crust_draws_band_by_band_in_blue_and_in_rainbow() -> void:
 	await _split_square()
 	var crust := _titled("Square crust")
@@ -192,9 +191,15 @@ func test_a_crust_draws_band_by_band_in_blue_and_in_rainbow() -> void:
 		app.refresh_geometry()
 		await frames(2)
 		for k in 4:
-			var expected := Palette.built_in(palette).color_at(10.0 * crust.band_ages[k])
+			var expected := Palette.built_in(palette).color_at(crust.band_ages[k])
 			await _assert_color(_inside_band(crust, k), expected, COLOR_TOLERANCE,
 				"band %d in %s" % [k, palette])
+	app.document.view.crust_palette = ViewSettings.CRUST_SINGLE
+	app.refresh_geometry()
+	await frames(2)
+	for k in 4:
+		await _assert_color(_inside_band(crust, k), ViewSettings.DEFAULT_CRUST_COLOR,
+			COLOR_TOLERANCE, "band %d in the single color" % k)
 	app.document.view.crust_palette = ViewSettings.DEFAULT_CRUST_PALETTE
 
 

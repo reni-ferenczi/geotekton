@@ -30,13 +30,14 @@ const BUILT_IN := {
 B\t255 0 0
 F\t255 0 255""",
 	},
-	# Light blue for the youngest crust to dark ocean blue for the oldest, by
-	# way of steel blue; what the sea floor is colored with until someone picks
-	# another. See ViewSettings.crust_palette.
+	# Light blue for new crust to dark ocean blue for crust 200 My old, by way
+	# of steel blue at 100 My; what the sea floor is colored with until someone
+	# picks another. It covers the ages sea floor has, where Rainbow covers
+	# 1000 My. See ViewSettings.crust_palette.
 	"blue": {
 		"name": "Blue",
-		"cpt": """0\t198 219 239\t500\t70 130 180
-500\t70 130 180\t1000\t16 52 97
+		"cpt": """0\t198 219 239\t100\t70 130 180
+100\t70 130 180\t200\t16 52 97
 B\t198 219 239
 F\t16 52 97""",
 	},
