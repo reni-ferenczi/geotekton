@@ -183,24 +183,23 @@ func line_color_of(feature: Feature, fill: Color) -> Color:
 	return settings.crust_lines_color if feature.is_crust() else fill
 
 
-# The color of crust `age` My old, with the crust palette spread from 0 My to
-# `oldest`, the oldest crust in the document at the time being viewed, so the
-# whole palette is in use whatever it covers. No group style reaches a crust;
-# see _walk() and Docs/Editing.md#the-crust.
-func crust_color(age: float, oldest: float) -> Color:
-	var palette := crust_palette()
-	var along := clampf(age / oldest, 0.0, 1.0) if oldest > 0.0 else 0.0
-	return palette.color_at(lerpf(palette.low(), palette.high(), along))
+# The color of crust `age` My old: the single crust color, or the crust
+# palette's color at that age, read the way a group style's age mode reads its
+# palette, so a band's color says how old it is and nothing else. No group style
+# reaches a crust; see _walk() and Docs/Editing.md#the-crust.
+func crust_color(age: float) -> Color:
+	if settings.crust_palette == ViewSettings.CRUST_SINGLE:
+		return settings.crust_color
+	return crust_palette().color_at(age)
 
 
 # The palette the view settings color the crust from: a built in one, or the
-# custom ramp, whose colors are spaced one apart since crust_color() stretches
-# it anyway.
+# custom ramp with its span.
 func crust_palette() -> Palette:
 	if settings.crust_palette != Palette.RAMP:
 		return palette_of(settings.crust_palette)
 	if not _ramps.has(settings):
-		_ramps[settings] = Palette.ramp(settings.crust_ramp_colors, 1.0)
+		_ramps[settings] = Palette.ramp(settings.crust_ramp_colors, settings.crust_ramp_span)
 	return _ramps[settings]
 
 

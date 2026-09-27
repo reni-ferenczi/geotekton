@@ -23,12 +23,19 @@ const DEFAULT_LIGHT := Vector2(0.0, 0.0)
 const DEFAULT_AMBIENT := 0.0
 const DEFAULT_RASTER_OPACITY := 1.0
 
-# The palettes the crust may be colored from, in the order the View settings
-# dialog lists them, and the one a document starts with.
-const CRUST_PALETTES := {"blue": "Blue", "rainbow": "Rainbow", Palette.RAMP: "Custom ramp"}
+# How the crust may be colored, in the order the View settings dialog lists
+# them, and the one a document starts with: a palette by age, or one color.
+const CRUST_SINGLE := "single"
+const CRUST_PALETTES := {"blue": "Blue", "rainbow": "Rainbow", Palette.RAMP: "Custom ramp",
+	CRUST_SINGLE: "Single color"}
 const DEFAULT_CRUST_PALETTE := "blue"
 const DEFAULT_CRUST_RAMP: Array[Color] = [Color(0.776, 0.859, 0.937),
 	Color(0.275, 0.510, 0.706), Color(0.063, 0.204, 0.380)]
+const DEFAULT_CRUST_RAMP_SPAN := 100.0
+
+# The single crust color: steel blue, a shade lighter than the planet's own
+# blue, so where there is crust shows against where there is none.
+const DEFAULT_CRUST_COLOR := Color(0.275, 0.510, 0.706)
 
 # The planet under any raster: an ocean blue. Unlike the scene settings above,
 # this is not how files were drawn before it existed; those carried the built in
@@ -97,12 +104,18 @@ var hidden_classes: PackedStringArray = PackedStringArray()
 var ridge_color: Color = FeatureType.color(FeatureType.LINE)
 
 # What the crust is colored from, by its age: a key of Palette.BUILT_IN, or
-# Palette.RAMP for crust_ramp_colors. Spread from 0 My to the oldest crust in
-# the document; see Styling.crust_color().
+# Palette.RAMP for crust_ramp_colors; or CRUST_SINGLE for crust_color whatever
+# its age. A palette reads ages the way a group style's does; see
+# Styling.crust_color().
 var crust_palette: String = DEFAULT_CRUST_PALETTE
 
-# The custom ramp, youngest first. It starts as the Blue palette's stops.
+# The custom ramp, youngest first, its colors crust_ramp_span My apart the way
+# a group style's are. It starts as the Blue palette's stops.
 var crust_ramp_colors: Array[Color] = DEFAULT_CRUST_RAMP.duplicate()
+var crust_ramp_span: float = DEFAULT_CRUST_RAMP_SPAN
+
+# The color of all crust while crust_palette is CRUST_SINGLE.
+var crust_color: Color = DEFAULT_CRUST_COLOR
 
 # The color of the isochrons and flowlines drawn over every crust.
 var crust_lines_color: Color = FeatureType.color(FeatureType.CRUST_LINES)
@@ -128,6 +141,8 @@ func to_json() -> Dictionary:
 		"ridge_color": _color_to_json(ridge_color),
 		"crust_palette": crust_palette,
 		"crust_ramp_colors": crust_ramp_colors.map(func(color: Color) -> Array: return _color_to_json(color)),
+		"crust_ramp_span": crust_ramp_span,
+		"crust_color": _color_to_json(crust_color),
 		"crust_lines_color": _color_to_json(crust_lines_color),
 	}
 
@@ -169,6 +184,9 @@ static func from_json(data: Variant) -> ViewSettings:
 	if ramp is Array and (ramp as Array).size() >= Palette.MIN_RAMP_COLORS:
 		settings.crust_ramp_colors.assign((ramp as Array).map(
 			func(value: Variant) -> Color: return _color_from_json(value, Color.BLACK)))
+	settings.crust_ramp_span = clampf(float(data.get("crust_ramp_span",
+		DEFAULT_CRUST_RAMP_SPAN)), 1.0, Document.MAX_TIME)
+	settings.crust_color = _color_from_json(data.get("crust_color"), DEFAULT_CRUST_COLOR)
 	settings.crust_lines_color = _color_from_json(
 		data.get("crust_lines_color"), settings.crust_lines_color)
 	return settings

@@ -95,9 +95,10 @@ reaches a crust or a ridge, since neither has a row under its group. Their
 colors are set for the whole document in the Sea floor section of the
 [View settings](Editing.md#view-settings) instead: one color for every ridge,
 one for the isochrons and flowlines, and a palette the bands are colored from by
-the age of their crust. `Styling.crust_color()` spreads the palette from 0 My to
-the oldest crust in the document at the time being viewed, so the whole palette
-is always in use, whatever range it covers.
+the age of their crust, or a single color. `Styling.crust_color()` reads the
+palette at the band's age at the time being viewed, the same way the Feature age
+style reads a group's palette, so a custom ramp's colors are `crust_ramp_span`
+My apart and crust older than the ramp keeps its last color.
 
 Picking a style changes nothing about the document's features. The colour a
 feature carries is still its own and still what the Properties panel edits; the

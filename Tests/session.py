@@ -4479,8 +4479,9 @@ def run_crust_step_checks(client: AutomationClient) -> None:
           f"undo puts it back on the Skip: {panel['crust_step']}, {panel['crust_chunks']}")
 
 
-def blue_at(along: float) -> list[float]:
-    """The Blue palette at a fraction of the way from the youngest crust to the oldest."""
+def blue_at(age: float) -> list[float]:
+    """The Blue palette for crust `age` My old: its stops at 0, 100 and 200 My."""
+    along = min(max(age / 200.0, 0.0), 1.0)
     low, high = (BLUE_STOPS[0], BLUE_STOPS[1]) if along <= 0.5 else (BLUE_STOPS[1], BLUE_STOPS[2])
     t = along * 2.0 if along <= 0.5 else along * 2.0 - 1.0
     return [a + (b - a) * t for a, b in zip(low, high)]
@@ -4505,10 +4506,10 @@ def run_crust_probes(client: AutomationClient, title: str) -> None:
     on_75 = midpoint(bands[1][0], bands[1][1])
     client.call("select", title=None)
     shades = [probe_unhovered(client, *place) for place in inside]
-    check(is_colour(shades[0], blue_at(1.0)),
-          f"{title} fills the band against the continent in the dark end of Blue: {shades[0]}")
-    check(is_colour(shades[-1], blue_at(0.25)),
-          f"and the one against the ridge, 25 My old, a quarter of the way: {shades[-1]}")
+    check(is_colour(shades[0], blue_at(100.0)),
+          f"{title} fills the band against the continent, 100 My old, in Blue's steel blue: {shades[0]}")
+    check(is_colour(shades[-1], blue_at(25.0)),
+          f"and the one against the ridge in Blue at 25 My: {shades[-1]}")
     brightness = [sum(shade[:3]) for shade in shades]
     check(all(a + 0.1 < b for a, b in zip(brightness, brightness[1:])),
           f"lighter band by band from the continent to the ridge: {brightness}")
