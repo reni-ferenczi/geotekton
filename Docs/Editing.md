@@ -601,11 +601,11 @@ GPlates. The age is the older of the band's two isochrons, counted from the
 current time, so the crust beside the ridge is always the young color and a
 band moves towards the old color as the time goes forward. The colors come from
 the Sea floor section of the [View settings](#view-settings), one setting for
-the whole document: Blue by default, light blue for the youngest crust to dark
-ocean blue for the oldest, or Rainbow, or a custom ramp. Each is spread from
-0 My to the oldest crust in the document at the current time, so the band
-against the continent of the oldest split is the old end of the palette. No
-group style reaches a crust, [Feature age](Styling.md#the-draw-styles)
+the whole document: Blue by default, light blue for new crust to dark ocean
+blue for crust 200 My old, or Rainbow, or a custom ramp, or a single color for
+all crust. A palette is read at the band's age the way a
+[group style](Styling.md#the-custom-ramp) reads it, so a band's color says how
+old it is, whatever else is in the document. No group style reaches a crust, [Feature age](Styling.md#the-draw-styles)
 included, and a crust has no Colour row in the Properties panel.
 
 A feature is drawn in one color, so a crust carries a second one for its lines:
@@ -1161,7 +1161,7 @@ shows what is being chosen.
 | Raster shown, Raster opacity | Whether the image is drawn and how much of the planet color it covers |
 | Raster | The image the planet wears, in PNG, JPEG, WebP or SVG. The field reads None when there is no image. **Browse...** picks a file, **Built in Earth** picks the Earth image that ships with Geotekton, and **Clear** takes the image away |
 | Sea floor: Ridge | The color every [ridge](#the-ridge) is drawn in. A new document takes the Line color of the Feature colors in [Preferences](Shell.md#preferences) |
-| Sea floor: Crust | What the [crust](#the-crust) is colored from by its age: **Blue** (the default), **Rainbow** or **Custom ramp**, which shows the ramp's colors below it, youngest first, with + and − to add and take away colors. Every choice is spread from 0 My to the oldest crust in the document |
+| Sea floor: Crust | What the [crust](#the-crust) is colored from by its age: **Blue** (the default, 0 to 200 My), **Rainbow** (0 to 1000 My) or **Custom ramp**, which shows the ramp's colors below it, youngest first, with + and − to add and take away colors and the My between one color and the next, as a group style's ramp does. **Single color** colors all crust one color, steel blue unless another is picked below it |
 | Sea floor: Isochrons and flowlines | The color of the lines drawn over every crust |
 
 A new document has no raster, so its planet is the flat planet color. A file

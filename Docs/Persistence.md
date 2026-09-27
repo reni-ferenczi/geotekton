@@ -100,8 +100,10 @@ drawn the way its author chose:
 | `raster_visible`    | bool              | `true`              | Whether it is drawn at all |
 | `hidden_classes`    | list of names     | `[]`                | Which classes of geometry are switched off |
 | `ridge_color`       | `[r, g, b, a]`    | the Line color      | The color every ridge is drawn in |
-| `crust_palette`     | `blue`, `rainbow` or `ramp` | `blue`    | What the crust is colored from by its age; a name this version does not know reads as `blue` |
+| `crust_palette`     | `blue`, `rainbow`, `ramp` or `single` | `blue` | What the crust is colored from by its age, or `single` for `crust_color`; a name this version does not know reads as `blue` |
 | `crust_ramp_colors` | list of `[r, g, b, a]`, at least two | Blue's three stops | The custom ramp, youngest first, read while `crust_palette` is `ramp` |
+| `crust_ramp_span`   | number, 1 to the time limit | `100`       | The My between one color of the custom ramp and the next |
+| `crust_color`       | `[r, g, b, a]`    | steel blue          | The color of all crust while `crust_palette` is `single` |
 | `crust_lines_color` | `[r, g, b, a]`    | light steel blue    | The color of the isochrons and flowlines |
 
 `hidden_classes` is the [styling](Styling.md#the-visibility-switches): which

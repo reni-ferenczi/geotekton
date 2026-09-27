@@ -55,6 +55,8 @@ func test_every_setting_round_trips_through_json() -> void:
 	assert_eq(back.ridge_color, settings.ridge_color, "the ridge color")
 	assert_eq(back.crust_palette, settings.crust_palette, "the crust palette")
 	assert_eq(back.crust_ramp_colors, settings.crust_ramp_colors, "its custom ramp")
+	assert_eq(back.crust_ramp_span, settings.crust_ramp_span, "the ramp's span")
+	assert_eq(back.crust_color, settings.crust_color, "the single crust color")
 	assert_eq(back.crust_lines_color, settings.crust_lines_color,
 		"and the isochrons and flowlines color")
 
@@ -66,6 +68,9 @@ func test_an_older_block_colors_the_crust_blue() -> void:
 	assert_eq(settings.crust_palette, "blue", "Blue")
 	assert_eq(settings.crust_ramp_colors, ViewSettings.DEFAULT_CRUST_RAMP,
 		"with the custom ramp starting as Blue's stops")
+	assert_eq(settings.crust_ramp_span, ViewSettings.DEFAULT_CRUST_RAMP_SPAN, "100 My apart")
+	assert_eq(settings.crust_color, ViewSettings.DEFAULT_CRUST_COLOR,
+		"and the single color steel blue")
 	assert_eq(settings.ridge_color, FeatureType.color(FeatureType.LINE),
 		"the ridge in the Line color")
 	assert_eq(settings.crust_lines_color, FeatureType.color(FeatureType.CRUST_LINES),
@@ -244,5 +249,7 @@ func _edited() -> ViewSettings:
 	settings.ridge_color = Color(0.9, 0.8, 0.1, 1.0)
 	settings.crust_palette = Palette.RAMP
 	settings.crust_ramp_colors.assign([Color(1, 0, 0), Color(0, 1, 0), Color(0, 0, 1)])
+	settings.crust_ramp_span = 40.0
+	settings.crust_color = Color(0.4, 0.6, 0.8, 1.0)
 	settings.crust_lines_color = Color(0.1, 0.2, 0.3, 1.0)
 	return settings
