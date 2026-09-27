@@ -1153,6 +1153,10 @@ func _on_couple_pressed() -> void:
 	if node == null or node.is_group:
 		return
 	var parent: Feature = Coupling.index(document.root).get(picked_parent())
+	# Couple is what the pick is on for, so it ends the pick.
+	if pick_parent_button.button_pressed:
+		pick_parent_button.set_pressed_no_signal(false)
+		pick_parent_requested.emit(false)
 	_after_coupling_edit(document.couple(node, parent, document.current_time))
 
 

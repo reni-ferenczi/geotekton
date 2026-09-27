@@ -4199,7 +4199,7 @@ func _show_measurement(error: String = "") -> void:
 		return
 
 	if picking == Pick.PARENT:
-		status_measure.text = "Pick the feature to follow"
+		status_measure.text = "Click the feature to follow, then Couple"
 		return
 	if picking == Pick.PLATE:
 		status_measure.text = "Pick the feature the hotspot burns through"
@@ -4352,18 +4352,25 @@ func _ring_on_screen(feature: Feature, part: int) -> Array:
 ### Picking the parent off the planet
 #
 # The pointer buttons on the Follow row and on a hotspot's Plate row of the
-# Properties panel arm a one shot pick: the next left click on the planet names
-# the feature under it in that row's picker, and nothing else about the
-# application changes. The selection stays where it is and so does the tool,
-# so the planet's own clicks are held back with `tool_handles_clicks` and given
-# back once the mode is over. A click that picks nothing the row takes says why
-# and leaves the mode on, so a miss costs one more click. See
+# Properties panel turn a pick on: a left click on the planet names the feature
+# under it in that row's picker, and nothing else about the application
+# changes. The selection stays where it is and so does the tool, so the
+# planet's own clicks are held back with `tool_handles_clicks` and given back
+# once the mode is over. A click that picks nothing the row takes says why and
+# leaves the mode on. The parent pick stays on through any number of clicks,
+# the last feature clicked being the candidate, traced on the planet, until
+# Couple takes it, the button is pressed again or Escape; the Plate pick ends
+# with the click that picks. While either is on the pointer over the planet is
+# a cross and the status bar says what to click. See
 # Docs/Properties.md#coupling and Docs/Editing.md#hotspots.
 
 # What the pick is for: nothing, the parent to follow or the plate of a hotspot.
 enum Pick { NONE, PARENT, PLATE }
 
 var picking := Pick.NONE
+
+# The feature last picked as the parent while the pick is on, null for none.
+var pick_candidate: Feature = null
 
 
 func start_parent_pick() -> void:
@@ -4376,7 +4383,9 @@ func start_plate_pick() -> void:
 
 func _start_pick(pick: Pick) -> void:
 	picking = pick
+	pick_candidate = null
 	planet_view.tool_handles_clicks = true
+	planet_view.mouse_default_cursor_shape = Control.CURSOR_CROSS
 	properties.show_picking(pick == Pick.PARENT, pick == Pick.PLATE)
 	_show_measurement()
 
@@ -4385,10 +4394,13 @@ func end_pick() -> void:
 	if picking == Pick.NONE:
 		return
 	picking = Pick.NONE
+	pick_candidate = null
 	# What _set_tool() would have left it as, rather than what it was when the
 	# mode started, so a tool picked while the pointer was armed still decides.
 	planet_view.tool_handles_clicks = active_tool != Tool.MOVE
+	planet_view.mouse_default_cursor_shape = Control.CURSOR_ARROW
 	properties.show_picking(false, false)
+	_refresh_selection_outline()
 	_show_measurement()
 
 
@@ -4409,7 +4421,26 @@ func _on_pick_input(lat: float, lon: float, event: InputEvent) -> void:
 	if not problem.is_empty():
 		_report(problem)
 		return
-	end_pick()
+	if picking == Pick.PLATE:
+		end_pick()
+		return
+	pick_candidate = hit
+	_refresh_selection_outline()
+	_show_measurement()
+
+
+# The candidate parent traced on the planet while the parent pick is on, where
+# it is drawn at all, as closed outlines of its rings.
+# ponytail: a polyline candidate is closed too, open parts if lines get picked often.
+func _candidate_outline() -> Array:
+	var parts: Array = []
+	var index: int = geometry.index_of.get(pick_candidate, -1) if pick_candidate != null else -1
+	if picking != Pick.PARENT or index < 0 or not geometry.shown[index]:
+		return parts
+	for ring in pick_candidate.rings:
+		parts.append({"vertices": Feature.apply_basis(ring, geometry.bases[index]),
+			"style": Planet.OutlineStyle.CANDIDATE})
+	return parts
 
 
 ### Craton interaction
@@ -4534,7 +4565,7 @@ func _find_children() -> void:
 # them at all; the shader colors the lines and markers of the other children
 # itself.
 func _child_outline() -> Array:
-	var parts: Array = []
+	var parts: Array = _candidate_outline()
 	var styles := {Planet.Relation.CHILD: Planet.OutlineStyle.CHILD,
 		Planet.Relation.PARENT: Planet.OutlineStyle.PARENT,
 		Planet.Relation.SIBLING: Planet.OutlineStyle.SIBLING}

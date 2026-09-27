@@ -51,6 +51,10 @@ const SIBLING_COLOR := Color(0.55, 1.0, 0.2)
 # carries for the shader.
 enum Relation { NONE = 0, CHILD = 1, PARENT = 2, SIBLING = 3 }
 
+# What the feature picked as the parent to follow is traced in while the pick
+# is on, until Couple takes it. planet.gdshader holds it linearized.
+const CANDIDATE_COLOR := Color(0.2, 0.9, 1.0)
+
 # Style of one part of the outline overlay. Matches planet.gdshader.
 enum OutlineStyle {
 	OPEN = 0,           # a line from the first vertex to the last
@@ -66,6 +70,7 @@ enum OutlineStyle {
 	REFUSED = 10,       # open like OPEN, markers and all, in red: a cut the Split tool refused
 	PARENT = 11,        # closed like CHILD, in PARENT_COLOR
 	SIBLING = 12,       # closed like CHILD, in SIBLING_COLOR
+	CANDIDATE = 13,     # closed like OUTLINE, wider than a feature line, in CANDIDATE_COLOR
 }
 
 # The map mesh with the sheet of a projection half a unit tall, which is what a

@@ -635,6 +635,10 @@ func _dispatch(request: Dictionary) -> Dictionary:
 					else "hotspot" if app._drawing_hotspot()
 					else Feature.KIND_NAMES[app.drawing_kind()],
 				"vertex_enabled": not app.vertex_button.disabled,
+				# The parent picked while the pick is on, and the pointer's
+				# shape over the planet, a Control.CursorShape.
+				"pick_candidate": app.pick_candidate.title if app.pick_candidate != null else "",
+				"planet_cursor": app.planet_view.mouse_default_cursor_shape,
 				"pole": null if app.pole_at == Application.NO_POLE
 					else [app.pole_at.x, app.pole_at.y],
 				"picking_axis": app.picking_axis,
