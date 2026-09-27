@@ -5,6 +5,8 @@ extends TestCase
 # free of duplicates and bounded.
 
 const SCRATCH := "user://test_config"
+# The settings folder the runner gave the run, which the test goes back to.
+var kept_config_directory := Config.directory_override
 
 
 func _use_a_scratch_config() -> void:
@@ -16,7 +18,7 @@ func _use_a_scratch_config() -> void:
 
 func _restore_the_real_config() -> void:
 	DirAccess.remove_absolute(Config.directory_override + "/config.json")
-	Config.directory_override = ""
+	Config.directory_override = kept_config_directory
 	Config.forget()
 
 
@@ -179,4 +181,15 @@ func test_feature_colors_survive_a_reload() -> void:
 	assert_eq(FeatureType.color(FeatureType.LINE), Color.CRIMSON, "a missing entry is the catalog color")
 	Config.set_value("feature_colors", {FeatureType.LINE: "red"})
 	assert_eq(FeatureType.color(FeatureType.LINE), Color.CRIMSON, "and so is one that is not a color")
+	_restore_the_real_config()
+
+
+func test_the_rate_unit_is_cm_per_year_unless_set_to_the_distance() -> void:
+	_use_a_scratch_config()
+	assert_eq(Config.get_rate_unit(), Measure.RATE_CM_PER_YEAR, "no file, cm/yr")
+	Config.set_rate_unit(Measure.RATE_KM_PER_MY)
+	Config.forget()
+	assert_eq(Config.get_rate_unit(), Measure.RATE_KM_PER_MY, "the distance comes back")
+	Config.set_value("rate_unit", "furlongs per fortnight")
+	assert_eq(Config.get_rate_unit(), Measure.RATE_CM_PER_YEAR, "and anything else is cm/yr")
 	_restore_the_real_config()

@@ -3,7 +3,8 @@ extends RenderedCase
 # GP-0096: a feature's lines are drawn at a width of its own, Feature.line_scale()
 # times geometry_line_width. A hotspot track is thin and has a dot at every
 # sample, a circle is half as wide as a line someone drew, and every other line
-# keeps the full width.
+# keeps the full width. The Line width row of the Properties panel multiplies
+# whatever the type draws at.
 #
 # The planet wears a flat red raster and the features are blue, so a probe says
 # whether a line reaches it by its dominant channel.
@@ -87,6 +88,26 @@ func test_a_circle_is_half_as_wide_as_a_line() -> void:
 	var ring := _world(circle, circle.rings[0])
 	await _check_beside(ring[0], ring[1], 0.3, "blue", "the circle 0.3 widths off its middle")
 	await _check_beside(ring[0], ring[1], 0.8, "red", "the circle 0.8 widths off its middle")
+	await _restore()
+
+
+# A plain line at a width of 2 reaches 2 widths off its middle, where one at 1
+# does not, and a circle at 2 is as wide as a plain line at 1.
+func test_the_line_width_row_widens_a_line_and_a_circle() -> void:
+	var parts := await _build()
+	var line: Feature = parts[1]
+	var circle: Feature = parts[2]
+	var plain := _world(line, line.rings[0])
+	var ring := _world(circle, circle.rings[0])
+	await _check_beside(plain[0], plain[1], 1.4, "red", "the plain line 1.4 widths off at width 1")
+	assert_eq(app.document.set_line_width(line, 2.0), "", "the line is set to width 2")
+	assert_eq(app.document.set_line_width(circle, 2.0), "", "and so is the circle")
+	app.refresh_geometry()
+	await frames(2)
+	await _check_beside(plain[0], plain[1], 1.4, "blue", "the plain line 1.4 widths off at width 2")
+	await _check_beside(plain[0], plain[1], 2.6, "red", "and the raster 2.6 widths off")
+	await _check_beside(ring[0], ring[1], 0.8, "blue", "the circle 0.8 widths off at width 2")
+	await _check_beside(ring[0], ring[1], 1.4, "red", "and the raster 1.4 widths off")
 	await _restore()
 
 

@@ -329,3 +329,13 @@ func test_a_distance_is_written_the_way_the_status_bar_shows_it() -> void:
 func _assert_relative(got: float, wanted: float, message: String) -> void:
 	assert_true(absf(got - wanted) <= absf(wanted) * RELATIVE,
 		"%s: %s is not %s within one part in ten thousand" % [message, got, wanted])
+
+
+func test_a_rate_is_written_in_cm_per_year_or_as_a_distance_per_million_years() -> void:
+	# 1 cm/yr is 10 km/My: a centimeter a year for a million years.
+	assert_eq(Measure.format_rate(10.0, Measure.RATE_CM_PER_YEAR), "1.00 cm/yr")
+	assert_eq(Measure.format_rate(55.5, Measure.RATE_CM_PER_YEAR), "5.55 cm/yr")
+	assert_eq(Measure.format_rate(0.9, Measure.RATE_CM_PER_YEAR), "0.09 cm/yr")
+	assert_eq(Measure.format_rate(55.5, Measure.RATE_KM_PER_MY), "55.50 km/My")
+	assert_eq(Measure.format_rate(0.85, Measure.RATE_KM_PER_MY), "850 m/My",
+		"the distance is written the way format_km() writes it")

@@ -1,7 +1,7 @@
 # Kinematics
 
 The graphs under the globe: where the selected feature has been over time, and
-how fast it has been turning. They answer the question a keyframe list cannot —
+how fast it has been moving. They answer the question a keyframe list cannot —
 what the numbers in it amount to — without anyone having to play the animation
 and watch.
 
@@ -23,16 +23,22 @@ current time in every row and moves with it.
 | --------- | -------------------------------------- | ------------------------- |
 | Latitude  | Where the middle of the feature is, when switched on | -90° to +90° |
 | Longitude | The same, east and west, when switched on | -180° to +180°          |
-| Rate      | How fast it turns, one bar per span between keyframes | zero to the fastest span |
+| Rate      | How fast its middle moves, one bar per span between keyframes | zero to the fastest span |
 
 The two place rows are drawn against the whole of what a latitude and a
 longitude can be, rather than against what this feature happens to cover. A
 craton that has hardly moved then reads as one that has hardly moved, instead of
 being blown up until its wobble fills the box.
 
-Above the rows is a line of the same numbers at the current time: the title,
-the time, the place, and the rate in both units. It gives the latitude and the
-longitude whether or not their rows are drawn.
+Above the rows is a line of what it comes to at the current time: the title,
+the time, the rate in the unit Preferences > General > **Plate rate in**
+names, cm/yr unless it says km/My, and the compass bearing the middle moves
+toward, in degrees clockwise from north, left out when the feature stands
+still. The rate row gives the same current rate beside its top. The bars are
+scaled against the fastest span, but that figure is not written anywhere: it
+says nothing about the motion at the current time, and a reader took it for
+the rate (GP-0136). The place is only graphed, in the latitude and longitude
+rows.
 
 ## The quantities
 
@@ -48,24 +54,70 @@ the parent's world rotation while it [follows another feature](Time.md#coupling)
 A group above it moves nothing. So the graphs of a coupled feature plot its
 world path, not its keyframes relative to the parent.
 
-**The rate** is worked out between one keyframe time and the next: the single
-turn that carries where the node stands at one to where it stands at the other,
-divided by the millions of years between them. Two units of the same thing:
+**The rate** is the speed of the middle of the feature between one motion
+time and the next, worked out the way GPlates' kinematic graphs do it
+(`calculate_velocity_vector_and_omega()` in `src/maths/CalculateVelocity.cc`):
 
-| Quantity          | Unit  | What it is                                            |
-| ----------------- | ----- | ----------------------------------------------------- |
-| Angular velocity  | °/My  | The angle of that turn per million years               |
-| Rate              | km/My | The same angle in radians times the planet radius      |
+1. The stage rotation that carries the world rotation at the older end of the
+   span to the one at the younger end, `q_young * inverse(q_old)`, the shorter
+   of `q` and `-q`.
+2. Its angle over the length of the span is the angular velocity, and its axis
+   the axis of the turn.
+3. The velocity of the middle, where it stands at the younger end, is that
+   angular velocity times the planet radius times `cross(axis, middle)`. Its
+   length is the rate and its direction the bearing.
 
-The distance is what a point a quarter turn away from the rotation axis covers,
-which is the fastest anything on the planet moves under that rotation. A point
-nearer the axis covers less, down to nothing at the axis itself. The radius is
-the preference, so a document read against a smaller planet reports smaller
-distances from the same rotation; see
-[Editing](Editing.md#the-planet-radius).
+GPlates follows one chosen point, by default the first vertex of the feature;
+the middle stands in for it here. A spin about the middle moves the middle by
+nothing and reads zero, and a drag reads what the plate did. GPlates works the
+velocity out against the fixed Earth equatorial radius; the panel uses the
+radius preference instead, so a smaller planet reads slower from the same
+rotation (see [Editing](Editing.md#the-planet-radius)). The panel gives no
+angle per million years, only this speed.
 
-A rate has no direction. A turn back the way it came is as fast as the turn out,
-and the bar for that span is as tall.
+The angle is taken from the quaternions' parts in doubles, as
+`2 * atan2(|v|, w)`. The angle between two 32-bit quaternions moved in steps of
+about 0.03 cm/yr with one My between keyframes.
+
+Between two keyframes a feature turns about one axis at one steady rate
+(quaternion slerp), so one bar per span is exact, not an average. A plate after
+its last keyframe stands still, so it reads zero there.
+
+**Which span is read.** At a time inside a span, that span. At a time where two
+spans meet, a keyframe, the older one: the motion that brought the feature
+there, like GPlates' default of t + dt to t. So the readout at a keyframe gives
+the move just made at it. Before GP-0136 it gave the younger span, and since a
+coupling that runs to the present puts a motion time at 0 Ma, a feature that
+follows another read the span from its newest keyframe to the present: the
+parent's later motion, or nothing, whatever the drag at the keyframe did. At
+the oldest motion time the feature has not moved yet and reads zero.
+
+**While dragging.** The Move, Rotate and Pole tools write the keyframe at the
+current time as they go, and the panel works its numbers out again at every
+step, so the rate and the graph follow the drag before the release.
+
+The rate is given in centimeters per year unless **Plate rate in** asks for a
+distance per million years, which is written the way the status bar writes a
+distance, so a slow plate reads `850 m/My`. 1 cm/yr is 10 km/My.
+
+A turn back the way it came is as fast as the turn out, and the bar for that
+span is as tall; only the bearing differs.
+
+### Reference speeds
+
+Resting the pointer on the readout or on the graphs shows the plate speeds of
+the worldbuilding tutorial the users follow, Worldbuilding Pasta's "An Apple
+Pie From Scratch, Part V", section "Checking and Finalizing Plate Motion":
+
+| Situation                   | cm/yr    |
+| --------------------------- | -------- |
+| Subducting ocean            | 8 to 20  |
+| Recent subduction collision | 6        |
+| Active margin continent     | 3        |
+| Passive margin continent    | under 1  |
+
+They are ranges to compare with, not targets, so nothing is drawn on the graph
+for them and no speed turns a color.
 
 The times the rate can change at are the feature's keyframe times: a feature
 with three keyframes has two spans. A coupled feature's world motion can also

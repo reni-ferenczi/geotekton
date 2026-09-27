@@ -2,7 +2,7 @@ extends PanelContainer
 class_name KinematicsPanel
 
 # The kinematics panel under the globe: where the middle of the selected feature
-# has been over time, and how fast it is turning. The rate graph over a time
+# has been over time, and how fast it moves. The rate graph over a time
 # axis, with a cursor on the current time; latitude and longitude get a graph
 # each above it when show_place is on (View > Kinematics: latitude and longitude).
 # See Docs/Kinematics.md.
@@ -44,6 +44,15 @@ const TEXT_COLOR := Color(1.0, 1.0, 1.0, 0.7)
 const CURSOR_COLOR := Color(1.0, 1.0, 1.0, 0.6)
 
 const FONT_SIZE := 10
+
+# The plate speeds of the worldbuilding tutorial the users follow, shown when
+# the pointer rests on the rate. Ranges to compare with, not targets, which is
+# why they are not drawn on the graph. See Docs/Kinematics.md#reference-speeds.
+const REFERENCE_SPEEDS := """Typical plate speeds (Worldbuilding Pasta, An Apple Pie From Scratch, Part V):
+Subducting ocean: 8 to 20 cm/yr
+Recent subduction collision: 6 cm/yr
+Active margin continent: 3 cm/yr
+Passive margin continent: under 1 cm/yr"""
 
 # The open document and the time control, both set by Application through
 # attach(). The time control owns the animation range, which is what the time
@@ -103,11 +112,14 @@ func _build() -> void:
 	readout = Label.new()
 	readout.name = "Readout"
 	readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	readout.tooltip_text = REFERENCE_SPEEDS
+	readout.mouse_filter = Control.MOUSE_FILTER_PASS
 	box.add_child(readout)
 
 	graphs = Control.new()
 	graphs.name = "Graphs"
 	graphs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	graphs.tooltip_text = REFERENCE_SPEEDS
 	graphs.draw.connect(_draw_graphs)
 	graphs.resized.connect(graphs.queue_redraw)
 	box.add_child(graphs)
@@ -179,16 +191,15 @@ func _readout_text() -> String:
 		return "%s has no geometry yet." % node.title
 
 	var time := _current_time()
-	var place := Kinematics.position_at(_root(), node, time)
 	var rate := Kinematics.rate_at(_segments, time)
-	return "%s at %s Ma:   %.2f° %s   %.2f° %s   %.4f °/My   %s/My" % [
+	var text := "%s at %s Ma:   %s" % [
 		node.title,
 		format_time(time),
-		absf(place.x), "N" if place.x >= 0.0 else "S",
-		absf(place.y), "E" if place.y >= 0.0 else "W",
-		rate["degrees_per_my"],
-		Measure.format_km(rate["km_per_my"]),
+		Measure.format_rate(rate["km_per_my"], Config.get_rate_unit()),
 	]
+	if rate["km_per_my"] > 0.0:
+		text += " toward %.0f°" % rate["bearing"]
+	return text
 
 
 # A time the way the readout and the time axis write it: a plain number of
@@ -266,35 +277,32 @@ func _draw_place_row(row: int, label: String, key: String, limit: float,
 # through the middle of each span would draw as a slope that is not there.
 func _draw_rate_row(row: int) -> void:
 	var plot := _plot(row)
-	var peak := _peak_labels()
-	_draw_frame(plot, "Rate", peak[0], "0", peak[1])
+	_draw_frame(plot, "Rate", rate_label(_current_rate(), Config.get_rate_unit()), "0")
 	if _peak > 0.0:
 		for segment in _segments:
 			var left := _time_x(float(segment["to"]), plot)
 			var right := _time_x(float(segment["from"]), plot)
-			var height := plot.size.y * float(segment["degrees_per_my"]) / _peak
+			var height := plot.size.y * float(segment["km_per_my"]) / _peak
 			graphs.draw_rect(
 				Rect2(left, plot.end.y - height, maxf(right - left, 1.0), height), RATE_COLOR)
 	_draw_cursor(plot)
 
 
-# What the top of the rate row stands for, in both units: the fastest of the
-# spans as an angle and as a distance on the planet. The two are the same number
-# read against a different scale, which is why the row carries one set of bars
-# and two labels rather than a graph each. A node that does not move has no peak
-# to scale against, and the row is then an empty box from zero to zero.
-func _peak_labels() -> Array:
-	if _peak <= 0.0:
-		return ["0 °/My", "0 km/My"]
-	return ["%.4f °/My" % _peak,
-		"%s/My" % Measure.format_km(deg_to_rad(_peak) * Config.get_planet_radius())]
+# What the rate row says beside its top: the rate at the current time, `km` in
+# km/My, in the unit the preference names, the same number as the readout. The
+# fastest span the bars are scaled against is not written anywhere; it says
+# nothing about where the feature is now (GP-0136).
+static func rate_label(km: float, unit: String) -> String:
+	return Measure.format_rate(maxf(km, 0.0), unit)
+
+
+func _current_rate() -> float:
+	return float(Kinematics.rate_at(_segments, _current_time())["km_per_my"])
 
 
 # The box of one row, with its name to the left of it and what its top and its
-# bottom edge stand for to the right. The rate row says what its top is worth in
-# a second unit as well, which goes on the line under the first.
-func _draw_frame(plot: Rect2, label: String, top: String, bottom: String,
-		second: String = "") -> void:
+# bottom edge stand for to the right.
+func _draw_frame(plot: Rect2, label: String, top: String, bottom: String) -> void:
 	graphs.draw_rect(plot, FRAME_COLOR, false, 1.0)
 	var font := get_theme_default_font()
 	graphs.draw_string(font, Vector2(0.0, plot.get_center().y + FONT_SIZE * 0.4), label,
@@ -303,10 +311,6 @@ func _draw_frame(plot: Rect2, label: String, top: String, bottom: String,
 		HORIZONTAL_ALIGNMENT_LEFT, VALUE_WIDTH - 6, FONT_SIZE, TEXT_COLOR)
 	graphs.draw_string(font, Vector2(plot.end.x + 6.0, plot.end.y - 1.0), bottom,
 		HORIZONTAL_ALIGNMENT_LEFT, VALUE_WIDTH - 6, FONT_SIZE, TEXT_COLOR)
-	if not second.is_empty():
-		graphs.draw_string(font,
-			Vector2(plot.end.x + 6.0, plot.position.y + FONT_SIZE * 2.4), second,
-			HORIZONTAL_ALIGNMENT_LEFT, VALUE_WIDTH - 6, FONT_SIZE, TEXT_COLOR)
 
 
 # The two ends of the time axis, under the last row: the oldest on the left, the
@@ -358,6 +362,8 @@ func to_json() -> Dictionary:
 		"samples": _samples,
 		"segments": _segments,
 		"current": _current_values(),
+		"rate_label": rate_label(_current_rate(), Config.get_rate_unit()),
+		"tooltip": readout.tooltip_text,
 		# Where the cursor is drawn across the plotting area, and how wide that
 		# is, so a run can check that it moved with the time.
 		"cursor": _time_x(_current_time(), _plot(0)) - LABEL_WIDTH,

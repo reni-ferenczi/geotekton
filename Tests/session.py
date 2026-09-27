@@ -1101,6 +1101,8 @@ def run_colour_session(client: AutomationClient) -> None:
 
     run_color_picker_checks(client)
     run_feature_colour_preference_checks(client)
+    run_line_width_checks(client)
+    run_default_line_width_checks(client)
 
 
 # The default colour of each feature type, in the order Logic/feature_type.gd
@@ -1238,6 +1240,80 @@ def run_feature_colour_preference_checks(client: AutomationClient) -> None:
     check(is_colour(probe_at(client, *PREFERENCE_PROBE), green),
           "and the Feature type style follows")
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+
+
+# A point 1.6 degrees east of Blue Ridge, which runs down longitude 40. The
+# shader draws a line 0.012 of the sphere's radius to either side of its middle,
+# about 0.69 degrees, so the point is off the line at width 1 and well inside
+# it at width 4, where the edge is about 2.75 degrees out.
+LINE_WIDTH_PROBE = (0.0, 41.6)
+MAGENTA = [1.0, 0.0, 1.0, 1.0]
+
+
+def is_magenta(pixel: list[float]) -> bool:
+    """Whether a probed pixel is the magenta line, selected and so drawn lighter."""
+    hue, saturation = hue_and_saturation(pixel)
+    return abs(hue - 5.0 / 6.0) < 0.05 and saturation > 0.3
+
+
+def run_line_width_checks(client: AutomationClient) -> None:
+    """The Line width row: a feature drawn with lines is drawn wider, one undo step per edit."""
+    open_mixed_geometry(client)
+    client.call("select", title="Red Triangle")
+    check("line_width" not in client.call("get_properties")["properties"],
+          "a polygon has no Line width row")
+    check("drawn with lines" in refusal(client, "set_property", field="line_width", value=2.0),
+          "and the port says so")
+    client.call("select", title="Green Stations")
+    check("line_width" not in client.call("get_properties")["properties"],
+          "nor has a multipoint")
+
+    client.call("select", title="Blue Ridge")
+    panel = client.call("get_properties")["properties"]
+    check(panel.get("line_width") == 1.0,
+          f"a line from a file without a width shows 1: {panel.get('line_width')}")
+    check(panel["tooltips"]["line_width"].startswith("How wide the feature's lines are drawn"),
+          f"with a hover description: {panel['tooltips']}")
+    client.call("set_property", field="color", value=MAGENTA)
+    pixel = probe_unhovered(client, *LINE_WIDTH_PROBE)
+    check(not is_magenta(pixel), f"1.6 degrees off the line is the planet at width 1: {pixel}")
+
+    depth = undo_depth(client)
+    client.call("set_property", field="line_width", value=4.0)
+    check(client.call("get_selected")["feature"]["line_width"] == 4.0, "the feature holds the width")
+    check(client.call("get_properties")["properties"]["line_width"] == 4.0, "and the row shows it")
+    check(undo_depth(client) == depth + 1, "in one undo step")
+    pixel = probe_unhovered(client, *LINE_WIDTH_PROBE)
+    check(is_magenta(pixel), f"and the line reaches the point at width 4: {pixel}")
+
+    client.call("menu", item="undo")
+    check(client.call("get_properties")["properties"]["line_width"] == 1.0, "undo puts it back to 1")
+    pixel = probe_unhovered(client, *LINE_WIDTH_PROBE)
+    check(not is_magenta(pixel), f"and the line is thin again: {pixel}")
+    client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
+
+
+def run_default_line_width_checks(client: AutomationClient) -> None:
+    """The Default line width preference is what a new feature starts at, and only that."""
+    start_new_document(client)
+    before = client.call("get_preferences")["preferences"]["default_line_width"]
+    client.call("set_preferences", preferences={"default_line_width": 2.0})
+    check(client.call("get_preferences")["preferences"]["default_line_width"] == 2.0,
+          "the Preferences dialog changes the default line width")
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="feature_type", value="line")
+    check(client.call("get_properties")["properties"].get("line_width") == 2.0,
+          "a new feature starts at the default")
+    client.call("set_preferences", preferences={"default_line_width": 3.0})
+    check(client.call("get_properties")["properties"].get("line_width") == 2.0,
+          "and keeps its own width when the preference changes")
+    client.call("toolbar", button="AddFeature")
+    client.call("set_property", field="feature_type", value="line")
+    check(client.call("get_properties")["properties"].get("line_width") == 3.0,
+          "while the next one starts at the new default")
+    client.call("set_preferences", preferences={"default_line_width": before})
+    check(client.call("get_preferences")["preferences"]["default_line_width"] == before,
+          "the preference is put back for the scenarios after this one")
 
 
 def refusal(client: AutomationClient, cmd: str, **params) -> str:
@@ -4059,9 +4135,17 @@ def run_split_tool_session(client: AutomationClient) -> None:
     status = client.call("get_status")["status"]["measure"]
     check("crosses the edge" in status, f"a cut that crosses the edge is refused: {status!r}")
     check(undo_depth(client) == depth, "and records nothing")
+    check(client.call("get_tool")["split_refused"], "the refused cut is marked as such")
+    # Its last point is drawn in red, off the pointer so nothing else is lit.
+    last = client.call("latlon_to_screen", lat=SPLIT_CUT[2][0], lon=SPLIT_CUT[2][1])["screen"]
+    client.call("mouse_move", x=last[0] + 200, y=last[1] + 200)
+    pixel = client.call("get_pixel", x=last[0], y=last[1])["color"]
+    check(pixel[0] > 0.8 and pixel[1] < 0.4 and pixel[2] < 0.4,
+          f"and drawn in red on the globe: {pixel}")
 
     client.call("key", key="Escape")
-    check(client.call("get_tool")["split_points"] == [], "Escape lets the points go")
+    tool = client.call("get_tool")
+    check(tool["split_points"] == [] and not tool["split_refused"], "Escape lets the points go")
     if not draw(client, SPLIT_CUT):
         return
     client.call("key", key="Enter")
@@ -5141,6 +5225,89 @@ CURSOR_TIME = 500.0
 CURSOR_TOLERANCE = 1.0
 
 
+def run_rate_unit_checks(client: AutomationClient, graphs: dict) -> None:
+    """The rate in cm/yr by default, and as a distance per million years once
+    Preferences asks for that."""
+    check(client.call("get_preferences")["preferences"]["rate_unit"] == "cm_per_year",
+          "the rate unit is cm/yr to begin with")
+    km = graphs["current"]["km_per_my"]
+    check(f"{km / 10.0:.2f} cm/yr" in graphs["readout"],
+          f"the readout gives the rate in cm/yr: {graphs['readout']}")
+    check(graphs["rate_label"] == f"{km / 10.0:.2f} cm/yr",
+          f"and the rate row gives the same current rate: {graphs['rate_label']}")
+    check("°/My" not in graphs["readout"] and "°/My" not in graphs["rate_label"],
+          f"with no angle per million years beside it: {graphs['readout']}")
+    check("° N" not in graphs["readout"] and "° S" not in graphs["readout"]
+          and "° E" not in graphs["readout"] and "° W" not in graphs["readout"],
+          f"and no latitude or longitude: {graphs['readout']}")
+    client.call("set_preferences", preferences={"rate_unit": "km_per_my"})
+    switched = client.call("get_kinematics")["kinematics"]
+    check("/My" in switched["readout"] and "cm/yr" not in switched["readout"],
+          f"switched to the distance per million years, the readout follows: {switched['readout']}")
+    check(switched["rate_label"].endswith("/My"),
+          f"and so does the rate row: {switched['rate_label']}")
+    refused = refusal(client, "set_preferences", preferences={"rate_unit": "knots"})
+    check("knots" in refused, f"a unit the dialog does not offer is refused: {refused!r}")
+    client.call("set_preferences", preferences={"rate_unit": "cm_per_year"})
+    check("cm/yr" in client.call("get_kinematics")["kinematics"]["readout"], "and back again")
+
+
+# The follower of the drag checks: the blue quad follows the red triangle from
+# COUPLED_AT to the present, and is dragged at a time after that, where it has
+# no keyframe yet.
+DRAGGED_AT = 450.0
+# How far each drag carries the middle, in degrees of longitude.
+KINEMATICS_DRAG = 3.0
+
+
+def great_circle_km(a: tuple[float, float], b: tuple[float, float], radius: float) -> float:
+    ua, ub = unit(*a), unit(*b)
+    return math.acos(max(-1.0, min(1.0, sum(x * y for x, y in zip(ua, ub))))) * radius
+
+
+def run_kinematics_drag_session(client: AutomationClient) -> None:
+    """GP-0136: a feature that follows another reads the speed of the drag just
+    made at the current time, while it is made, and the rate says what speeds
+    are typical."""
+    client.call("load", path=str(COUPLING_SAMPLE))
+    radius = client.call("get_preferences")["preferences"]["planet_radius_km"]
+    client.call("set_tool", tool="move")
+    client.call("select", title="Blue Quad")
+    client.call("set_time", time=COUPLED_AT)
+    client.call("coupling", button="Couple", parent="Red Triangle")
+    start = world_centroid(client)
+    client.call("set_time", time=DRAGGED_AT)
+    client.call("set_view", lat=start[0], lon=start[1], angle=0.0)
+
+    rates = []
+    for step in (1, 2):
+        before = client.call("get_kinematics")["kinematics"]["readout"]
+        lat, lon = world_centroid(client)
+        grab = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
+        target = client.call("latlon_to_screen", lat=lat, lon=lon + KINEMATICS_DRAG)["screen"]
+        if not check(grab is not None and target is not None, "the drag is on screen"):
+            return
+        client.call("press", x=grab[0], y=grab[1])
+        client.call("mouse_move", x=target[0], y=target[1])
+        during = client.call("get_kinematics")["kinematics"]["readout"]
+        check(during != before, f"drag {step}: the readout changes before the release: {during!r}")
+        client.call("release", x=target[0], y=target[1])
+
+        graphs = client.call("get_kinematics")["kinematics"]
+        moved = great_circle_km(start, world_centroid(client), radius) / (COUPLED_AT - DRAGGED_AT)
+        rate = graphs["current"]["km_per_my"]
+        check(abs(rate - moved) < 0.05 * moved,
+              f"drag {step}: at {DRAGGED_AT} Ma the rate is how fast the middle moved since "
+              f"{COUPLED_AT} Ma: {rate:.3f} km/My, moved {moved:.3f}")
+        rates.append(rate)
+    check(rates[1] > rates[0], f"a drag further at the same time reads higher: {rates}")
+
+    graphs = client.call("get_kinematics")["kinematics"]
+    check(" toward " in graphs["readout"], f"the readout gives a bearing: {graphs['readout']}")
+    for speed in ("8 to 20 cm/yr", "6 cm/yr", "3 cm/yr", "under 1 cm/yr", "Worldbuilding Pasta"):
+        check(speed in graphs["tooltip"], f"the rate's tooltip lists {speed!r}: {graphs['tooltip']!r}")
+
+
 def run_kinematics_session(client: AutomationClient) -> None:
     """The kinematics panel: what it graphs, and how its cursor follows the time."""
     client.call("load", path=str(MOTION))
@@ -5177,8 +5344,8 @@ def run_kinematics_session(client: AutomationClient) -> None:
 
     # The rate at the present is the one of the younger of the two spans.
     younger = min(graphs["segments"], key=lambda segment: segment["to"])
-    check(abs(graphs["current"]["degrees_per_my"] - younger["degrees_per_my"]) < 1e-9,
-          f"and on the rate at the current time: {graphs['current']['degrees_per_my']}")
+    check(abs(graphs["current"]["km_per_my"] - younger["km_per_my"]) < 1e-9,
+          f"and on the rate at the current time: {graphs['current']['km_per_my']}")
 
     # The cursor sits where the time is, measured across the plotting area: the
     # oldest end on the left, the youngest on the right.
@@ -5191,6 +5358,7 @@ def run_kinematics_session(client: AutomationClient) -> None:
           f"and moving the time moves it to that time: {graphs['cursor']}")
     check(f"{CURSOR_TIME:g} Ma" in graphs["readout"],
           f"the readout says where the cursor is: {graphs['readout']}")
+    run_rate_unit_checks(client, graphs)
 
     # Where the feature is at that time, off the graph, is where the globe has
     # carried it as well.
@@ -5678,6 +5846,7 @@ def main(argv: list[str]) -> int:
         run_hotspot_session(client)
         run_topology_session(client)
         run_kinematics_session(client)
+        run_kinematics_drag_session(client)
         run_python_session(client)
         folder = Path(tempfile.mkdtemp(prefix="geotekt-import-"))
         try:

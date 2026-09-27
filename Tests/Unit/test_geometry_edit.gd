@@ -218,7 +218,7 @@ func test_a_straight_cut_puts_its_ends_on_the_boundary() -> void:
 	var halves := GeometryEdit.split_along(ring, path)
 	assert_eq(halves[0], PackedVector2Array([
 		Vector2(5, 10), Vector2(5, 0), Vector2(10, 0), Vector2(10, 10)]),
-		"the ends were projected onto the two edges they were clicked beside")
+		"the ends are where the line crosses the two edges")
 	assert_eq(halves[1], PackedVector2Array([
 		Vector2(5, 0), Vector2(5, 10), Vector2(0, 10), Vector2(0, 0)]))
 	assert_close(_feature_area(halves[0]), 50.0, 1e-3)
@@ -227,33 +227,34 @@ func test_a_straight_cut_puts_its_ends_on_the_boundary() -> void:
 
 func test_a_cut_with_two_points_between_its_ends_goes_to_both_halves() -> void:
 	var ring := PackedVector2Array(SQUARE)
-	var path := PackedVector2Array([Vector2(5, -1), Vector2(3, 4), Vector2(7, 6), Vector2(5, 11)])
+	var path := PackedVector2Array([Vector2(3, -1), Vector2(3, 4), Vector2(7, 6), Vector2(7, 11)])
 	assert_eq(GeometryEdit.split_along_problem(ring, path), "")
 	var halves := GeometryEdit.split_along(ring, path)
 	assert_eq(halves[0], PackedVector2Array([
-		Vector2(5, 10), Vector2(7, 6), Vector2(3, 4), Vector2(5, 0),
+		Vector2(7, 10), Vector2(7, 6), Vector2(3, 4), Vector2(3, 0),
 		Vector2(10, 0), Vector2(10, 10)]), "the first half starts back along the cut")
 	assert_eq(halves[1], PackedVector2Array([
-		Vector2(5, 0), Vector2(3, 4), Vector2(7, 6), Vector2(5, 10),
+		Vector2(3, 0), Vector2(3, 4), Vector2(7, 6), Vector2(7, 10),
 		Vector2(0, 10), Vector2(0, 0)]), "and the second forwards along it")
 	assert_close(_feature_area(halves[0]) + _feature_area(halves[1]), 100.0, 1e-3,
 		"the halves add up to the square")
 
 
-func test_the_halves_hold_every_vertex_once_and_the_projected_ends_twice() -> void:
+func test_the_halves_hold_every_vertex_once_and_the_ends_twice() -> void:
 	var ring := _pentagon()
-	# Both ends land halfway along an edge, so the projected points are exact.
-	var path := PackedVector2Array([Vector2(5, -2), Vector2(4, 4), Vector2(-1, 6)])
+	# The first and last stretches cross the boundary square on, so the ends
+	# are exact.
+	var path := PackedVector2Array([Vector2(5, -2), Vector2(5, 2), Vector2(2, 6), Vector2(-1, 6)])
 	assert_eq(GeometryEdit.split_along_problem(ring, path), "")
 	var halves := GeometryEdit.split_along(ring, path)
 	var together := PackedVector2Array(halves[0])
 	together.append_array(halves[1])
 	for vertex in ring:
 		assert_eq(together.count(vertex), 1, "%s is in one half" % vertex)
-	for shared in [Vector2(5, 0), Vector2(4, 4), Vector2(0, 6)]:
+	for shared in [Vector2(5, 0), Vector2(5, 2), Vector2(2, 6), Vector2(0, 6)]:
 		assert_eq(together.count(shared), 2, "%s is in both halves" % shared)
-	assert_eq(together.size(), ring.size() + 2 * 3,
-		"nothing else: the five vertices, and the two ends and the point between twice")
+	assert_eq(together.size(), ring.size() + 2 * 4,
+		"nothing else: the five vertices, and the two ends and the points between twice")
 
 
 func test_a_cut_that_leaves_a_concave_polygon_is_refused() -> void:
@@ -276,6 +277,147 @@ func test_a_cut_with_both_ends_on_one_edge_is_refused() -> void:
 		"Both ends of the cut land on the same edge.")
 	assert_true(not GeometryEdit.split_along_problem(ring,
 		PackedVector2Array([Vector2(3, -1)])).is_empty(), "one point is no cut")
+
+
+# Three cratons of worlds/TestA.geotekt, as stored, on which a cut clicked
+# outside the outline used to go to the nearest point of it, which is on
+# another edge often enough to refuse one clean cut in five; see
+# notes/split-refusals in the workspace.
+const PURPLE_CRATON := [[-24.6, 30.2], [-22.5, 21.7], [-14.4, 19.1], [-9.0, 30.5],
+	[-12.5, 39.2], [-19.2, 35.7], [-22.5, 37.6]]
+const BIG_BOI := [[-3.5, 81.4], [-3.4, 70.6], [3.0, 66.5], [2.9, 60.1], [7.9, 51.7],
+	[18.9, 45.7], [21.1, 40.4], [38.5, 40.3], [40.5, 59.9], [35.0, 94.9], [16.5, 102.0],
+	[6.9, 86.6], [15.8, 70.5], [13.1, 67.0]]
+const BIG_BOI_2 := [[21.1, 40.4], [18.9, 45.7], [7.9, 51.7], [2.9, 60.1], [3.0, 66.5],
+	[-3.4, 70.6], [-3.5, 81.4], [-11.5, 88.4], [-23.3, 68.9], [-21.2, 62.0], [-32.8, 66.5],
+	[-39.2, 72.5], [-36.9, 58.3], [-31.9, 42.3], [-41.5, 45.8], [-47.2, 41.9], [-38.0, 33.4],
+	[-42.8, 21.3], [-37.4, 18.2], [-28.1, 0.9], [-15.0, 0.8], [-3.9, 6.7], [4.2, 25.1],
+	[3.6, 40.4]]
+
+
+func _ring_of(points: Array) -> PackedVector2Array:
+	var ring := PackedVector2Array()
+	for point in points:
+		ring.append(Vector2(point[0], point[1]))
+	return ring
+
+
+# How many times the line from a to b crosses the ring, or -1 when it passes
+# within 0.05° of a vertex or of another crossing, which is a graze rather than
+# a clean cut.
+func _clean_crossings(ring: PackedVector2Array, a: Vector2, b: Vector2) -> int:
+	var hits := PackedVector2Array()
+	for i in ring.size():
+		var j := (i + 1) % ring.size()
+		var at: Variant = Geometry2D.segment_intersects_segment(a, b, ring[i], ring[j])
+		if at == null:
+			continue
+		if (at as Vector2).distance_to(ring[i]) < 0.05 or (at as Vector2).distance_to(ring[j]) < 0.05:
+			return -1
+		for hit in hits:
+			if hit.distance_to(at) < 0.05:
+				return -1
+		hits.append(at)
+	return hits.size()
+
+
+func test_a_clean_cut_clicked_outside_an_irregular_outline_is_never_refused() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	for points in [PURPLE_CRATON, BIG_BOI, BIG_BOI_2]:
+		var ring := _ring_of(points)
+		for pad in [0.3, 2.0, 6.0]:
+			var tried := 0
+			var refused := 0
+			var example := ""
+			while tried < 200:
+				var i := rng.randi_range(0, ring.size() - 1)
+				var k := rng.randi_range(0, ring.size() - 1)
+				var p := ring[i].lerp(ring[(i + 1) % ring.size()], rng.randf_range(0.1, 0.9))
+				var q := ring[k].lerp(ring[(k + 1) % ring.size()], rng.randf_range(0.1, 0.9))
+				if p.distance_to(q) < 3.0 or not Geometry2D.is_point_in_polygon((p + q) * 0.5, ring):
+					continue
+				var along: Vector2 = (q - p).normalized() * pad
+				var path := PackedVector2Array([p - along, (p + q) * 0.5, q + along])
+				if _clean_crossings(ring, path[0], path[2]) != 2:
+					continue
+				tried += 1
+				var problem := GeometryEdit.split_along_problem(ring, path)
+				if not problem.is_empty():
+					refused += 1
+					example = "%s: %s" % [path, problem]
+			assert_eq(refused, 0, "%d-gon, ends %s° outside, e.g. %s" % [ring.size(), pad, example])
+
+
+func test_an_end_clicked_outside_goes_where_the_cut_crosses_the_outline() -> void:
+	# From Big Boi 2: the start click was put on another edge 6° away.
+	var ring := _ring_of(BIG_BOI_2)
+	var path := PackedVector2Array([Vector2(-2.6, 74.7), Vector2(-20.0, 50.0)])
+	var cut := GeometryEdit.cut_across(ring, path)
+	var start: Vector2 = cut[0][cut[1]]
+	assert_true(start.distance_to(Vector2(-3.4, 74.7)) > 0.5, "not the nearest point, %s" % start)
+	assert_true(GeometryEdit.nearest_segment(ring, start, true)[1] < 1e-4, "on the outline")
+	assert_true(GeometryEdit.nearest_segment(path, start, false)[1] < 1e-4, "on the drawn line")
+	assert_eq(GeometryEdit.split_along_problem(ring, path), "")
+
+
+func test_an_end_clicked_inside_goes_to_the_nearest_point_of_the_outline() -> void:
+	var ring := PackedVector2Array(SQUARE)
+	var cut := GeometryEdit.cut_across(ring,
+		PackedVector2Array([Vector2(5, 0.5), Vector2(4, 5), Vector2(5, 9.5)]))
+	assert_eq(cut[0][cut[1]], Vector2(5, 0))
+	assert_eq(cut[0][cut[2]], Vector2(5, 10))
+	assert_eq(cut[3], PackedVector2Array([Vector2(4, 5)]), "the point between is kept")
+
+
+# An octagon of radius 5° around (lat, lon), stored with longitudes in
+# -180..180 the way a feature drawn there holds them.
+func _octagon_at(lat: float, lon: float) -> PackedVector2Array:
+	var ring := PackedVector2Array()
+	for i in 8:
+		var angle := TAU * (i + 0.5) / 8
+		ring.append(Vector2(lat + 5.0 * cos(angle), wrapf(lon + 5.0 * sin(angle), -180.0, 180.0)))
+	return ring
+
+
+func _check_halves(ring: PackedVector2Array, path: PackedVector2Array, where: String) -> void:
+	assert_eq(GeometryEdit.split_along_problem(ring, path), "", where)
+	var halves := GeometryEdit.split_along(ring, path)
+	var whole := Measure.ring_area(ring)
+	var first := Measure.ring_area(halves[0])
+	var second := Measure.ring_area(halves[1])
+	assert_close(first + second, whole, whole * 1e-3, "%s: the halves add up to the whole" % where)
+	assert_true(first > whole * 0.3 and second > whole * 0.3, "%s: cut through the middle" % where)
+
+
+func test_a_polygon_across_the_dateline_splits() -> void:
+	_check_halves(_octagon_at(0.0, 180.0),
+		PackedVector2Array([Vector2(-7, 179.5), Vector2(0, -179.8), Vector2(7, 179.5)]), "on 180°")
+	_check_halves(_octagon_at(20.0, 177.0),
+		PackedVector2Array([Vector2(13, 177), Vector2(27, 177)]), "reaching over 180°")
+
+
+func test_a_polygon_round_a_pole_splits() -> void:
+	var ring := PackedVector2Array()
+	for i in 8:
+		ring.append(Vector2(80.0, -157.5 + 45.0 * i))
+	_check_halves(ring, PackedVector2Array([Vector2(75, 0), Vector2(75, 180)]), "round the pole")
+
+
+func test_the_vertex_tool_splits_a_polygon_across_the_dateline() -> void:
+	var ring := _octagon_at(0.0, 180.0)
+	assert_eq(GeometryEdit.polygon_split_problem(ring, 0, 4), "")
+
+
+func test_a_cut_across_the_dateline_is_clipped_to_the_ring() -> void:
+	var ring := _octagon_at(0.0, 180.0)
+	var cut := GeometryEdit.clip_path(ring,
+		PackedVector2Array([Vector2(-7, 179.5), Vector2(7, 179.5)]))
+	assert_eq(cut.size(), 2, "from where the path goes in to where it comes out")
+	for end in cut:
+		assert_true(absf(end.y - 179.5) < 0.1 and absf(end.x) > 4.0, "an end on the outline: %s" % end)
+	assert_true(GeometryEdit.contains(ring, Vector2(0, -179.0)), "the middle of the ring is in it")
+	assert_true(GeometryEdit.touches(ring, PackedVector2Array([Vector2(-10, 179.0), Vector2(10, 179.0)])))
 
 
 ### Dividing the parts of a feature

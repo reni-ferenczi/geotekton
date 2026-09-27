@@ -215,6 +215,20 @@ static func format_km(km: float) -> String:
 	return "%.0f km" % km
 
 
+# The two units a plate's rate is shown in: centimeters per year, which plate
+# speeds are quoted in, and the distance per million years, written the way
+# format_km() writes a distance. 1 cm/yr is 10 km/My. Config.get_rate_unit()
+# says which one the Kinematics panel uses.
+const RATE_CM_PER_YEAR := "cm_per_year"
+const RATE_KM_PER_MY := "km_per_my"
+
+
+static func format_rate(km_per_my: float, unit: String) -> String:
+	if unit == RATE_KM_PER_MY:
+		return "%s/My" % format_km(km_per_my)
+	return "%.2f cm/yr" % (km_per_my / 10.0)
+
+
 # An area the way the panels show it: a decimal on a small area, whole square
 # kilometers up to a million, and millions beyond that. The thousands are set
 # apart by a narrow space a line does not break at.

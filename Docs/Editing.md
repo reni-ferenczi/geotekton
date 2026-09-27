@@ -425,9 +425,11 @@ the Draw tool previews.
 | **Enter** | Split the polygon along the cut |
 | **Escape** | Start again with no points |
 
-The ends do not have to be clicked on the edge. On Enter each end moves to the
-nearest point of the polygon's boundary and becomes a new vertex there, or uses
-the vertex that is already there, as a click just past a corner does. The
+The ends do not have to be clicked on the edge. On Enter an end clicked
+outside the polygon moves to where the line first crosses its boundary, or
+last for the far end, and the points clicked before that crossing are dropped.
+An end clicked inside moves to the nearest point of the boundary. Either way it
+becomes a new vertex there, or uses the vertex that is already there. The
 points between the ends go to both halves, so the two halves share the whole
 cut. A feature of several polygons is cut in the part whose edge is nearest the
 first point, when the cut touches a part at all; a cut drawn between the parts
@@ -440,8 +442,15 @@ A cut is refused, with the reason in the status bar, when:
   does;
 - it crosses the polygon's edge anywhere between its ends, or crosses itself.
 
-A refused cut keeps its points, so the one at fault can be taken back with
-Ctrl+Z. A cut that is made records one undo version and goes back to the Move
+A refused cut keeps its points and turns red on the globe until one of them
+is taken back, another is added or Escape drops them, so the one at fault can
+be taken back with Ctrl+Z.
+
+The checks work on latitude and longitude as a flat plane. A polygon whose
+stored vertices cross ±180° longitude or go round a pole, or a cut that crosses
+±180°, is checked in a frame turned so the polygon's middle is at (0°, 0°)
+instead, so a cut there splits like one anywhere else. The Vertex tool's split
+and the cut through [children](#the-children) are checked the same way. A cut that is made records one undo version and goes back to the Move
 tool, with the first half selected. The status bar names what the cut left
 behind, `Split into Laurentia, Laurentia 2, Laurentia ridge, Laurentia crust,
 Laurentia 2 crust`.

@@ -234,8 +234,13 @@ var default_folder_edit: LineEdit
 var radius_spin: SpinBox
 # The planet's surface under the radius box, following the box as it changes.
 var planet_area_label: Label
+# The unit the Kinematics panel gives a rate in; each item's metadata is one of
+# Measure's RATE_ units.
+var rate_unit_option: OptionButton
 var marker_spin: SpinBox
 var line_spin: SpinBox
+# The line width a new feature starts with.
+var default_line_width_spin: SpinBox
 var export_width_spin: SpinBox
 var ffmpeg_edit: LineEdit
 # The colour picker of each feature type in the Preferences dialog, by type id.
@@ -1314,10 +1319,27 @@ func _build_about_content() -> Control:
 	return text
 
 
+# The Preferences dialog is three tabs rather than one column. A column of
+# every setting grew taller than a screen that is not full screen, with the OK
+# button out of reach below it, and a tab fits with room to spare.
 func _build_preferences_content() -> Control:
+	var tabs := TabContainer.new()
+	tabs.name = "Preferences"
+	tabs.custom_minimum_size = Vector2(520, 0)
+	# The dialog is sized to the tallest tab, so it stays put when the tab
+	# changes rather than growing and shrinking under the pointer.
+	tabs.use_hidden_tabs_for_min_size = true
+	tabs.add_child(_build_general_preferences())
+	tabs.add_child(_build_drawing_preferences())
+	tabs.add_child(_build_python_preferences())
+	return tabs
+
+
+# Where files come from and go to, what distances are read against, and how an
+# export comes out.
+func _build_general_preferences() -> Control:
 	var box := VBoxContainer.new()
-	box.name = "Preferences"
-	box.custom_minimum_size = Vector2(520, 0)
+	box.name = "General"
 
 	var folder_label := Label.new()
 	folder_label.text = "Default folder for Open and Save"
@@ -1344,10 +1366,17 @@ func _build_preferences_content() -> Control:
 	form.add_child(planet_area_label)
 	radius_spin.value_changed.connect(func(radius: float) -> void:
 		planet_area_label.text = "Surface area %s" % Measure.format_area(Measure.planet_area(radius)))
-	marker_spin = _form_spin(form, "VertexMarkerScale", "Vertex marker size",
-		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
-	line_spin = _form_spin(form, "LineWidthScale", "Outline line width",
-		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
+	var rate_label := Label.new()
+	rate_label.text = "Plate rate in"
+	form.add_child(rate_label)
+	rate_unit_option = OptionButton.new()
+	rate_unit_option.name = "RateUnit"
+	rate_unit_option.tooltip_text = "The unit the Kinematics panel gives a rate in, beside the angle per million years"
+	rate_unit_option.add_item("cm/yr")
+	rate_unit_option.set_item_metadata(0, Measure.RATE_CM_PER_YEAR)
+	rate_unit_option.add_item("km/My")
+	rate_unit_option.set_item_metadata(1, Measure.RATE_KM_PER_MY)
+	form.add_child(rate_unit_option)
 	export_width_spin = _form_spin(form, "ExportWidth", "Export width (pixels)",
 		Config.MIN_EXPORT_WIDTH, Config.MAX_EXPORT_WIDTH, Config.EXPORT_WIDTH_STEP)
 
@@ -1361,6 +1390,28 @@ func _build_preferences_content() -> Control:
 	ffmpeg_edit.name = "Ffmpeg"
 	ffmpeg_edit.placeholder_text = "Whatever is found on the path"
 	box.add_child(ffmpeg_edit)
+
+	return box
+
+
+# How the outline overlay and new features are drawn: the outline sizes, the
+# line width a new feature starts with, and the colour of each feature type.
+func _build_drawing_preferences() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "Drawing"
+
+	var form := GridContainer.new()
+	form.columns = 2
+	box.add_child(form)
+
+	marker_spin = _form_spin(form, "VertexMarkerScale", "Vertex marker size",
+		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
+	line_spin = _form_spin(form, "LineWidthScale", "Outline line width",
+		Config.MIN_SCALE, Config.MAX_SCALE, 0.05)
+	default_line_width_spin = _form_spin(form, "DefaultLineWidth", "Default line width",
+		Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH, 0.05)
+	default_line_width_spin.tooltip_text = ("The line width a new feature starts with, "
+		+ "as a multiple of what its type draws at; a feature keeps its own once it exists")
 
 	# The colour each feature type starts a feature in, in catalog order.
 	box.add_child(_view_section("Feature colors"))
@@ -1386,9 +1437,14 @@ func _build_preferences_content() -> Control:
 			feature_color_pickers[type_id].color = FeatureType.CATALOG[type_id]["color"])
 	box.add_child(catalog)
 
-	# Python: which interpreter runs the scripting bridge and where the scripts
-	# that become menu entries are looked for, one directory per line.
-	box.add_child(_view_section("Python"))
+	return box
+
+
+# Which interpreter runs the scripting bridge and where the scripts that become
+# menu entries are looked for, one directory per line.
+func _build_python_preferences() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "Python"
 
 	var interpreter_label := Label.new()
 	interpreter_label.text = "Interpreter"
@@ -1842,8 +1898,12 @@ func show_preferences() -> void:
 	default_folder_edit.text = Config.get_last_directory()
 	restore_session_check.button_pressed = bool(Config.get_value("restore_session", true))
 	radius_spin.value = Config.get_planet_radius()
+	for index in rate_unit_option.item_count:
+		if rate_unit_option.get_item_metadata(index) == Config.get_rate_unit():
+			rate_unit_option.select(index)
 	marker_spin.value = Config.get_vertex_marker_scale()
 	line_spin.value = Config.get_line_width_scale()
+	default_line_width_spin.value = Config.get_default_line_width()
 	export_width_spin.value = Config.get_export_width()
 	ffmpeg_edit.text = Config.get_ffmpeg()
 	for type_id in feature_color_pickers:
@@ -1858,14 +1918,17 @@ func _on_preferences_confirmed() -> void:
 	Config.set_last_directory(default_folder_edit.text)
 	Config.set_value("restore_session", restore_session_check.button_pressed)
 	Config.set_planet_radius(radius_spin.value)
+	Config.set_rate_unit(str(rate_unit_option.get_selected_metadata()))
 	Config.set_vertex_marker_scale(marker_spin.value)
 	Config.set_line_width_scale(line_spin.value)
+	Config.set_default_line_width(default_line_width_spin.value)
 	Config.set_export_width(int(export_width_spin.value))
 	Config.set_ffmpeg(ffmpeg_edit.text.strip_edges())
 	_save_feature_colors()
 	_apply_outline_scale()
 	_show_measurement()
 	properties.show_radius()
+	kinematics.refresh()
 	_apply_python_preferences()
 
 
@@ -2355,7 +2418,8 @@ func _on_move_started(anchor_lat: float, anchor_lon: float) -> void:
 
 
 # Dragging writes the keyframe at the current time as it goes, so what is on the
-# globe is what will be committed. Only the release records an undo version.
+# globe is what will be committed, and the kinematics panel reads the speed of
+# the move while it is made. Only the release records an undo version.
 # The children of the dragged feature go with it, since refresh_motion()
 # resolves every child from its parent.
 func _on_move_to(lat: float, lon: float) -> void:
@@ -2370,6 +2434,7 @@ func _on_move_to(lat: float, lon: float) -> void:
 				Feature.build_rotation_basis(new_rot), Coupling.index(features.root))
 		Keyframe.upsert(selected.keyframes, document.current_time, new_rot)
 		refresh_motion()
+		kinematics.refresh()
 
 
 func _on_move_ended() -> void:
@@ -2384,6 +2449,7 @@ func _on_move_cancelled() -> void:
 	if selected != null and not selected.is_group:
 		selected.keyframes = move_base_keyframes
 	refresh_motion()
+	kinematics.refresh()
 
 
 ### The Rotate and Pole tools
@@ -2503,6 +2569,7 @@ func _spin_to(lat: float, lon: float) -> void:
 			Feature.build_rotation_basis(rotation), Coupling.index(features.root))
 	Keyframe.upsert(spin_feature.keyframes, document.current_time, rotation)
 	refresh_motion()
+	kinematics.refresh()
 	_show_measurement()
 
 
@@ -2523,6 +2590,7 @@ func _spin_cancel() -> void:
 	if spin_feature != null:
 		spin_feature.keyframes = spin_base_keyframes
 		refresh_motion()
+		kinematics.refresh()
 	spin_axis = Vector3.ZERO
 	spin_feature = null
 	spin_press_at = NO_POLE
@@ -3642,6 +3710,10 @@ func split_at_selected_vertex() -> String:
 # See Docs/Editing.md#the-split-tool.
 
 var split_points := PackedVector2Array()
+# The points of the last cut refused, which is drawn in red for as long as the
+# points clicked are still those; see Planet.OutlineStyle.REFUSED. The status
+# bar says why.
+var split_refused := PackedVector2Array()
 
 
 # The Split tool needs a leaf polygon holding vertices of its own.
@@ -3691,6 +3763,8 @@ func split_along_points() -> String:
 		error = document.split_feature_along(feature, part, path, ridge, crust,
 			children_check.button_pressed)
 	if not error.is_empty():
+		split_refused = split_points
+		_refresh_selection_outline()
 		return error
 	# The halves, and the ridge and crust behind them, sit side by side where
 	# the polygon was, so the status bar reads them straight off the tree. The
@@ -4422,7 +4496,8 @@ func _refresh_selection_outline() -> void:
 	# The Split tool previews its cut over the polygon's outline, the way the
 	# Draw tool previews a shape.
 	if active_tool == Tool.SPLIT and not split_points.is_empty():
-		parts.append({"vertices": split_points, "style": Planet.OutlineStyle.OPEN})
+		parts.append({"vertices": split_points, "style": Planet.OutlineStyle.REFUSED
+			if split_points == split_refused else Planet.OutlineStyle.OPEN})
 	planet_view.planet.set_outline(parts)
 
 

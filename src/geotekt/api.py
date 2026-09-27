@@ -101,10 +101,11 @@ class App:
     def edit_feature(self, uuid: str, **fields: Any) -> None:
         """Change named fields of one feature.
 
-        Any of title, enabled, feature_type, color, time_range and rings. A
-        field that is not named is left as it is.
+        Any of title, enabled, feature_type, color, time_range, line_width
+        and rings. A field that is not named is left as it is.
         """
-        known = {"title", "enabled", "feature_type", "color", "time_range", "rings"}
+        known = {"title", "enabled", "feature_type", "color", "time_range", "line_width",
+                 "rings"}
         unknown = sorted(set(fields) - known)
         if unknown:
             raise AppError("a feature has no %s" % ", ".join(unknown))

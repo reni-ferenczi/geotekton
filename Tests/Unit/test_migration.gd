@@ -31,7 +31,7 @@ func test_the_samples_keep_the_edges_their_triangles_left_on_the_boundary() -> v
 		var before: Array = []
 		_collect_leaves(raw["features"], before)
 		var migrated := Document.migrate(raw.duplicate(true))
-		assert_eq(str(migrated["version"]), "0.27.0", "%s is migrated to 0.27.0" % file_name)
+		assert_eq(str(migrated["version"]), "0.29.0", "%s is migrated to 0.29.0" % file_name)
 
 		var after: Array = []
 		_collect_leaves(migrated["features"], after)
@@ -129,7 +129,7 @@ func test_a_leaf_at_0_4_0_under_no_moving_group_is_left_alone() -> void:
 	var expected: Dictionary = data["features"].duplicate(true)
 	expected["feature_type"] = FeatureType.NONE
 	assert_eq(migrated["features"], expected, "the leaf is as it was, its type left to its geometry")
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 
 
 ### 0.7.0 to 0.8.0: groups stop carrying motion
@@ -222,7 +222,7 @@ func test_a_0_7_0_file_opens_each_old_type_as_one_of_the_five() -> void:
 	var migrated := Document.migrate({"version": "0.7.0",
 		"features": {"type": "Group", "title": "Planet", "children": children},
 		"view": {"hidden_classes": ["small_circles", "points"]}})
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	for i in OLD_TYPES.size():
 		assert_eq(root.children[i].feature_type, OLD_TYPES[i][2], root.children[i].title)
@@ -301,7 +301,7 @@ func test_a_0_9_0_file_keeps_its_types() -> void:
 		"type": "Group", "title": "Planet", "children": [
 			{"type": "Feature", "title": "Ring", "feature_type": "circle", "rings": []}]}})
 	assert_eq(migrated["features"]["children"][0]["feature_type"], "circle", "the circle stays one")
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 
 
 ### 0.12.0 to 0.13.0: the ramp's two ends become a list of colours
@@ -317,7 +317,7 @@ func test_a_0_12_0_ramp_becomes_a_list_of_its_two_ends() -> void:
 	var migrated := Document.migrate({"version": "0.12.0",
 		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style,
 			"children": []}})
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var written: Dictionary = migrated["features"]["style"]
 	assert_eq(written.get("ramp_colors"), [brown, grey], "the two ends are the two stops")
 	assert_true(not written.has("ramp_from") and not written.has("ramp_to"), "and the keys are gone")
@@ -334,7 +334,7 @@ func test_a_0_12_0_style_without_a_ramp_takes_the_new_default() -> void:
 		"features": {"type": "Group", "is_group": true, "title": "Planet", "style": style.duplicate(),
 			"children": []}})
 	assert_eq(migrated["features"]["style"], style, "the style is left as it was")
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var root := Feature.from_json(migrated["features"])
 	assert_eq(root.style.palette, "rainbow", "the palette it named")
 	assert_eq(root.style.ramp_colors, Palette.DEFAULT_RAMP_COLORS, "and the default ramp")
@@ -361,7 +361,7 @@ func test_a_0_13_0_leaf_reads_with_no_icon() -> void:
 	var migrated := Document.migrate({"version": "0.13.0", "features": {
 		"type": "Group", "is_group": true, "title": "Planet", "children": [
 			{"type": "Feature", "title": "Shield", "rings": []}]}})
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var leaf: Feature = Feature.from_json(migrated["features"]).children[0]
 	assert_eq(leaf.icon, FeatureIcon.NONE, "and the leaf carries no icon")
 
@@ -376,7 +376,7 @@ func test_a_0_14_0_span_reads_with_one_parent() -> void:
 		"type": "Group", "is_group": true, "title": "Planet", "children": [
 			{"type": "Feature", "title": "Shield", "rings": [],
 				"couplings": [{"from": 500.0, "to": 200.0, "parent": "a-uuid"}]}]}})
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var leaf: Feature = Feature.from_json(migrated["features"]).children[0]
 	assert_eq(leaf.couplings[0].parent, "a-uuid", "the parent it named")
 	assert_eq(leaf.couplings[0].parent_b, "", "and no second one")
@@ -398,7 +398,7 @@ const SCRATCH := "user://test_migration.geotekt"
 
 func test_a_0_15_0_view_block_keeps_its_raster_and_grid() -> void:
 	var migrated := Document.migrate({"version": "0.15.0", "features": {}, "view": VIEW_0_15_0})
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var view: Dictionary = migrated["view"]
 	for old: String in Document.VIEW_KEYS_BEFORE_0_16_0:
 		assert_true(not view.has(old), "%s is gone" % old)
@@ -420,7 +420,7 @@ func test_a_0_15_0_view_block_keeps_its_raster_and_grid() -> void:
 func test_a_0_16_0_file_with_no_raster_gets_the_built_in_earth() -> void:
 	var view := {"raster_path": "", "raster_opacity": 0.3, "raster_visible": false, "ambient": 0.25}
 	var migrated := Document.migrate({"version": "0.16.0", "features": {}, "view": view})
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var settings := ViewSettings.from_json(migrated["view"])
 	assert_eq(settings.raster_path, ViewSettings.BUILT_IN_EARTH, "the built in Earth")
 	assert_close(settings.raster_opacity, 1.0, 1e-6, "fully opaque, as the Earth was")
@@ -477,9 +477,9 @@ func test_a_0_17_0_file_changes_only_its_version() -> void:
 	var raw := {"version": "0.17.0", "features": {"type": "Group", "title": "Root",
 		"children": [leaf]}, "view": {"raster_path": "art/earth.png"}}
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var expected := raw.duplicate(true)
-	expected["version"] = "0.27.0"
+	expected["version"] = "0.29.0"
 	assert_eq(migrated, expected, "and nothing else changed")
 	assert_eq(raw["version"], "0.17.0", "the data passed in is not changed")
 	var feature := Feature.from_json(migrated["features"]["children"][0])
@@ -500,9 +500,9 @@ func test_a_0_18_0_file_changes_only_its_version() -> void:
 	var raw := {"version": "0.18.0", "features": {"type": "Group", "title": "Root",
 		"children": [leaf]}, "view": {"raster_path": "art/earth.png"}}
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var expected := raw.duplicate(true)
-	expected["version"] = "0.27.0"
+	expected["version"] = "0.29.0"
 	expected["features"]["children"][0]["feature_type"] = "circle"
 	expected["features"]["children"][0]["polar"] = true
 	assert_eq(migrated, expected, "and nothing else changed")
@@ -524,9 +524,9 @@ func test_a_0_19_0_file_changes_only_its_version() -> void:
 	var raw := {"version": "0.19.0", "features": {"type": "Group", "title": "Root",
 		"children": [leaf]}, "view": {"raster_path": "art/earth.png"}}
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var expected := raw.duplicate(true)
-	expected["version"] = "0.27.0"
+	expected["version"] = "0.29.0"
 	assert_eq(migrated, expected, "and nothing else changed")
 	assert_eq(raw["version"], "0.19.0", "the data passed in is not changed")
 	var feature := Feature.from_json(migrated["features"]["children"][0])
@@ -540,7 +540,7 @@ func test_a_0_19_0_file_changes_only_its_version() -> void:
 func _load_0_20_0(leaf: Dictionary) -> Feature:
 	var raw := {"application": Document.APPLICATION, "version": "0.20.0",
 		"features": {"type": "Group", "title": "Root", "children": [leaf]}}
-	assert_eq(Document.migrate(raw)["version"], "0.27.0", "at the current version")
+	assert_eq(Document.migrate(raw)["version"], "0.29.0", "at the current version")
 	assert_eq(raw["version"], "0.20.0", "the data passed in is not changed")
 	var path := SCRATCH.get_base_dir().path_join("circle_0_20_0.geotekt")
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -628,9 +628,9 @@ func test_a_0_21_0_hotspot_loses_its_track_step() -> void:
 	var raw := {"version": "0.21.0", "features": {"type": "Group", "title": "Root",
 		"children": [{"type": "Group", "title": "Group", "children": [hotspot]}, other]}}
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var expected := raw.duplicate(true)
-	expected["version"] = "0.27.0"
+	expected["version"] = "0.29.0"
 	expected["features"]["children"][0]["children"][0].erase("track_step")
 	assert_eq(migrated, expected, "and only the hotspot's track step is gone")
 	assert_eq(raw["version"], "0.21.0", "the data passed in is not changed")
@@ -680,7 +680,7 @@ func _split_0_22_0() -> Dictionary:
 func test_a_0_22_0_ridge_becomes_a_midway_topology() -> void:
 	var raw := _split_0_22_0()
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	assert_eq(raw["version"], "0.22.0", "the data passed in is not changed")
 	var ridge := Feature.from_json(migrated["features"]["children"][0]["children"][2])
 	assert_true(ridge.midway and ridge.geometry_kind == Feature.GeometryKind.TOPOLOGY,
@@ -746,7 +746,7 @@ func test_a_0_23_0_crust_keeps_its_bands_and_drops_its_lines_leaf() -> void:
 		["West", "East", "West ridge", "West crust lines", "West crust", "East crust lines",
 			"East crust"], "the four crust rows of 0.23.0")
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	assert_eq(raw["version"], "0.23.0", "the data passed in is not changed")
 	var plates: Array = migrated["features"]["children"][0]["children"]
 	assert_eq(plates.map(func(leaf: Dictionary) -> String: return leaf["title"]),
@@ -793,9 +793,9 @@ func test_a_0_24_0_file_changes_only_its_version() -> void:
 	var raw := {"version": "0.24.0", "features": {"type": "Group", "title": "Root",
 		"children": [leaf]}, "view": {"raster_path": "art/earth.png"}}
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	var expected := raw.duplicate(true)
-	expected["version"] = "0.27.0"
+	expected["version"] = "0.29.0"
 	assert_eq(migrated, expected, "and nothing else changed")
 	assert_eq(raw["version"], "0.24.0", "the data passed in is not changed")
 	var feature := Feature.from_json(migrated["features"]["children"][0])
@@ -846,7 +846,7 @@ func _couplings_0_25_0() -> Dictionary:
 func test_a_0_25_0_file_drops_every_span_on_a_circle_or_a_hotspot() -> void:
 	var raw := _couplings_0_25_0()
 	var migrated := Document.migrate(raw)
-	assert_eq(migrated["version"], "0.27.0", "at the current version")
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
 	assert_eq(raw["version"], "0.25.0", "the data passed in is not changed")
 	var children: Array = migrated["features"]["children"]
 	var leaves: Array = [children[0], children[1]["children"][0], children[2], children[3]]
@@ -888,13 +888,34 @@ func test_a_0_25_0_file_without_such_spans_changes_only_its_version() -> void:
 			"geometry_kind": "polygon", "rings": [RING],
 			"couplings": [{"from": 500.0, "to": 0.0, "parent": "north"}]}]}}
 	var expected := raw.duplicate(true)
-	expected["version"] = "0.27.0"
+	expected["version"] = "0.29.0"
 	assert_eq(Document.migrate(raw), expected, "nothing but the version changed")
 	assert_eq(raw["version"], "0.25.0", "the data passed in is not changed")
 
 
-# The keys a 0.27.0 file writes are the ones it reads back.
-func test_a_0_27_0_file_round_trips() -> void:
+### 0.27.0 to 0.29.0: a leaf carries its line width
+
+
+# A leaf from before has no `line_width` key, which reads as 1, the width every
+# feature was drawn at. Only the version moves.
+func test_a_0_27_0_file_changes_only_its_version() -> void:
+	var leaf := {"type": "Feature", "title": "Fault", "feature_type": "line",
+		"geometry_kind": "polyline", "rings": [[[0.0, 0.0], [0.0, 10.0]]]}
+	var raw := {"version": "0.27.0", "application": "geotekt", "features": {"type": "Group",
+		"title": "Root", "children": [leaf]}, "view": {"raster_path": "art/earth.png"}}
+	var migrated := Document.migrate(raw)
+	assert_eq(migrated["version"], "0.29.0", "at the current version")
+	var expected := raw.duplicate(true)
+	expected["version"] = "0.29.0"
+	assert_eq(migrated, expected, "and nothing else changed")
+	assert_eq(raw["version"], "0.27.0", "the data passed in is not changed")
+	var feature := Feature.from_json(migrated["features"]["children"][0])
+	assert_eq(feature.line_width, 1.0, "drawn at the width it always was")
+	assert_eq(feature.line_scale(), 1.0, "which is the full width of a line")
+
+
+# The keys a 0.29.0 file writes are the ones it reads back.
+func test_a_0_29_0_file_round_trips() -> void:
 	var document := Document.new()
 	document.view.planet_color = Color(0.5, 0.25, 0.1)
 	document.view.raster_path = "C:/pictures/earth.png"
@@ -914,6 +935,7 @@ func test_a_0_27_0_file_round_trips() -> void:
 	document.set_feature_type(hotspot, FeatureType.HOTSPOT)
 	document.set_hotspot(hotspot, Vector2(1.0, 2.0), plate.uuid, 20.0)
 	document.set_feature_type(waiting, FeatureType.HOTSPOT)
+	assert_eq(document.set_line_width(circle, 2.5), "", "the circle is drawn wider")
 	var square := Feature.create_feature("Square")
 	square.add_ring(PackedVector2Array([Vector2(-10, -10), Vector2(-10, 10), Vector2(10, 10),
 		Vector2(10, -10)]), Feature.GeometryKind.POLYGON)
@@ -926,7 +948,7 @@ func test_a_0_27_0_file_round_trips() -> void:
 	var raw: Dictionary = JSON.parse_string(file.get_as_text())
 	file.close()
 	assert_eq(raw["version"], Application.VERSION, "at the current version")
-	assert_eq(Document.migrate(raw), raw, "migration leaves a 0.27.0 file as it is")
+	assert_eq(Document.migrate(raw), raw, "migration leaves a 0.29.0 file as it is")
 
 	var reloaded := Document.new()
 	assert_eq(reloaded.load_from_file(SCRATCH), "", "the written file loads back")
@@ -938,6 +960,10 @@ func test_a_0_27_0_file_round_trips() -> void:
 	assert_true(not Hotspot.placed(reloaded.root.children[3]), "the waiting hotspot is not placed")
 	assert_true(not (raw["features"]["children"][3] as Dictionary).has("time_step"),
 		"a hotspot left on the Skip writes no step")
+	assert_eq(reloaded.root.children[0].line_width, 2.5, "the circle keeps its line width")
+	assert_eq(raw["features"]["children"][0]["line_width"], 2.5, "which the file carries")
+	assert_true(not (raw["features"]["children"][1] as Dictionary).has("line_width"),
+		"a feature at the width it always had writes no key")
 	assert_true(reloaded.root.children[6].midway, "the ridge is midway")
 	for index in [7, 8]:
 		assert_eq(reloaded.root.children[index].crust_ridge, reloaded.root.children[6].uuid,

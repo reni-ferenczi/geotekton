@@ -45,6 +45,7 @@ enum OutlineStyle {
 	BOLD = 7,           # open like OPEN, BOLD_SCALE of a feature line, no markers
 	CIRCLE = 8,         # a center and a point of the rim, the circle drawn like CLOSED, no markers
 	OPEN_LINE = 9,      # open like OPEN, in the same white and width, with no markers
+	REFUSED = 10,       # open like OPEN, markers and all, in red: a cut the Split tool refused
 }
 
 # The map mesh with the sheet of a projection half a unit tall, which is what a

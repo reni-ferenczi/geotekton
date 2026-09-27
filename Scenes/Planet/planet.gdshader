@@ -71,6 +71,9 @@ const float LINE_FEATHER = 0.2;
 // What the segments of a child of the selected feature are drawn in, at the
 // normal width: Planet.CHILD_COLOR, an sRGB orange, in linear light.
 const vec3 CHILD_COLOR = vec3(1.0, 0.214041, 0.0);
+// What a cut the Split tool refused is drawn in, markers and all, until it is
+// changed or dropped: an sRGB red, (1.0, 0.2, 0.2), in linear light.
+const vec3 REFUSED_COLOR = vec3(1.0, 0.033105, 0.033105);
 
 // Per feature state at the current time (filter_nearest for exact texel reads)
 // Layout: width = one column per drawn feature, height = 6
@@ -111,7 +114,8 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 // a circle drawn like 3, from two vertices, its center and a point of its rim,
 // with no markers (the circle being drawn). 9 is 0 with no markers, for a run
 // sampled finely enough that a dot per vertex would be a string of beads (the
-// Measure tool's parallels). Every style but 4, 6, 7, 8 and 9 marks each vertex.
+// Measure tool's parallels). 10 is 0 in REFUSED_COLOR (a cut the Split tool
+// refused). Every style but 4, 6, 7, 8 and 9 marks each vertex.
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
 uniform float outline_line_width = 0.002;
@@ -445,6 +449,8 @@ void fragment() {
 		float closed_line_dist = 1e10;
 		float child_line_dist = 1e10;
 		float bold_line_dist = 1e10;
+		float refused_dot_dist = 1e10;
+		float refused_line_dist = 1e10;
 
 		for (int i = 0; i < outline_vertex_count; i++) {
 			vec4 v = texelFetch(outline_data, ivec2(i, 0), 0);
@@ -465,7 +471,9 @@ void fragment() {
 				min_dot_dist = min(min_dot_dist, chord(a, p) / SELECTED_MARKER_SCALE);
 				continue;
 			}
-			if (style != 4 && style != 6 && style != 7 && style != 9) {
+			if (style == 10) {
+				refused_dot_dist = min(refused_dot_dist, chord(a, p));
+			} else if (style != 4 && style != 6 && style != 7 && style != 9) {
 				min_dot_dist = min(min_dot_dist, chord(a, p));
 			}
 			if (style == 2) {
@@ -477,7 +485,7 @@ void fragment() {
 			int start = int(v.z + 0.5);
 			bool last = i + 1 >= outline_vertex_count
 				|| int(texelFetch(outline_data, ivec2(i + 1, 0), 0).z + 0.5) != start;
-			if (last && (style == 0 || style == 7 || style == 9 || i == start)) {
+			if (last && (style == 0 || style == 7 || style == 9 || style == 10 || i == start)) {
 				continue;
 			}
 
@@ -490,6 +498,8 @@ void fragment() {
 				child_line_dist = min(child_line_dist, d);
 			} else if (style == 7) {
 				bold_line_dist = min(bold_line_dist, d);
+			} else if (style == 10) {
+				refused_line_dist = min(refused_line_dist, d);
 			} else if (style == 3 || style == 4) {
 				closed_line_dist = min(closed_line_dist, d);
 			} else {
@@ -507,6 +517,9 @@ void fragment() {
 		float child_alpha = line_coverage(outline_line_width, child_line_dist);
 		base = mix(base, CHILD_COLOR, child_alpha);
 		base = mix(base, HIGHLIGHT_COLOR, outline_alpha);
+		float refused_alpha = max(line_coverage(outline_line_width, refused_line_dist),
+			1.0 - smoothstep(outline_dot_radius * 0.7, outline_dot_radius, refused_dot_dist));
+		base = mix(base, REFUSED_COLOR, refused_alpha);
 	}
 
 	ALBEDO = base;

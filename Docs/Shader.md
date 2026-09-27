@@ -333,10 +333,11 @@ The widths are chord lengths on the unit sphere, so 0.012 is about 0.7 degrees.
 `geometry_line_width` is the distance from the middle of a line to its edge.
 
 Each feature scales its line width by `Feature.line_scale()`, which reaches the
-shader in row 4 of [`feature_data`](#per-feature-rotation): 0.35 for a hotspot,
-0.5 for a circle and 1 for everything else. The scale applies before the halo
-and the feather, so a selected hotspot track keeps a thin halo too. A later per
-feature width setting would go into `line_scale()`.
+shader in row 4 of [`feature_data`](#per-feature-rotation): what its type draws
+at, 0.35 for a hotspot, 0.5 for a circle and 1 for everything else, times the
+feature's own [line width](Properties.md#the-line-width-row), 1 unless it was
+set. The scale applies before the halo and the feather, so a selected hotspot
+track keeps a thin halo too, and a widened line a wider one.
 
 A hotspot also gets a dot at every sample of its track, primitive kind 3
 (`Planet.Primitive.SAMPLE`): a marker drawn at `SAMPLE_DOT_SCALE`, 0.5, times
@@ -708,11 +709,12 @@ the same for every vertex of a part:
 | 7 | Open like 0, at `BOLD_SCALE` (0.5) times `geometry_line_width` rather than at `outline_line_width`, with no vertex markers: the arms of the Pole tool's cross | 1 |
 | 8 | Two vertices, a center and a point of the rim, drawn as the [circle](#circles) through that point, with no vertex markers: the circle being drawn | `OUTLINE_OPACITY` |
 | 9 | Open like 0, in the same white and at the same width, with no vertex markers: a run sampled too finely to mark, such as the [Measure tool](Editing.md#the-measure-tool)'s parallels | 1 |
+| 10 | Open like 0, vertex markers and all, in `REFUSED_COLOR`, an sRGB red: a cut the [Split tool](Editing.md#the-split-tool) refused | 1 |
 
 The vertex markers are opaque in every style that has them, so the dots of
 the Vertex tool stand out against the translucent ring of style 3.
 
-`Planet.OutlineStyle` names the same ten values.
+`Planet.OutlineStyle` names the same eleven values.
 
 A style 8 part is read at its first vertex, which takes the radius from the
 second, so the preview is the same curve the finished circle is drawn as. The

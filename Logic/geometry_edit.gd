@@ -90,7 +90,8 @@ static func polygon_split_problem(ring: PackedVector2Array, a: int, b: int,
 		return "A polygon splits between two different vertices."
 	if _neighbours(size, a, b):
 		return "The two vertices are next to each other, so one half would be a line."
-	match cut_problem(ring, a, b, path):
+	var plane := plane_for(ring, path)
+	match cut_problem(turned(ring, plane), a, b, turned(path, plane)):
 		CutProblem.CROSSES:
 			return "The cut crosses the edge of the shape between its ends."
 		CutProblem.CROSSES_ITSELF:
@@ -103,7 +104,8 @@ static func polygon_split_problem(ring: PackedVector2Array, a: int, b: int,
 enum CutProblem { NONE, CROSSES, CROSSES_ITSELF, OUTSIDE }
 
 
-# Whether the cut from vertex a through path to vertex b stays inside the ring.
+# Whether the cut from vertex a through path to vertex b stays inside the ring,
+# both as flat x and y; polygon_split_problem() turns them into the plane first.
 #
 # Two things can put it outside. It can cross an edge, which is checked against
 # every edge that does not already share an end of the cut with it, since those
@@ -175,32 +177,33 @@ static func _neighbours(size: int, a: int, b: int) -> bool:
 
 
 # Why the polygon cannot be split along a cut drawn across it, or an empty string
-# when it can. The path is every point of the cut, ends included; see
-# with_cut_ends() for where the ends go. Both ends on one edge would take a bite
-# out of that edge rather than cut the polygon across, and are refused.
+# when it can. The path is every point of the cut as clicked; see cut_across()
+# for where its ends go. Both ends on one edge would take a bite out of that
+# edge rather than cut the polygon across, and are refused.
 static func split_along_problem(ring: PackedVector2Array, path: PackedVector2Array) -> String:
 	if path.size() < 2:
 		return "A cut needs a start and an end."
-	var cut := with_cut_ends(ring, path[0], path[path.size() - 1])
+	var cut := cut_across(ring, path)
 	if _neighbours((cut[0] as PackedVector2Array).size(), cut[1], cut[2]):
 		return "Both ends of the cut land on the same edge."
-	return polygon_split_problem(cut[0], cut[1], cut[2], path.slice(1, path.size() - 1))
+	return polygon_split_problem(cut[0], cut[1], cut[2], cut[3])
 
 
 # The two polygons the ring becomes when it is cut along a drawn path. Between
 # them they hold every vertex of the ring once, and the two ends and the points
 # between them twice.
 static func split_along(ring: PackedVector2Array, path: PackedVector2Array) -> Array[PackedVector2Array]:
-	var cut := with_cut_ends(ring, path[0], path[path.size() - 1])
-	return split_polygon(cut[0], cut[1], cut[2], path.slice(1, path.size() - 1))
+	var cut := cut_across(ring, path)
+	return split_polygon(cut[0], cut[1], cut[2], cut[3])
 
 
-# The edge the two halves of such a cut share: the cut itself with its ends
-# snapped onto the ring, which is where the ridge left behind starts out.
+# The edge the two halves of such a cut share: the cut itself from where it
+# meets the ring to where it leaves it, which is where the ridge left behind
+# starts out.
 static func shared_edge(ring: PackedVector2Array, path: PackedVector2Array) -> PackedVector2Array:
-	var cut := with_cut_ends(ring, path[0], path[path.size() - 1])
+	var cut := cut_across(ring, path)
 	var edge := PackedVector2Array([cut[0][cut[1]]])
-	edge.append_array(path.slice(1, path.size() - 1))
+	edge.append_array(cut[3])
 	edge.append(cut[0][cut[2]])
 	return edge
 
@@ -216,16 +219,26 @@ static func shared_edge(ring: PackedVector2Array, path: PackedVector2Array) -> P
 # Whether the path touches the ring: crosses one of its edges, or has a point
 # inside it. A path that does neither runs wholly outside the ring.
 static func touches(ring: PackedVector2Array, path: PackedVector2Array) -> bool:
-	var size := ring.size()
-	for point in path:
-		if Geometry2D.is_point_in_polygon(point, ring):
+	var plane := plane_for(ring, path)
+	var flat := turned(ring, plane)
+	var flat_path := turned(path, plane)
+	var size := flat.size()
+	for point in flat_path:
+		if Geometry2D.is_point_in_polygon(point, flat):
 			return true
-	for k in path.size() - 1:
+	for k in flat_path.size() - 1:
 		for i in size:
 			if Geometry2D.segment_intersects_segment(
-					path[k], path[k + 1], ring[i], ring[(i + 1) % size]) != null:
+					flat_path[k], flat_path[k + 1], flat[i], flat[(i + 1) % size]) != null:
 				return true
 	return false
+
+
+# Whether the point lies inside the ring.
+static func contains(ring: PackedVector2Array, point: Vector2) -> bool:
+	var only := PackedVector2Array([point])
+	var plane := plane_for(ring, only)
+	return Geometry2D.is_point_in_polygon(turned(only, plane)[0], turned(ring, plane))
 
 
 # Which side of the divider a point lies on, 1 or -1: the sign of the point
@@ -296,36 +309,50 @@ static func divide_problem(rings: Array, path: PackedVector2Array) -> String:
 # to where it last does, with the path's points in between. What the Split tool
 # cuts a child along; empty when the path crosses the boundary fewer than twice.
 static func clip_path(ring: PackedVector2Array, path: PackedVector2Array) -> PackedVector2Array:
+	var plane := plane_for(ring, path)
+	var flat := turned(ring, plane)
+	var flat_path := turned(path, plane)
 	# Each crossing as [how far along the path, where], the distance being the
 	# segment's index plus the fraction of it covered.
 	var crossings := []
-	for k in path.size() - 1:
-		for i in ring.size():
+	for k in flat_path.size() - 1:
+		for i in flat.size():
 			var at: Variant = Geometry2D.segment_intersects_segment(
-				path[k], path[k + 1], ring[i], ring[(i + 1) % ring.size()])
+				flat_path[k], flat_path[k + 1], flat[i], flat[(i + 1) % flat.size()])
 			if at != null:
-				crossings.append([k + path[k].distance_to(at) / path[k].distance_to(path[k + 1]), at])
+				crossings.append([k + flat_path[k].distance_to(at)
+					/ flat_path[k].distance_to(flat_path[k + 1]), at])
 	if crossings.size() < 2:
 		return PackedVector2Array()
 	crossings.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	var start: float = crossings[0][0]
 	var end: float = crossings[-1][0]
-	var result := PackedVector2Array([crossings[0][1]])
+	var result := PackedVector2Array([_back(crossings[0][1], plane)])
 	for k in range(ceili(start), floori(end) + 1):
 		if k > start + 1e-6 and k < end - 1e-6:
 			result.append(path[k])
-	result.append(crossings[-1][1])
+	result.append(_back(crossings[-1][1], plane))
 	return result
 
 
-# A cut drawn across the polygon, its first and last points put on the ring.
-# Each end goes to the nearest point of the boundary and becomes a vertex there,
-# unless that point is a vertex already. Returns the ring with the ends in it and
-# where they went, [ring, a, b]; the points between the ends are the path.
-static func with_cut_ends(ring: PackedVector2Array, from: Vector2,
-		to: Vector2) -> Array:
+# A cut drawn across the polygon, its ends put on the ring. An end clicked
+# outside goes where the drawn path first crosses the boundary, or last for the
+# far end, and the points clicked before that crossing are dropped: the nearest
+# point of an irregular outline can be on another edge altogether, and the cut
+# from there would run outside. An end clicked inside, or on a path that never
+# reaches the boundary, goes to the nearest point of it. Either way it becomes a
+# vertex there, unless that point is a vertex already.
+#
+# Returns [the ring with the ends in it, where the first end went, where the
+# last went, the points of the path between the two].
+static func cut_across(ring: PackedVector2Array, path: PackedVector2Array) -> Array:
 	var size := ring.size()
-	var ends := [_on_ring(ring, from), _on_ring(ring, to)]
+	var plane := plane_for(ring, path)
+	var flat := turned(ring, plane)
+	var flat_path := turned(path, plane)
+	var backwards := flat_path.duplicate()
+	backwards.reverse()
+	var ends := [_cut_end(flat, flat_path), _cut_end(flat, backwards)]
 	var result := PackedVector2Array()
 	var at := [-1, -1]
 	for i in range(size):
@@ -338,8 +365,38 @@ static func with_cut_ends(ring: PackedVector2Array, from: Vector2,
 		for k in 2:
 			if ends[k][0] == i and ends[k][1] > 0.0:
 				at[k] = result.size()
-				result.append(ring[i].lerp(ring[(i + 1) % size], ends[k][1]))
-	return [result, at[0], at[1]]
+				if plane == Basis.IDENTITY:
+					result.append(ring[i].lerp(ring[(i + 1) % size], ends[k][1]))
+				else:
+					result.append(_back(flat[i].lerp(flat[(i + 1) % size], ends[k][1]), plane))
+	var first: int = ends[0][2]
+	var last: int = path.size() - 1 - int(ends[1][2])
+	var between := path.slice(first, last + 1) if last >= first else PackedVector2Array()
+	return [result, at[0], at[1], between]
+
+
+# Where the start of the path goes on the ring, as [edge, fraction along it,
+# the first point of the path kept after it]. Both are flat.
+static func _cut_end(ring: PackedVector2Array, path: PackedVector2Array) -> Array:
+	var size := ring.size()
+	if not Geometry2D.is_point_in_polygon(path[0], ring):
+		for k in path.size() - 1:
+			var edge := -1
+			var nearest := INF
+			var along := 0.0
+			for i in size:
+				var hit: Variant = Geometry2D.segment_intersects_segment(
+					path[k], path[k + 1], ring[i], ring[(i + 1) % size])
+				if hit != null and path[k].distance_to(hit) < nearest:
+					nearest = path[k].distance_to(hit)
+					edge = i
+					along = _along_segment(ring[i], ring[(i + 1) % size], hit)[1]
+			if edge >= 0:
+				if along >= 1.0:
+					return [(edge + 1) % size, 0.0, k + 1]
+				return [edge, along, k + 1]
+	var found := _on_ring(ring, path[0])
+	return [found[0], found[1], 1]
 
 
 # The nearest point of the ring's boundary, as [edge, fraction along it]. A
@@ -352,6 +409,58 @@ static func _on_ring(ring: PackedVector2Array, point: Vector2) -> Array:
 	if along >= 1.0:
 		return [(edge + 1) % ring.size(), 0.0]
 	return [edge, along]
+
+
+### The plane the checks run in
+#
+# The cut checks treat (latitude, longitude) as flat x and y, which holds while
+# the numbers run on without a jump. A ring whose stored vertices cross ±180°
+# longitude, or go round a pole, jumps by 360° somewhere along it and is a
+# different shape in those numbers; so is a cut that crosses the line. Those
+# are checked in a frame turned so the ring's middle sits at (0, 0), and what
+# the checks make is turned back. Every other ring is used as it is, so a cut
+# on it comes out exactly as it always did.
+
+
+# The rotation into the frame the ring and the path are checked in: none when
+# neither jumps across ±180°, and otherwise the one that brings the middle of
+# the ring to (0, 0).
+static func plane_for(ring: PackedVector2Array, path := PackedVector2Array()) -> Basis:
+	if not _jumps(ring, true) and not _jumps(path, false):
+		return Basis.IDENTITY
+	var middle := Vector3.ZERO
+	for vertex in ring:
+		middle += Feature._latlon_to_xyz_s(vertex)
+	if middle.length() < 1e-9:
+		return Basis.IDENTITY
+	var center := Feature._xyz_to_latlon_s(middle.normalized())
+	# Round the axis to longitude 0, then down the meridian to the equator.
+	return Basis(Vector3.BACK, -deg_to_rad(center.x)) \
+		* Basis(Vector3.UP, deg_to_rad(center.y))
+
+
+# The points in the plane, or the same points when the plane is no turn at all.
+static func turned(points: PackedVector2Array, plane: Basis) -> PackedVector2Array:
+	if plane == Basis.IDENTITY:
+		return points
+	return Feature.apply_basis(points, plane)
+
+
+# A point made in the plane, back in the frame the ring was given in.
+static func _back(point: Vector2, plane: Basis) -> Vector2:
+	if plane == Basis.IDENTITY:
+		return point
+	return Feature._xyz_to_latlon_s(plane.transposed() * Feature._latlon_to_xyz_s(point))
+
+
+# Whether a step between neighbouring points goes more than half way round in
+# longitude, which is the numbers jumping across ±180° rather than the line.
+static func _jumps(points: PackedVector2Array, closed: bool) -> bool:
+	var size := points.size()
+	for i in range(size if closed else size - 1):
+		if absf(points[(i + 1) % size].y - points[i].y) > 180.0:
+			return true
+	return false
 
 
 ### Simplifying

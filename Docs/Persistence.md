@@ -67,7 +67,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "geotekt",
-  "version": "0.27.0",
+  "version": "0.29.0",
   "features": { ... },
   "view": { ... }
 }
@@ -208,7 +208,8 @@ number stays the same.
   "rings": [[[45.0, 30.0], [46.0, 31.0], [45.0, 32.0]]],
   "keyframes": [{"time": 0.0, "rotation": [0, 0, 0]}],
   "couplings": [{"from": 500.0, "to": 200.0, "parent": "6b0d6b1e-2c1f-4a3d-9a7e-2f0f1d9c5b31"}],
-  "time_range": [0, 2000]
+  "time_range": [0, 2000],
+  "line_width": 2.0
 }
 ```
 
@@ -229,6 +230,12 @@ valid for the type; see [Circles](#circles) for the keys it adds.
 `Logic/feature_icon.gd`. It is written only when there is one, and a feature
 without it shows the same row icon it showed before there were any. Nothing but
 the row reads it; see [Properties](Properties.md#the-icon).
+`line_width`, since 0.29.0, is how wide the feature's lines are drawn, as a
+multiple of what its type draws at, from 0.1 to 10. It is written only when it
+is not 1, and a leaf without it reads as 1, which is what every feature was
+drawn at before there was a width to set; see
+[Properties](Properties.md#the-line-width-row). A value outside the range is
+brought into it on load.
 `geometry_kind` is `"polygon"`,
 `"polyline"`, `"multipoint"` or `"topology"`, and `rings`
 holds one array of `[latitude, longitude]` vertices per part. A ring is closed
@@ -688,6 +695,13 @@ and the extension: a file is written with `"application": "geotekt"` under
 features and the view are not touched, so `Document.migrate()` moves only the
 version.
 
+#### 0.27.0 to 0.29.0
+
+0.28.0 changed nothing in the file. 0.29.0 gave a leaf its
+[`line_width`](#feature-tree-serialization). Nothing but the version moves: a
+leaf from before has no key, which reads as 1, and 1 is the width every feature
+was drawn at.
+
 ## The config file
 
 `Logic/config.gd` keeps one JSON file per user, `%APPDATA%\Geotekton\config.json`,
@@ -708,6 +722,7 @@ more than the last change.
 | `skip_increment`                   | How far the timeline's `<` and `>` buttons jump, in millions of years, and how finely a hotspot track and a crust are sampled when they carry no step of their own |
 | `planet_radius_km`                 | What distances are read against, Earth's mean radius by default |
 | `vertex_marker_scale`, `line_width_scale` | How large the outline overlay is drawn, as multiples of the shader defaults |
+| `default_line_width`               | The line width a new feature starts with, as a multiple of what its type draws at; 1 when the file says nothing |
 | `snap_to_vertices`                 | Edit > Snap to vertices: whether a dragged vertex, a pole or a drawn point snaps onto a nearby vertex. On when the file says nothing |
 | `split_ridge`, `split_crust`, `split_children` | Whether the Split tool leaves a ridge, crust beside it, and cuts the polygon's children along. All on when the file says nothing |
 | `freehand`, `freehand_tolerance` | Whether the Draw tool draws freehand, off when the file says nothing, and the tolerance a stroke is simplified to, in pixels, 4 when the file says nothing |

@@ -53,6 +53,8 @@ const TIME_LIMIT := int(Document.MAX_TIME)
 # age towards the present. `From` is the older end, which is `time_range.y`.
 const FROM_TOOLTIP := "The age the feature appears at, in millions of years ago; larger is older"
 const TO_TOOLTIP := "The age it disappears at; 0 is the present"
+const LINE_WIDTH_TOOLTIP := ("How wide the feature's lines are drawn, "
+	+ "as a multiple of what its type draws at")
 const STEP_TOOLTIP := ("How far apart in time the track or the bands are sampled, "
 	+ "in millions of years; 0 follows the timeline's Skip")
 # On the group Style row. Same as parent is the one mode that decides nothing.
@@ -130,6 +132,7 @@ var plate_row: HBoxContainer
 var plate_selector: OptionButton
 var pick_plate_button: Button
 var step_spin: SpinBox
+var line_width_spin: SpinBox
 
 # Every row of the form, each a label and the control beside it, and whether a
 # group and a feature have it.
@@ -154,6 +157,8 @@ var _hotspot_boxes: Array[Control] = []
 # The Step (My) row, which a hotspot and a crust both have: they are the two
 # that sample over time.
 var _step_boxes: Array[Control] = []
+# The Line width row, which only a feature drawn with lines has.
+var _line_width_boxes: Array[Control] = []
 
 
 func _ready() -> void:
@@ -282,6 +287,8 @@ func _build() -> void:
 	ramp_row.previewed.connect(_on_ramp_previewed)
 	ramp_row.committed.connect(_commit_style)
 	_row(form, "Ramp", ramp_row, true, false)
+
+	_build_line_width(form)
 
 	enabled_check = CheckBox.new()
 	enabled_check.name = "Enabled"
@@ -453,6 +460,18 @@ func _build_step(form: GridContainer) -> void:
 	_row(form, "Step (My)", step_spin, false, true, STEP_TOOLTIP)
 	_step_boxes.append(_rows.back()["label"])
 	_step_boxes.append(step_spin)
+
+
+# How wide the feature's lines are drawn, a multiple of what its type draws at.
+# Only a feature drawn with lines has the row, see Feature.draws_lines(). One
+# undo version per edit, through the document.
+func _build_line_width(form: GridContainer) -> void:
+	line_width_spin = _param_spin("LineWidth", Feature.MIN_LINE_WIDTH, Feature.MAX_LINE_WIDTH,
+		0.05, "", func(_value: float) -> void: _commit_line_width())
+	line_width_spin.tooltip_text = LINE_WIDTH_TOOLTIP
+	_row(form, "Line width", line_width_spin, false, true, LINE_WIDTH_TOOLTIP)
+	_line_width_boxes.append(_rows.back()["label"])
+	_line_width_boxes.append(line_width_spin)
 
 
 func _param_spin(spin_name: String, low: float, high: float, step: float,
@@ -682,6 +701,7 @@ func show_node(node_: Feature) -> void:
 		control.visible = is_hotspot
 	for control in _step_boxes:
 		control.visible = is_hotspot or is_crust
+	_show_line_width()
 
 	if not editable:
 		return
@@ -850,6 +870,7 @@ func _on_closed_toggled(on: bool) -> void:
 		rejected.emit(error)
 		return
 	_show_area()
+	_show_line_width()
 	edited.emit()
 
 
@@ -1280,6 +1301,33 @@ func _commit_step() -> void:
 	edited.emit()
 
 
+# The Line width row, for a feature drawn with lines and nothing else. Call
+# while _filling, or from where the answer can change: closing a topology takes
+# its lines away and opening it brings them back.
+func _show_line_width() -> void:
+	var shown := node != null and not node.is_root and node.draws_lines()
+	for control in _line_width_boxes:
+		control.visible = shown
+	if shown:
+		var was_filling := _filling
+		_filling = true
+		line_width_spin.value = node.line_width
+		_filling = was_filling
+
+
+func _commit_line_width() -> void:
+	if _filling or node == null or node.is_group or line_width_spin.value == node.line_width:
+		return
+	var error := document.set_line_width(node, line_width_spin.value)
+	if not error.is_empty():
+		_filling = true
+		line_width_spin.value = node.line_width
+		_filling = false
+		rejected.emit(error)
+		return
+	edited.emit()
+
+
 # A box shows a picked axis rounded to its step. The value the feature holds is
 # kept while the box still shows it, so editing the radius does not move the
 # axis by the rounding.
@@ -1486,7 +1534,8 @@ func to_json() -> Dictionary:
 	data["time_range"] = [int(to_spin.value), int(from_spin.value)]
 	data["time_from"] = int(from_spin.value)
 	data["time_to"] = int(to_spin.value)
-	data["tooltips"] = {"time_from": from_spin.tooltip_text, "time_to": to_spin.tooltip_text}
+	data["tooltips"] = {"time_from": from_spin.tooltip_text, "time_to": to_spin.tooltip_text,
+		"line_width": line_width_spin.tooltip_text}
 	if area_label.visible:
 		data["area"] = area_label.text
 	data["area_km2"] = Measure.geometry_area(node, Config.get_planet_radius())
@@ -1514,6 +1563,8 @@ func to_json() -> Dictionary:
 	if node.is_crust():
 		data["crust_chunks"] = Crust.chunks(node)
 		data["crust_step"] = step_spin.value
+	if line_width_spin.visible:
+		data["line_width"] = line_width_spin.value
 	if pick_axis_button.visible:
 		data["circle"] = {
 			"polar": axis_circles_check.button_pressed,
@@ -1683,6 +1734,11 @@ func set_field(field: String, value: Variant) -> String:
 				return "only a hotspot and a crust are sampled over time"
 			step_spin.value = float(value)
 			_commit_step()
+		"line_width":
+			if not line_width_spin.visible:
+				return "only a feature drawn with lines has a line width"
+			line_width_spin.value = float(value)
+			_commit_line_width()
 		_:
 			return "no such property: %s" % field
 	return ""
