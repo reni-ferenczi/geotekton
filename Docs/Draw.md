@@ -233,55 +233,55 @@ After committing, the tool:
 
 `Feature.ear_clip()` decomposes a polygon ring into triangles:
 
-1. **Signed area** is computed via the shoelace formula to determine the polygon's winding direction (CW or CCW).
+1. The **winding** (clockwise or counterclockwise) comes from the ring's vector area, the sum of the cross products of neighboring corners, seen from the middle of the corners.
 2. The algorithm maintains a list of remaining vertex indices and iterates through them.
 3. For each vertex `i`, it checks whether the triangle `(i-1, i, i+1)` is an **ear**:
-   - The triangle must be **convex** (its cross product matches the polygon's winding sign).
+   - The triangle must be **convex** (the way its corners turn matches the polygon's winding).
    - **No other polygon vertex** may fall inside the triangle (point-in-triangle test).
 4. If the triangle is a valid ear, it is output and vertex `i` is removed from the list.
 5. This repeats until only 3 vertices remain, which form the final triangle.
 
 The algorithm handles **concave polygons** correctly. Self-intersecting polygons are not supported and will produce undefined results.
 
-### The plane it runs in
+### On the sphere
 
 The shader fills every triangle as a spherical one, its edges great circles
 (see [Shader](Shader.md#math)), so the convexity and containment the
 clipping decides have to hold on the sphere, or an ear that is fine in the
-plane it was decided in overlaps its neighbour or leaves a sliver open on the
-globe. In the latitude and longitude plane that happens wherever the plane is
-far from the sphere, most of all near the poles, where a degree of longitude
-is a few kilometers and a straight line in the plane is nothing like a great
-circle: the fill of a polygon beside a pole doubled up along its cuts, which
-was reported in GP-0112.
+plane it was decided in overlaps its neighbor, leaves a sliver open, or
+bulges out of the outline on the globe. In the latitude and longitude plane
+that happens wherever the plane is far from the sphere: near the poles,
+where the fill of a polygon beside a pole doubled up along its cuts
+(GP-0112), and on any wide polygon, where a triangle between far apart
+corners runs out past a long edge (GP-0131).
 
-The ring is therefore projected **gnomonically** first, about the middle of
-its vertices on the sphere: each vertex goes to where the line from the
-centre of the planet through it meets the plane tangent at that middle
-(`Feature._gnomonic()`). Under that projection every great circle is a
-straight line, so a triangle that is an ear in the projected plane is an ear
-on the sphere, and the plane triangulation of the image is a sphere
-triangulation of the ring. It also settles two rings that have no proper shape
+The clipping therefore works on the corners as unit vectors and never in a
+plane. Which way three corners turn is the sign of the triple product
+`a . (b x c)` (`Feature._turn()`), and a corner lies in an ear when it is on
+the inner side of all three of its great circle edges
+(`Feature._in_spherical_triangle()`). That holds for any ring that does not
+cross itself, however wide, and settles two rings that have no proper shape
 in the latitude and longitude plane without a case of their own:
 
-- **Across the date line.** The projection knows nothing of longitude, so a
+- **Across the date line.** Unit vectors know nothing of longitude, so a
   quad from 175 E to 175 W is the 10 degree quad it is.
-- **Round a pole.** Projected about a middle at or near the pole, the ring
-  is an ordinary polygon round the origin, and a ring at one latitude, which
-  a circle centered on the pole is, is a regular polygon there. Such a ring
-  used to be filled as a fan of triangles from the pole, which is wrong as
-  soon as the ring has a bay the pole cannot see into: the fan filled the bay
-  under its lips. A ring of n corners now gives n - 2 triangles, as any other,
-  and the pole is no longer added as a vertex.
+- **Round a pole.** A ring round a pole is an ordinary ring round the middle
+  of its corners, and a ring at one latitude, which a circle centered on the
+  pole is, is a regular polygon. Such a ring used to be filled as a fan of
+  triangles from the pole, which is wrong as soon as the ring has a bay the
+  pole cannot see into: the fan filled the bay under its lips. A ring of n
+  corners now gives n - 2 triangles, as any other, and the pole is no longer
+  added as a vertex.
 
-The projection reaches a hemisphere: a vertex more than about 87 degrees from
-the middle (`Feature.GNOMONIC_DEPTH`) has no image, and a ring that wide is
-clipped in the latitude and longitude plane with its longitudes unwrapped
-(`Feature._unwrapped()`), as every ring was before. `Tests/Unit/test_ear_clip.gd`
-checks the fill on the sphere: a grid of probes over a polygon beside the pole
-and one round the pole with a bay, each inside point covered by one triangle
-and each outside point by none, judged against a gnomonic point in polygon
-test about the probe itself. `Tests/Data/poles.geotekt` holds the two, and
+Until GP-0131 the ring was projected gnomonically about the middle of its
+corners, where great circles are straight lines too, but that projection
+only reaches a hemisphere, and a ring with a corner more than about 87
+degrees from its middle fell back to the latitude and longitude plane.
+
+`Tests/Unit/test_ear_clip.gd` checks the fill on the sphere: a grid of probes
+over a polygon beside the pole, one round the pole with a bay and one over a
+third of the planet, each inside point covered by one triangle and each
+outside point by none. `Tests/Data/poles.geotekt` holds the first two, and
 the golden scenes `pole_north` and `pole_south` look at them from over the
 poles.
 

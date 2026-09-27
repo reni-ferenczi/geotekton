@@ -768,13 +768,12 @@ static func rings_from_json(data: Array) -> Array[PackedVector2Array]:
 # so the clipping has to decide convexity and containment on the sphere as
 # well, or an ear that is fine in the latitude and longitude plane overlaps
 # its neighbour or leaves a sliver open on the globe; near a pole, where that
-# plane is at its most stretched, this showed as the fill going wrong. The
-# ring is therefore projected gnomonically about the middle of its vertices,
-# a projection under which every great circle is a straight line, so the
-# plane triangulation of the image is a sphere triangulation of the ring. A
-# ring round a pole needs nothing special under it, bays and all; one wider
-# than a hemisphere cannot be projected and falls back to the plane. See
-# Docs/Draw.md#triangulation--ear-clipping.
+# plane is at its most stretched, this showed as the fill going wrong, and on
+# a ring over a quarter of the planet as the fill running out past a long
+# edge. The corners are therefore taken as unit vectors, and which way three
+# of them turn is the sign of a triple product, which works for any ring that
+# does not cross itself: round a pole, across the date line, or as wide as
+# the planet allows. See Docs/Draw.md#triangulation--ear-clipping.
 #
 # A vertex that repeats the one before it, or a last vertex that repeats the
 # first, is left out: it has no edge of its own, and the zero area corner it
@@ -802,47 +801,18 @@ static func distinct_corners(ring: PackedVector2Array) -> PackedInt32Array:
 	return result
 
 
-# How close to the horizon of the projection a vertex may come: the cosine of
-# the angle from the middle of the ring, and 0.05 is about 87 degrees. Past it
-# the image runs off to infinity and the ring is clipped in the plane instead.
-const GNOMONIC_DEPTH := 0.05
+# Which way round the corners a, b, c turn seen from outside the sphere: the
+# sign of a . (b x c), positive when counterclockwise. Taken from the
+# differences, which keeps its precision for corners close together.
+static func _turn(a: Vector3, b: Vector3, c: Vector3) -> float:
+	return (b - a).cross(c - a).dot(a)
 
 
-# The ring's corners projected gnomonically about the middle of its vertices,
-# index for index with the ring (the other entries are zero), or an empty
-# array when a corner lies too near the horizon of that projection.
-static func _gnomonic(ring: PackedVector2Array, corners: PackedInt32Array) -> PackedVector2Array:
-	var units: Array[Vector3] = []
-	var middle := Vector3.ZERO
-	for i in corners:
-		var unit := _latlon_to_xyz_s(ring[i])
-		units.append(unit)
-		middle += unit
-	if middle.length() < 1e-6:
-		return PackedVector2Array()
-	var n := middle.normalized()
-	var e1 := n.cross(Vector3.UP if absf(n.y) < 0.9 else Vector3.RIGHT).normalized()
-	var e2 := n.cross(e1)
-	var plane := PackedVector2Array()
-	plane.resize(ring.size())
-	for k in corners.size():
-		var depth := units[k].dot(n)
-		if depth < GNOMONIC_DEPTH:
-			return PackedVector2Array()
-		plane[corners[k]] = Vector2(units[k].dot(e1) / depth, units[k].dot(e2) / depth)
-	return plane
-
-
-# The ring in the latitude and longitude plane with the longitudes unwrapped,
-# so that each step from one vertex to the next is under 180 degrees and a
-# ring across the date line keeps its shape. The plane a ring too wide for the
-# gnomonic projection is clipped in.
-static func _unwrapped(ring: PackedVector2Array) -> PackedVector2Array:
-	var polygon := ring.duplicate()
-	for i in range(1, ring.size()):
-		var step := wrapf(ring[i].y - ring[i - 1].y, -180.0, 180.0)
-		polygon[i] = Vector2(ring[i].x, polygon[i - 1].y + step)
-	return polygon
+# Whether p lies in the spherical triangle a, b, c or on its edge, for a
+# triangle smaller than a hemisphere wound the given way.
+static func _in_spherical_triangle(p: Vector3, a: Vector3, b: Vector3, c: Vector3, winding: float) -> bool:
+	return _turn(a, b, p) * winding >= 0.0 and _turn(b, c, p) * winding >= 0.0 \
+		and _turn(c, a, p) * winding >= 0.0
 
 
 # The same triangulation as vertex indices into the ring, three per triangle.
@@ -854,22 +824,24 @@ static func ear_clip_indices(ring: PackedVector2Array) -> PackedInt32Array:
 	if n < 3:
 		return result
 
-	var polygon := _gnomonic(ring, corners)
-	if polygon.is_empty():
-		polygon = _unwrapped(ring)
+	var units: Array[Vector3] = []
+	units.resize(ring.size())
+	var middle := Vector3.ZERO
+	for i in corners:
+		units[i] = _latlon_to_xyz_s(ring[i])
+		middle += units[i]
+
+	# The winding, from the ring's vector area seen from the middle of its
+	# corners: counterclockwise round that middle is positive.
+	var area := Vector3.ZERO
+	for k in range(n):
+		area += units[corners[k]].cross(units[corners[(k + 1) % n]])
+	var winding_sign := 1.0 if area.dot(middle) >= 0.0 else -1.0
 
 	# Build mutable index list
 	var idx: Array[int] = []
 	for i in corners:
 		idx.append(i)
-
-	# Determine winding direction using signed area (shoelace formula)
-	var area := 0.0
-	for i in range(n):
-		var a := polygon[idx[i]]
-		var b := polygon[idx[(i + 1) % n]]
-		area += a.x * b.y - b.x * a.y
-	var winding_sign := 1.0 if area > 0.0 else -1.0
 
 	var max_iterations := n * n
 	var iter := 0
@@ -881,13 +853,12 @@ static func ear_clip_indices(ring: PackedVector2Array) -> PackedInt32Array:
 		var prev := (i - 1 + sz) % sz
 		var next := (i + 1) % sz
 
-		var a := polygon[idx[prev]]
-		var b := polygon[idx[i]]
-		var c := polygon[idx[next]]
+		var a := units[idx[prev]]
+		var b := units[idx[i]]
+		var c := units[idx[next]]
 
 		# Check if this vertex forms a convex ear (matches polygon winding)
-		var cross_val := (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
-		if cross_val * winding_sign <= 0.0:
+		if _turn(a, b, c) * winding_sign <= 0.0:
 			i = (i + 1) % sz
 			continue
 
@@ -896,7 +867,7 @@ static func ear_clip_indices(ring: PackedVector2Array) -> PackedInt32Array:
 		for k in range(sz):
 			if k == prev or k == i or k == next:
 				continue
-			if point_in_triangle(polygon[idx[k]], a, b, c):
+			if _in_spherical_triangle(units[idx[k]], a, b, c, winding_sign):
 				is_ear = false
 				break
 
