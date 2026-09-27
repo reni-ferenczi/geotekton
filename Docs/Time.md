@@ -135,6 +135,19 @@ one parent leaves the child halfway to where the other one stands. The
 Properties panel writes both names in the Coupled to row and in the spans list,
 `Laurentia and Laurentia 2, midway`.
 
+### The bar on the timeline
+
+While the selected feature follows another, a bar along the bottom of the
+keyframe strip under the slider covers the span, drawn in the parent's color
+and always opaque, whatever the parent's opacity. A span midway between two
+parents takes the first parent's color; such spans only come from a file,
+since the Follow picker makes single parent spans. The pointer over a bar
+says what the span follows and from when to when, and names both parents of a
+midway span. A span whose parent cannot be followed is drawn dashed, and the
+pointer over it says why. The keyframe marks are much taller than the bar, and
+the ridge dots sit at the top of the strip, so a parent colored like either
+still reads as a bar.
+
 ### Coupling and decoupling
 
 Both act at the current time, from the Properties panel's
@@ -209,8 +222,8 @@ stands still before that time.
 ### A parent that is gone
 
 Deleting a parent leaves the span in place. The Properties panel draws it in a
-warning color, like a broken topology section, and the timeline bar turns the
-same color. Undo brings the parent back and mends the span. While the parent
+warning color, like a broken topology section, and the timeline bar is drawn
+dashed. Undo brings the parent back and mends the span. While the parent
 cannot be followed, whether missing, a group, a topology, or looped back by a
 hand-written file, it counts as not turning, so the child's relative keyframes
 read as world rotations.
