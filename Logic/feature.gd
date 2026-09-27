@@ -97,10 +97,14 @@ var sections: Array[TopologySection] = []
 # Whether a topology joins its sections into one ring and is filled like a
 # polygon. See Topology.rebuild().
 var closed := false
-# Whether a topology is the line midway between its two sections, vertex by
-# vertex, the way a mid-ocean ridge lies between the plates it opens. See
-# Logic/ridge.gd.
+# Whether a topology is the line midway between its two sides, vertex by
+# vertex, the way a mid-ocean ridge lies between the plates it opens. Each
+# section says which side it is on; see Logic/ridge.gd.
 var midway := false
+# Where a ridge's first and last vertices meet other ridges at a triple
+# junction: an id the ridges meeting there share, or "" at an end that meets
+# none. Empty on a ridge that meets none at either end. See Ridge.ring_at().
+var ridge_junctions := PackedStringArray()
 
 # What a crust is built from: the half of a split plate it lies beside, the
 # ridge it opened from and how many vertices the cut had. A crust is a topology
@@ -126,12 +130,13 @@ var band_ages := PackedFloat64Array()
 var time_step := 0.0
 
 # How wide the feature's lines are drawn, as a multiple of the width its type
-# draws at, so 1 is what every feature was drawn at before there was a setting.
-# A new feature starts at the Default line width preference; a feature read
-# from a file without the key stays at 1, so the file draws as it did. Only what
+# draws at. A new feature starts at the Default line width preference; a
+# feature read from a file without the key is at 1, what every feature was
+# drawn at before there was a setting. The width 1 stands for was halved in the
+# same version, Planet.GEOMETRY_LINE_WIDTH, so an older file draws thinner. Only what
 # is drawn with lines reads it, see draws_lines(). Since 0.29.0.
 const MIN_LINE_WIDTH := 0.1
-const MAX_LINE_WIDTH := 10.0
+const MAX_LINE_WIDTH := 20.0
 const DEFAULT_LINE_WIDTH := 1.0
 var line_width := DEFAULT_LINE_WIDTH
 
@@ -380,6 +385,25 @@ func is_crust() -> bool:
 	return not is_group and not crust_half.is_empty()
 
 
+# A ridge or a crust a split left: built from its halves, so it has no row in the
+# feature tree, shows while they do and draws under every other feature. See
+# Docs/Editing.md#the-ridge.
+func is_sea_floor() -> bool:
+	return not is_group and (midway or is_crust())
+
+
+# The uuids of the halves a ridge or crust is built from: a crust's half, or the
+# features a ridge's sections name, its coasts and the plates its gaps ride on.
+func halves() -> PackedStringArray:
+	var uuids := PackedStringArray()
+	if is_crust():
+		uuids.append(crust_half)
+	elif midway:
+		for section in sections:
+			uuids.append(section.feature_uuid)
+	return uuids
+
+
 # How wide the feature's lines are drawn, against the shader's
 # geometry_line_width: what its type draws at, times its own line_width. A
 # hotspot track is thin so the dots at its samples stand out, and a circle is
@@ -421,19 +445,6 @@ func draws_lines() -> bool:
 	return kind == KIND_NAMES[GeometryKind.POLYLINE]
 
 
-# The color the feature's lines are drawn in, given the color its fill came out
-# of the draw style. Only a crust reads anything else: its bands are the fill
-# and its isochrons and flowlines are drawn in the crust lines color, at the
-# fill's opacity, so a group's opacity still reaches them. See
-# Docs/Editing.md#the-crust.
-func line_color(fill: Color) -> Color:
-	if not is_crust():
-		return fill
-	var lines := FeatureType.color(FeatureType.CRUST_LINES)
-	lines.a = fill.a
-	return lines
-
-
 ### Clone (preserves pnid) and Duplicate (new pnid)
 
 
@@ -454,6 +465,7 @@ func clone() -> Feature:
 	node.sections = TopologySection.clone_list(sections)
 	node.closed = closed
 	node.midway = midway
+	node.ridge_junctions = ridge_junctions.duplicate()
 	node.crust_half = crust_half
 	node.crust_ridge = crust_ridge
 	node.crust_edge = crust_edge
@@ -599,6 +611,9 @@ func to_json() -> Variant:
 			# Both 0.23.0, and written only when set, like closed.
 			if midway:
 				data["midway"] = true
+			# 0.30.0, and written only on a ridge that meets others.
+			if not ridge_junctions.is_empty():
+				data["junctions"] = Array(ridge_junctions)
 			if is_crust():
 				data["crust"] = {"half": crust_half, "ridge": crust_ridge, "edge": crust_edge}
 		else:
@@ -666,6 +681,12 @@ static func from_json(data: Variant) -> Feature:
 		node.sections = TopologySection.list_from_json(data.get("sections", []))
 		node.closed = bool(data.get("closed", false))
 		node.midway = bool(data.get("midway", false))
+		node.ridge_junctions = PackedStringArray(data.get("junctions", []))
+		# A ridge written before its sections said their side is one coast piece
+		# a side, the first section on side 0 and the second on side 1.
+		if node.midway and node.sections.size() == 2 \
+				and node.sections.all(func(s: TopologySection) -> bool: return s.side == 0):
+			node.sections[1].side = 1
 		var crust: Variant = data.get("crust")
 		if crust is Dictionary:
 			node.crust_half = str(crust.get("half", ""))

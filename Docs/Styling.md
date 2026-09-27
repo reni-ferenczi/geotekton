@@ -25,21 +25,30 @@ The View menu carries one check item per class of geometry:
 
 | Class | What is in it |
 | ----- | ------------- |
-| Polygons | A feature holding polygon rings |
-| Polylines | A feature holding polyline rings, hotspots included |
+| Polygons | A feature drawn as polygon rings, closed [topologies](Editing.md#topologies) included |
+| Polylines | A feature drawn as polyline rings, hotspots and open topologies included |
 | Points | A multipoint |
 | Circles | A feature whose type is `circle`, whatever geometry it holds |
-| Topologies | A [line topology](Editing.md#topologies) |
+| Ridges | The [ridge](Editing.md#the-ridge) a split leaves |
+| Oceanic Crust | The [crust](Editing.md#the-crust) a split leaves, bands and lines |
 
 A feature belongs to **exactly one** of them. `Styling.class_of()` decides in
-that order: a topology by the geometry it holds, then a circle by its feature
-type, and everything else by its geometry kind. A circle is drawn as a polygon
+that order: a ridge, then a crust, then a circle by its feature type, and
+everything else by the geometry it is drawn as. A circle is drawn as a polygon
 or a polyline, so its type is the only thing that tells it apart; that is why
 the type is asked about before the kind.
 
 Because each feature is in one class, each switch takes away its own class and
-leaves the other four untouched, which is what
-`Tests/Unit/test_styling.gd` measures.
+leaves the others untouched, which is what `Tests/Unit/test_styling.gd`
+measures.
+
+One more switch, **Isochrons and Flowlines**, is not a class of feature. The
+lines of a crust are drawn from the crust itself, so this switch drops the
+segments of every crust and leaves its bands. Hiding Oceanic Crust takes both.
+
+A file written while there was a Topologies switch may still list `topologies`
+among the hidden classes. No switch has that name now, so it is dropped on load
+and the file's ridges and crusts show.
 
 A feature its class is switched off for is left out of the geometry altogether,
 so it is neither drawn nor hit tested: a click goes through where it was to
@@ -81,11 +90,15 @@ works the colors out again whenever some feature is colored by age
 the geometry texture is not touched. See [Shader](Shader.md#per-feature-rotation).
 
 A [crust](Editing.md#the-crust) is the one feature drawn in more than one
-colour, since each of its bands holds crust of an age of its own. Under Feature
-age each band is read from the palette at that age, the way an age grid is
-painted; under every other style the colour the style gave the crust fills the
-band against the continent and is lightened band by band towards the ridge.
-`Styling.band_color()` is the whole of it.
+colour, since each of its bands holds crust of an age of its own. No group style
+reaches a crust or a ridge, since neither has a row under its group. Their
+colors are set for the whole document in the Sea floor section of the
+[View settings](Editing.md#view-settings) instead: one color for every ridge,
+one for the isochrons and flowlines, and a palette the bands are colored from by
+the age of their crust, or a single color. `Styling.crust_color()` reads the
+palette at the band's age at the time being viewed, the same way the Feature age
+style reads a group's palette, so a custom ramp's colors are `crust_ramp_span`
+My apart and crust older than the ramp keeps its last color.
 
 Picking a style changes nothing about the document's features. The colour a
 feature carries is still its own and still what the Properties panel edits; the
@@ -109,7 +122,7 @@ place. Every group carries a **style**:
 not inherit, and that group's style decides the color. The opacity works
 differently: every group above the feature multiplies its own into the alpha,
 whichever group decides the color. A feature at 80 percent under two groups at
-50 percent is drawn at 20 percent.
+50 percent is drawn at 20 percent. Neither reaches a ridge or a crust.
 
 The **root group's style is pinned** to Feature colour at full opacity, with
 the default palette and ramp (`GroupStyle.for_root()`). Nothing is above the
@@ -221,12 +234,13 @@ under its file name. The panel asks for the file through its
 dialog, reads the file and hands the path to `Properties.load_palette()`. The
 file is read again on every load, so the changes in an edited file show up.
 
-One built in table is left, written in the same format a file is and read by the
-same reader, so there is one way in:
+Two built in tables are there, written in the same format a file is and read by
+the same reader, so there is one way in:
 
 | Palette | What it is |
 | ------- | ---------- |
 | Rainbow | 0 to 1000 through red, yellow, green, cyan, blue and magenta |
+| Blue | 0 to 1000 from light blue through steel blue to dark ocean blue; what the crust is colored from by default |
 
 A style stores the palette as one string: the key of a built in palette, or
 the path of a file. `Palette.resolve()` takes it back either way. The
@@ -259,7 +273,7 @@ of colors and cut the built in palettes down to Rainbow; see
 | Test | What it covers |
 | ---- | -------------- |
 | `Tests/Unit/test_palette.gd` | The reader: the fixtures in `Tests/Data/Palettes`, the built in palettes, boundary and gap lookups, and every palette GPlates ships when that checkout is beside this one |
-| `Tests/Unit/test_styling.gd` | Which class a feature lands in, that each switch removes its own class and no other, the colour each style resolves to, the age so far, and the group styles: inherit shown as Same as parent, inherit through two levels, a nested group following its parent where one on Feature colour does not, the nearest group deciding, the root as the default, a file's root style (Single color at half opacity) pinned on load, opacity multiplying down, the file, clones, undo, and the root refused. A feature born at 500 Ma under a 200 My ramp is color A at 500, halfway at 400 and color B at 300 and at 0, moved only by `Geometry.resolve()` |
+| `Tests/Unit/test_styling.gd` | Which class a feature lands in, a ridge and a crust included, that each switch removes its own class and no other, that Isochrons and Flowlines leaves the bands, that a hidden ridge or crust is not picked and that a file with `topologies` hidden shows its sea floor, the colour each style resolves to, the age so far, and the group styles: inherit shown as Same as parent, inherit through two levels, a nested group following its parent where one on Feature colour does not, the nearest group deciding, the root as the default, a file's root style (Single color at half opacity) pinned on load, opacity multiplying down, the file, clones, undo, and the root refused. A feature born at 500 Ma under a 200 My ramp is color A at 500, halfway at 400 and color B at 300 and at 0, moved only by `Geometry.resolve()` |
 | `Tests/Unit/test_migration.gd` | A 0.7.0 view block's style landing on the root group, and a 0.10.0 style reading with the default ramp |
 | `Tests/Rendered/test_styling.gd` | Pixel probes of each style on the globe, a group on a single colour beside a group on own colours, a group's opacity, a 0.7.0 file drawn in a single colour opening in the feature colors, one polygon under the ramp red at 500 Ma and blue at 300 Ma without the geometry texture being uploaded again, the Earth showing where a switched off class was, a palette file loaded on a group's Palette row coloring that group, and no Palette row on the root |
 | `Tests/session.py` | The styling scenario: the View settings dialog refusing the six style fields, a group's styles on a running application, its ramp, a palette file and a malformed one loaded through the group's Load button, the switches through the View menu, and the whole lot through a save and a load, with the root's pinned style in the file. The Properties scenario sets a group's style and ramp through the panel, probes them and undoes them |

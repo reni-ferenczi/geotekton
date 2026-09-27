@@ -67,7 +67,7 @@ The file is a JSON object with four top-level keys:
 ```json
 {
   "application": "geotekt",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "features": { ... },
   "view": { ... }
 }
@@ -99,6 +99,12 @@ drawn the way its author chose:
 | `raster_opacity`    | 0 to 1            | `1`                 | How much of the planet color it covers |
 | `raster_visible`    | bool              | `true`              | Whether it is drawn at all |
 | `hidden_classes`    | list of names     | `[]`                | Which classes of geometry are switched off |
+| `ridge_color`       | `[r, g, b, a]`    | the Line color      | The color every ridge is drawn in |
+| `crust_palette`     | `blue`, `rainbow`, `ramp` or `single` | `blue` | What the crust is colored from by its age, or `single` for `crust_color`; a name this version does not know reads as `blue` |
+| `crust_ramp_colors` | list of `[r, g, b, a]`, at least two | Blue's three stops | The custom ramp, youngest first, read while `crust_palette` is `ramp` |
+| `crust_ramp_span`   | number, 1 to the time limit | `100`       | The My between one color of the custom ramp and the next |
+| `crust_color`       | `[r, g, b, a]`    | steel blue          | The color of all crust while `crust_palette` is `single` |
+| `crust_lines_color` | `[r, g, b, a]`    | light steel blue    | The color of the isochrons and flowlines |
 
 `hidden_classes` is the [styling](Styling.md#the-visibility-switches): which
 features are drawn. Since 0.10.0 the color they come out is decided by the
@@ -231,9 +237,10 @@ valid for the type; see [Circles](#circles) for the keys it adds.
 without it shows the same row icon it showed before there were any. Nothing but
 the row reads it; see [Properties](Properties.md#the-icon).
 `line_width`, since 0.29.0, is how wide the feature's lines are drawn, as a
-multiple of what its type draws at, from 0.1 to 10. It is written only when it
+multiple of what its type draws at, from 0.1 to 20. It is written only when it
 is not 1, and a leaf without it reads as 1, which is what every feature was
-drawn at before there was a width to set; see
+drawn at before there was a width to set; 0.29.0 also halved the width 1
+stands for, so an older file draws its lines thinner; see
 [Properties](Properties.md#the-line-width-row). A value outside the range is
 brought into it on load.
 `geometry_kind` is `"polygon"`,
@@ -336,9 +343,30 @@ A closed topology adds `"closed": true`, and the sections are then joined into
 one filled ring; see [Editing](Editing.md#closed-topologies). An open topology
 writes no `closed` key, and a topology without one is open.
 
-A midway topology adds `"midway": true`: it has two sections and is the line
-between them, the way a [ridge](Editing.md#the-ridge) is. A topology without
-the key is not midway.
+A midway topology adds `"midway": true`: it is the line between its two sides,
+the way a [ridge](Editing.md#the-ridge) is. Since 0.30.0 a section on the
+second side says `"side": 1`, and one on the first writes no key. A section on
+a stretch of sea holds `points`, `[lat, lon]` pairs in the frame of the feature
+it names, in place of a run of that feature's vertices; its `part`, `from` and
+`to` are 0 and not read:
+
+```json
+{"feature": "3e1d...", "part": 0, "from": 0, "to": 0, "reversed": false,
+ "side": 1, "points": [[0.0, 6.0]]}
+```
+
+A midway topology of two sections, none of them with a side, is one a side,
+which is what every ridge was before 0.30.0. A topology without `midway` is not
+midway.
+
+A ridge with an end at a [triple junction](Editing.md#triple-junctions) adds
+`junctions`, one id for its first vertex and one for its last, `""` at an end
+that meets no other ridge. The ridges whose ends share an id meet there. A
+ridge without the key meets none:
+
+```json
+"junctions": ["", "9c0b..."]
+```
 
 A [crust](Editing.md#the-crust) is a topology with no sections and a `crust`
 object naming what it is built from:
@@ -701,6 +729,13 @@ version.
 [`line_width`](#feature-tree-serialization). Nothing but the version moves: a
 leaf from before has no key, which reads as 1, and 1 is the width every feature
 was drawn at.
+
+#### 0.29.0 to 0.30.0
+
+0.30.0 gave the sections of a ridge a `side` and `points`, and a ridge at a
+triple junction its `junctions`; see [Topologies](#topologies). Nothing but the
+version moves: a ridge from before has two sections without a side, which
+`Feature.from_json()` reads as one a side, and no triple junctions.
 
 ## The config file
 

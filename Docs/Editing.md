@@ -98,6 +98,18 @@ the [Properties](Properties.md) panel, so the colour is picked where it is
 shown; a right click puts the colour back to the one the feature's type gives.
 Everything else about a feature is edited in the Properties panel.
 
+The [ridge](#the-ridge) and the [crusts](#the-crust) a split leaves have no
+row. They are selected by clicking them on the globe, and then no row is
+selected while the Properties panel, the highlight, the Edit menu and the keys
+work on them as on any feature. Delete works on them, from the Edit menu, the
+Delete key or the globe's right-click menu, and a deleted crust hands the
+selection to its half and a deleted ridge to nothing. Cut, Copy, Duplicate and
+Paste refuse them, since they are built from their halves. Deleting a half, or
+a group holding one, deletes its crust, every ridge running along it and that
+ridge's other crust with it, in the same undo step. `FeatureTree.sea_floor`
+holds them by pnid and `selected_off_tree` the one selected, so
+`get_selected_node()` and `select_node()` work for them as for a row.
+
 Dragging a row moves the feature or group. Where it lands depends on the part
 of the row the pointer is over when the button is released, and the tree marks
 that part while the drag is on:
@@ -218,8 +230,8 @@ drag has turned it.
 
 The pole is drawn as a dot with a cross through it, in the same white the
 selection is traced in. Each arm reaches three degrees from the pole and is
-half as wide as a feature line (`geometry_line_width`), which still makes it
-wider than an outline line; the Outline line width preference does not change
+as wide as a feature line (`geometry_line_width`), which makes it wider than
+an outline line; the Outline line width preference does not change
 it. The pole stays while the
 Pole tool is armed, so several features can be turned about one pole in turn.
 Picking another tool takes it away. With [snapping](#snapping) on, a pole lands on
@@ -412,7 +424,8 @@ Split tool's [Children](#the-children) switch cuts it along.
 
 ## The Split tool
 
-The Split tool cuts the selected polygon in two along a line drawn across it.
+The Split tool cuts the selected polygon along a line drawn across it into two
+features, the pieces on one side of the line and those on the other.
 Click where the cut starts, any points it should bend through, and where it
 ends. The line is drawn over the polygon's outline as it grows, like the shape
 the Draw tool previews.
@@ -425,22 +438,26 @@ the Draw tool previews.
 | **Enter** | Split the polygon along the cut |
 | **Escape** | Start again with no points |
 
-The ends do not have to be clicked on the edge. On Enter an end clicked
-outside the polygon moves to where the line first crosses its boundary, or
-last for the far end, and the points clicked before that crossing are dropped.
-An end clicked inside moves to the nearest point of the boundary. Either way it
-becomes a new vertex there, or uses the vertex that is already there. The
-points between the ends go to both halves, so the two halves share the whole
-cut. A feature of several polygons is cut in the part whose edge is nearest the
-first point, when the cut touches a part at all; a cut drawn between the parts
-[divides](#dividing) them instead.
+The ends do not have to be clicked on the edge. The polygon is cut wherever
+the line runs inside it: each stretch from where the line crosses the outline
+to where it crosses back cuts the piece it lies in, the crossing points
+becoming new vertices and the points clicked in between going to both pieces.
+What is clicked outside the polygon is dropped. An end stopped short inside
+the outline is carried on, the way the line was going, to where it meets it.
 
-A cut is refused, with the reason in the status bar, when:
+A line that goes in and out, across both arms of a C or through a bay and out
+of it, cuts several times and makes more than two pieces. They are sorted by
+the side of the line they are on, in the direction it was drawn: the feature
+keeps one side and `Laurentia 2` takes the other, each holding its side's
+pieces as its parts. A line that goes in and out of the same edge takes a bite
+out of it, which is a piece of its own. A feature of several polygons is cut
+in every part the line crosses, and a part it misses goes to the side of the
+line its middle is on; a line that crosses no part at all [divides](#dividing)
+them instead.
 
-- both ends land on the same edge;
-- it runs outside the polygon, as a straight cut across the mouth of a bay
-  does;
-- it crosses the polygon's edge anywhere between its ends, or crosses itself.
+A cut is refused, with the reason in the status bar, when it runs outside the
+polygon altogether or crosses itself inside it. A cut across the coast an older
+ridge lies along makes a [triple junction](#triple-junctions).
 
 A refused cut keeps its points and turns red on the globe until one of them
 is taken back, another is added or Escape drops them, so the one at fault can
@@ -455,8 +472,20 @@ tool, with the first half selected. The status bar names what the cut left
 behind, `Split into Laurentia, Laurentia 2, Laurentia ridge, Laurentia crust,
 Laurentia 2 crust`.
 
-Each half's ring starts with the cut: its first vertices are the two ends and
-the points between them, which is how the ridge names that stretch.
+For a cut of one stretch each half's ring starts with the cut: its first
+vertices are the two ends and the points between them. A cut of several
+stretches still leaves one ridge along the whole of it; see
+[The ridge](#the-ridge).
+
+### The parent
+
+A split feature that follows another, a continent following its craton, keeps
+following it only on the craton's side. The half on the other side of the line
+from the parent's middle stops following it at the age of the cut, standing
+where it stood, so nothing moves; from then on it is a plate of its own and can
+be given its own motion. Before that age it follows the parent as the whole
+feature did. The status bar ends with `Laurentia 2 follows nothing from
+100 Ma`. The parent itself is never cut.
 
 ### Dividing
 
@@ -472,31 +501,51 @@ stretch nearest to it. Which of the two Enter will do is in the status bar
 while the points are being clicked: `Enter splits the polygon along them` or
 `Enter divides the parts along them`.
 
-A divide leaves no shared edge, so there is no ridge and no crust: the
-**Ridge** and **Crust** switches are greyed out while the points would divide.
-The **Children** switch works as for a cut, by the middle: a feature following
-the polygon at the current time follows the second feature from then on when
-its middle is on that side. A divide is refused when every part lands on one
+A divide leaves no shared edge, but with **Ridge** on it still leaves a ridge
+along the whole path, all of it sea, and with **Crust** on a crust on each side
+of it; see [The ridge](#the-ridge). The **Children** switch works as for a cut, by the side each feature's middle
+is on, and so does [the parent](#the-parent). A divide is refused when every part lands on one
 side, `The cut leaves every part on one side`, and a cut beside a feature of
 one part is refused as running outside the shape, as before. One undo version
-either way. Implemented by `Document.divide_feature()` over
-`GeometryEdit.touches()`, `side_of()` and `far_parts()`.
+either way. The sides are worked out in a frame turned to the parts when they
+or the cut straddle ±180°. Implemented by `Document.divide_feature()` over
+`GeometryEdit.touches()`, `sides()` and `far_parts()`.
 
 ### The ridge
 
 With the **Ridge** switch on, which is how it starts, the cut also leaves the
 rift or mid ocean ridge that opens between the two halves as they drift apart.
 It is a [midway topology](#midway-topologies) named after the polygon,
-`Laurentia ridge`, placed after the second half and colored like a Line. Its two
-sections are the two halves' sides of the cut: the first half's run from the
-first vertex of its ring to the last point of the cut, and the same run on the
-second half, walked back, because the second half holds the cut the other way
-round. Its time range runs from the age of the cut to the present, since the
-ridge did not exist before the continent broke.
+`Laurentia ridge`, placed after the second half and drawn in the ridge color of
+the [View settings](#view-settings), with no row in the feature tree; see [The feature tree](#the-feature-tree).
+Its time range runs from the age of the cut to the present, since the ridge did
+not exist before the continent broke.
 
-Each vertex of the ridge is the pair of cut vertices taken back into their own
-halves' frames and carried out by the rotation halfway between the two halves'
-rotations. That is the half stage rotation GPlates reconstructs a ridge by, so
+A split leaves one ridge, however many times the cut goes in and out of land.
+The cut line runs from where it first enters to where it last leaves any polygon
+it cut, the one selected or anything cut with it under
+[Children](#the-children), in the order it was drawn. Each side of the ridge is
+a list of pieces along that line:
+
+- Where the cut runs through land, the piece is that land's coast on its side:
+  a run of the vertices of the half, the continent or the island that has that
+  coast. Where two coasts lie along the same stretch, a continent and the craton
+  on it, the one the cut reaches first is followed until it ends.
+- Where the cut crosses sea, a bay or the strait between two islands, the piece
+  is the points clicked there. They ride with the half of the split polygon on
+  that side, the plate everything on that side moves with, the way an island
+  riding on it would.
+
+A [divide](#dividing) is all sea, so its ridge is the whole path. Both sides are
+the same line at the age of the cut, so they have the same number of vertices,
+and the ridge pairs them up one by one. It keeps following the coasts: moving a
+coast vertex moves the ridge halfway with it. Adding or taking away a vertex on
+a coast the ridge runs along leaves the sides with different counts, and the
+ridge is then not drawn.
+
+Each vertex of the ridge is the pair of side vertices taken back into their own
+features' frames and carried out by the rotation halfway between the two
+features' rotations. That is the half stage rotation GPlates reconstructs a ridge by, so
 the line stays midway between the halves as they diverge and turns by half of
 whatever either one does. Both halves have the polygon's own pose at the moment
 of the cut, so the ridge starts out lying exactly on it. The ridge has no
@@ -504,8 +553,20 @@ keyframes and follows nothing; `Ridge.ring_at()` in `Logic/ridge.gd` works out
 where it is at any age.
 
 The ridge is part of the split's one undo version, so undo takes it away with
-the halves. Deleting a half afterwards leaves the ridge's section on that half
-broken, the ridge draws nothing, and undo mends it.
+the halves. Deleting a half deletes the ridge and its crusts with it.
+
+The ridge and the crusts are drawn under every other feature, crusts first and
+the ridge over them, wherever they sit among the features, so a continent is
+never hidden by the sea floor beside it. At the age of the split the ridge lies
+under both halves and cannot be seen or clicked until they drift apart. The
+group they sit in neither hides nor styles them: a crust shows while its half
+does and the ridge while either half does, a half showing while it and every
+group above it are enabled, and both are drawn in the colors of the View
+settings. See `Planet._drawing_order()`. Splitting a half again
+keeps the ridge on its cut; see [Splitting a half again](#splitting-a-half-again).
+
+The **Ridges** switch in the View menu hides every ridge, and a hidden ridge
+cannot be picked on the globe; see [Styling](Styling.md#the-visibility-switches).
 
 With the switch off the cut leaves the two halves and nothing else, and the
 Crust switch is greyed out.
@@ -518,55 +579,66 @@ sea floor spreading: with isochrons and flowlines. New crust is next to the
 ridge and older crust is next to the continent.
 
 An **isochron** is a line of equal crust age: where the ridge was at that age,
-carried along with the half since. The oldest one, at the age of the cut, is the
-half's side of the cut, and the youngest, at the current time, is the ridge
-itself. Between them there is one at every multiple of the crust's **Step
-(My)**, the same setting a [hotspot](#hotspots) track is sampled at, and at
-every multiple of the timeline's [Skip](Time.md#the-time-control) while the
-step is 0. A **flowline** follows one vertex of the cut across every isochron,
-from the continent to the ridge.
+carried along with the half since. The youngest, at the current time, is the
+ridge itself. Before it there is one at the age of the cut and one at every
+multiple of the crust's **Step (My)**, the same setting a [hotspot](#hotspots)
+track is sampled at, and at every multiple of the timeline's
+[Skip](Time.md#the-time-control) while the step is 0. The oldest isochron is
+always the half's side of the cut, carried with the half. When the halves still
+touched at the age of the cut, the ridge lay on that side then and the two are
+one line. When their plates had already moved them apart, the ridge of that age
+lies out in the gap, and the first band runs from the coast out to it, with the
+age of the cut. A **flowline** follows one vertex of the cut across every
+isochron, from the continent to the ridge. Along a stretch of sea the oldest
+isochron is the line the cut was drawn along, so a bay or the strait between two
+islands fills with crust as well, and the crust has no holes.
 
 Each half gets one feature, `Laurentia crust`, placed after the ridge with the
 ridge's time range. It holds the bands between two isochrons in a row, one
-filled part each, in steel blue, with the oldest band against the continent, and
-it draws the isochrons and a flowline for each vertex of the cut over them, as
-thin lines in light steel blue. So the order in the tree is `Laurentia`,
-`Laurentia 2`, `Laurentia ridge`, `Laurentia crust` and `Laurentia 2 crust`.
+filled part each, with the oldest band against the continent, and it draws the
+isochrons and a flowline for each vertex of the cut over them, as thin lines. So the order in the document is `Laurentia`,
+`Laurentia 2`, `Laurentia ridge`, `Laurentia crust` and `Laurentia 2 crust`, and
+the tree shows the first two.
 
 Each band is filled by the age of the crust in it, the way an age grid reads in
-GPlates: the band against the continent, which holds the crust laid down at the
-age of the cut, is the crust's own steel blue, and every band towards the ridge
-is a lighter shade of it, up to 55 percent of the way to white at the youngest.
-The age is the older of the band's two isochrons, counted from the current time,
-so the crust beside the ridge is new whatever time is being looked at. A crust
-in a group on the [Feature age](Styling.md#the-draw-styles) style is painted
-band by band from that style's palette instead, each band read at its own age
-rather than the whole crust at the age of the split. Either way the color a
-crust carries is what its oldest band comes out, so the crust color in the
-Feature colors section of [Preferences](Shell.md#preferences) sets the old end
-of the ramp and every band moves with it.
+GPlates. The age is the older of the band's two isochrons, counted from the
+current time, so the crust beside the ridge is always the young color and a
+band moves towards the old color as the time goes forward. The colors come from
+the Sea floor section of the [View settings](#view-settings), one setting for
+the whole document: Blue by default, light blue for new crust to dark ocean
+blue for crust 200 My old, or Rainbow, or a custom ramp, or a single color for
+all crust. A palette is read at the band's age the way a
+[group style](Styling.md#the-custom-ramp) reads it, so a band's color says how
+old it is, whatever else is in the document. No group style reaches a crust, [Feature age](Styling.md#the-draw-styles)
+included, and a crust has no Colour row in the Properties panel.
 
 A feature is drawn in one color, so a crust carries a second one for its lines:
-`Feature.line_color()` gives it the crust lines color and everything else its
-own, and the shader paints a feature's segments and markers in that color and
-its filled triangles in the first. Hiding the lines on their own is left for
-later. The bands themselves are drawn in as many colors as there are bands:
+`Styling.line_color_of()` gives it the isochrons and flowlines color of the view
+settings and everything else its own fill color, and the shader paints a
+feature's segments and markers in that color and its filled triangles in the
+first. The **Oceanic Crust** switch in the View menu
+hides every crust, and **Isochrons and Flowlines** hides only their lines,
+leaving the bands; a hidden crust cannot be picked on the globe. The bands themselves are drawn in as many colors as there are bands:
 each band takes a column of its own in the [per feature
 rows](Shader.md#per-feature-rotation) the shader already reads, so neither the
 shader nor the geometry texture carries a color or an age per band. `Crust`
 records the age of the crust in each band beside the rings and
-`Styling.band_color()` turns it into the color.
+`Styling.crust_color()` turns it into the color.
 
-At the age of the cut there is only the one isochron, so the crust draws
-nothing. As the time moves towards the present the halves drift and the bands
-open, one more at each step. `Logic/crust.gd` rebuilds the crust after the
+At the age of the cut there is only the one isochron when the halves touch, so
+the crust draws nothing; halves already apart have their first band. As the
+time moves towards the present the halves drift and the bands open, one more at
+each step. `Logic/crust.gd` rebuilds the crust after the
 topologies whenever the tree, the time, the step or the Skip changes, and keeps
 the bands in the feature's rings and the lines beside them, so only the bands
 are filled and measured. A crust is a topology with no sections: the Properties
 panel shows a line such as `Crust of Laurentia, 4 chunks` in place of the
-section table, and the Area row is the sum of its bands. Copy Shape takes the
+section table, counting only the bands with an area, so a stretch of time in
+which the plates did not move apart adds no chunk. The Area row is the sum of
+its bands. Copy Shape takes the
 bands as a polygon of several parts. The crust is part of the split's one undo
-version.
+version. A second split of its half keeps it on its coast; see [Splitting a half
+again](#splitting-a-half-again).
 
 The crust starts with a **Step (My)** of 0, which follows the timeline's Skip,
 so the band count on a fresh split depends on how the Skip happens to be set.
@@ -579,37 +651,97 @@ The cut between two vertices in the [Vertex tool](#the-vertex-tool) is the same
 operation with no points between the ends, and `GeometryEdit` works both out
 with the same functions.
 
+### Splitting a half again
+
+A ridge section names its side of the cut by part and vertex range, and a split
+moves vertices around: its own cut goes to the front of each half's ring, the
+parts are renumbered, and the piece holding an older cut may be the copy rather
+than the original. So before a split changes any rings it notes the vertices
+every topology section runs along, and afterwards it points each section at the
+feature, part and range that now hold those same vertices, flipping the
+direction when the run turned round. A crust whose half gave up the older cut
+to the copy moves to the copy with it, so it goes on moving with the plate that
+carries its coast, including after that piece goes free of its parent. The
+older ridge and both of its crusts lie exactly where they did at every age. A
+piece of the ridge on a stretch of sea goes to whichever piece of its plate
+holds the vertices nearest it, which is the one with the coast beside it. The
+Vertex tool's split does the same, and it all belongs to the split's one
+undo version.
+
+### Triple junctions
+
+Plates O and H split at t1, with ridge R between them and a crust on each side.
+By t2 H has an ocean between its coast and R. A cut of H at t2 that runs across
+its land and out over that coast, across H's crust to R, makes a triple
+junction where it reaches R: three plates, O and the two pieces of H, and three
+ridges meet there. No plate is added beyond the two pieces any split makes;
+the sea floor belongs to the plate it is attached to.
+
+- The cut runs across H's land as drawn. From J, where it leaves the coast R
+  lies along, it runs on along J's flowline to R, whatever was drawn out there.
+  The flowline is the path J's piece of sea floor was made along, so H's crust
+  splits cleanly between its bands. While the points are being clicked, the
+  Split tool draws that flowline over the path.
+- J is put on the great circle of the coast edge it crosses, and R is split
+  there into one ridge per piece of H, `Laurentia ridge` and `Laurentia ridge 2`,
+  end to end where R was. J goes into both of R's sides: on O's coast as a
+  vertex at the same place, which leaves O's shape as it was, or into a stretch
+  of sea.
+- Each of R's crusts is split the same way, since a crust is built from its
+  ridge. The pieces of H's crust move with the piece of H on their side after
+  t2, and O's crust, split at the same point, moves as it always did.
+- The new ridge between the two pieces of H runs along the whole cut: the land
+  as coast pieces and the flowline across the old crust as sea riding with the
+  piece on each side. Its crusts fill the widening gap between the two pieces
+  and their old crust, so the sea floor has no holes.
+- The three ridges meet in one point. Each ridge lies halfway between its two
+  plates, so once O and the two pieces of H drift apart, the three ends at the
+  junction would be three points with bare sea between them. Their ends are put
+  at the mean of the three instead, and the crusts, built from the ridges at
+  every age, meet along the path the junction takes across each plate: the
+  bands close around it in triangles, with no wedge of bare sea.
+- A cut that crosses the coast twice, in from the old crust and out again,
+  splits R in three, and the new ridge runs along both flowlines.
+
+A sibling cut under [Children](#the-children) across such a coast is split the
+same way. The Vertex tool's split splits R where the cut ends on its coast, and
+leaves no new ridge, as it never does. All of it is the split's one undo
+version. Implemented by `Document._split_older_ridges()`.
+
 ### The children
 
-With **Children** on, which is how it starts, the cut also goes through the
-features that follow the polygon at the current time, such as a mountain range
-coupled to the craton it sits on. Only direct children are cut. A grandchild
-goes on following its own parent, and a circle follows nothing.
+With **Children** on, which is how it starts, the cut also goes through what
+rides along with the feature: everything that follows its parent at the
+current time, the orogeny across the craton as well as the continent around
+it, or everything that follows the feature itself when it follows nothing, and
+whatever follows those in turn, all the way down.
 
-Each polygon child is cut along the part of the cut that lies inside it: from
-where the line first crosses its edge to where it last crosses it, with the
-clicked points in between. The child keeps the first piece, and a copy named
-`Range 2` is placed right after it with the second. A child the cut misses, or
-crosses in a way the checks above would refuse, stays whole, and so does a
-line or a set of points.
+Each polygon and line the cut crosses is cut the same way as the feature: a
+polygon into the pieces on either side, a line where the cut crosses it. The
+feature keeps the pieces on the parent's side and a copy, `Orogeny 2`, is
+placed right after it with the rest. What the cut misses goes whole to the side
+of the cut its middle is on, and so does a polygon the cut would be refused on.
+Circles, hotspots, ridges and crusts are left as they are, as is anything that
+follows two parents.
 
-Then each piece, and each child left whole, is placed on one side of the cut by
-the middle of its vertices. One whose middle lies inside the second half
-follows that half from the age of the cut; its span is cut at that age, and the
-older part still names the original. Everything else keeps following the first
-half. The second half starts with the polygon's keyframes and couplings, so no
-piece moves at the cut, and as the halves drift apart each piece goes with its
-own half.
+Each piece then follows what stands in for its old parent on its own side:
+the parent itself on the parent's side, and on the other side its piece there,
+or for the craton the half that went free, or for something left whole on the
+other side whatever stands in for its own parent. The span is cut at the age
+of the cut and the older part still names the old parent, so no piece moves at
+the cut, and as the halves drift apart each piece goes with its own side.
 
-The child pieces are part of the split's one undo version, and the status bar
-names them after the halves, the ridge and the crust, as in
+The pieces are part of the split's one undo version, and the status bar names
+them after the halves, the ridge and the crust, as in
 `Split into Laurentia, Laurentia 2, Range, Range 2` with Ridge off. The first feature of a
 group is drawn on top of the ones after it, so a range meant to show over its
-craton goes above it in the tree.
+craton goes above it in the tree. Ridges and crusts are the exception: they are
+drawn under everything; see [The ridge](#the-ridge).
 
-With the switch off, the children are left alone and all of them follow the
-first half. The Vertex tool's split has no such switch and always leaves them
-alone.
+With the switch off, nothing but the feature is cut and everything that follows
+it goes on following the half that kept its title. The half away from the
+parent still goes free. The Vertex tool's split has no such switch and leaves
+everything alone.
 
 ## Drawing a circle
 
@@ -857,7 +989,7 @@ is a group, is the topology itself, is a topology that is not
 [midway](#midway-topologies), or has no vertices. The feature being built on is
 refused as well when it already holds vertices of its own, since a feature
 cannot both draw its geometry and borrow it, when it is a midway topology that
-has its two sections, and when it is a [crust](#the-crust).
+has both its sides, and when it is a [crust](#the-crust).
 
 ### Editing the sections
 
@@ -872,7 +1004,8 @@ vertices run back towards the last one, and **Remove** takes it out.
 A section is never dropped. One whose feature has been deleted, or is not there
 at the current time, is drawn in the panel in a warning colour with the reason
 as its tooltip, contributes no vertices, and stays in the file. So deleting a
-feature and undoing it mends the topology by itself.
+feature and undoing it mends the topology by itself. A ridge is the exception:
+it is deleted with either of its halves; see [The feature tree](#the-feature-tree).
 
 That is what the persisted `uuid` is for. A section names its feature by an id
 that survives a save and a load, and survives the tree being replaced by a clone
@@ -904,17 +1037,20 @@ A ring whose vertices all lie on one line encloses nothing and draws nothing.
 
 ### Midway topologies
 
-A **midway** topology has exactly two sections of the same length and is the
-line between them, vertex by vertex: each pair of vertices is taken back into
-its own feature's frame and carried out by the rotation halfway between the two
+A **midway** topology has two sides of the same length and is the line between
+them, vertex by vertex. Each side is one or more sections in order, marked with
+the side they are on, and a section of a [ridge](#the-ridge) may hold points of
+its own where the cut crossed sea. Each pair of vertices is taken back into its
+own feature's frame and carried out by the rotation halfway between the two
 features' rotations. For two features that have not moved apart, that is the
-point halfway between the pair. The [ridge](#the-ridge) the Split tool leaves is
-one, and the file marks it with `midway`.
+point halfway between the pair. The ridge the Split tool leaves is one, and the
+file marks it with `midway`.
 
 A midway topology is drawn as one line. It has no Closed switch; the panel says
-`Midway between two sections` above the section table instead. When the two
-sections have different vertex counts, or one of them is broken, it draws
-nothing and the section table says why. The Pick toggle refuses a third section.
+`Midway between two sides` above the section table instead. When the two sides
+have different vertex counts, or a section is broken, it draws nothing and the
+section table says why. The Pick toggle adds the first side and then the
+second, and refuses a section after that.
 
 A section of any other topology may run along a midway one, reading the line it
 was last rebuilt into. Midway topologies are rebuilt before the others, wherever
@@ -1037,21 +1173,25 @@ shows what is being chosen.
 | Planet color | The color of the planet where no raster covers it, ocean blue unless changed. The picker has no alpha, since the planet is never see-through |
 | Raster shown, Raster opacity | Whether the image is drawn and how much of the planet color it covers |
 | Raster | The image the planet wears, in PNG, JPEG, WebP or SVG. The field reads None when there is no image. **Browse...** picks a file, **Built in Earth** picks the Earth image that ships with Geotekton, and **Clear** takes the image away |
+| Sea floor: Ridge | The color every [ridge](#the-ridge) is drawn in. A new document takes the Line color of the Feature colors in [Preferences](Shell.md#preferences) |
+| Sea floor: Crust | What the [crust](#the-crust) is colored from by its age: **Blue** (the default, 0 to 200 My), **Rainbow** (0 to 1000 My) or **Custom ramp**, which shows the ramp's colors below it, youngest first, with + and − to add and take away colors and the My between one color and the next, as a group style's ramp does. **Single color** colors all crust one color, steel blue unless another is picked below it |
+| Sea floor: Isochrons and flowlines | The color of the lines drawn over every crust |
 
 A new document has no raster, so its planet is the flat planet color. A file
 saved before 0.17.0 that named no image opens wearing the built in Earth, which
 is how it looked then; see
 [Persistence](Persistence.md#0160-to-0170).
 
-The dialog does not set what color the features come out. That is set per
-group, with the Style, Colour, Palette and Ramp rows of the
+Apart from the sea floor, the dialog does not set what color the features come
+out. That is set per group, with the Style, Colour, Palette and Ramp rows of the
 [Properties panel](Properties.md#the-properties-panel), which is also where a
 `.cpt` palette file is loaded. The root group's style is pinned to each
 feature's own color at full opacity, so a feature under no group of its own is
 drawn in its own color.
 
 Which classes of geometry are drawn at all is in the View menu itself, one check
-item each for polygons, polylines, points, circles and topologies. See
+item each for polygons, polylines, points, circles, ridges and oceanic crust,
+and one more for the isochrons and flowlines drawn over the crust. See
 [Styling](Styling.md) for what is in each class, what the group styles resolve
 to and which part of the palette format is read.
 
@@ -1079,7 +1219,9 @@ File > Preferences carries three settings that belong to the tools:
 | Outline line width | How wide it draws the lines between them |
 
 The two sizes are multiples of what `planet.gdshader` draws at, from
-`Config.MIN_SCALE` to `Config.MAX_SCALE`. A multiple is easier to pick than the
+`Config.MIN_SCALE` to `Config.MAX_SCALE`, 0.25 to 8. Since 0.29.0 a marker at 1
+is half the size it was before, and a size saved by an older version reads as
+twice what it said, so the markers look as they did. A multiple is easier to pick than the
 chord length on a unit sphere the shader uniform is in; see
 [Shader](Shader.md#outline-uniforms).
 

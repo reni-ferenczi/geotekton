@@ -27,15 +27,13 @@ const CIRCLE := "circle"
 # A plume fixed in the world frame and the track it leaves on a plate, rebuilt
 # at every time change; see Logic/hotspot.gd.
 const HOTSPOT := "hotspot"
-# The oceanic crust the Split tool leaves beside a ridge is a Topology, not a
-# type of its own, but it has a colour of its own, and so do its isochrons and
-# flowlines. color() takes these ids, so a colour kept in the preferences under
-# one of them is used the same way.
-const CRUST := "crust"
-const CRUST_COLOR := Color.STEEL_BLUE
+# The isochrons and flowlines of a crust are not a type, but a new document
+# draws them in a colour of their own; see ViewSettings.crust_lines_color.
+# color() takes the id, so a colour kept in the preferences under it is used
+# the same way.
 const CRUST_LINES := "crust_lines"
 const CRUST_LINES_COLOR := Color.LIGHT_STEEL_BLUE
-const OWN_COLORS := {CRUST: CRUST_COLOR, CRUST_LINES: CRUST_LINES_COLOR}
+const OWN_COLORS := {CRUST_LINES: CRUST_LINES_COLOR}
 
 const ALL_KINDS := ["polygon", "polyline", "multipoint", "topology"]
 

@@ -56,7 +56,7 @@ uniform int geometry_count = 0;
 
 // The width of a feature line before its feature's line_scale, and the radius of
 // a marker.
-uniform float geometry_line_width = 0.012;
+uniform float geometry_line_width = 0.006;
 uniform float geometry_point_radius = 0.02;
 // How large a hotspot sample dot is against geometry_point_radius:
 // Planet.SAMPLE_DOT_SCALE.
@@ -95,7 +95,7 @@ const vec3 REFUSED_COLOR = vec3(1.0, 0.033105, 0.033105);
 // halo and feather included: Feature.line_scale(). The line color is the
 // color for everything but a crust, whose bands are filled in its color and
 // whose isochrons and flowlines are drawn in the line color over them:
-// Feature.line_color(). A crust also takes a column per band, each filled in
+// Styling.line_color_of(). A crust also takes a column per band, each filled in
 // what the age ramp gives the crust in it, which is why this is a column
 // rather than a feature as far as the shader is concerned.
 uniform sampler2D feature_data : filter_nearest, repeat_disable;
@@ -119,7 +119,7 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
 uniform float outline_line_width = 0.002;
-uniform float outline_dot_radius = 0.006;
+uniform float outline_dot_radius = 0.003;
 uniform float outline_closing_opacity = 0.25;
 // The opacity of a closed outline, style 3 and 4, so the fill and the grid
 // show through the white edge of a selected polygon.
@@ -129,7 +129,7 @@ const float OUTLINE_OPACITY = 0.6;
 const float SELECTED_MARKER_SCALE = 2.0;
 // How wide style 7 draws its line against geometry_line_width:
 // Planet.BOLD_SCALE.
-const float BOLD_SCALE = 0.5;
+const float BOLD_SCALE = 1.0;
 
 // One of the two Robinson tables at a latitude in degrees, interpolated between
 // the five degree entries it is given at. The counterpart of

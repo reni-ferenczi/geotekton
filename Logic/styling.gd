@@ -8,22 +8,27 @@ extends RefCounted
 
 # The geometry classes the View menu switches on and off, by the name the file
 # stores against the label the menu shows. A feature belongs to exactly one:
-# a topology by the geometry it holds, a circle by its feature type, and
-# everything else by its geometry kind. Every switch therefore takes away its
-# own class and nothing else.
+# a ridge or a crust to its own, a circle by its feature type, and everything
+# else by the geometry it is drawn as. Every switch therefore takes away its own
+# class and nothing else. Isochrons and Flowlines is the one switch that is not
+# a class of feature: it takes the lines off every crust and leaves the bands.
 const CLASSES := {
 	"polygons": "Polygons",
 	"polylines": "Polylines",
 	"points": "Points",
 	"circles": "Circles",
-	"topologies": "Topologies",
+	"ridges": "Ridges",
+	"crust": "Oceanic Crust",
+	"crust_lines": "Isochrons and Flowlines",
 }
 
 const POLYGONS := "polygons"
 const POLYLINES := "polylines"
 const POINTS := "points"
 const CIRCLES := "circles"
-const TOPOLOGIES := "topologies"
+const RIDGES := "ridges"
+const CRUST := "crust"
+const CRUST_LINES := "crust_lines"
 
 # How a feature's colour is chosen, by the name the file stores against the
 # label the chooser shows. `feature` is the colour the feature itself carries,
@@ -57,12 +62,6 @@ const MODES := {
 # What every feature is drawn in under the single colour style until someone
 # picks another.
 const DEFAULT_SINGLE := Color(0.9, 0.9, 0.9, 1.0)
-
-# How much lighter the youngest band of a crust is drawn than the oldest. The
-# oldest band, the one against the continent, keeps the crust's own colour, so
-# the colour the crust carries is still the colour of the crust; see
-# band_color().
-const YOUNGEST_LIGHTER := 0.55
 
 # The switches, and the palettes read so far by source, shared with whoever
 # built this so a file is read once rather than on every rebuild.
@@ -99,6 +98,10 @@ static func of(settings_: ViewSettings, root: Feature = null, palettes_: Diction
 # draws each feature's own colour. A loaded document's root carries that style
 # itself.
 func _walk(node: Feature, deciding: GroupStyle, opacity: float) -> void:
+	if node.is_sea_floor():
+		# A ridge or crust has no row under its group, so the group's style does
+		# not reach it: it is drawn in the sea floor colors of the view settings.
+		return
 	if not node.is_group:
 		_deciding[node] = deciding
 		_opacity[node] = opacity
@@ -110,13 +113,16 @@ func _walk(node: Feature, deciding: GroupStyle, opacity: float) -> void:
 		_walk(child, handed, opacity * style.opacity)
 
 
-# The class a feature is switched on and off with.
+# The class a feature is switched on and off with. A topology other than a
+# ridge or crust goes with the line or polygon it is drawn as.
 static func class_of(feature: Feature) -> String:
-	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY:
-		return TOPOLOGIES
+	if feature.midway:
+		return RIDGES
+	if feature.is_crust():
+		return CRUST
 	if feature.feature_type == FeatureType.CIRCLE:
 		return CIRCLES
-	match feature.geometry_kind:
+	match feature.drawn_as():
 		Feature.GeometryKind.POLYLINE:
 			return POLYLINES
 		Feature.GeometryKind.MULTIPOINT:
@@ -145,10 +151,17 @@ func shows(feature: Feature) -> bool:
 	return settings.shows_class(class_of(feature))
 
 
+# Whether the isochrons and flowlines are drawn over the crusts' bands.
+func shows_crust_lines() -> bool:
+	return settings.shows_class(CRUST_LINES)
+
+
 # The color a feature is drawn in: what the nearest group not on inherit says,
 # with the alpha multiplied by the opacity of every group above the feature. The
 # age style reads the feature's age at `time`.
 func color_of(feature: Feature, time: float = 0.0) -> Color:
+	if feature.midway:
+		return settings.ridge_color
 	var style: GroupStyle = _deciding.get(feature)
 	var color := feature.color
 	if style != null:
@@ -163,26 +176,31 @@ func color_of(feature: Feature, time: float = 0.0) -> Color:
 	return color
 
 
-# The colour one band of a crust is filled in, given the colour the style gave
-# the crust as a whole, the age of the crust in the band and where the band
-# falls in the ramp, 0 at the oldest and 1 at the youngest. Under the age style
-# the band is read from the palette at its own age, the way an age grid is
-# painted; under every other style the crust's colour is lightened towards the
-# ridge, so a colour picked for the crust is what the oldest band comes out and
-# the ramp moves with it. See Docs/Editing.md#the-crust.
-func band_color(feature: Feature, fill: Color, age: float, shade: float) -> Color:
-	var style: GroupStyle = _deciding.get(feature)
-	if style != null and style.mode == BY_AGE:
-		var color := age_palette(style).color_at(age)
-		color.a = fill.a
-		return color
-	return Styling.lighter_band(fill, shade)
+# The color a feature's lines are drawn in, given the color its fill came out:
+# the fill, except for a crust, whose isochrons and flowlines are drawn in the
+# crust lines color of the view settings.
+func line_color_of(feature: Feature, fill: Color) -> Color:
+	return settings.crust_lines_color if feature.is_crust() else fill
 
 
-# The fixed ramp on its own, which is what a geometry collected without a
-# styling colours its bands with.
-static func lighter_band(fill: Color, shade: float) -> Color:
-	return fill.lightened(shade * YOUNGEST_LIGHTER)
+# The color of crust `age` My old: the single crust color, or the crust
+# palette's color at that age, read the way a group style's age mode reads its
+# palette, so a band's color says how old it is and nothing else. No group style
+# reaches a crust; see _walk() and Docs/Editing.md#the-crust.
+func crust_color(age: float) -> Color:
+	if settings.crust_palette == ViewSettings.CRUST_SINGLE:
+		return settings.crust_color
+	return crust_palette().color_at(age)
+
+
+# The palette the view settings color the crust from: a built in one, or the
+# custom ramp with its span.
+func crust_palette() -> Palette:
+	if settings.crust_palette != Palette.RAMP:
+		return palette_of(settings.crust_palette)
+	if not _ramps.has(settings):
+		_ramps[settings] = Palette.ramp(settings.crust_ramp_colors, settings.crust_ramp_span)
+	return _ramps[settings]
 
 
 # The palette a style's age mode reads: its own ramp, or a palette by source.

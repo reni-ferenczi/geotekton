@@ -6,8 +6,8 @@ extends TestCase
 # shrink that went wrong comes back blank, which no screenshot would give away.
 
 # The floor is there to catch a glyph that came out blank, not to measure the
-# drawing.
-const MIN_DRAWN_PIXELS := 60
+# drawing. The sparsest one, Points, is a few dots of about 49 pixels.
+const MIN_DRAWN_PIXELS := 30
 
 
 func test_every_id_in_the_catalog_has_a_glyph() -> void:

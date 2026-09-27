@@ -8,9 +8,11 @@ class_name Planet
 enum Primitive { TRIANGLE = 0, SEGMENT = 1, POINT = 2, SAMPLE = 3, CIRCLE = 4 }
 
 # How large a hotspot sample dot is against a multipoint marker, and how wide
-# the pole cross is against a feature line. planet.gdshader holds both.
+# the pole cross is against a feature line. planet.gdshader holds both. The
+# cross is as wide as a feature line: it was half of one until 0.29.0 halved
+# the line, and a tool's marker had no reason to get thinner with it.
 const SAMPLE_DOT_SCALE := 0.5
-const BOLD_SCALE := 0.5
+const BOLD_SCALE := 1.0
 
 # Radius of the globe, in the units planet.tscn is laid out in. The SphereMesh
 # is set to it in _ready(), and PlanetView casts a ray against a sphere of the
@@ -25,8 +27,14 @@ const POINT_HIT_RADIUS := 0.025
 
 # What the outline overlay draws its vertex markers and its lines at before the
 # preferences scale them. Both match the uniform defaults in planet.gdshader.
-const DEFAULT_DOT_RADIUS := 0.006
+# The markers were twice this until 0.29.0; see Config.get_vertex_marker_scale().
+const DEFAULT_DOT_RADIUS := 0.003
 const DEFAULT_LINE_WIDTH := 0.002
+
+# What a feature's lines are drawn at before Feature.line_scale(), from their
+# middle to their edge as a chord: planet.gdshader's geometry_line_width. Twice
+# this until 0.29.0; see Config.get_default_line_width().
+const GEOMETRY_LINE_WIDTH := 0.006
 
 # What a child of the selected feature is traced in, when the View menu
 # asks for it, and what tints its row in the tree. planet.gdshader
@@ -42,7 +50,7 @@ enum OutlineStyle {
 	OUTLINE = 4,        # closed like CLOSED, with no vertex markers
 	MARKERS = 5,        # the vertex markers only, drawn larger
 	CHILD = 6,          # closed like OUTLINE, in CHILD_COLOR
-	BOLD = 7,           # open like OPEN, BOLD_SCALE of a feature line, no markers
+	BOLD = 7,           # open like OPEN, BOLD_SCALE times a feature line, no markers
 	CIRCLE = 8,         # a center and a point of the rim, the circle drawn like CLOSED, no markers
 	OPEN_LINE = 9,      # open like OPEN, in the same white and width, with no markers
 	REFUSED = 10,       # open like OPEN, markers and all, in red: a cut the Split tool refused
@@ -172,8 +180,7 @@ class Geometry extends RefCounted:
 	# feature sits, whether it is shown and what colour it comes out are all
 	# answered per column. A feature takes one column, except a crust, which
 	# takes one per band so that the age ramp can colour each band on its own;
-	# `bands` then holds that band's age and where it falls in the ramp, 0 at
-	# the oldest and 1 at the youngest.
+	# `bands` then holds the age of the crust in that band.
 	var features: Array[Feature] = []
 	var index_of := {}
 	var bands := {}
@@ -211,8 +218,8 @@ class Geometry extends RefCounted:
 	var colors: Array[Color] = []
 
 	# The color each feature's lines are drawn in, which is the color above for
-	# everything but a crust; see Feature.line_color(). One entry per column,
-	# in the same order.
+	# everything but a crust; see Styling.line_color_of(). One entry per
+	# column, in the same order.
 	var line_colors: Array[Color] = []
 
 	# The styling the colors were last worked out with, kept so resolve() can
@@ -238,7 +245,7 @@ class Geometry extends RefCounted:
 		bases.append(Basis())
 		shown.append(true)
 		colors.append(feature.color)
-		line_colors.append(feature.line_color(feature.color))
+		line_colors.append(feature.color)
 		starts.append(primitives.size())
 		ends.append(primitives.size())
 		cap_centres.append(Vector3.UP)
@@ -290,20 +297,20 @@ class Geometry extends RefCounted:
 
 	# Work out the color of every column again at the resolved time, without
 	# touching the primitives. Without a styling each feature is drawn in the
-	# color it carries. A band of a crust takes the color the age ramp gives it,
-	# which is why a change of color reaches the bands without the geometry
-	# being collected again.
+	# color it carries, and the sea floor in the default view settings' colors.
+	# A band of a crust takes the crust palette's color at its age, which is why
+	# a change of palette reaches the bands without the geometry being
+	# collected again.
 	func recolor(styling_: Styling) -> void:
 		styling = styling_
+		var drawing := styling if styling != null else Styling.of(null)
 		for index in features.size():
 			var node: Feature = features[index]
-			var color: Color = styling.color_of(node, time) if styling != null else node.color
+			var color := drawing.color_of(node, time)
 			if bands.has(index):
-				var band: Vector2 = bands[index]
-				color = styling.band_color(node, color, band.x, band.y) if styling != null \
-					else Styling.lighter_band(color, band.y)
+				color = drawing.crust_color(bands[index])
 			colors[index] = color
-			line_colors[index] = node.line_color(color)
+			line_colors[index] = drawing.line_color_of(node, color)
 
 
 # Upload the feature geometry to the planet shader. Where the features sit, what
@@ -410,6 +417,8 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 # feature comes out; without one every feature is drawn in the colour it carries,
 # which is what a document said before there were any styles. A feature its class
 # is switched off for is left out here, so it is neither drawn nor hit tested.
+#
+# The ridges and crusts go first, under everything else; see _drawing_order().
 static func collect_geometry(root: Feature, time: float = 0.0,
 		styling: Styling = null) -> Geometry:
 	Topology.rebuild_all(root, time)
@@ -417,19 +426,13 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 	Crust.rebuild_all(root, time, Config.get_skip_increment())
 	var geometry := Geometry.new()
 	geometry.nodes = Coupling.index(root)
-	var stack: Array[Feature] = [root]
-	while not stack.is_empty():
-		var node: Feature = stack.pop_back()
-		if not node.enabled:
-			continue
-		if node.is_group:
-			stack.append_array(node.children)
-			continue
+	var crust_lines := styling == null or styling.shows_crust_lines()
+	for node in _drawing_order(root):
 		if styling != null and not styling.shows(node):
 			continue
 		# A feature is drawn whole or not at all, so what it needs is counted
 		# before any of it is added. A later, smaller feature may still fit.
-		if geometry.primitives.size() + _primitive_count(node) > MAX_PRIMITIVES:
+		if geometry.primitives.size() + _primitive_count(node, crust_lines) > MAX_PRIMITIVES:
 			geometry.dropped += 1
 			continue
 
@@ -467,7 +470,7 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 		# color; see Logic/crust.gd. Every band carries that one line color, so
 		# they go under the last band's column and stay contiguous with it.
 		for ring in node.crust_line_rings:
-			for j in range(ring.size() - 1):
+			for j in range(ring.size() - 1) if crust_lines else []:
 				geometry.primitives.append(_primitive(
 					Primitive.SEGMENT, [ring[j], ring[j + 1]], node, index))
 		geometry.ends[index] = geometry.primitives.size()
@@ -477,8 +480,42 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 	return geometry
 
 
+# The features to draw, first drawn first, so each lies over the ones before it
+# and is hit tested ahead of them. The first feature of a group is drawn on top.
+# Every crust goes under every ridge and the ridges under everything else, so the
+# sea floor never hides a feature on the tree and a ridge stays over its bands.
+#
+# A ridge or crust has no row, so the group it sits in does not hide it: a crust
+# shows while its half does and a ridge while either of its halves does, a half
+# showing when it and every group above it are enabled.
+static func _drawing_order(root: Feature) -> Array[Feature]:
+	var rest: Array[Feature] = []
+	var shown := {}
+	var stack: Array[Feature] = [root]
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		if not node.enabled or node.is_sea_floor():
+			continue
+		if node.is_group:
+			stack.append_array(node.children)
+			continue
+		shown[node.uuid] = true
+		rest.append(node)
+	var crusts: Array[Feature] = []
+	var ridges: Array[Feature] = []
+	stack.assign([root])
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		stack.append_array(node.children)
+		if not node.is_sea_floor() or not node.enabled \
+				or not Array(node.halves()).any(func(uuid: String) -> bool: return shown.has(uuid)):
+			continue
+		(crusts if node.is_crust() else ridges).append(node)
+	return crusts + ridges + rest
+
+
 # The bands of a crust, each in a column of its own, so the age ramp can fill
-# each one in the color of the crust it holds; see Styling.band_color(). The
+# each one in the color of the crust it holds; see Styling.crust_color(). The
 # triangles of ring k are the k-th run of Feature.ring_triangles, and the ages
 # run oldest first, the oldest band lying against the continent. Answers with
 # the column the last band took, which the isochrons and the flowlines are then
@@ -488,16 +525,13 @@ static func _collect_bands(geometry: Geometry, node: Feature, first: int) -> int
 	var count := mini(node.ring_triangles.size(), ages.size())
 	if count == 0:
 		return first
-	var oldest := ages[0]
-	var span := oldest - ages[count - 1]
 	var verts := node.triangles
 	var at := 0
 	var index := first
 	for k in count:
 		if k > 0:
 			index = geometry.column_for(node)
-		geometry.bands[index] = Vector2(ages[k],
-			0.0 if span <= 0.0 else (oldest - ages[k]) / span)
+		geometry.bands[index] = ages[k]
 		for _t in node.ring_triangles[k]:
 			geometry.primitives.append(_primitive(Primitive.TRIANGLE,
 				[verts[at], verts[at + 1], verts[at + 2]], node, index))
@@ -510,11 +544,11 @@ static func _collect_bands(geometry: Geometry, node: Feature, first: int) -> int
 # ring of n vertices is cut into n - 2 triangles, a polyline ring of n into
 # n - 1 segments, and a multipoint into one marker per vertex. A circle drawn
 # as curves is one primitive per ring. A hotspot's sample dots and a crust's
-# isochrons and flowlines come on top.
-static func _primitive_count(node: Feature) -> int:
+# isochrons and flowlines come on top, while they are shown.
+static func _primitive_count(node: Feature, crust_lines: bool = true) -> int:
 	var total := Hotspot.samples(node).size()
 	for ring in node.crust_line_rings:
-		total += maxi(0, ring.size() - 1)
+		total += maxi(0, ring.size() - 1) if crust_lines else 0
 	if node.draws_true_circles():
 		return node.rings.size()
 	match node.drawn_as():

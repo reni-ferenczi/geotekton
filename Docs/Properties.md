@@ -22,13 +22,13 @@ effect. That color is what a feature of the type starts in and goes back to
 below, and what the [Feature type](Styling.md#the-draw-styles) draw style
 paints.
 
-Two more colors are kept the same way under ids that are not types, `crust` and
-`crust_lines`: the steel blue a [crust](Editing.md#the-crust) starts in, which
-is the old end of the ramp its bands are colored by, and the light steel blue of
-its isochrons and flowlines. A crust is a Topology and takes the Topology color
-under the Feature type style; these two are its own. The dialog offers a picker
-per catalog type only, so either is changed by writing the `feature_colors` key
-of the [config file](Persistence.md#the-config-file).
+One more color is kept the same way under an id that is not a type,
+`crust_lines`: the light steel blue a new document draws the isochrons and
+flowlines of a [crust](Editing.md#the-crust) in. The dialog offers a picker per
+catalog type only, so it is changed by writing the `feature_colors` key of the
+[config file](Persistence.md#the-config-file). A document keeps its own sea
+floor colors in the [View settings](Editing.md#view-settings), so no group
+style and no color of its own reaches a ridge or a crust.
 
 The first kind listed is the one the tools draw into an empty feature of the
 type. The kinds are written as the names the file uses, so the catalog needs nothing
@@ -86,10 +86,23 @@ does through an undo that takes the geometry off again.
 
 ## The icon
 
-A feature's tree row can carry one of eleven built in glyphs, so that a
+A feature's tree row can carry one of fifteen built in glyphs, so that a
 mountain range and a continent are told apart at a glance. The Icon row of the
 Properties panel lists them with their pictures, None first, and a feature
 starts with none.
+
+A feature with no glyph shows the picture of its type, so a Line reads as a
+line before anything is picked. `FeatureIcon.TYPE_FILES` holds these:
+
+| Type     | Picture                    |
+| -------- | -------------------------- |
+| Polygon  | `Icons1-Features`, the rule icon |
+| Line     | `Icons1-Line`              |
+| Points   | `Icons1-Points`            |
+| Circle   | `Icons1-Circle`            |
+| Hotspot  | `Icons1-Hotspot`           |
+
+A Topology, and a feature with no type, shows the rule icon.
 
 | Id              | Name          | What it shows                          |
 | --------------- | ------------- | -------------------------------------- |
@@ -104,6 +117,10 @@ starts with none.
 | `moon`          | Moon          | A crescent                             |
 | `shield`        | Shield        | A heraldic shield                      |
 | `star`          | Star          | A star                                 |
+| `points`        | Points        | Scattered dots, the Points type        |
+| `line`          | Line          | A bent line, the Line type             |
+| `circle`        | Circle        | A ring, the Circle type                |
+| `hotspot`       | Hotspot       | An island chain, the Hotspot type      |
 
 `Logic/feature_icon.gd` holds the catalog. Nothing else in the program reads
 the icon: it changes what the row shows and no more. A group's row says whether
@@ -120,7 +137,7 @@ replace one:
    and the file's stem against the id in `FeatureIcon.FILES`.
 
 A file written by hand can name an icon this version does not know. Such a
-feature keeps the name, shows the rule icon on its row, and the Icon row of the
+feature keeps the name, shows its type's picture on its row, and the Icon row of the
 panel stands empty until something is picked.
 
 ## The Properties panel
@@ -136,7 +153,7 @@ follows the feature tree selection, through
 | Type       | Selector           | no         |
 | Icon       | Selector           | no         |
 | Style      | Selector           | only       |
-| Colour     | Colour picker, opacity | yes    |
+| Colour     | Colour picker, opacity | yes; not on a ridge or crust |
 | Palette    | Selector           | only       |
 | Ramp       | Colour pickers, +, −, span | only |
 | Line width | Number             | no, features drawn with lines only |
@@ -279,7 +296,7 @@ the color on the globe the way it does on a feature.
 **Line width** is how wide the feature's lines are drawn, as a multiple of what
 its type draws at: 1 is the width every feature had before there was a row,
 which is what a feature read from a file without a width shows. The box runs
-from 0.1 to 10 in steps of 0.05, and the row and its label carry the tooltip
+from 0.1 to 20 in steps of 0.05, and the row and its label carry the tooltip
 "How wide the feature's lines are drawn, as a multiple of what its type draws
 at". A new feature starts at the Default line width of the
 [Preferences](Shell.md#preferences) dialog and keeps its own width from then
@@ -468,12 +485,15 @@ rather than being dropped. The table is filled again whenever the current time
 moves, since a section can be followed at one time and not at another.
 
 A [midway topology](Editing.md#midway-topologies), such as a ridge, has no
-Closed switch. A line above the table says `Midway between two sections`, and
-Pick refuses a third section. A [crust](Editing.md#the-crust) has neither the
+Closed switch. A line above the table says `Midway between two sides`, and
+Pick refuses a section once both sides are there. A [crust](Editing.md#the-crust) has neither the
 switch nor the table, since it is built from its half and its ridge. The line
-says which half it lies beside and how many bands it has at the current time and
-step, as in `Crust of Laurentia, 4 chunks`. Above the form a crust has the
+says which half it lies beside and how many bands with an area it has at the
+current time and step, as in `Crust of Laurentia, 4 chunks`. Above the form a crust has the
 [Step (My)](#the-step-row) row, the one thing about it that is edited.
+Neither a ridge nor a crust has a row in the feature tree, so the panel shows one
+after it is clicked on the globe; see
+[The feature tree](Editing.md#the-feature-tree).
 `get_properties` reports the line as `topology_note` and, on a crust, the count
 as `crust_chunks` and the step as `crust_step`.
 
@@ -492,7 +512,7 @@ undo version:
 | `set_feature_type`      | an unknown type, and one that does not hold the kind the feature holds |
 | `set_icon`              | a group, and an icon the catalog does not have      |
 | `set_time_range`        | a range that ends older than it starts             |
-| `set_line_width`        | a group, a feature with no lines to widen, and a width outside 0.1 to 10 |
+| `set_line_width`        | a group, a feature with no lines to widen, and a width outside 0.1 to 20 |
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |
 | `insert_vertex`         | the same                                           |
 | `remove_vertex`         | a part or vertex that is not there                 |
@@ -503,7 +523,7 @@ undo version:
 | `couple`                | a group or a topology on either side, the feature itself, a feature already following something at that time, a parent that follows the feature down any chain, and a parent not there over the whole span |
 | `decouple`              | a feature following nothing at that time, and the present on a span that runs to it |
 | `remove_coupling`       | a span that is not there                           |
-| `add_section`           | a group, a feature holding vertices of its own, a crust, a midway topology that has two sections, and a target that is a group, a topology that is not midway (any topology for a midway one), the topology itself or has no vertices |
+| `add_section`           | a group, a feature holding vertices of its own, a crust, a midway topology that has both its sides, and a target that is a group, a topology that is not midway (any topology for a midway one), the topology itself or has no vertices |
 | `remove_section`        | anything but a topology, and a section that is not there |
 | `reverse_section`       | the same                                           |
 | `set_section_range`     | the same, and a vertex number below one            |

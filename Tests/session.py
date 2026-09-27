@@ -1242,11 +1242,11 @@ def run_feature_colour_preference_checks(client: AutomationClient) -> None:
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
 
-# A point 1.6 degrees east of Blue Ridge, which runs down longitude 40. The
-# shader draws a line 0.012 of the sphere's radius to either side of its middle,
-# about 0.69 degrees, so the point is off the line at width 1 and well inside
-# it at width 4, where the edge is about 2.75 degrees out.
-LINE_WIDTH_PROBE = (0.0, 41.6)
+# A point a degree east of Blue Ridge, which runs down longitude 40. The
+# shader draws a line 0.006 of the sphere's radius to either side of its middle,
+# about 0.34 degrees, so the point is off the line at width 1 and well inside
+# it at width 4, where the edge is about 1.37 degrees out.
+LINE_WIDTH_PROBE = (0.0, 41.0)
 MAGENTA = [1.0, 0.0, 1.0, 1.0]
 
 
@@ -1347,6 +1347,10 @@ def run_icon_checks(client: AutomationClient, folder: Path) -> None:
           f"the selector offers None first and the glyphs after it: {panel['icons']}")
     check(row_icon(client, "Red Triangle") == RULE_ICON,
           "and its row shows the rule icon, as it did before there were any")
+    # With no glyph a row shows its type's picture: the Polygon's is the rule icon.
+    for title, wanted in (("Blue Ridge", "Icons1-Line"), ("Green Stations", "Icons1-Points")):
+        got = row_icon(client, title)
+        check(got == wanted, f"{title} shows its type's picture {wanted}: {got}")
 
     check(refusal(client, "set_property", field="icon", value="sombrero") != "",
           "an icon the selector does not offer is refused")
@@ -4066,7 +4070,7 @@ def run_divide_session(client: AutomationClient) -> None:
         return
     depth = undo_depth(client)
 
-    client.call("set_tool", tool="split")
+    client.call("set_tool", tool="split", ridge=True, crust=False)
     tool = client.call("get_tool")
     check(tool["ridge_enabled"], "Ridge is offered before any point is clicked")
 
@@ -4084,15 +4088,16 @@ def run_divide_session(client: AutomationClient) -> None:
     status = client.call("get_status")["status"]["measure"]
     check("divides the parts" in status, f"the status bar says Enter divides: {status!r}")
     tool = client.call("get_tool")
-    check(not tool["ridge_enabled"] and not tool["crust_enabled"],
-          "Ridge and Crust are greyed out, since a divide leaves no shared edge")
+    check(tool["ridge_enabled"], "Ridge is still offered, since a divide leaves one along the path")
     client.call("key", key="Enter")
     status = client.call("get_status")["status"]["measure"]
-    check(status == "Split into Isles, Isles 2", f"the status bar names the two: {status!r}")
+    check(status == "Split into Isles, Isles 2, Isles ridge",
+          f"the status bar names the two and the ridge: {status!r}")
     check(undo_depth(client) == depth + 1, "the divide recorded one version")
     check(client.call("get_tool")["tool"] == "move", "and went back to the Move tool")
     titles = titles_of(client)
-    check(titles == ["Planet", "Isles", "Isles 2"], f"the feature became two: {titles}")
+    check(titles == ["Planet", "Isles", "Isles 2", "Isles ridge"],
+          f"the feature became two with a ridge between: {titles}")
     for title, part in [("Isles", DIVIDE_WEST), ("Isles 2", DIVIDE_EAST)]:
         client.call("select", title=title)
         rings = client.call("get_selected")["feature"]["world_rings"]
@@ -4123,17 +4128,18 @@ def run_split_tool_session(client: AutomationClient) -> None:
     check(client.call("latlon_to_screen", lat=0.0, lon=0.0)["screen"] == before,
           "the planet stays where it was when the tool is picked")
 
-    # A point too many, taken back with Ctrl+Z, and a cut that crosses the edge.
+    # A point too many, taken back with Ctrl+Z, and a cut that crosses itself
+    # inside the craton, the one cut the tool refuses.
     if not draw(client, SPLIT_CUT[:2] + [(2.0, -30.0)]):
         return
     client.call("key", key="Z", ctrl=True)
     held = len(client.call("get_tool")["split_points"])
     check(held == 2, f"Ctrl+Z takes the last point of the cut back: {held} held")
-    if not draw(client, [(2.0, -30.0), SPLIT_CUT[2]]):
+    if not draw(client, [(-8.0, -14.0), (-8.0, -2.0), SPLIT_CUT[2]]):
         return
     client.call("key", key="Enter")
     status = client.call("get_status")["status"]["measure"]
-    check("crosses the edge" in status, f"a cut that crosses the edge is refused: {status!r}")
+    check("crosses itself" in status, f"a cut that crosses itself is refused: {status!r}")
     check(undo_depth(client) == depth, "and records nothing")
     check(client.call("get_tool")["split_refused"], "the refused cut is marked as such")
     # Its last point is drawn in red, off the pointer so nothing else is lit.
@@ -4299,7 +4305,7 @@ def run_ridge_session(client: AutomationClient) -> None:
           f"midway between the halves' sides of the cut: {sections}")
     client.call("select", title="Old Shield ridge")
     panel = client.call("get_properties")["properties"]
-    check(panel.get("topology_note") == "Midway between two sections",
+    check(panel.get("topology_note") == "Midway between two sides",
           f"which the panel says: {panel.get('topology_note')!r}")
     check("coupling" not in panel and "closed" not in panel and len(panel["sections"]) == 2,
           f"with the section table and no Coupled to row or Closed switch: {sorted(panel)}")
@@ -4365,13 +4371,12 @@ CRUST_CUT = [(-12.0, 3.0), (1.0, 4.0), (12.0, 3.0)]
 CRUST_AGE = 100.0
 CRUST_DRIFT = 12.0
 CRUST_SKIP = 25.0
-# Steel blue, the colour the Split tool gives the crust, and light steel blue,
-# the colour of its isochrons and flowlines. The band against the continent is
-# the crust colour itself and the one against the ridge is it lightened by
-# Styling.YOUNGEST_LIGHTER, with the bands between evenly spaced.
-CRUST_COLOR = [0.275, 0.510, 0.706]
+# The stops of the Blue palette the crust is colored from by default, youngest
+# first (Palette.BUILT_IN in Logic/palette.gd), and light steel blue, the colour
+# of its isochrons and flowlines. The palette is spread from 0 My to the oldest
+# crust, so the band against the continent is the dark end.
+BLUE_STOPS = [[0.776, 0.859, 0.937], [0.275, 0.510, 0.706], [0.063, 0.204, 0.380]]
 CRUST_LINES_COLOR = [0.690, 0.769, 0.871]
-YOUNGEST_LIGHTER = 0.55
 CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust", "Plate 2 crust"]
 CRUSTS = ["Plate crust", "Plate 2 crust"]
 
@@ -4478,9 +4483,12 @@ def run_crust_step_checks(client: AutomationClient) -> None:
           f"undo puts it back on the Skip: {panel['crust_step']}, {panel['crust_chunks']}")
 
 
-def lighter_band(shade: float) -> list[float]:
-    """The crust colour as the age ramp lightens it, 0 at the oldest band and 1 at the youngest."""
-    return [c + (1.0 - c) * shade * YOUNGEST_LIGHTER for c in CRUST_COLOR]
+def blue_at(age: float) -> list[float]:
+    """The Blue palette for crust `age` My old: its stops at 0, 100 and 200 My."""
+    along = min(max(age / 200.0, 0.0), 1.0)
+    low, high = (BLUE_STOPS[0], BLUE_STOPS[1]) if along <= 0.5 else (BLUE_STOPS[1], BLUE_STOPS[2])
+    t = along * 2.0 if along <= 0.5 else along * 2.0 - 1.0
+    return [a + (b - a) * t for a, b in zip(low, high)]
 
 
 def run_crust_probes(client: AutomationClient, title: str) -> None:
@@ -4502,15 +4510,21 @@ def run_crust_probes(client: AutomationClient, title: str) -> None:
     on_75 = midpoint(bands[1][0], bands[1][1])
     client.call("select", title=None)
     shades = [probe_unhovered(client, *place) for place in inside]
-    check(is_colour(shades[0], CRUST_COLOR),
-          f"{title} fills the band against the continent in the crust colour: {shades[0]}")
-    check(is_colour(shades[-1], lighter_band(1.0)),
-          f"and the one against the ridge in the lightest shade of it: {shades[-1]}")
+    check(is_colour(shades[0], blue_at(100.0)),
+          f"{title} fills the band against the continent, 100 My old, in Blue's steel blue: {shades[0]}")
+    check(is_colour(shades[-1], blue_at(25.0)),
+          f"and the one against the ridge in Blue at 25 My: {shades[-1]}")
     brightness = [sum(shade[:3]) for shade in shades]
     check(all(a + 0.1 < b for a, b in zip(brightness, brightness[1:])),
           f"lighter band by band from the continent to the ridge: {brightness}")
     pixel = probe_unhovered(client, *on_75)
     check(is_colour(pixel, CRUST_LINES_COLOR), f"and the isochron at {on_75} is drawn: {pixel}")
+    # A crust has no row in the feature tree (GP-0123), so a click on a band is
+    # how a person selects it.
+    if click_at(client, inside[1]):
+        selected = client.call("get_selected")["feature"]
+        check(selected is not None and selected["title"] == title,
+              f"a click on a band selects {title}: {selected and selected['title']}")
 
 
 # The children scenario: a range on the northern part of the crust scenario's
@@ -5169,7 +5183,7 @@ def run_styling_round_trip(client: AutomationClient, folder: Path) -> None:
     """A group's style, its colour and palette file, and the switches survive the file."""
     palette = ROOT / "Tests" / "Data" / "Palettes" / "discrete.cpt"
     colour = [0.3, 0.7, 0.2, 1.0]
-    hidden = ["points", "topologies"]
+    hidden = ["points", "crust_lines"]
     select_shapes(client)
     client.call("set_property", field="style", value="age")
     client.call("set_property", field="color", value=colour)

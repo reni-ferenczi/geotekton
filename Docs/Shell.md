@@ -82,7 +82,9 @@ adding an item means adding an enum value and one `add_item` line.
 | Polylines   |          | The same for the polylines                |
 | Points      |          | The same for the multipoints              |
 | Circles     |          | The same for the features typed as circles |
-| Topologies  |          | The same for the line topologies          |
+| Ridges      |          | The same for the ridges a split leaves    |
+| Oceanic Crust |        | The same for the crusts a split leaves, their bands and lines |
+| Isochrons and Flowlines | | The lines drawn over every crust; the bands stay while this is off |
 | View Settings... |     | The scene around the features; see [Editing](Editing.md#view-settings) |
 | Full Screen | F11      | Enter or leave full screen                |
 
@@ -176,11 +178,13 @@ tab and stays that size whichever is shown.
 
 - **Vertex marker size** and **Outline line width** — how large the outline
   overlay draws the vertices of the selected feature and the lines between them,
-  as multiples of what the shader draws at. The white halo of a selected line
-  is sized from the line itself, so neither setting changes it.
+  as multiples of what the shader draws at, from 0.25 to 8. The white halo of
+  a selected line is sized from the line itself, so neither setting changes it.
+  A marker at 1 is half the size it was before 0.29.0, and a size saved by an
+  older version reads as twice what it said, so it draws as it did.
 - **Default line width** — the [line width](Properties.md#the-line-width-row)
   a new feature starts with, as a multiple of what its type draws at, from 0.1
-  to 10. A feature keeps its own width once it exists, and one read from a
+  to 20. A line at 1 is half as wide as it was before 0.29.0. A feature keeps its own width once it exists, and one read from a
   file without a width is drawn at 1, so changing this reaches only the
   features added afterwards.
 - **Feature colors** — one color picker per [feature type](Properties.md#the-type-catalog),
@@ -189,7 +193,8 @@ tab and stays that size whichever is shown.
   Feature type draw style paints. The pickers offer no alpha. **Catalog
   colors** puts every picker back to the color the catalog comes with. Only
   the colors that differ from the catalog are saved, and features that already
-  exist keep the color they hold.
+  exist keep the color they hold. The Line color is also the ridge color a new
+  document starts with; see [View settings](Editing.md#view-settings).
 
 **Python**:
 

@@ -22,7 +22,7 @@ const HALO_ZOOM := 40.0
 # (Feature.CIRCLE_LINE_SCALE) and how much wider the halo is
 # (SELECTED_LINE_SCALE). test_shader_defaults.gd and test_shader_constants.gd
 # hold them to the shader.
-const LINE_WIDTH := 0.012
+const LINE_WIDTH := Planet.GEOMETRY_LINE_WIDTH
 const HALO_SCALE := 1.25
 
 const PROJECTIONS := [MapProjection.Kind.MOLLWEIDE, MapProjection.Kind.RECTANGULAR]

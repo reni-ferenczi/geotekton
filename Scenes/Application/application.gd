@@ -600,14 +600,16 @@ func _update_edit_menu() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var is_node := selected != null and not selected.is_root
 	var is_leaf := is_node and not selected.is_group
+	# A ridge or crust is built from its halves: it is deleted, never copied.
+	var copyable := is_node and not selected.is_sea_floor()
 	var pasteable := Document.APPLICATION in DisplayServer.clipboard_get()
 	var disabled := {
 		EditItem.UNDO: not document.can_undo() and _tool_points().is_empty(),
 		EditItem.REDO: not document.can_redo() and taken_back.is_empty(),
-		EditItem.CUT: not is_node,
-		EditItem.COPY: not is_node,
+		EditItem.CUT: not copyable,
+		EditItem.COPY: not copyable,
 		EditItem.PASTE: not pasteable,
-		EditItem.DUPLICATE: not is_node,
+		EditItem.DUPLICATE: not copyable,
 		EditItem.DELETE: not is_node,
 		EditItem.COPY_SHAPE: not (is_leaf and selected.has_geometry()),
 		EditItem.PASTE_SHAPE: shape_clipboard.is_empty() or not is_leaf,
@@ -1547,6 +1549,8 @@ func _build_view_content() -> Control:
 		_on_view_field_changed())
 	row.add_child(clear)
 
+	_build_sea_floor_fields(box)
+
 	var defaults := HBoxContainer.new()
 	box.add_child(defaults)
 	var remember := Button.new()
@@ -1578,6 +1582,50 @@ func _build_view_content() -> Control:
 	box.add_child(raster_warning)
 
 	return box
+
+
+# The colors of every ridge and crust in the document, which no group style
+# reaches: the ridge, the palette the crust is colored from by its age, with
+# the custom ramp under it while that is picked, and the isochrons and
+# flowlines. See Docs/Editing.md#the-crust.
+func _build_sea_floor_fields(box: VBoxContainer) -> void:
+	box.add_child(_view_section("Sea floor"))
+	var form := GridContainer.new()
+	form.columns = 2
+	box.add_child(form)
+	_view_color(form, "ridge_color", "Ridge")
+
+	var label := Label.new()
+	label.text = "Crust"
+	form.add_child(label)
+	var crust := VBoxContainer.new()
+	crust.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	form.add_child(crust)
+	var palette := OptionButton.new()
+	palette.name = "CrustPalette"
+	palette.tooltip_text = "What the crust is colored from by its age, or one color for all of it"
+	for key in ViewSettings.CRUST_PALETTES:
+		palette.add_item(str(ViewSettings.CRUST_PALETTES[key]))
+		palette.set_item_metadata(palette.item_count - 1, key)
+	palette.item_selected.connect(func(_index: int) -> void: _on_view_field_changed())
+	crust.add_child(palette)
+	view_fields["crust_palette"] = palette
+	# The same ramp a group style has, span and all.
+	var ramp := RampRow.new(Document.MAX_TIME)
+	ramp.previewed.connect(_on_view_field_changed.bind(false))
+	ramp.committed.connect(_on_view_field_changed)
+	crust.add_child(ramp)
+	view_fields["crust_ramp_colors"] = ramp
+	view_fields["crust_ramp_span"] = ramp.span_spin
+	var single := Helpers.color_button("CrustColor", Helpers.COLOR_TOOLTIP)
+	single.custom_minimum_size = Vector2(140, 28)
+	single.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	single.color_changed.connect(func(_color: Color) -> void: _on_view_field_changed(false))
+	single.popup_closed.connect(_on_view_field_changed)
+	crust.add_child(single)
+	view_fields["crust_color"] = single
+
+	_view_color(form, "crust_lines_color", "Isochrons and flowlines")
 
 
 func _view_spin(form: GridContainer, key: String, text: String,
@@ -1669,6 +1717,21 @@ func _fill_view_fields() -> void:
 	view_fields["raster_visible"].set_pressed_no_signal(settings.raster_visible)
 	view_fields["raster_opacity"].set_value_no_signal(settings.raster_opacity)
 	view_fields["raster_path"].text = settings.raster_path
+	view_fields["ridge_color"].color = settings.ridge_color
+	view_fields["crust_palette"].select(
+		ViewSettings.CRUST_PALETTES.keys().find(settings.crust_palette))
+	view_fields["crust_ramp_colors"].colors = settings.crust_ramp_colors
+	view_fields["crust_ramp_span"].set_value_no_signal(settings.crust_ramp_span)
+	view_fields["crust_color"].color = settings.crust_color
+	_show_crust_fields(settings)
+	view_fields["crust_lines_color"].color = settings.crust_lines_color
+
+
+# The ramp editor only for the custom ramp, the color picker only for a single
+# color.
+func _show_crust_fields(settings: ViewSettings) -> void:
+	view_fields["crust_ramp_colors"].visible = settings.crust_palette == Palette.RAMP
+	view_fields["crust_color"].visible = settings.crust_palette == ViewSettings.CRUST_SINGLE
 
 
 # One field moved: take the whole block off the dialog and hand it to the
@@ -1688,6 +1751,14 @@ func _on_view_field_changed(commit: bool = true) -> void:
 	settings.raster_visible = view_fields["raster_visible"].button_pressed
 	settings.raster_opacity = view_fields["raster_opacity"].value
 	settings.raster_path = view_fields["raster_path"].text
+	settings.ridge_color = view_fields["ridge_color"].color
+	var palette: OptionButton = view_fields["crust_palette"]
+	settings.crust_palette = str(palette.get_item_metadata(palette.selected))
+	settings.crust_ramp_colors = view_fields["crust_ramp_colors"].colors
+	settings.crust_ramp_span = view_fields["crust_ramp_span"].value
+	settings.crust_color = view_fields["crust_color"].color
+	_show_crust_fields(settings)
+	settings.crust_lines_color = view_fields["crust_lines_color"].color
 	if commit:
 		document.view_edited()
 	apply_view_settings()
@@ -3746,12 +3817,12 @@ func split_along_points() -> String:
 	if split_points.size() < 2:
 		return "Click where the cut starts and where it ends."
 	var path := _split_path(feature)
-	# Neither a ridge nor a crust follows a divide, since the two share no edge.
-	var ridge := ridge_check.button_pressed and not ridge_check.disabled
+	var ridge := ridge_check.button_pressed
 	var crust := ridge and crust_check.button_pressed
 	var error: String
 	if _split_divides(feature):
-		error = document.divide_feature(feature, path, children_check.button_pressed)
+		error = document.divide_feature(feature, path, children_check.button_pressed,
+			ridge, crust)
 	else:
 		var part := 0
 		var nearest := INF
@@ -3772,7 +3843,8 @@ func split_along_points() -> String:
 	var group := features.root.find_parent(feature)
 	var at := group.find_child(feature)
 	var made := PackedStringArray()
-	for child in group.children.slice(at, at + 2 + int(ridge) + 4 * int(crust)):
+	var laid := document.split_ridge
+	for child in group.children.slice(at, at + 2 + int(laid) + 4 * int(laid and crust)):
 		made.append(child.title)
 	for piece in document.split_children:
 		made.append(piece.title)
@@ -3780,16 +3852,17 @@ func split_along_points() -> String:
 	features.reload()
 	refresh_geometry()
 	set_active_tool(Tool.MOVE)
-	return "Split into %s" % ", ".join(made)
+	var said := "Split into %s" % ", ".join(made)
+	if document.split_freed != null:
+		said += "; %s follows nothing from %s Ma" % [document.split_freed.title,
+			KinematicsPanel.format_time(document.current_time)]
+	return said
 
 
-# Grey out Ridge while the points clicked would divide the parts rather than
-# cut one, since the two sides of a divide share no edge to leave a ridge
-# along; and Crust whenever there is no ridge, since the crust lies between the
-# ridge and the halves.
+# Grey out Crust whenever there is no ridge, since the crust lies between the
+# ridge and the halves. A divide leaves a ridge along the whole path too.
 func _update_split_switches() -> void:
-	ridge_check.disabled = _split_divides(features.feature_tree.get_selected_node())
-	crust_check.disabled = ridge_check.disabled or not ridge_check.button_pressed
+	crust_check.disabled = not ridge_check.button_pressed
 
 
 # The points clicked so far, in the selected feature's own frame: they were
@@ -4498,6 +4571,10 @@ func _refresh_selection_outline() -> void:
 	if active_tool == Tool.SPLIT and not split_points.is_empty():
 		parts.append({"vertices": split_points, "style": Planet.OutlineStyle.REFUSED
 			if split_points == split_refused else Planet.OutlineStyle.OPEN})
+		# Across older sea floor the cut runs along the flowline to the older
+		# ridge instead of the points clicked out there.
+		for line in document.cut_flowlines(selected, split_points):
+			parts.append({"vertices": line, "style": Planet.OutlineStyle.OPEN})
 	planet_view.planet.set_outline(parts)
 
 

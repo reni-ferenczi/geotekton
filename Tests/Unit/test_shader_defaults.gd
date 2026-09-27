@@ -16,6 +16,8 @@ func test_the_outline_defaults_match_the_shader() -> void:
 		"Planet.DEFAULT_DOT_RADIUS is what the shader draws a vertex marker at")
 	assert_close(declared.get("outline_line_width", -1.0), Planet.DEFAULT_LINE_WIDTH, 1e-9,
 		"Planet.DEFAULT_LINE_WIDTH is what the shader draws an outline line at")
+	assert_close(declared.get("geometry_line_width", -1.0), Planet.GEOMETRY_LINE_WIDTH, 1e-9,
+		"Planet.GEOMETRY_LINE_WIDTH is what the shader draws a feature line at")
 
 
 # The float uniforms the shader declares, by name, read out of its source. The
