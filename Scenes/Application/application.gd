@@ -1603,21 +1603,27 @@ func _build_sea_floor_fields(box: VBoxContainer) -> void:
 	form.add_child(crust)
 	var palette := OptionButton.new()
 	palette.name = "CrustPalette"
-	palette.tooltip_text = "What the crust is colored from, youngest to oldest"
+	palette.tooltip_text = "What the crust is colored from by its age, or one color for all of it"
 	for key in ViewSettings.CRUST_PALETTES:
 		palette.add_item(str(ViewSettings.CRUST_PALETTES[key]))
 		palette.set_item_metadata(palette.item_count - 1, key)
 	palette.item_selected.connect(func(_index: int) -> void: _on_view_field_changed())
 	crust.add_child(palette)
 	view_fields["crust_palette"] = palette
-	# The ramp is spread over the ages of the crust in the document, so it has
-	# no span of its own.
-	var ramp := RampRow.new(1.0)
-	ramp.span_spin.visible = false
+	# The same ramp a group style has, span and all.
+	var ramp := RampRow.new(Document.MAX_TIME)
 	ramp.previewed.connect(_on_view_field_changed.bind(false))
 	ramp.committed.connect(_on_view_field_changed)
 	crust.add_child(ramp)
 	view_fields["crust_ramp_colors"] = ramp
+	view_fields["crust_ramp_span"] = ramp.span_spin
+	var single := Helpers.color_button("CrustColor", Helpers.COLOR_TOOLTIP)
+	single.custom_minimum_size = Vector2(140, 28)
+	single.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	single.color_changed.connect(func(_color: Color) -> void: _on_view_field_changed(false))
+	single.popup_closed.connect(_on_view_field_changed)
+	crust.add_child(single)
+	view_fields["crust_color"] = single
 
 	_view_color(form, "crust_lines_color", "Isochrons and flowlines")
 
@@ -1715,8 +1721,17 @@ func _fill_view_fields() -> void:
 	view_fields["crust_palette"].select(
 		ViewSettings.CRUST_PALETTES.keys().find(settings.crust_palette))
 	view_fields["crust_ramp_colors"].colors = settings.crust_ramp_colors
-	view_fields["crust_ramp_colors"].visible = settings.crust_palette == Palette.RAMP
+	view_fields["crust_ramp_span"].set_value_no_signal(settings.crust_ramp_span)
+	view_fields["crust_color"].color = settings.crust_color
+	_show_crust_fields(settings)
 	view_fields["crust_lines_color"].color = settings.crust_lines_color
+
+
+# The ramp editor only for the custom ramp, the color picker only for a single
+# color.
+func _show_crust_fields(settings: ViewSettings) -> void:
+	view_fields["crust_ramp_colors"].visible = settings.crust_palette == Palette.RAMP
+	view_fields["crust_color"].visible = settings.crust_palette == ViewSettings.CRUST_SINGLE
 
 
 # One field moved: take the whole block off the dialog and hand it to the
@@ -1740,7 +1755,9 @@ func _on_view_field_changed(commit: bool = true) -> void:
 	var palette: OptionButton = view_fields["crust_palette"]
 	settings.crust_palette = str(palette.get_item_metadata(palette.selected))
 	settings.crust_ramp_colors = view_fields["crust_ramp_colors"].colors
-	view_fields["crust_ramp_colors"].visible = settings.crust_palette == Palette.RAMP
+	settings.crust_ramp_span = view_fields["crust_ramp_span"].value
+	settings.crust_color = view_fields["crust_color"].color
+	_show_crust_fields(settings)
 	settings.crust_lines_color = view_fields["crust_lines_color"].color
 	if commit:
 		document.view_edited()

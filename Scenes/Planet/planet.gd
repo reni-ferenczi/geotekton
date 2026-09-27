@@ -180,12 +180,10 @@ class Geometry extends RefCounted:
 	# feature sits, whether it is shown and what colour it comes out are all
 	# answered per column. A feature takes one column, except a crust, which
 	# takes one per band so that the age ramp can colour each band on its own;
-	# `bands` then holds the age of the crust in that band, and oldest_crust the
-	# oldest age of any band, which is where the ramp ends.
+	# `bands` then holds the age of the crust in that band.
 	var features: Array[Feature] = []
 	var index_of := {}
 	var bands := {}
-	var oldest_crust := 0.0
 
 	# How many features were left out because MAX_PRIMITIVES was reached.
 	var dropped: int = 0
@@ -310,7 +308,7 @@ class Geometry extends RefCounted:
 			var node: Feature = features[index]
 			var color := drawing.color_of(node, time)
 			if bands.has(index):
-				color = drawing.crust_color(bands[index], oldest_crust)
+				color = drawing.crust_color(bands[index])
 			colors[index] = color
 			line_colors[index] = drawing.line_color_of(node, color)
 
@@ -527,7 +525,6 @@ static func _collect_bands(geometry: Geometry, node: Feature, first: int) -> int
 	var count := mini(node.ring_triangles.size(), ages.size())
 	if count == 0:
 		return first
-	geometry.oldest_crust = maxf(geometry.oldest_crust, ages[0])
 	var verts := node.triangles
 	var at := 0
 	var index := first
