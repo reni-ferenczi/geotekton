@@ -143,6 +143,20 @@ their own points in place of the highlight, and the Draw tool's preview of the s
 being drawn is drawn over it as before. See
 [Shader](Shader.md#the-selected-feature).
 
+### Highlighting the parent and siblings
+
+View > Highlight parent and siblings is the same kind of switch the other way
+up. At the current time the **parent** is what the selected feature follows,
+both parents while it sits midway between two, and the **siblings** are the
+other features that follow any of those parents directly at that time. The
+parent is traced in magenta and the siblings in lime, on the planet the way a
+child is traced in orange, and their rows get a faint tint of the same color.
+The three colors differ, so all three switches can be on at once; a feature
+that is both a child and a sibling is marked a child. Selecting a group, or a
+feature that follows nothing at the current time, marks nothing. Off by
+default and remembered in the settings file (`highlight_parent_siblings`).
+`Coupling.parents_at()` and `Coupling.siblings_of()` find them.
+
 ### Highlighting children
 
 View > Highlight children shows which features are

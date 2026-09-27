@@ -116,6 +116,52 @@ func test_a_span_holds_its_older_end_and_not_its_younger_one() -> void:
 	assert_true(open.holds(0.0), "a span that runs to the present holds the present")
 
 
+### Parent and siblings (GP-0137)
+
+
+# Mountain and Child follow Craton from 500 to 200 Ma; Island sits midway
+# between Craton and Mountain from 400 to 300 Ma.
+func _family() -> Dictionary:
+	var root := Feature.create_group("Planet")
+	root.is_root = true
+	var family := {}
+	for title in ["Craton", "Mountain", "Child", "Island"]:
+		family[title] = _polygon(title)
+		root.children.append(family[title])
+	family["Mountain"].couplings.append(Coupling.create(500.0, 200.0, family["Craton"].uuid))
+	family["Child"].couplings.append(Coupling.create(500.0, 200.0, family["Craton"].uuid))
+	family["Island"].couplings.append(Coupling.create(400.0, 300.0, family["Craton"].uuid,
+		family["Mountain"].uuid))
+	family["root"] = root
+	return family
+
+
+func test_the_parent_and_the_siblings_at_a_time() -> void:
+	var f := _family()
+	assert_eq(_titles(Coupling.parents_at(f["root"], f["Child"], 450.0)), ["Craton"],
+		"Child follows Craton at 450 Ma")
+	assert_eq(_titles(Coupling.siblings_of(f["root"], f["Child"], 450.0)), ["Mountain"],
+		"and Mountain follows it too")
+	assert_eq(_titles(Coupling.siblings_of(f["root"], f["Child"], 350.0)), ["Island", "Mountain"],
+		"at 350 Ma Island, midway, follows Craton as well")
+
+
+func test_a_midway_span_has_two_parents_and_the_siblings_of_both() -> void:
+	var f := _family()
+	assert_eq(_titles(Coupling.parents_at(f["root"], f["Island"], 350.0)), ["Craton", "Mountain"],
+		"a midway span follows both parents")
+	assert_eq(_titles(Coupling.siblings_of(f["root"], f["Island"], 350.0)), ["Child", "Mountain"],
+		"the other followers of Craton; nothing else follows Mountain")
+
+
+func test_outside_every_coupling_there_is_no_parent_and_no_sibling() -> void:
+	var f := _family()
+	assert_eq(Coupling.parents_at(f["root"], f["Child"], 100.0).size(), 0, "Child is free at 100 Ma")
+	assert_eq(Coupling.siblings_of(f["root"], f["Child"], 100.0).size(), 0, "so it has no siblings")
+	assert_eq(Coupling.parents_at(f["root"], f["Craton"], 450.0).size(), 0, "Craton follows nothing")
+	assert_eq(Coupling.siblings_of(f["root"], f["root"], 450.0).size(), 0, "nor does a group")
+
+
 ### The completion gate
 
 

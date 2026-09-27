@@ -838,6 +838,13 @@ def run_coupling_session(client: AutomationClient, folder: Path) -> None:
           "the View menu switches the child highlight on")
     client.call("menu", item="highlight_children")
     check(not client.call("get_panels")["panels"]["highlight_children"], "and off again")
+    check(not client.call("get_panels")["panels"]["highlight_parent_siblings"],
+          "the parent and siblings are not highlighted until that is asked for")
+    client.call("menu", item="highlight_parent_siblings")
+    check(client.call("get_panels")["panels"]["highlight_parent_siblings"],
+          "the View menu switches that highlight on")
+    client.call("menu", item="highlight_parent_siblings")
+    check(not client.call("get_panels")["panels"]["highlight_parent_siblings"], "and off again")
 
     # Couple, drag the parent: the child moves with it.
     client.call("set_time", time=DECOUPLED_AT)

@@ -50,6 +50,18 @@ func test_the_shader_draws_children_in_the_same_orange() -> void:
 			"component %d of the shader's CHILD_COLOR" % i)
 
 
+# The parent and the siblings likewise (GP-0137).
+func test_the_shader_draws_the_parent_and_the_siblings_in_the_same_colors() -> void:
+	var colors := {"PARENT_COLOR": Planet.PARENT_COLOR, "SIBLING_COLOR": Planet.SIBLING_COLOR}
+	for name: String in colors:
+		var numbers := _constant(name).trim_prefix("vec3(").trim_suffix(")").split(",")
+		var wanted: Color = colors[name].srgb_to_linear()
+		assert_eq(numbers.size(), 3, "the shader's %s has three components" % name)
+		for i in mini(numbers.size(), 3):
+			assert_close(numbers[i].strip_edges().to_float(), wanted[i], 1e-5,
+				"component %d of the shader's %s" % [i, name])
+
+
 # A hotspot sample dot and the pole cross are drawn at a fraction of what a
 # marker and a feature line are, and the tests that probe them take the fraction
 # from Planet.

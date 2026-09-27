@@ -75,6 +75,16 @@ const vec3 CHILD_COLOR = vec3(1.0, 0.214041, 0.0);
 // changed or dropped: an sRGB red, (1.0, 0.2, 0.2), in linear light.
 const vec3 REFUSED_COLOR = vec3(1.0, 0.033105, 0.033105);
 
+// The parent's and the siblings' color likewise: Planet.PARENT_COLOR and
+// Planet.SIBLING_COLOR in linear light.
+const vec3 PARENT_COLOR = vec3(1.0, 0.050876, 0.692071);
+const vec3 SIBLING_COLOR = vec3(0.263273, 1.0, 0.033105);
+
+// The color of a feature related to the selected one, by Planet.Relation.
+vec3 relation_color(int relation) {
+	return relation == 2 ? PARENT_COLOR : relation == 3 ? SIBLING_COLOR : CHILD_COLOR;
+}
+
 // Per feature state at the current time (filter_nearest for exact texel reads)
 // Layout: width = one column per drawn feature, height = 6
 //   Row 0: (m00, m10, m20, hovered)  -- the first column of the rotation
@@ -89,7 +99,8 @@ const vec3 REFUSED_COLOR = vec3(1.0, 0.033105, 0.033105);
 // `visible` is 0 while the feature is outside its time range, `hovered` is 1
 // while the pointer rests on it, `selected` is 1 on the feature whose
 // segments get a white halo, and `related` is 1 on a child of the
-// selected feature, whose lines and markers are drawn orange. A related
+// selected feature, 2 on its parent and 3 on a sibling (Planet.Relation), whose
+// lines and markers are drawn in relation_color(). A related
 // polygon keeps its fill; the outline overlay traces it instead. `line_scale`
 // is what the feature's segments are drawn at against geometry_line_width,
 // halo and feather included: Feature.line_scale(). The line color is the
@@ -109,13 +120,14 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 // every segment alike (a polygon in the Vertex tool), 4 closes it the same way
 // with no markers (a selected polygon), 5 draws larger markers only (a
 // selected multipoint) and 6 closes it like 4 in CHILD_COLOR (a polygon that
-// follows the selected feature). 7 draws an open line BOLD_SCALE times as wide
+// follows the selected feature); 11 and 12 do the same in PARENT_COLOR and
+// SIBLING_COLOR. 7 draws an open line BOLD_SCALE times as wide
 // as a feature line, geometry_line_width, with no markers (the pole cross). 8 is
 // a circle drawn like 3, from two vertices, its center and a point of its rim,
 // with no markers (the circle being drawn). 9 is 0 with no markers, for a run
 // sampled finely enough that a dot per vertex would be a string of beads (the
 // Measure tool's parallels). 10 is 0 in REFUSED_COLOR (a cut the Split tool
-// refused). Every style but 4, 6, 7, 8 and 9 marks each vertex.
+// refused). Every style but 4, 6, 7, 8, 9, 11 and 12 marks each vertex.
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
 uniform float outline_line_width = 0.002;
@@ -350,7 +362,7 @@ void fragment() {
 	float hovered = 0.0;
 	bool feature_visible = true;
 	bool feature_selected = false;
-	bool feature_related = false;
+	int feature_related = 0;
 	float line_scale = 1.0;
 	vec4 feature_color = vec4(1.0);
 	vec4 feature_line_color = vec4(1.0);
@@ -381,7 +393,7 @@ void fragment() {
 			feature_selected = f2.w > 0.5;
 			feature_color = texelFetch(feature_data, ivec2(feature, 3), 0);
 			vec4 f4 = texelFetch(feature_data, ivec2(feature, 4), 0);
-			feature_related = f4.r > 0.5;
+			feature_related = int(f4.r + 0.5);
 			line_scale = f4.g;
 			feature_line_color = texelFetch(feature_data, ivec2(feature, 5), 0);
 		}
@@ -416,9 +428,9 @@ void fragment() {
 				selected_hovered = hovered;
 				continue;
 			}
-			// A related line is drawn opaque orange.
-			if (feature_related) {
-				paint = vec4(CHILD_COLOR, 1.0);
+			// A related line is drawn opaque in its relation's color.
+			if (feature_related > 0) {
+				paint = vec4(relation_color(feature_related), 1.0);
 			}
 			coverage = line_coverage(geometry_line_width * line_scale, d);
 		} else {
@@ -429,8 +441,8 @@ void fragment() {
 				selected_dot = max(selected_dot, coverage);
 				continue;
 			}
-			if (feature_related) {
-				paint = vec4(CHILD_COLOR, 1.0);
+			if (feature_related > 0) {
+				paint = vec4(relation_color(feature_related), 1.0);
 			}
 		}
 
@@ -469,6 +481,8 @@ void fragment() {
 		float closing_line_dist = 1e10;
 		float closed_line_dist = 1e10;
 		float child_line_dist = 1e10;
+		float parent_line_dist = 1e10;
+		float sibling_line_dist = 1e10;
 		float bold_line_dist = 1e10;
 		float refused_dot_dist = 1e10;
 		float refused_line_dist = 1e10;
@@ -494,7 +508,7 @@ void fragment() {
 			}
 			if (style == 10) {
 				refused_dot_dist = min(refused_dot_dist, chord(a, p));
-			} else if (style != 4 && style != 6 && style != 7 && style != 9) {
+			} else if (style != 4 && style != 6 && style != 7 && style != 9 && style != 11 && style != 12) {
 				min_dot_dist = min(min_dot_dist, chord(a, p));
 			}
 			if (style == 2) {
@@ -517,6 +531,10 @@ void fragment() {
 				closing_line_dist = min(closing_line_dist, d);
 			} else if (style == 6) {
 				child_line_dist = min(child_line_dist, d);
+			} else if (style == 11) {
+				parent_line_dist = min(parent_line_dist, d);
+			} else if (style == 12) {
+				sibling_line_dist = min(sibling_line_dist, d);
 			} else if (style == 7) {
 				bold_line_dist = min(bold_line_dist, d);
 			} else if (style == 10) {
@@ -537,6 +555,8 @@ void fragment() {
 		float outline_alpha = max(max(dot_alpha, bold_alpha), max(max(line_alpha, closed_alpha), closing_alpha));
 		float child_alpha = line_coverage(outline_line_width, child_line_dist);
 		base = mix(base, CHILD_COLOR, child_alpha);
+		base = mix(base, PARENT_COLOR, line_coverage(outline_line_width, parent_line_dist));
+		base = mix(base, SIBLING_COLOR, line_coverage(outline_line_width, sibling_line_dist));
 		base = mix(base, HIGHLIGHT_COLOR, outline_alpha);
 		float refused_alpha = max(line_coverage(outline_line_width, refused_line_dist),
 			1.0 - smoothstep(outline_dot_radius * 0.7, outline_dot_radius, refused_dot_dist));
