@@ -1718,6 +1718,7 @@ def run_timeline_checks(client: AutomationClient) -> None:
     client.call("key", key="PageUp")
     check(client.call("get_time")["time"] == 400.0, "a skip never leaves the animation range")
     run_keyframe_jump_checks(client)
+    run_marker_alignment_checks(client)
 
     # A time typed in reaches the slider through the document, the same way a
     # time set from a script does.
@@ -1838,6 +1839,41 @@ def run_keyframe_jump_checks(client: AutomationClient) -> None:
         client.call("set_time", time=333.0)
         client.call("click", x=(x_a + x_b) / 2.0, y=y_a)
         check(client.call("get_time")["time"] == 333.0, "a click between the marks does nothing")
+
+
+# The animation range the marks are checked over: wide, so a pixel is several
+# times the slider's step of 1 My and a mark a few pixels off the grabber is
+# further off than the step can explain.
+ALIGNMENT_OLDEST = 2500.0
+ALIGNMENT_KEY = 500.0
+
+
+def run_marker_alignment_checks(client: AutomationClient) -> None:
+    """GP-0139: each keyframe mark stands under the slider's grabber at that
+    time. A click on the slider at a mark's x lands on the mark's time, which
+    is the slider's own reading of where its grabber is, since it turns a click
+    into a value the way it places the grabber."""
+    before = client.call("get_timeline")["timeline"]["animation"]
+    client.call("set_animation", animation={"start": ALIGNMENT_OLDEST, "end": 0.0})
+    client.call("set_time", time=ALIGNMENT_KEY)
+    client.call("keyframes", button="Key")
+    timeline = client.call("get_timeline")["timeline"]
+    x0, y0, width, height = timeline["slider_screen"]
+    one_pixel = ALIGNMENT_OLDEST / width
+    marks = timeline["marker_screen"]
+    check(len(marks) == 3, f"three keyframes are marked: {marks}")
+    for time, x, _ in marks:
+        client.call("click", x=x, y=y0 + height / 2.0)
+        landed = client.call("get_time")["time"]
+        check(abs(landed - time) <= one_pixel + 0.5,
+              f"the mark of {time} Ma at {x:.1f} is under the grabber: a click on the slider "
+              f"there lands on {landed} Ma, a pixel being {one_pixel:.2f} My")
+    for time, x, y in client.call("get_timeline")["timeline"]["marker_screen"]:
+        client.call("click", x=x, y=y)
+        check(client.call("get_time")["time"] == time,
+              f"and a click on the mark still lands on {time} Ma exactly")
+    client.call("menu", item="undo")
+    client.call("set_animation", animation={"start": before["start"], "end": before["end"]})
 
 
 ### The Circle scenario
