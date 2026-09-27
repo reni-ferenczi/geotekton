@@ -357,6 +357,15 @@ A midway topology of two sections, none of them with a side, is one a side,
 which is what every ridge was before 0.30.0. A topology without `midway` is not
 midway.
 
+A ridge with an end at a [triple junction](Editing.md#triple-junctions) adds
+`junctions`, one id for its first vertex and one for its last, `""` at an end
+that meets no other ridge. The ridges whose ends share an id meet there. A
+ridge without the key meets none:
+
+```json
+"junctions": ["", "9c0b..."]
+```
+
 A [crust](Editing.md#the-crust) is a topology with no sections and a `crust`
 object naming what it is built from:
 
@@ -721,10 +730,10 @@ was drawn at.
 
 #### 0.29.0 to 0.30.0
 
-0.30.0 gave the sections of a ridge a `side` and `points`; see
-[Topologies](#topologies). Nothing but the version moves: a ridge from before
-has two sections without a side, which `Feature.from_json()` reads as one a
-side.
+0.30.0 gave the sections of a ridge a `side` and `points`, and a ridge at a
+triple junction its `junctions`; see [Topologies](#topologies). Nothing but the
+version moves: a ridge from before has two sections without a side, which
+`Feature.from_json()` reads as one a side, and no triple junctions.
 
 ## The config file
 

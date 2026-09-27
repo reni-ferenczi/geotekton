@@ -101,6 +101,10 @@ var closed := false
 # vertex, the way a mid-ocean ridge lies between the plates it opens. Each
 # section says which side it is on; see Logic/ridge.gd.
 var midway := false
+# Where a ridge's first and last vertices meet other ridges at a triple
+# junction: an id the ridges meeting there share, or "" at an end that meets
+# none. Empty on a ridge that meets none at either end. See Ridge.ring_at().
+var ridge_junctions := PackedStringArray()
 
 # What a crust is built from: the half of a split plate it lies beside, the
 # ridge it opened from and how many vertices the cut had. A crust is a topology
@@ -461,6 +465,7 @@ func clone() -> Feature:
 	node.sections = TopologySection.clone_list(sections)
 	node.closed = closed
 	node.midway = midway
+	node.ridge_junctions = ridge_junctions.duplicate()
 	node.crust_half = crust_half
 	node.crust_ridge = crust_ridge
 	node.crust_edge = crust_edge
@@ -606,6 +611,9 @@ func to_json() -> Variant:
 			# Both 0.23.0, and written only when set, like closed.
 			if midway:
 				data["midway"] = true
+			# 0.30.0, and written only on a ridge that meets others.
+			if not ridge_junctions.is_empty():
+				data["junctions"] = Array(ridge_junctions)
 			if is_crust():
 				data["crust"] = {"half": crust_half, "ridge": crust_ridge, "edge": crust_edge}
 		else:
@@ -673,6 +681,7 @@ static func from_json(data: Variant) -> Feature:
 		node.sections = TopologySection.list_from_json(data.get("sections", []))
 		node.closed = bool(data.get("closed", false))
 		node.midway = bool(data.get("midway", false))
+		node.ridge_junctions = PackedStringArray(data.get("junctions", []))
 		# A ridge written before its sections said their side is one coast piece
 		# a side, the first section on side 0 and the second on side 1.
 		if node.midway and node.sections.size() == 2 \

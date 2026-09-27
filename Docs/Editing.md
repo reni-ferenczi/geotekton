@@ -694,6 +694,12 @@ the sea floor belongs to the plate it is attached to.
   as coast pieces and the flowline across the old crust as sea riding with the
   piece on each side. Its crusts fill the widening gap between the two pieces
   and their old crust, so the sea floor has no holes.
+- The three ridges meet in one point. Each ridge lies halfway between its two
+  plates, so once O and the two pieces of H drift apart, the three ends at the
+  junction would be three points with bare sea between them. Their ends are put
+  at the mean of the three instead, and the crusts, built from the ridges at
+  every age, meet along the path the junction takes across each plate: the
+  bands close around it in triangles, with no wedge of bare sea.
 - A cut that crosses the coast twice, in from the old crust and out again,
   splits R in three, and the new ridge runs along both flowlines.
 

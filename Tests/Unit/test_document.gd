@@ -1183,6 +1183,49 @@ func test_the_junction_leaves_no_bare_sea_floor() -> void:
 	assert_eq(bare, [], "every point between the pieces is land or crust")
 
 
+# GP-0130: after the cut the three ridges still meet in one point, and the sea
+# floor all around it is crust, O's side included, where the older crust's two
+# pieces used to open a wedge between them.
+func test_the_three_ridges_meet_in_one_point_with_crust_all_around() -> void:
+	var document := _cut_across_the_crust([-4.0, 5.0])
+	var halves := _halves_of_h(document)
+	var moving: Feature = halves[1]
+	assert_eq(document.set_keyframe(moving, T2, moving.rotation_at(T2)), "")
+	assert_eq(document.set_keyframe(moving, 0.0, moving.rotation_at(T2) + Vector3(0, 0, 6)), "")
+	var ridges := document.root.children.filter(func(n: Feature) -> bool: return n.midway)
+	assert_eq(ridges.size(), 3, "three ridges")
+	var meeting := Ridge.ring_at(document.root, _older_ridges(document)[0], T2)[-1]
+	for now in [T2 - 10.0, 0.0]:
+		var ends := []
+		for ridge: Feature in ridges:
+			var line := Ridge.ring_at(document.root, ridge, now)
+			var at_t2 := Ridge.ring_at(document.root, ridge, T2)
+			ends.append(line[0] if at_t2[0].distance_to(meeting) < at_t2[-1].distance_to(meeting)
+				else line[-1])
+		for end: Vector2 in ends:
+			assert_true(end.distance_to(ends[0]) < 1e-6,
+				"the ridges meet in one point at %s Ma: %s" % [now, ends])
+		var covers: Array[PackedVector2Array] = []
+		for node: Feature in document.root.children:
+			if node.is_crust():
+				Crust.rebuild(document.root, node, now, 25.0)
+				covers.append_array(node.rings)
+		var bare := []
+		for k in 24:
+			var point: Vector2 = ends[0] + Vector2.from_angle(TAU * k / 24.0) * 0.5
+			if not covers.any(func(ring: PackedVector2Array) -> bool:
+					return Geometry2D.is_point_in_polygon(point, ring)):
+				bare.append(point)
+		assert_eq(bare, [], "crust all around the junction at %s Ma" % now)
+	# The file keeps where they meet.
+	var read := Feature.from_json(JSON.parse_string(JSON.stringify(document.root.to_json())))
+	for ridge: Feature in ridges:
+		assert_eq(read.get_node_by_uuid(ridge.uuid).ridge_junctions, ridge.ridge_junctions,
+			"%s meets the others after a save" % ridge.title)
+	assert_eq(ridges.filter(func(r: Feature) -> bool: return r.ridge_junctions.size() == 2).size(), 3,
+		"each ridge has an end at the junction")
+
+
 func test_across_the_old_crust_the_cut_follows_the_flowline() -> void:
 	var document := _cut_across_the_crust([-4.0, 5.0])
 	var young: Feature = document.root.children.filter(func(n: Feature) -> bool:

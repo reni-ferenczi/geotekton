@@ -660,6 +660,8 @@ func _split_by_path(feature: Feature, part: int, path: PackedVector2Array,
 	split_ridge = not sections.is_empty()
 	if split_ridge:
 		var laid := _add_ridge(parent, feature, other, sections)
+		if _ridge_ends != PackedStringArray(["", ""]):
+			laid.ridge_junctions = _ridge_ends
 		if crust:
 			var edge := 0
 			for section in sections:
@@ -680,6 +682,10 @@ var _cut_edges := {}
 # fraction of a segment of the path.
 const ALONG_CLOSE := 1e-6
 
+# The junctions the new ridge's first and last vertices run to, "" at an end
+# that runs to none. Set by _ridge_sections().
+var _ridge_ends := PackedStringArray(["", ""])
+
 
 # The two sides of the ridge a cut leaves, as the sections of a midway topology
 # in the order the cut runs, side 0 the side the split feature keeps; see
@@ -697,9 +703,11 @@ const ALONG_CLOSE := 1e-6
 #
 # Where the cut leaves land across the coast an older ridge lies along, the
 # junction, it runs on along the junction's flowline to the older ridge instead
-# of the path drawn out there; see _split_older_ridges().
+# of the path drawn out there; see _split_older_ridges(). It then meets the
+# older ridge's pieces there; see _ridge_ends.
 func _ridge_sections(world_path: PackedVector2Array, stand_in: Dictionary,
 		split_uuid: String, first: int, junctions: Array = []) -> Array[TopologySection]:
+	_ridge_ends = PackedStringArray(["", ""])
 	var runs := []
 	for uuid: String in _cut_edges:
 		var basis := Feature.world_basis(root, stand_in[uuid][first], current_time)
@@ -760,6 +768,7 @@ func _ridge_sections(world_path: PackedVector2Array, stand_in: Dictionary,
 				sea.append(junction["at"])
 			sea.append_array(flow)
 			pieces.append(sea)
+			_ridge_ends[1] = junction["id"]
 		elif at <= entered + ALONG_CLOSE:
 			flow = flow.duplicate()
 			flow.reverse()
@@ -770,6 +779,7 @@ func _ridge_sections(world_path: PackedVector2Array, stand_in: Dictionary,
 				if k > at + ALONG_CLOSE and k < entered - ALONG_CLOSE:
 					sea.append(world_path[k])
 			pieces.push_front(sea)
+			_ridge_ends[0] = junction["id"]
 	if pieces.is_empty():
 		pieces.append(world_path)
 
@@ -1282,6 +1292,8 @@ func _split_older_ridges(crossable: Array, watched: Array, changed: Dictionary,
 		if junctions.is_empty():
 			continue
 		_snap_junctions(junctions, changed)
+		for junction: Dictionary in junctions:
+			junction["id"] = Helpers.generate_uuid_v4()
 		crossing[info["ridge"]] = true
 		info["junctions"] = junctions
 		all.append_array(junctions)
@@ -1358,7 +1370,8 @@ func _snap_junctions(junctions: Array, changed: Dictionary) -> void:
 # Split one older ridge at its junctions, and each of its crusts with it. The
 # first piece keeps the ridge and the crusts; each other one is a copy beside
 # them. Every piece of H's side goes to the piece of H on its side of the cut,
-# and so does a crust moving with H.
+# and so does a crust moving with H. The pieces' ends at a junction meet there;
+# the ridge's own two ends go on meeting whatever they met.
 func _split_older_ridge(info: Dictionary, crossable: Array, stand_in: Dictionary,
 		world_path: PackedVector2Array) -> void:
 	var ridge: Feature = info["ridge"]
@@ -1372,7 +1385,7 @@ func _split_older_ridge(info: Dictionary, crossable: Array, stand_in: Dictionary
 		var k: int = junction["k"]
 		var f: float = junction["f"]
 		if f == 0.0:
-			cuts.append(k)
+			cuts.append([k, junction["id"]])
 			continue
 		var before: Dictionary = sides[h][k]
 		var after: Dictionary = sides[h][k + 1]
@@ -1386,15 +1399,20 @@ func _split_older_ridge(info: Dictionary, crossable: Array, stand_in: Dictionary
 		sides[1 - h].insert(k + 1, _matching_point(sides[1 - h][k], sides[1 - h][k + 1], f,
 			age, crossable))
 		for c in cuts.size():
-			cuts[c] += 1
-		cuts.append(k + 1)
-	cuts.sort()
+			cuts[c][0] += 1
+		cuts.append([k + 1, junction["id"]])
+	cuts.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 
+	var last: int = sides[h].size() - 1
 	var bounds := [0]
-	for c: int in cuts:
-		if c > bounds[-1] and c < sides[h].size() - 1:
-			bounds.append(c)
-	bounds.append(sides[h].size() - 1)
+	var meets := {0: "", last: ""}
+	if not ridge.ridge_junctions.is_empty():
+		meets = {0: ridge.ridge_junctions[0], last: ridge.ridge_junctions[1]}
+	for c: Array in cuts:
+		if c[0] > bounds[-1] and c[0] < last:
+			bounds.append(c[0])
+			meets[c[0]] = c[1]
+	bounds.append(last)
 	var parent := root.find_parent(ridge)
 	var crusts := _sea_floor().filter(func(node: Feature) -> bool:
 		return node.is_crust() and node.crust_ridge == ridge.uuid)
@@ -1415,6 +1433,9 @@ func _split_older_ridge(info: Dictionary, crossable: Array, stand_in: Dictionary
 			sections.append_array(_sections_of((sides[s] as Array).slice(from, to + 1), s,
 				cut_side if s == h else 0, stand_in))
 		piece.sections = sections
+		piece.ridge_junctions = PackedStringArray([meets[from], meets[to]])
+		if piece.ridge_junctions == PackedStringArray(["", ""]):
+			piece.ridge_junctions.clear()
 		Topology.rebuild(root, piece, current_time)
 		for crust: Feature in crusts:
 			var own := crust

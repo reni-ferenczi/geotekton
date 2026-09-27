@@ -16,12 +16,56 @@ class_name Ridge
 # split, and carried out again by the rotation halfway between the two
 # features' rotations. For two features that have not moved apart, that is the
 # point midway between the pair.
+#
+# Where three ridges meet at a triple junction, each end there is its own pair's
+# half stage point, and once the three plates drift apart those are three
+# points, leaving a wedge of bare sea floor between the crusts. So every end
+# that meets others (Feature.ridge_junctions) is put at the mean of all their
+# ends: the ridges meet in one point, and the crusts beside them, which are
+# built from the ridge at every age, meet along the path that point takes. A
+# ridge younger than the time is left out, since it was not there yet. As long
+# as the plates have not drifted apart the ends lie on each other and nothing
+# moves.
 
 
 # The ridge at that time, in world coordinates: one vertex for each pair of
-# vertices of the two sides. Empty when the sides cannot be resolved or differ
-# in length; Topology.resolve() says why.
+# vertices of the two sides, its ends put where they meet other ridges. Empty
+# when the sides cannot be resolved or differ in length; Topology.resolve()
+# says why.
 static func ring_at(root: Feature, node: Feature, time: float) -> PackedVector2Array:
+	var ring := _pairs_at(root, node, time)
+	if ring.is_empty() or node.ridge_junctions.is_empty():
+		return ring
+	for end in 2:
+		var id := node.ridge_junctions[end]
+		if id.is_empty():
+			continue
+		var sum := Vector3.ZERO
+		for other in _meeting(root, id):
+			if other != node and time > other.time_range.y:
+				continue
+			var line := ring if other == node else _pairs_at(root, other, time)
+			if not line.is_empty():
+				sum += Feature._latlon_to_xyz_s(line[other.ridge_junctions.find(id) * (line.size() - 1)])
+		if sum.length() > 1e-9:
+			ring[end * (ring.size() - 1)] = Feature._xyz_to_latlon_s(sum.normalized())
+	return ring
+
+
+# Every ridge with an end at that junction.
+static func _meeting(root: Feature, id: String) -> Array[Feature]:
+	var found: Array[Feature] = []
+	var stack: Array[Feature] = [root]
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		stack.append_array(node.children)
+		if node.midway and id in node.ridge_junctions:
+			found.append(node)
+	return found
+
+
+# The ridge vertex by vertex, each the half stage point of its pair.
+static func _pairs_at(root: Feature, node: Feature, time: float) -> PackedVector2Array:
 	var ring := PackedVector2Array()
 	var sides := [[], []]
 	for entry: Dictionary in Topology.resolve(root, node, time):
