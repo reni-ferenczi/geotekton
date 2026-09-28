@@ -397,7 +397,10 @@ from the oldest end to the youngest, that there is one rate per pair of
 keyframes, and that the place and the rate at the current time agree with where
 the globe has actually drawn the feature. It then moves the time and checks that
 the cursor lands at that fraction across the plotting area, selects the group to
-check the panel empties, and hides the panel again. See
+check the panel empties, and hides the panel again. While the animation plays
+a few frames it checks that the line above the graphs and the graphs stay where
+they are and that the rate beside the rate row is the rate at each frame's time
+(GP-0141). See
 [Kinematics](Kinematics.md).
 
 The kinematics drag scenario couples the blue quad of `two_cratons.geotekt` to
@@ -768,7 +771,7 @@ a round trip is also a wait for the screen to catch up.
 | `set_view_settings {view_settings, button}` | drives the View settings dialog through its own fields; only the keys given are changed. A key the dialog has no field for is refused with `no view setting called`, including the six style fields it once had (`draw_style`, `single_color`, `opacity`, `palette`, `ramp_colors`, `ramp_span`); a group's style is set with `set_property`. `hidden_classes` goes through the View menu switches instead, since that is where they are. `button` presses `SaveAsDefault`, `RestoreDefaults`, `BuiltInEarth` or `ClearRaster`. The `planet_color` field keeps a color opaque whatever alpha it is given. `crust_palette` takes `blue`, `rainbow`, `ramp` or `single`, `crust_ramp_colors` a list of at least two colors, `crust_ramp_span` a number of My and `crust_color` a color |
 | `get_time` / `set_time {time}`       | the current time of the document, an age in millions of years    |
 | `get_timeline`                       | the slider and its range, the typed time with the text its field `shown` and its `shown_width`, whether it is playing, the skip, the keyframe markers with where each is on screen, the `slider_screen` rect, the `couplings` bars of the selected feature with both ends, where the bar is drawn, its `color`, whether it is `dashed` and its `tooltip`, the `ridges` dots with the split age, the tooltip and where each is on screen, and the animation settings |
-| `get_kinematics`                     | `kinematics`, what the motion graphs hold: the `span` they cover, the `samples` of the path, one entry per `segments` between two keyframes, what both come to at the current time, the current rate the rate row reads beside its top (`rate_label`), the reference speeds the rate's `tooltip` lists, and where the `cursor` is drawn across the plotting area |
+| `get_kinematics`                     | `kinematics`, what the motion graphs hold: the `span` they cover, the `samples` of the path, one entry per `segments` between two keyframes, what both come to at the current time, the current rate the rate row reads beside its top (`rate_label`), the reference speeds the rate's `tooltip` lists, where the `cursor` is drawn across the plotting area, the line above the graphs (`readout`), and where it and the graphs are in the window (`readout_rect`, `graphs_rect`) |
 | `timeline {button}`                  | presses a time control button: `Play`, `Pause`, `Reset`, `Older`, `Younger`, `OlderKeyframe`, `YoungerKeyframe`, `Configure` |
 | `set_animation {animation}`          | changes the animation settings the dialog holds, refusing what cannot be played; only the keys given are changed |
 | `set_skip {skip}`                    | types a skip into the box beside the timeline's `<` and `>` buttons |

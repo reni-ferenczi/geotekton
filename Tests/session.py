@@ -5587,6 +5587,30 @@ def run_kinematics_drag_session(client: AutomationClient) -> None:
         check(speed in graphs["tooltip"], f"the rate's tooltip lists {speed!r}: {graphs['tooltip']!r}")
 
 
+def run_kinematics_playing_checks(client: AutomationClient) -> None:
+    """GP-0141: while the animation plays the panel's layout stands still and
+    its text changes only with the value it shows."""
+    client.call("set_animation", animation={"speed": 100.0, "loop": False})
+    client.call("set_time", time=CURSOR_TIME)
+    before = client.call("get_kinematics")["kinematics"]
+    client.call("timeline", button="Play")
+    frames = [client.call("get_kinematics")["kinematics"] for _ in range(6)]
+    client.call("timeline", button="Pause")
+    check(len({frame["time"] for frame in frames}) > 1,
+          f"the time moved while playing: {[frame['time'] for frame in frames]}")
+    for frame in frames:
+        check(frame["readout"] == before["readout"] and frame["readout_rect"] == before["readout_rect"]
+              and frame["graphs_rect"] == before["graphs_rect"],
+              f"at {frame['time']} Ma the readout and the graphs stay put: "
+              f"{frame['readout']!r} {frame['readout_rect']} {frame['graphs_rect']}")
+        km = frame["current"]["km_per_my"]
+        check(frame["rate_label"] == f"{km / 10.0:.2f} cm/yr",
+              f"and the rate beside the rate row is the rate then: {frame['rate_label']}, {km} km/My")
+    client.call("set_animation", animation={"speed": 50.0})
+    # Back where the checks after this one read the globe.
+    client.call("set_time", time=CURSOR_TIME)
+
+
 def run_kinematics_session(client: AutomationClient) -> None:
     """The kinematics panel: what it graphs, and how its cursor follows the time."""
     client.call("load", path=str(MOTION))
@@ -5638,6 +5662,7 @@ def run_kinematics_session(client: AutomationClient) -> None:
     check(graphs["readout"] == "",
           f"with a feature graphed the line above the graphs is empty: {graphs['readout']!r}")
     run_rate_unit_checks(client, graphs)
+    run_kinematics_playing_checks(client)
 
     # Where the feature is at that time, off the graph, is where the globe has
     # carried it as well.
