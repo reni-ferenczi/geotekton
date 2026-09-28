@@ -285,8 +285,9 @@ const CRUST_TITLES := ["Square", "Square 2", "Square ridge", "Square crust",
 
 # A square split at 100 Ma with Ridge and Crust on, the halves drifting apart
 # from there, one faster and both sliding along the cut, so that the half stage
-# rotation is not the identity.
-func _split_square(drift: bool) -> Document:
+# rotation is not the identity. The cut runs eastward unless asked otherwise,
+# which turns the ridge and its sides round.
+func _split_square(drift: bool, eastward := true) -> Document:
 	var document := Document.new()
 	var square := Feature.create_feature("Square")
 	square.add_ring(PackedVector2Array([Vector2(-10, -10), Vector2(-10, 10),
@@ -294,8 +295,10 @@ func _split_square(drift: bool) -> Document:
 	document.root.children.append(square)
 	document.current_time = 100.0
 	document.record()
-	assert_eq(document.split_feature_along(square, 0,
-		PackedVector2Array([Vector2(-11, 0), Vector2(0, 2), Vector2(11, 0)]), true, true), "")
+	var first_cut := PackedVector2Array([Vector2(-11, 0), Vector2(0, 2), Vector2(11, 0)])
+	if not eastward:
+		first_cut.reverse()
+	assert_eq(document.split_feature_along(square, 0, first_cut, true, true), "")
 	if drift:
 		for index in [0, 1]:
 			var half: Feature = document.root.children[index]
@@ -1134,6 +1137,60 @@ func test_the_older_crust_is_split_between_the_plates() -> void:
 			moved[crust.crust_half] = true
 	assert_close(total, whole, 1.0, "the pieces of H's crust add up to it, to the km²")
 	assert_eq(moved.size(), 2, "one piece moving with each piece of H")
+
+
+# GP-0143: each piece of the older ridge keeps a crust on each of its two
+# sides. With the first cut drawn westward the older ridge runs the other way,
+# and its first piece lies on the new piece of H. The crust copied for the
+# other ridge piece then still named the new piece, so the piece of H that
+# kept the title lost its crust there and stopped growing any.
+func test_each_older_ridge_piece_keeps_the_crusts_of_its_own_sides() -> void:
+	for eastward in [true, false]:
+		var document := _split_square(true, eastward)
+		document.current_time = T2
+		document.record()
+		assert_eq(document.split_feature_along(_east_half(document), 0,
+			_junction_path(document, [-4.0, 5.0]), true, true), "", "the cut is made")
+		for ridge: Feature in _older_ridges(document):
+			var sides := {}
+			for section in ridge.sections:
+				sides[section.feature_uuid] = true
+			var halves := _crusts_of(document, ridge).map(func(n: Feature) -> String:
+				return n.crust_half)
+			assert_eq(halves.size(), 2, "%s has two crusts" % ridge.title)
+			assert_true(halves.all(func(half: String) -> bool: return sides.has(half)),
+				"first cut eastward %s: the crusts of %s grow from its own sides, %s from %s"
+				% [eastward, ridge.title, halves, sides.keys()])
+			assert_true(halves[0] != halves[1], "one on each side")
+
+
+# A world saved before the fix holds a crust naming the other piece of the
+# plate. Loading gives it back to the piece on its side, and the document asks
+# to be saved.
+func test_loading_gives_a_crust_on_the_wrong_piece_back_to_its_side() -> void:
+	var document := _split_square(true, false)
+	document.current_time = T2
+	document.record()
+	assert_eq(document.split_feature_along(_east_half(document), 0,
+		_junction_path(document, [-4.0, 5.0]), true, true), "", "the cut is made")
+	var halves := _halves_of_h(document).map(func(n: Feature) -> String: return n.uuid)
+	var broken: Feature = null
+	var right := ""
+	for ridge: Feature in _older_ridges(document):
+		for crust: Feature in _crusts_of(document, ridge):
+			if broken == null and crust.crust_half in halves:
+				broken = crust
+				right = crust.crust_half
+				crust.crust_half = halves[1] if right == halves[0] else halves[0]
+	assert_true(broken != null, "a crust of H is put on the wrong piece")
+	assert_eq(document.save_to_file(SCRATCH), "", "and written as a world from before")
+
+	var reloaded := Document.new()
+	assert_eq(reloaded.load_from_file(SCRATCH), "", "the world loads")
+	assert_eq(reloaded.root.get_node_by_uuid(broken.uuid).crust_half, right,
+		"the crust is back on the piece on its side")
+	assert_true(reloaded.is_dirty(), "and the repaired world asks to be saved")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 
 
 # 10 My after the cut the two pieces of H have drifted apart; the new ridge's

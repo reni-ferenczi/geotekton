@@ -1416,6 +1416,10 @@ func _split_older_ridge(info: Dictionary, crossable: Array, stand_in: Dictionary
 	var parent := root.find_parent(ridge)
 	var crusts := _sea_floor().filter(func(node: Feature) -> bool:
 		return node.is_crust() and node.crust_ridge == ridge.uuid)
+	# The halves the crusts grew from before the cut. The first piece's crust is
+	# the original and is moved to a piece of H below, so the copies for the
+	# other pieces look up where they belong by these rather than by it (GP-0143).
+	var halves := crusts.map(func(crust: Feature) -> String: return crust.crust_half)
 	for i in bounds.size() - 1:
 		var from: int = bounds[i]
 		var to: int = bounds[i + 1]
@@ -1437,7 +1441,9 @@ func _split_older_ridge(info: Dictionary, crossable: Array, stand_in: Dictionary
 		if piece.ridge_junctions == PackedStringArray(["", ""]):
 			piece.ridge_junctions.clear()
 		Topology.rebuild(root, piece, current_time)
-		for crust: Feature in crusts:
+		for c in crusts.size():
+			var crust: Feature = crusts[c]
+			var half: String = halves[c]
 			var own := crust
 			if i > 0:
 				own = crust.duplicate()
@@ -1446,8 +1452,8 @@ func _split_older_ridge(info: Dictionary, crossable: Array, stand_in: Dictionary
 				holder.children.insert(holder.find_child(crust) + i, own)
 			own.crust_ridge = piece.uuid
 			own.crust_edge = to - from + 1
-			if stand_in.has(crust.crust_half) and (stand_in[crust.crust_half] as Dictionary).has(cut_side):
-				own.crust_half = (stand_in[crust.crust_half][cut_side] as Feature).uuid
+			if stand_in.has(half) and (stand_in[half] as Dictionary).has(cut_side):
+				own.crust_half = (stand_in[half][cut_side] as Feature).uuid
 
 
 # The point of the other side matching a junction a fraction f of the way
@@ -2033,15 +2039,53 @@ func load_from_file(file_path: String) -> String:
 
 	root = loaded
 	view = ViewSettings.from_json(migrated.get("view"))
+	var repaired := _repair_crust_halves()
+	if repaired > 0:
+		push_warning("%d crust%s named a plate off %s ridge and %s given the plate on its side (GP-0143)."
+			% [repaired, "" if repaired == 1 else "s", "its" if repaired == 1 else "their",
+			"was" if repaired == 1 else "were"])
 	versions.clear()
 	applied = 0
 	record()
-	_saved = applied
+	# A repaired document is not what the file holds, so it asks to be saved.
+	_saved = applied if repaired == 0 else -1
 	path = file_path
 	set_time(0.0)
 	root_replaced.emit(false)
 	state_changed.emit()
 	return ""
+
+
+# Before GP-0143 was fixed, a cut across older sea floor could leave the crust
+# of one ridge piece naming the piece of the plate on the other ridge piece,
+# which lies on neither side of its own ridge; it then grew nothing there. A
+# crust like that goes back to the one feature on the side no other crust of
+# its ridge holds. Returns how many were given back.
+func _repair_crust_halves() -> int:
+	var repaired := 0
+	var sea_floor := _sea_floor()
+	for crust: Feature in sea_floor:
+		var ridge := root.get_node_by_uuid(crust.crust_ridge) if crust.is_crust() else null
+		if ridge == null:
+			continue
+		var sides: Array[Dictionary] = [{}, {}]
+		for section in ridge.sections:
+			if section.side in [0, 1]:
+				sides[section.side][section.feature_uuid] = true
+		if sides.any(func(side: Dictionary) -> bool: return side.has(crust.crust_half)):
+			continue
+		var taken := {}
+		for other: Feature in sea_floor:
+			if other != crust and other.is_crust() and other.crust_ridge == ridge.uuid:
+				for s in 2:
+					if sides[s].has(other.crust_half):
+						taken[s] = true
+		var free := [0, 1].filter(func(s: int) -> bool:
+			return not taken.has(s) and sides[s].size() == 1)
+		if free.size() == 1:
+			crust.crust_half = sides[free[0]].keys()[0]
+			repaired += 1
+	return repaired
 
 
 # Read a document that was converted from something else. It is loaded like any

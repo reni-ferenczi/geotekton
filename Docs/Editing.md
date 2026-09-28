@@ -722,6 +722,15 @@ same way. The Vertex tool's split splits R where the cut ends on its coast, and
 leaves no new ridge, as it never does. All of it is the split's one undo
 version. Implemented by `Document._split_older_ridges()`.
 
+Each piece of R's crusts goes by the plate its crust grew from before the cut.
+Until GP-0143 the copies went by the first piece's crust instead, which had
+already moved to its piece of H. When that was the new piece, the piece of H
+that kept the title lost its crust along the other piece of R and grew none
+there. A world saved like that is repaired when it is opened: a crust naming a
+plate on neither side of its ridge goes to the plate on the side no other
+crust of that ridge holds, a warning says how many, and the document opens
+unsaved.
+
 ### The children
 
 With **Children** on, which is how it starts, the cut also goes through what
