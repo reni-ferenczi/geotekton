@@ -902,6 +902,21 @@ PICK_VIEW = (0.0, -30.0)
 PICK_EMPTY = (-40.0, -30.0)
 
 
+# What the status bar says while the parent pick is on, and the pointer shapes
+# over the planet, Control.CURSOR_CROSS and CURSOR_ARROW.
+PICK_STATUS = "Click the feature to follow, then Couple"
+CURSOR_CROSS = 3
+CURSOR_ARROW = 0
+
+
+def midpoint(a: list[float], b: list[float]) -> tuple[float, float]:
+    """The middle of the great circle arc between two lat/lon points."""
+    ua, ub = unit(a[0], a[1]), unit(b[0], b[1])
+    x, y, z = (p + q for p, q in zip(ua, ub))
+    length = math.sqrt(x * x + y * y + z * z)
+    return math.degrees(math.asin(y / length)), math.degrees(math.atan2(z, x))
+
+
 def run_pick_parent_checks(client: AutomationClient) -> None:
     """The pointer on the Follow row takes its parent from a click on the planet."""
     client.call("load", path=str(COUPLING_SAMPLE))
@@ -910,6 +925,8 @@ def run_pick_parent_checks(client: AutomationClient) -> None:
     client.call("set_time", time=COUPLED_AT)
     green = centroid_of(client, "Green Moved")
     green_uuid = client.call("get_selected")["feature"]["uuid"]
+    green_ring = client.call("get_selected")["feature"]["world_rings"][0]
+    blue = centroid_of(client, "Blue Quad")
     client.call("select", title="Red Triangle")
 
     row = coupling_row(client)
@@ -919,7 +936,10 @@ def run_pick_parent_checks(client: AutomationClient) -> None:
     client.call("coupling", pick=True)
     check(coupling_row(client)["picking"], "pressing it arms the pick")
     status = client.call("get_status")["status"]["measure"]
-    check(status == "Pick the feature to follow", f"and the status bar says so: {status!r}")
+    check(status == PICK_STATUS, f"and the status bar says so: {status!r}")
+    tool = client.call("get_tool")
+    check(tool["planet_cursor"] == CURSOR_CROSS and tool["pick_candidate"] == "",
+          f"the pointer over the planet is a cross, and nothing is picked yet: {tool}")
 
     # A click on the ocean says why and leaves the pointer armed.
     screen = client.call("latlon_to_screen", lat=PICK_EMPTY[0], lon=PICK_EMPTY[1])["screen"]
@@ -943,26 +963,62 @@ def run_pick_parent_checks(client: AutomationClient) -> None:
     check(coupling_row(client)["picking"] and status == "A feature cannot follow itself.",
           f"a click on the feature itself does too: {status!r}")
 
-    # A click on the green craton picks it, and nothing else moves.
+    # Clicks on the green craton, the blue quad and the green craton again:
+    # each one is the candidate in turn and the pick stays on, and nothing else
+    # moves.
     planet = client.call("latlon_to_screen", lat=PICK_VIEW[0], lon=PICK_VIEW[1])["screen"]
-    screen = client.call("latlon_to_screen", lat=green[0], lon=green[1])["screen"]
-    if not check(screen is not None, f"the green craton is on screen at {green}"):
-        return
-    client.call("click", x=screen[0], y=screen[1])
-    row = coupling_row(client)
-    check(row["parent"] == "Green Moved" and not row["picking"],
-          f"a click on the green craton picks it and ends the mode: {row}")
+    # The blue quad is round the planet from the other two, so the view turns to
+    # each feature in turn.
+    for title, where in (("Green Moved", green), ("Blue Quad", blue), ("Green Moved", green)):
+        client.call("set_view", lat=where[0], lon=where[1], angle=0.0, zoom=1.0, show_map=False)
+        screen = client.call("latlon_to_screen", lat=where[0], lon=where[1])["screen"]
+        if not check(screen is not None, f"{title} is on screen at {where}"):
+            return
+        client.call("click", x=screen[0], y=screen[1])
+        row = coupling_row(client)
+        tool = client.call("get_tool")
+        check(row["parent"] == title and row["picking"] and tool["pick_candidate"] == title,
+              f"a click on {title} makes it the candidate and the pick stays on: {row['parent']}, "
+              f"{row['picking']}, {tool['pick_candidate']}")
+    client.call("set_view", lat=PICK_VIEW[0], lon=PICK_VIEW[1], angle=0.0, zoom=1.0,
+                show_map=False)
+    status = client.call("get_status")["status"]["measure"]
+    check(status == PICK_STATUS, f"the status bar still says what to do: {status!r}")
+    edge = midpoint(green_ring[0], green_ring[1])
+    screen = client.call("latlon_to_screen", lat=edge[0], lon=edge[1])["screen"]
+    pixel = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+    check(pixel[0] < 0.4 and pixel[1] > 0.6 and pixel[2] > 0.8,
+          f"the candidate is traced in cyan: {pixel}")
     check(client.call("get_selected")["feature"]["title"] == "Red Triangle",
           "the selection is still the feature that asked for the parent")
     check(client.call("get_tool")["tool"] == "move", "and the tool is still the Move tool")
     check(client.call("latlon_to_screen", lat=PICK_VIEW[0], lon=PICK_VIEW[1])["screen"] == planet,
           "and the planet did not move")
 
-    # Couple works on the picked parent the way it does on a listed one.
+    # Couple takes the candidate and ends the pick.
     client.call("coupling", button="Couple")
     spans = client.call("get_selected")["feature"]["couplings"]
     check(spans == [{"from": COUPLED_AT, "to": 0.0, "parent": green_uuid}],
-          f"Couple then follows what was clicked: {spans}")
+          f"Couple then follows what was clicked last: {spans}")
+    tool = client.call("get_tool")
+    check(not coupling_row(client)["picking"] and tool["pick_candidate"] == ""
+          and tool["planet_cursor"] == CURSOR_ARROW,
+          f"and ends the pick, the pointer back to an arrow: {tool}")
+    pixel = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
+    check(not (pixel[0] < 0.4 and pixel[1] > 0.6 and pixel[2] > 0.8),
+          f"and the trace goes: {pixel}")
+
+    # The button pressed again ends the pick with nothing coupled.
+    client.call("coupling", pick=True)
+    client.call("set_view", lat=blue[0], lon=blue[1], angle=0.0, zoom=1.0, show_map=False)
+    screen = client.call("latlon_to_screen", lat=blue[0], lon=blue[1])["screen"]
+    client.call("click", x=screen[0], y=screen[1])
+    check(client.call("get_tool")["pick_candidate"] == "Blue Quad", "Blue Quad is the candidate")
+    client.call("coupling", pick=False)
+    check(not coupling_row(client)["picking"]
+          and client.call("get_selected")["feature"]["couplings"] == spans,
+          "pressing the button again ends the pick and couples nothing")
+
 
     # Escape puts the pointer away.
     client.call("coupling", pick=True)
@@ -970,7 +1026,7 @@ def run_pick_parent_checks(client: AutomationClient) -> None:
     client.call("key", key="Escape")
     row = coupling_row(client)
     status = client.call("get_status")["status"]["measure"]
-    check(not row["picking"] and status != "Pick the feature to follow",
+    check(not row["picking"] and status != PICK_STATUS,
           f"and Escape ends it: {row['picking']}, {status!r}")
 
 

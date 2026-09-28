@@ -62,6 +62,17 @@ func test_the_shader_draws_the_parent_and_the_siblings_in_the_same_colors() -> v
 				"component %d of the shader's %s" % [i, name])
 
 
+# The parent picked while the pick is on is traced in Planet.CANDIDATE_COLOR,
+# linearized (GP-0138).
+func test_the_shader_traces_the_pick_candidate_in_the_same_cyan() -> void:
+	var numbers := _constant("CANDIDATE_COLOR").trim_prefix("vec3(").trim_suffix(")").split(",")
+	var wanted := Planet.CANDIDATE_COLOR.srgb_to_linear()
+	assert_eq(numbers.size(), 3, "the shader's CANDIDATE_COLOR has three components")
+	for i in mini(numbers.size(), 3):
+		assert_close(numbers[i].strip_edges().to_float(), wanted[i], 1e-5,
+			"component %d of the shader's CANDIDATE_COLOR" % i)
+
+
 # A hotspot sample dot and the pole cross are drawn at a fraction of what a
 # marker and a feature line are, and the tests that probe them take the fraction
 # from Planet.

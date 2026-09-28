@@ -416,15 +416,20 @@ all.
   hotspots. `Couple` starts a span on the
   picked feature at the current time and is greyed out while the feature
   already follows something then. The pointer button beside them fills the
-  picker from the planet instead of from the list: press it and the next left
-  click on the globe or the map names whatever it lands on. The status bar says
-  `Pick the feature to follow` while it is armed. A click on the ocean, on the
-  feature itself, on a topology, on a circle or on a hotspot says so in the
-  status bar and leaves the
-  pointer armed, so only a click the picker can take ends it. So do Escape and
-  pressing the button again. Nothing else moves: the selection, the current
-  tool and the globe are where they were, and the picked parent is still
-  coupled with `Couple`.
+  picker from the planet instead of from the list. Pressing it turns the pick
+  on, and it stays on through any number of clicks: each left click on the
+  globe or the map on a feature that can be followed makes it the candidate,
+  shown in the picker and traced on the planet in cyan, and the last one
+  clicked wins. `Couple` couples to the candidate and turns the pick off.
+  Pressing the button again, or Escape, turns it off without coupling. While
+  the pick is on the pointer over the planet is a cross, the button stays
+  pressed and the status bar says `Click the feature to follow, then Couple`. A
+  click on the ocean, on the feature itself, on a topology, on a circle or on a
+  hotspot says why in the status bar and leaves the pick on and the candidate
+  as it was. Nothing else moves: the selection, the current tool and the globe
+  are where they were. Selecting another feature ends the pick (GP-0138). The
+  Plate row of a hotspot shares the cross pointer and the status line, and its
+  pick ends with the click that picks.
 - **Couplings** lists every span: the parent, `From` and `To` in Ma. `Remove`
   takes the selected span away, or the last one when none is selected, and
   leaves every keyframe where it was on the globe.

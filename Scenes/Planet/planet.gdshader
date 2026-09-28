@@ -85,6 +85,11 @@ vec3 relation_color(int relation) {
 	return relation == 2 ? PARENT_COLOR : relation == 3 ? SIBLING_COLOR : CHILD_COLOR;
 }
 
+// What the parent picked while the pick is on is traced in, and how much wider
+// than a feature line: Planet.CANDIDATE_COLOR in linear light.
+const vec3 CANDIDATE_COLOR = vec3(0.033105, 0.787412, 1.0);
+const float CANDIDATE_SCALE = 1.5;
+
 // Per feature state at the current time (filter_nearest for exact texel reads)
 // Layout: width = one column per drawn feature, height = 6
 //   Row 0: (m00, m10, m20, hovered)  -- the first column of the rotation
@@ -127,7 +132,9 @@ uniform sampler2D feature_data : filter_nearest, repeat_disable;
 // with no markers (the circle being drawn). 9 is 0 with no markers, for a run
 // sampled finely enough that a dot per vertex would be a string of beads (the
 // Measure tool's parallels). 10 is 0 in REFUSED_COLOR (a cut the Split tool
-// refused). Every style but 4, 6, 7, 8, 9, 11 and 12 marks each vertex.
+// refused). 13 closes it like 4, CANDIDATE_SCALE times as wide as a feature
+// line, in CANDIDATE_COLOR (the parent picked while the pick is on). Every
+// style but 4, 6, 7, 8, 9, 11, 12 and 13 marks each vertex.
 uniform sampler2D outline_data : filter_nearest, repeat_disable;
 uniform int outline_vertex_count = 0;
 uniform float outline_line_width = 0.002;
@@ -483,6 +490,7 @@ void fragment() {
 		float child_line_dist = 1e10;
 		float parent_line_dist = 1e10;
 		float sibling_line_dist = 1e10;
+		float candidate_line_dist = 1e10;
 		float bold_line_dist = 1e10;
 		float refused_dot_dist = 1e10;
 		float refused_line_dist = 1e10;
@@ -508,7 +516,7 @@ void fragment() {
 			}
 			if (style == 10) {
 				refused_dot_dist = min(refused_dot_dist, chord(a, p));
-			} else if (style != 4 && style != 6 && style != 7 && style != 9 && style != 11 && style != 12) {
+			} else if (style != 4 && style != 6 && style != 7 && style != 9 && style != 11 && style != 12 && style != 13) {
 				min_dot_dist = min(min_dot_dist, chord(a, p));
 			}
 			if (style == 2) {
@@ -535,6 +543,8 @@ void fragment() {
 				parent_line_dist = min(parent_line_dist, d);
 			} else if (style == 12) {
 				sibling_line_dist = min(sibling_line_dist, d);
+			} else if (style == 13) {
+				candidate_line_dist = min(candidate_line_dist, d);
 			} else if (style == 7) {
 				bold_line_dist = min(bold_line_dist, d);
 			} else if (style == 10) {
@@ -557,6 +567,8 @@ void fragment() {
 		base = mix(base, CHILD_COLOR, child_alpha);
 		base = mix(base, PARENT_COLOR, line_coverage(outline_line_width, parent_line_dist));
 		base = mix(base, SIBLING_COLOR, line_coverage(outline_line_width, sibling_line_dist));
+		base = mix(base, CANDIDATE_COLOR,
+			line_coverage(geometry_line_width * CANDIDATE_SCALE, candidate_line_dist));
 		base = mix(base, HIGHLIGHT_COLOR, outline_alpha);
 		float refused_alpha = max(line_coverage(outline_line_width, refused_line_dist),
 			1.0 - smoothstep(outline_dot_radius * 0.7, outline_dot_radius, refused_dot_dist));
