@@ -819,6 +819,53 @@ static func _in_spherical_triangle(p: Vector3, a: Vector3, b: Vector3, c: Vector
 		and _turn(c, a, p) * winding >= 0.0
 
 
+# Past this many corners a ring is triangulated by the engine rather than here,
+# when it fits the gnomonic projection; see _gnomonic_triangles(). Clipping on
+# the sphere in GDScript is quadratic in the corners, and a coastline of a few
+# thousand of them took over a second (GP-0030). Rings up to this size keep the
+# clipping below, so what the small shapes of the tests and the golden scenes
+# are cut into does not change.
+const NATIVE_CORNERS := 64
+
+# How far from the middle of a ring its corners may lie, as the cosine of the
+# angle, for the gnomonic projection to take it: 80 degrees, where the plane is
+# stretched almost six times and still exact.
+const GNOMONIC_REACH := 0.17
+
+
+# A large ring cut into triangles by Geometry2D, in the gnomonic projection
+# about the middle of its corners, as indices into the ring; empty when the
+# ring reaches too far from its middle for that, or the engine cannot cut it.
+# The projection carries great circles to straight lines, so a triangle that
+# is right in the plane is right on the sphere, which is what the clipping
+# below decides the hard way.
+static func _gnomonic_triangles(ring: PackedVector2Array, corners: PackedInt32Array) -> PackedInt32Array:
+	var units: Array[Vector3] = []
+	var middle := Vector3.ZERO
+	for i in corners:
+		var unit := _latlon_to_xyz_s(ring[i])
+		units.append(unit)
+		middle += unit
+	if middle.length_squared() < 1e-12:
+		return PackedInt32Array()
+	middle = middle.normalized()
+	var east := middle.cross(Vector3.UP if absf(middle.y) < 0.9 else Vector3.RIGHT).normalized()
+	var north := east.cross(middle)
+	var plane := PackedVector2Array()
+	for unit in units:
+		var towards := unit.dot(middle)
+		if towards < GNOMONIC_REACH:
+			return PackedInt32Array()
+		plane.append(Vector2(unit.dot(east), unit.dot(north)) / towards)
+	var cut := Geometry2D.triangulate_polygon(plane)
+	if cut.size() != (corners.size() - 2) * 3:
+		return PackedInt32Array()
+	var result := PackedInt32Array()
+	for k in cut:
+		result.append(corners[k])
+	return result
+
+
 # The same triangulation as vertex indices into the ring, three per triangle.
 # A repeated vertex is never among the indices, see ear_clip.
 static func ear_clip_indices(ring: PackedVector2Array) -> PackedInt32Array:
@@ -827,6 +874,10 @@ static func ear_clip_indices(ring: PackedVector2Array) -> PackedInt32Array:
 	var n := corners.size()
 	if n < 3:
 		return result
+	if n > NATIVE_CORNERS:
+		var native := _gnomonic_triangles(ring, corners)
+		if not native.is_empty():
+			return native
 
 	var units: Array[Vector3] = []
 	units.resize(ring.size())

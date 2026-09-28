@@ -127,7 +127,7 @@ def main(argv: list[str]) -> int:
     if command == "performance":
         arguments: list[str] = []
         for option in options:
-            if not option.startswith(("--triangles=", "--budget=")):
+            if not option.startswith(("--triangles=", "--budget=", "--world=")):
                 print(f"unknown option: {option}\n{USAGE}", file=sys.stderr)
                 return 2
             switch, _, value = option.partition("=")

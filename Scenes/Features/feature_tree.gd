@@ -72,6 +72,7 @@ func load_root_group(root_group: Feature) -> void:
 	selected_off_tree = null
 	self.root = root_group
 	load_group(null, root, true)
+	_gather_range_ends()
 	get_root().set_editable(0, false)
 	if bar != null:
 		bar.value = kept
@@ -166,19 +167,54 @@ func mark_related(related: Dictionary) -> void:
 
 
 # Grey out every feature that is not there at the given time. A group is always
-# there, so only the leaf rows ever change.
+# there, so only the leaf rows ever change, and only where the time passes one
+# end of a feature's time range: a step of an animation that passes none leaves
+# every row as it was, and the thousands of rows of a large document are not
+# walked for it (GP-0030).
 func refresh_time(time_: float) -> void:
+	var passed := _range_ends.is_empty() or _ends_between(time, time_)
 	time = time_
+	if not passed:
+		return
 	for item in items.values():
 		_apply_time(item)
 
 
+# Whether an end of some row's time range lies between two times, both
+# included, which is where a row can change.
+func _ends_between(a: float, b: float) -> bool:
+	var at := _range_ends.bsearch(minf(a, b))
+	return at < _range_ends.size() and _range_ends[at] <= maxf(a, b)
+
+
+# Every end of every row's time range, sorted, worked out when the rows are
+# built. Empty until then, which refresh_time() takes as "walk every row".
+var _range_ends := PackedFloat64Array()
+
+
+func _gather_range_ends() -> void:
+	var ends := {}
+	for item in items.values():
+		var node := item.get_metadata(0) as Feature
+		if node != null and not node.is_group:
+			ends[float(node.time_range.x)] = true
+			ends[float(node.time_range.y)] = true
+	_range_ends = PackedFloat64Array(ends.keys())
+	_range_ends.sort()
+
+
+# Grey the row out while its feature is not there. A row is only touched when
+# that changes: on every frame of an animation a document of thousands of rows
+# would otherwise set every one of them again (GP-0030).
 func _apply_time(item: TreeItem) -> void:
 	var node := item.get_metadata(0) as Feature
-	if node == null or node.exists_at(time):
-		item.clear_custom_color(0)
-	else:
+	var absent := node != null and not node.exists_at(time)
+	if absent == (item.get_custom_color(0) == ABSENT_COLOR):
+		return
+	if absent:
 		item.set_custom_color(0, ABSENT_COLOR)
+	else:
+		item.clear_custom_color(0)
 
 
 ### Selection

@@ -401,15 +401,19 @@ the rendered and scripted colour checks compare against.
 
 ### Data Texture Layout
 
-The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel) with **width = primitive count** and **height = 2 rows**:
+The `geometry_data` texture uses `FORMAT_RGBAF` (32-bit float per channel), **two rows of texels per primitive**, wrapped at `Planet.TEXTURE_WRAP` (4096) entries a row:
 
 | Row | R | G | B | A |
 |---|---|---|---|---|
 | 0 | lat_a (rad) | lon_a (rad) | lat_b (rad) | lon_b (rad) |
 | 1 | lat_c (rad) | lon_c (rad) | feature | kind |
 
-Each column stores one primitive, and the shader reads exact texels via
-`texelFetch`. A vertex a kind does not use repeats vertex a, so a fetch never
+Row `row` of primitive i is the texel at (i % 4096, i / 4096 * 2 + row), which
+`at()` in the shader and `Planet._at()` both work out; `feature_data`,
+`column_data` and `block_data` wrap the same way, with six, two and two rows an
+entry. Before GP-0030 a texture was one texel per entry wide, and 16,384 is the
+widest a desktop device has to make, so a larger document was cut off there.
+The shader reads exact texels via `texelFetch`. A vertex a kind does not use repeats vertex a, so a fetch never
 reads uninitialised data. A circle keeps its center in a and its angular radius
 in radians in the B channel of row 0, where lat_b would be:
 
@@ -858,13 +862,30 @@ polygons of many triangles gain less, since a fragment inside one still tests
 the slivers ear clipping left across it; see
 [Skipping what is far](#skipping-what-is-far).
 
-`Planet.MAX_PRIMITIVES` is where a document stops being drawn whole: the
-geometry texture is one texel per primitive wide, and 16,384 is the widest a
-desktop device is required to make one. A document holding more than that is
-drawn up to the limit and the rest of its features are left out — counted on
-`Geometry.dropped`, still in the feature tree, and still saved. A
-[GPlates import](Import.md) is the only thing that reaches it today; raising
-the limit is GP-0030 in the workspace ticket list.
+`Planet.MAX_PRIMITIVES` is where a document stops being drawn whole: two
+rows per primitive, 4,096 a row, in the 16,384 rows a device has to make, some
+33 million primitives. A document holding more than that is drawn up to the
+limit and the rest of its features are left out — counted on
+`Geometry.dropped`, still in the feature tree, and still saved.
+
+A document the size of a GPlates data set, `performance --world=coastlines`
+(GP-0030): 2077 features, 60,696 primitives.
+
+| | NVIDIA GeForce RTX 5060 Ti | AMD Radeon 8060S under Xvfb |
+|---|---|---|
+| Opening it | 2.2 s | 1.4 s |
+| Frame, playing | 16.7 ms | 47.6 ms |
+| Frame, standing still | — | 37.0 ms |
+| One hit test | 1.9 ms | 2.1 ms |
+
+Before GP-0030 it took 9.7 s to open on the AMD machine (a minute for the real
+coastlines, whose largest rings are larger) and 257 of the features were left
+out. On the AMD machine the 31 ms of its virtual screen is under every frame.
+What playing adds over standing still, about 10 ms there, is the processor
+working out every feature's rotation at the new time and writing the three
+rows of it into `feature_data`: when nothing but the time has changed,
+`set_feature_state()` writes only those rows, and the feature tree walks its
+rows only when the time passes the end of some feature's time range.
 
 Playing costs almost nothing over standing still, which is the point of
 keeping the rotation in `feature_data`: what a frame of an animation changes is

@@ -4403,9 +4403,11 @@ func refresh_geometry() -> void:
 # A topology is the exception: the vertices it draws are the vertices of the
 # features it runs along, so moving the time moves them and the geometry has to
 # be built again. A hotspot's track is the same. That costs a document holding
-# either the cheap path, which is why it is asked for rather than taken.
+# either the cheap path, which is why it is asked for rather than taken; the
+# geometry says so once, when it is collected, rather than the tree being
+# walked on every frame (GP-0030).
 func refresh_motion() -> void:
-	if Topology.holds_any(features.root) or Hotspot.holds_any(features.root):
+	if geometry.rebuilt_with_time:
 		refresh_geometry()
 		return
 	geometry.resolve(features.root, document.current_time)

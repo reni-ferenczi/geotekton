@@ -323,6 +323,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"draw_calls": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
 				"primitives": app.geometry.primitives.size(),
 				"features": app.geometry.features.size(),
+				"dropped": app.geometry.dropped,
 				"playing": _timeline().playing,
 			}}
 

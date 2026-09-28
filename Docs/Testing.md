@@ -32,7 +32,12 @@ See [Scripting](Scripting.md).
 whose name contains the substring, for example
 `python Tests/run.py headless --filter=rotation`.
 
-`performance` takes `--triangles=N` (default 5000) and `--budget=MS` (default
+`performance` takes `--world=coastlines` to measure a stand-in for the GPlates
+EarthByte coastlines instead: 2077 irregular polygons and some 65,000 vertices
+from a fixed seed, with six continents of 3,000 vertices. It reports how long
+the document takes to open (it has to be under five seconds), that nothing is
+left undrawn, the frame standing still and playing, and that the hit test
+finds features in it (GP-0030). Otherwise it takes `--triangles=N` (default 5000) and `--budget=MS` (default
 one frame at 60 frames a second). See [Frame time](#frame-time).
 
 Set the `GODOT` environment variable to use an engine binary other than

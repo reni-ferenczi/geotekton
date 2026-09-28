@@ -308,6 +308,35 @@ func test_the_plane_polygons_fill_once_on_the_sphere() -> void:
 	_check_fill(L_SHAPE, _range(-5.0, 35.0, 1.0), _range(-5.0, 35.0, 1.0), "the L shape")
 
 
+# GP-0030: a ring of more than Feature.NATIVE_CORNERS corners is cut by the
+# engine in the gnomonic projection, which carries great circles to straight
+# lines, so it has to fill exactly as the clipping on the sphere does. A coast
+# round the north pole and across the date line, 240 corners with deep bays,
+# puts the projection where it is most stretched from the plane.
+func test_a_large_ring_cut_by_the_engine_is_filled_once() -> void:
+	var ring := PackedVector2Array()
+	for i in 240:
+		var lon := 180.0 - 1.5 * i
+		var bay := 8.0 if i % 40 < 6 else 0.0
+		ring.append(Vector2(66.0 + 4.0 * sin(deg_to_rad(lon * 3.0)) + bay, lon))
+	assert_true(not Feature._gnomonic_triangles(ring, Feature.distinct_corners(ring)).is_empty(),
+		"the engine cuts this ring")
+	_check_fill(ring, _range(55.0, 89.5, 1.0), _range(-180.0, 175.0, 2.5), "a coast round the pole")
+
+
+# A ring reaching further than the projection does falls back to the clipping
+# on the sphere, which is the next test's third of the planet.
+func test_a_ring_too_wide_for_the_projection_is_not_cut_by_the_engine() -> void:
+	var ring := PackedVector2Array()
+	for lon in _range(-120.0, 120.0, 5.0):
+		ring.append(Vector2(-70.0, lon))
+	for lon in _range(-115.0, 115.0, 5.0):
+		ring.append(Vector2(10.0, -lon))
+	assert_true(ring.size() > Feature.NATIVE_CORNERS, "a ring the engine would take by size")
+	assert_true(Feature._gnomonic_triangles(ring, Feature.distinct_corners(ring)).is_empty(),
+		"but not by reach")
+
+
 # A polygon over a third of the planet, from 70 S to 10 N and from 120 W to
 # 120 E, with a vertex every 5 degrees along its sides, so each side follows
 # its parallel or meridian to well within the edge margin. Its corners lie

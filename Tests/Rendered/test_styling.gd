@@ -161,13 +161,16 @@ func test_a_color_change_uploads_only_the_feature_state() -> void:
 	var material: ShaderMaterial = view().planet.globe.get_surface_override_material(0)
 	var geometry_data: Texture2D = material.get_shader_parameter("geometry_data")
 	var feature_data: Texture2D = material.get_shader_parameter("feature_data")
+	var before := feature_data.get_image().get_data()
 
 	feature.color = Color.BLUE
 	app.refresh_colors()
 	assert_true(material.get_shader_parameter("geometry_data") == geometry_data,
 		"the geometry texture is not uploaded again")
-	assert_true(material.get_shader_parameter("feature_data") != feature_data,
-		"the feature state is")
+	# The feature state texture is updated in place (GP-0030), so it is its
+	# contents that change.
+	var after: Texture2D = material.get_shader_parameter("feature_data")
+	assert_true(after.get_image().get_data() != before, "the feature state is")
 	await _check(POLYGON, Color.BLUE, "the polygon in its new color")
 
 
