@@ -735,6 +735,58 @@ CHILD_MOVED_AT = 350.0
 PARENT_DRAG = 10.0
 
 
+def tree_scroll(client: AutomationClient) -> float:
+    return client.call("get_features")["scroll"]
+
+
+def run_tree_scroll_session(client: AutomationClient, folder: Path) -> None:
+    """GP-0134: the layer tree scrolls only when the user scrolls it. A feature
+    low in a long tree is edited and the tree stays where it was; a click on
+    the planet still brings a row out of view into it."""
+    data = json.loads(COUPLING_SAMPLE.read_text(encoding="utf-8"))
+    group = data["features"]["children"][0]
+    red = group["children"][0]
+    for i, (lat, lon) in enumerate((lat, lon) for lon in (100.0, 130.0, 160.0)
+                                   for lat in range(-60, 61, 10)):
+        copy = json.loads(json.dumps(red))
+        copy["title"] = f"Speck {i + 1:02d}"
+        copy["vertices"] = [[lat - 3.0, lon - 3.0], [lat + 3.0, lon], [lat - 3.0, lon + 3.0]]
+        group["children"].append(copy)
+    path = folder / "long_tree.geotekt"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    client.call("load", path=str(path))
+    client.call("set_tool", tool="move")
+    client.call("select", title="Red Triangle")
+    top = world_centroid(client)
+    # A row a little above the bottom, and the tree then scrolled right down
+    # with the wheel, so the row is nowhere near where a rebuild that scrolls
+    # to the selection would put it.
+    last = "Speck 30"
+    client.call("select", title=last)
+    x, y, width, height = client.call("get_features")["tree_rect"]
+    for _ in range(40):
+        client.call("click", x=x + width / 2.0, y=y + height / 2.0, button="wheel_down")
+    scrolled = tree_scroll(client)
+    if not check(scrolled > 0.0 and client.call("get_selected")["feature"]["title"] == last,
+                 f"the wheel scrolls the tree down, the row still selected: {scrolled}"):
+        return
+
+    client.call("set_property", field="name", value=last + " renamed")
+    check(tree_scroll(client) == scrolled, f"a rename keeps the scroll: {tree_scroll(client)}, {scrolled}")
+    client.call("set_property", field="color", value=[0.2, 0.8, 0.2, 1.0])
+    check(tree_scroll(client) == scrolled, f"so does a new color: {tree_scroll(client)}")
+    client.call("set_time", time=300.0)
+    client.call("keyframes", button="Key")
+    check(tree_scroll(client) == scrolled, f"and a keyframe: {tree_scroll(client)}")
+
+    client.call("set_view", lat=top[0], lon=top[1], angle=0.0, zoom=1.0, show_map=False)
+    screen = client.call("latlon_to_screen", lat=top[0], lon=top[1])["screen"]
+    client.call("click", x=screen[0], y=screen[1])
+    check(client.call("get_selected")["feature"]["title"] == "Red Triangle"
+          and tree_scroll(client) < scrolled,
+          f"a click on the planet brings the row of what it hit into view: {tree_scroll(client)}")
+
+
 def coupling_row(client: AutomationClient) -> dict:
     return client.call("get_properties")["properties"]["coupling"]
 
@@ -5808,6 +5860,7 @@ def main(argv: list[str]) -> int:
         folder = Path(tempfile.mkdtemp(prefix="geotekt-coupling-"))
         try:
             run_coupling_session(client, folder)
+            run_tree_scroll_session(client, folder)
         finally:
             shutil.rmtree(folder, ignore_errors=True)
         run_colour_session(client)

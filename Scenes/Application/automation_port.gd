@@ -282,7 +282,11 @@ func _dispatch(request: Dictionary) -> Dictionary:
 		"get_features":
 			var list: Array = []
 			_collect_features(app.document.root, 0, list)
-			return {"ok": true, "features": list}
+			# How far the tree is scrolled down, in pixels, and where it is.
+			var tree_rect := app.features.feature_tree.get_global_rect()
+			return {"ok": true, "features": list,
+				"scroll": app.features.feature_tree.get_scroll().y,
+				"tree_rect": [tree_rect.position.x, tree_rect.position.y, tree_rect.size.x, tree_rect.size.y]}
 
 		"select":
 			var feature := _find_feature(request)
