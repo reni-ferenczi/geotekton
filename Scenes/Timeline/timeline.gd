@@ -417,10 +417,18 @@ func _draw_markers() -> void:
 		markers.draw_line(Vector2(x, 0.0), Vector2(x, markers.size.y), MARKER_COLOR, 2.0)
 
 
-# Where a time sits across the strip, matching the slider above it: the oldest
-# end on the left, the youngest on the right.
+# Where a time sits across the strip, under the middle of the slider's grabber
+# at that time: the oldest end on the left, the youngest on the right. The
+# grabber travels over the slider's width less its own, inset by half of it
+# at each end unless the theme centers it on the ends, which is also how the
+# slider turns a click into a value.
 func _marker_x(time: float, span: float) -> float:
-	return clampf((oldest() - time) / span, 0.0, 1.0) * markers.size.x
+	var ratio := clampf((oldest() - time) / span, 0.0, 1.0)
+	var inset := 0.0
+	if slider.get_theme_constant("center_grabber") == 0:
+		inset = slider.get_theme_icon("grabber").get_width() / 2.0
+	var left := slider.get_global_rect().position.x - markers.get_global_rect().position.x + inset
+	return left + ratio * (slider.size.x - 2.0 * inset)
 
 
 ### The animation settings
@@ -448,6 +456,8 @@ func to_json() -> Dictionary:
 		"skip": skip(),
 		"markers": _markers_to_json(),
 		"marker_screen": _marker_screen_to_json(),
+		"slider_screen": [slider.get_global_rect().position.x, slider.get_global_rect().position.y,
+			slider.size.x, slider.size.y],
 		"couplings": _couplings_to_json(),
 		"animation": animation.to_json(),
 	}

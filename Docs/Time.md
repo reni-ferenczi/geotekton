@@ -332,6 +332,13 @@ precision float, and the mark is the way to reach it without typing every
 digit. The reach of a click is `Timeline.MARKER_PICK_PIXELS` either side of
 the mark; between two marks a click does nothing.
 
+Each mark stands under the middle of the slider's grabber at its time. The
+grabber travels over the slider's width less its own, inset by half of it at
+each end, so the marks are spread over that same inset track
+(`Timeline._marker_x()`), and the coupling bars and the current time line with
+them. Spread over the full width of the strip, as before GP-0139, the marks
+drifted from the grabber towards both ends.
+
 The slider holds the negative of the time, which is what puts the oldest end on
 the left: a slider always grows to the right and an age grows into the past. It
 spans the animation range, so configuring a different range lays it out again.
