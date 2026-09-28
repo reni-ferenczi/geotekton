@@ -358,4 +358,12 @@ func to_json() -> Dictionary:
 		# is, so a run can check that it moved with the time.
 		"cursor": _time_x(_current_time(), _plot(0)) - LABEL_WIDTH,
 		"plot_width": maxf(graphs.size.x - LABEL_WIDTH - VALUE_WIDTH, 0.0),
+		# Where the readout and the graphs sit in the window, so a run can check
+		# that playing does not move them (GP-0141).
+		"readout_rect": _rect_to_json(readout.get_global_rect()),
+		"graphs_rect": _rect_to_json(graphs.get_global_rect()),
 	}
+
+
+static func _rect_to_json(rect: Rect2) -> Array:
+	return [rect.position.x, rect.position.y, rect.size.x, rect.size.y]
