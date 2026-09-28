@@ -168,6 +168,90 @@ func test_a_feature_of_several_parts_is_capped_around_all_of_them() -> void:
 	assert_eq(Planet.hit_test(0, 0, geometry), null, "the gap between them is not")
 
 
+### The shader's blocks
+#
+# GP-0023: the shader skips a column, and a block of up to BLOCK_SIZE of its
+# primitives, whose cap the fragment is outside. That is only safe if every
+# primitive is in exactly one block of its own column and inside that block's
+# cap, and if reordering a column never moves a primitive across one of
+# another kind, which would change what is drawn over what.
+
+
+# A polygon ring of many vertices round an ellipse, so ear clipping gives far
+# more triangles than one block holds.
+func _big_ring(vertices: int) -> PackedVector2Array:
+	var ring := PackedVector2Array()
+	for i in vertices:
+		var angle := -TAU * i / vertices
+		ring.append(Vector2(20.0 * sin(angle), 30.0 * cos(angle)))
+	return ring
+
+
+func test_every_primitive_is_in_one_block_of_its_column_and_inside_its_cap() -> void:
+	var big := _make_feature("Big", Color.RED, Vector3.ZERO, _big_ring(200))
+	var line := _make_feature("Coast", Color.BLUE, Vector3.ZERO, _big_ring(120),
+		Feature.GeometryKind.POLYLINE)
+	var geometry := Planet.collect_geometry(_make_root([big, line]))
+	assert_true(geometry.primitives.size() > 4 * Planet.BLOCK_SIZE, "enough to need blocks")
+	var seen := {}
+	for column in geometry.features.size():
+		var next := geometry.starts[column]
+		for block in range(geometry.block_starts[column], geometry.block_ends[column]):
+			assert_eq(geometry.block_first[block], next, "block %d follows the last" % block)
+			assert_true(geometry.block_last[block] - geometry.block_first[block] <= Planet.BLOCK_SIZE,
+				"block %d holds no more than a block" % block)
+			for i in range(geometry.block_first[block], geometry.block_last[block]):
+				seen[i] = true
+				for unit: Vector3 in Planet._units_of(geometry.primitives[i]):
+					assert_true(unit.dot(geometry.block_centres[block])
+						>= cos(geometry.block_angles[block]) - 1e-6,
+						"primitive %d is inside the cap of block %d" % [i, block])
+					assert_true(unit.dot(geometry.draw_centres[column])
+						>= cos(geometry.draw_angles[column]) - 1e-6,
+						"and inside its column's cap")
+			next = geometry.block_last[block]
+		assert_eq(next, geometry.ends[column], "the blocks of column %d end with it" % column)
+	assert_eq(seen.size(), geometry.primitives.size(), "every primitive is in a block")
+
+
+# A coast 120 degrees long along the equator, a vertex every degree. Its
+# segments are drawn back to front here, so it is the order that has to put
+# neighbours into the same block.
+func _coast() -> PackedVector2Array:
+	var ring := PackedVector2Array()
+	for lon in range(60, -61, -1):
+		ring.append(Vector2(0.4 * (lon % 2), lon))
+	return ring
+
+
+func test_the_blocks_of_a_long_coast_are_short_stretches_of_it() -> void:
+	var coast := _make_feature("Coast", Color.RED, Vector3.ZERO, _coast(),
+		Feature.GeometryKind.POLYLINE)
+	var geometry := Planet.collect_geometry(_make_root([coast]))
+	assert_true(geometry.block_centres.size() > 2, "the coast takes several blocks")
+	var widest := 0.0
+	for block in geometry.block_centres.size():
+		widest = maxf(widest, geometry.block_angles[block])
+	# A block of 32 one degree segments reaches about 16 degrees either way.
+	assert_true(widest < deg_to_rad(20.0),
+		"each block is a short stretch of the coast: %s rad of %s"
+		% [widest, geometry.draw_angles[0]])
+
+
+func test_reordering_keeps_each_kind_where_it_was() -> void:
+	# A hotspot is its track's segments and then its sample dots, and a crust its
+	# bands and then its lines: kinds that are drawn over each other in turn.
+	var primitives: Array = []
+	for i in 40:
+		primitives.append({"kind": Planet.Primitive.SEGMENT, "verts": [Vector2(0, 40 - i)]})
+	for i in 40:
+		primitives.append({"kind": Planet.Primitive.SAMPLE, "verts": [Vector2(0, i)]})
+	Planet._order_column(primitives, 0, primitives.size())
+	for i in 40:
+		assert_eq(primitives[i]["kind"], Planet.Primitive.SEGMENT, "segments stay first")
+		assert_eq(primitives[40 + i]["kind"], Planet.Primitive.SAMPLE, "and the dots after them")
+
+
 func _make_feature(title: String, color: Color, rotation: Vector3,
 		ring: PackedVector2Array = TRIANGLE,
 		kind: Feature.GeometryKind = Feature.GeometryKind.POLYGON) -> Feature:
