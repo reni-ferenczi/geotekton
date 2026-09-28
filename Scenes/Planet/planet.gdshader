@@ -42,7 +42,7 @@ const float ROBINSON_EXTENT = 0.50718800410786;
 const float MAP_EDGE_SLACK = 1e-6;
 
 // Feature geometry data texture (filter_nearest for exact texel reads)
-// Layout: width = primitive count, height = 2
+// Layout: two rows per primitive, wrapped at TEXTURE_WRAP; see at()
 //   Row 0: (lat_a, lon_a, lat_b, lon_b) in radians
 //   Row 1: (lat_c, lon_c, feature, kind)
 // kind 0 is a triangle (a, b, c), 1 a polyline segment (a, b), 2 a
@@ -104,7 +104,7 @@ const vec3 CANDIDATE_COLOR = vec3(0.033105, 0.787412, 1.0);
 const float CANDIDATE_SCALE = 1.5;
 
 // Per feature state at the current time (filter_nearest for exact texel reads)
-// Layout: width = one column per drawn feature, height = 6
+// Layout: six rows per drawn column, wrapped at TEXTURE_WRAP; see at()
 //   Row 0: (m00, m10, m20, hovered)  -- the first column of the rotation
 //   Row 1: (m01, m11, m21, visible)  -- the second
 //   Row 2: (m02, m12, m22, selected) -- the third
@@ -325,6 +325,15 @@ float circle_distance(vec3 axis, float radius, vec3 p) {
 	return abs(angle_between(axis, p) - radius);
 }
 
+// How wide the data textures are before they wrap onto the next group of
+// rows: Planet.TEXTURE_WRAP. Row `row` of entry i of a texture of `rows` rows an
+// entry is at (i % TEXTURE_WRAP, i / TEXTURE_WRAP * rows + row) (GP-0030).
+const int TEXTURE_WRAP = 4096;
+
+ivec2 at(int i, int row, int rows) {
+	return ivec2(i % TEXTURE_WRAP, i / TEXTURE_WRAP * rows + row);
+}
+
 // How far past its cap a column's primitives can still touch a fragment, as an
 // angle: the widest thing any of them draws, the halo of a selected line at the
 // column's line_scale or a marker, and a little over for rounding.
@@ -417,38 +426,38 @@ void fragment() {
 	// none of it is looked at (GP-0023). The primitives are still visited in
 	// the order they are laid down in.
 	for (int column = 0; column < column_count; column++) {
-		vec4 f1 = texelFetch(feature_data, ivec2(column, 1), 0);
+		vec4 f1 = texelFetch(feature_data, at(column, 1, 6), 0);
 		if (f1.w < 0.5) {
 			continue;
 		}
-		vec4 f0 = texelFetch(feature_data, ivec2(column, 0), 0);
-		vec4 f2 = texelFetch(feature_data, ivec2(column, 2), 0);
-		vec4 f4 = texelFetch(feature_data, ivec2(column, 4), 0);
+		vec4 f0 = texelFetch(feature_data, at(column, 0, 6), 0);
+		vec4 f2 = texelFetch(feature_data, at(column, 2, 6), 0);
+		vec4 f4 = texelFetch(feature_data, at(column, 4, 6), 0);
 		rotation = mat3(f0.xyz, f1.xyz, f2.xyz);
 		line_scale = f4.g;
 		// The point in the feature's own frame, where the caps are.
 		vec3 local = transpose(rotation) * p;
 		float margin = cap_margin(line_scale);
-		vec4 cap = texelFetch(column_data, ivec2(column, 0), 0);
+		vec4 cap = texelFetch(column_data, at(column, 0, 2), 0);
 		if (outside_cap(cap, margin, local)) {
 			continue;
 		}
 		hovered = f0.w;
 		feature_selected = f2.w > 0.5;
-		feature_color = texelFetch(feature_data, ivec2(column, 3), 0);
+		feature_color = texelFetch(feature_data, at(column, 3, 6), 0);
 		feature_related = int(f4.r + 0.5);
-		feature_line_color = texelFetch(feature_data, ivec2(column, 5), 0);
-		vec4 blocks = texelFetch(column_data, ivec2(column, 1), 0);
+		feature_line_color = texelFetch(feature_data, at(column, 5, 6), 0);
+		vec4 blocks = texelFetch(column_data, at(column, 1, 2), 0);
 
 		for (int block = int(blocks.x + 0.5); block < int(blocks.y + 0.5); block++) {
-			if (outside_cap(texelFetch(block_data, ivec2(block, 0), 0), margin, local)) {
+			if (outside_cap(texelFetch(block_data, at(block, 0, 2), 0), margin, local)) {
 				continue;
 			}
-			vec4 range = texelFetch(block_data, ivec2(block, 1), 0);
+			vec4 range = texelFetch(block_data, at(block, 1, 2), 0);
 
 			for (int i = int(range.x + 0.5); i < int(range.y + 0.5); i++) {
-				vec4 row0 = texelFetch(geometry_data, ivec2(i, 0), 0);
-				vec4 row1 = texelFetch(geometry_data, ivec2(i, 1), 0);
+				vec4 row0 = texelFetch(geometry_data, at(i, 0, 2), 0);
+				vec4 row1 = texelFetch(geometry_data, at(i, 1, 2), 0);
 
 				vec3 a = rotation * latlon_to_unit(row0.xy);
 				int kind = int(row1.w + 0.5);

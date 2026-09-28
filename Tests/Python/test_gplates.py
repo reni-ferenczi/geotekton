@@ -7,7 +7,7 @@ import re
 import pygplates
 import pytest
 
-from geotekt.gplates import (KIND_TYPES, MAX_PRIMITIVES, MAX_TIME,
+from geotekt.gplates import (KIND_TYPES, MAX_PRIMITIVES, MAX_TIME, TEXTURE_WRAP,
                                   decompose_rotation_degrees, import_files, import_project)
 
 from conftest import ROOT, geodata
@@ -176,8 +176,10 @@ def test_the_oldest_age_is_the_one_the_application_takes():
 
 
 def test_the_primitive_limit_is_the_one_the_planet_draws():
-    assert ("const MAX_PRIMITIVES := %d" % MAX_PRIMITIVES
-            in gdscript("Scenes", "Planet", "planet.gd"))
+    planet = gdscript("Scenes", "Planet", "planet.gd")
+    assert "const TEXTURE_WRAP := %d" % TEXTURE_WRAP in planet
+    assert "const MAX_PRIMITIVES := TEXTURE_WRAP * (16384 / 2)" in planet
+    assert MAX_PRIMITIVES == TEXTURE_WRAP * (16384 // 2)
 
 
 def test_an_unnamed_feature_is_called_after_its_type_and_plate(tmp_path):

@@ -123,14 +123,14 @@ time than GPlates says it is there; valid forever into the past stops at
 
 ## How much fits
 
-A global data set is more than the application handles today. The coastlines
-that ship with GPlates are 2077 features and 59,490 triangles: they take about
-a minute to open, because every polygon is triangulated on load, and the planet
-draws 16,384 primitives at once, so about a third of them are on the globe. The
-console says how much geometry there was and how much of it fits. The features
-that are not drawn are still in the tree, still selected, still moved and still
-saved; they are simply not painted. See [Shader](Shader.md#measured), and
-GP-0030 in the workspace ticket list for the whole of it.
+The coastlines that ship with GPlates are 2077 features and 59,490 triangles.
+Since GP-0030 a document that size opens in a couple of seconds, since a large
+ring is triangulated by the engine (see [Draw](Draw.md#large-rings)), and is
+drawn whole: the planet draws up to `Planet.MAX_PRIMITIVES`, some 33 million
+primitives, and plays at 60 frames a second on an NVIDIA GeForce RTX 5060 Ti;
+see [Shader](Shader.md#measured). A data set past that limit is still imported
+whole, and the console says how much of it is drawn; the rest is still in the
+tree, still selected, still moved and still saved, only not painted.
 
 Importing one region rather than the whole planet is what works today.
 

@@ -11,8 +11,14 @@ caps existed.
 This is not part of `run.py all`: a time depends on the machine and on what
 else it is doing, so it is run on purpose rather than on every change.
 
+With --world coastlines it measures a document the size of a real GPlates data
+set instead (GP-0030): how long it takes to open, whether all of it is drawn,
+the frame standing still and playing, and that the hit test finds a feature in
+it.
+
 Usage:
     uv run Tests/performance.py [--port N] [--triangles N] [--budget MS]
+    uv run Tests/performance.py --world coastlines [--port N] [--budget MS]
 """
 
 import json
@@ -55,7 +61,17 @@ WARMUP_SAMPLES = 30
 HIT_TEST_SAMPLES = 2000
 HIT_TEST_SPEEDUP = 5.0
 
-USAGE = "usage: performance.py [--port N] [--triangles N] [--budget MS]"
+USAGE = "usage: performance.py [--port N] [--triangles N | --world coastlines] [--budget MS]"
+
+# The stand-in for the global EarthByte coastlines GPlates 2.5.0 ships, which
+# are 2077 features and 64,496 vertices (GP-0030): a few continents of thousands
+# of vertices, some dozens of large islands and two thousand small ones, every
+# one an irregular ring round a random centre, as (count, vertices, radius in
+# degrees). Built from a fixed seed, so every run measures the same document.
+COASTLINE_SIZES = [(6, 3000, 25.0), (71, 350, 4.0), (2000, 11, 0.4)]
+COASTLINE_SEED = 2077
+# How long opening it may take, in seconds.
+COASTLINE_OPEN_BUDGET = 5.0
 
 
 def circle(lat: float, lon: float, vertices: int) -> list[list[float]]:
@@ -126,6 +142,106 @@ def build_sample(path: Path, triangles: int, coupled: bool = False) -> int:
         },
     }, indent="\t"), encoding="utf-8")
     return FEATURES * per_feature
+
+
+def coastline_ring(rng, vertices: int, radius: float) -> list[list[float]]:
+    """An irregular ring round a random centre, as [latitude, longitude]:
+    a star about the centre whose distance wanders with the bearing, so it
+    never crosses itself. Placed on the sphere with the destination formula,
+    so it is the same shape at a pole or across the date line."""
+    from math import asin, atan2, cos, degrees, pi, radians, sin
+
+    lat0 = asin(rng.uniform(-1.0, 1.0))
+    lon0 = rng.uniform(-pi, pi)
+    waves = [(rng.randint(2, max(3, vertices // 8)), rng.uniform(0.0, 2.0 * pi),
+              rng.uniform(0.02, 0.12)) for _ in range(6)]
+    ring = []
+    for i in range(vertices):
+        bearing = -2.0 * pi * i / vertices
+        wobble = sum(amp * sin(k * bearing + phase) for k, phase, amp in waves)
+        wobble += rng.uniform(-0.04, 0.04)
+        distance = radians(radius) * max(0.2, 1.0 + wobble)
+        lat = asin(sin(lat0) * cos(distance) + cos(lat0) * sin(distance) * cos(bearing))
+        lon = lon0 + atan2(sin(bearing) * sin(distance) * cos(lat0),
+                           cos(distance) - sin(lat0) * sin(lat))
+        ring.append([degrees(lat), (degrees(lon) + 540.0) % 360.0 - 180.0])
+    return ring
+
+
+def build_coastlines(path: Path) -> tuple[int, int]:
+    """Write the stand-in coastlines. Returns the feature and vertex counts."""
+    import random
+
+    rng = random.Random(COASTLINE_SEED)
+    children = []
+    vertices_total = 0
+    for count, vertices, radius in COASTLINE_SIZES:
+        for _ in range(count):
+            index = len(children)
+            ring = coastline_ring(rng, vertices, radius)
+            vertices_total += len(ring)
+            children.append({
+                "uuid": f"coast-{index}",
+                "title": f"Coast {index}",
+                "enabled": True,
+                "is_group": False,
+                "type": "Feature",
+                "feature_type": "polygon",
+                "color": [0.55, 0.45, 0.3, 1.0],
+                "geometry_kind": "polygon",
+                "rings": [ring],
+                "time_range": [0, 2000],
+                "keyframes": [
+                    {"time": 0.0, "rotation": [0.0, 0.0, 0.0]},
+                    {"time": 400.0, "rotation": [10.0 + index % 30, 5.0, 0.0]},
+                ],
+            })
+    path.write_text(json.dumps({
+        "application": "geotekt",
+        "version": "0.4.0",
+        "features": {
+            "title": "Planet", "enabled": True, "is_group": True, "type": "Group",
+            "keyframes": [],
+            "children": [{"title": "Coastlines", "enabled": True, "is_group": True,
+                          "type": "Group", "keyframes": [], "children": children}],
+        },
+    }), encoding="utf-8")
+    return len(children), vertices_total
+
+
+def measure_coastlines(client: AutomationClient, path: Path, budget_ms: float) -> bool:
+    """Open the stand-in coastlines and report what a document that size costs."""
+    import time
+
+    began = time.perf_counter()
+    client.call("load", path=str(path))
+    opened = time.perf_counter() - began
+    counts = client.call("get_performance")["performance"]
+    print(f"opened in {opened:.2f} s: {counts['primitives']} primitives from "
+          f"{counts['features']} columns, {counts['dropped']} features left undrawn")
+    ok = opened <= COASTLINE_OPEN_BUDGET and counts["dropped"] == 0
+    print(f"{'PASS' if opened <= COASTLINE_OPEN_BUDGET else 'FAIL'} it opens within "
+          f"{COASTLINE_OPEN_BUDGET:.0f} s")
+    print(f"{'PASS' if counts['dropped'] == 0 else 'FAIL'} every feature is drawn")
+
+    still = report("standing still", sample_frames(client))
+    client.call("set_animation", animation={
+        "start": 400.0, "end": 0.0, "speed": 480.0, "loop": True,
+    })
+    client.call("timeline", button="Reset")
+    client.call("timeline", button="Play")
+    playing = report("playing", sample_frames(client))
+    client.call("timeline", button="Pause")
+    print(f"playback costs {playing - still:+.2f} ms a frame")
+    within = playing <= budget_ms
+    print(f"{'PASS' if within else 'FAIL'} the median frame while playing is within the budget")
+
+    reading = client.call("benchmark_hit_test", samples=200)["hit_test"]
+    found = reading["hits"] > 0
+    print(f"{reading['samples']} hit tests, {reading['hits']} landing on a feature, "
+          f"{reading['capped_us']:.1f} us each")
+    print(f"{'PASS' if found else 'FAIL'} the hit test finds features in it")
+    return ok and within and found
 
 
 def sample_frames(client: AutomationClient) -> list[float]:
@@ -213,6 +329,7 @@ def measure_hit_test(client: AutomationClient) -> bool:
 
 def main(argv: list[str]) -> int:
     port, triangles, budget = DEFAULT_PORT, DEFAULT_TRIANGLES, DEFAULT_BUDGET_MS
+    world = ""
     while argv:
         if len(argv) < 2:
             print(USAGE, file=sys.stderr)
@@ -224,11 +341,15 @@ def main(argv: list[str]) -> int:
             triangles = int(value)
         elif switch == "--budget":
             budget = float(value)
+        elif switch == "--world" and value == "coastlines":
+            world = value
         else:
             print(USAGE, file=sys.stderr)
             return 2
 
     folder = Path(tempfile.mkdtemp(prefix="geotekt-performance-"))
+    if world == "coastlines":
+        return run_coastlines(port, folder / "coastlines.geotekt", budget)
     sample = folder / "performance.geotekt"
     wanted = build_sample(sample, triangles)
     print(f"{wanted} triangles in {FEATURES} features written to {sample}")
@@ -260,6 +381,30 @@ def main(argv: list[str]) -> int:
         if process.poll() is None:
             process.kill()
 
+    return 0 if passed else 1
+
+
+def run_coastlines(port: int, path: Path, budget: float) -> int:
+    features, vertices = build_coastlines(path)
+    print(f"{features} features and {vertices} vertices written to {path}")
+    process = launch_app(port)
+    client = AutomationClient(port)
+    passed = False
+    try:
+        client.connect()
+        passed = measure_coastlines(client, path, budget)
+    finally:
+        try:
+            client.call("quit")
+        except (OSError, RuntimeError):
+            pass
+        client.close()
+        try:
+            process.wait(timeout=30)
+        except Exception:
+            pass
+        if process.poll() is None:
+            process.kill()
     return 0 if passed else 1
 
 

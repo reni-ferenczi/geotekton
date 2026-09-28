@@ -167,10 +167,10 @@ is what the eye would miss at the zoom the line was drawn at: a coastline
 traced at a high zoom keeps more of its detail than the same coastline traced
 from far out, which is also what the drawing hand meant.
 
-The budget makes the simplification matter. The shader loops over every
-segment for every fragment, so a document holds about 2,000 primitives at 60
-frames a second and 16,384 at most (see [Shader](Shader.md#performance)); a
-stroke that kept every sample would spend that on one coastline. The count
+The simplification still matters. Every segment is a primitive the shader
+and the hit test look at wherever they fall near it (see
+[Shader](Shader.md#performance)), and a stroke that kept every sample would be
+thousands of them for one coastline. The count
 after simplification is in the status bar, `24 vertices   drag to add a
 stroke   Enter commits`, which is how the tolerance is set by eye.
 
@@ -276,6 +276,24 @@ Until GP-0131 the ring was projected gnomonically about the middle of its
 corners, where great circles are straight lines too, but that projection
 only reaches a hemisphere, and a ring with a corner more than about 87
 degrees from its middle fell back to the latitude and longitude plane.
+
+### Large rings
+
+Clipping on the sphere checks every remaining corner against every candidate
+ear, which is quadratic in the corners, and in GDScript a coastline of 3,000
+corners took well over a second; a GPlates data set took most of a minute to
+open (GP-0030). A ring of more than `Feature.NATIVE_CORNERS` (64) corners is
+therefore projected gnomonically about the middle of its corners and cut by
+the engine, `Geometry2D.triangulate_polygon()`. The projection carries great
+circles to straight lines, so a triangle that is right in that plane is right
+on the sphere, exactly what the clipping here decides by hand. It is used only
+when every corner lies within 80 degrees of the middle
+(`Feature.GNOMONIC_REACH`), where the plane is stretched almost six times and
+still exact, and only when the engine gives back n - 2 triangles. Anything
+else, a ring wider than that or one the engine will not cut, falls back to the
+clipping on the sphere, and so does every ring of up to 64 corners, so what the
+shapes drawn by hand are cut into does not change. A 3,000 corner ring now
+takes about 14 ms.
 
 `Tests/Unit/test_ear_clip.gd` checks the fill on the sphere: a grid of probes
 over a polygon beside the pole, one round the pole with a bay and one over a

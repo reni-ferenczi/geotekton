@@ -173,13 +173,22 @@ static func scene_to_map(point: Vector3) -> Vector2:
 # tree does; where a feature sits at the current time is one rotation per
 # feature, so a step of an animation re-uploads that small part alone and leaves
 # the vertices where they were put.
-# How many primitives one document is drawn with. The geometry texture is one
-# texel per primitive wide and 16384 is the widest a desktop device is required
-# to make one, so past this the texture cannot be created at all. The shader
-# also loops over every primitive for every fragment, so a frame is long before
-# then; see Docs/Shader.md#measured. Whatever does not fit is left out rather
-# than the window standing still, and the feature tree still holds all of it.
-const MAX_PRIMITIVES := 16384
+# How wide the data textures are. A texture holds one entry per texel along a
+# row and wraps onto the next group of rows past this, so an entry of `rows`
+# texels at index i is at (i % TEXTURE_WRAP, i / TEXTURE_WRAP * rows + row);
+# see _at(). 16,384 is the widest and tallest a desktop device is required to
+# make a texture, which is what a document past it ran into before (GP-0030).
+const TEXTURE_WRAP := 4096
+
+# How many primitives one document is drawn with: as many as the two rows of
+# each fit into the tallest texture a device has to make. Whatever does not fit
+# is left out rather than the window standing still, and the feature tree still
+# holds all of it.
+const MAX_PRIMITIVES := TEXTURE_WRAP * (16384 / 2)
+
+# The limit collect_geometry() holds a document to. MAX_PRIMITIVES, except in a
+# test that wants to reach it without building tens of millions of primitives.
+static var primitive_limit := MAX_PRIMITIVES
 
 # How many primitives the shader takes as one block behind one cap. Small enough
 # that a block of a large polygon is a small patch of it, large enough that the
@@ -209,6 +218,12 @@ class Geometry extends RefCounted:
 
 	# How many features were left out because MAX_PRIMITIVES was reached.
 	var dropped: int = 0
+
+	# Whether the tree holds a topology or a hotspot, whose vertices move with
+	# the time, so a new time needs the geometry collected again rather than
+	# only resolved. Worked out once, when the geometry is collected, since the
+	# tree cannot change without collecting it again.
+	var rebuilt_with_time: bool = false
 
 	# Where each column's primitives sit in the list, as a half open range.
 	# Every primitive of one column is contiguous, so the hit test can walk one
@@ -260,6 +275,11 @@ class Geometry extends RefCounted:
 	# everything but a crust; see Styling.line_color_of(). One entry per
 	# column, in the same order.
 	var line_colors: Array[Color] = []
+
+	# Counts every time the colors above are worked out, so set_feature_state()
+	# can tell a frame that only moved the features from one that recolored
+	# them, and write the colors again only then.
+	var color_version: int = 0
 
 	# The styling the colors were last worked out with, kept so resolve() can
 	# work them out again when an age style makes them follow the time.
@@ -348,6 +368,7 @@ class Geometry extends RefCounted:
 	# collected again.
 	func recolor(styling_: Styling) -> void:
 		styling = styling_
+		color_version += 1
 		var drawing := styling if styling != null else Styling.of(null)
 		for index in features.size():
 			var node: Feature = features[index]
@@ -373,30 +394,31 @@ func set_geometry(geometry: Geometry) -> void:
 			material.set_shader_parameter("column_count", 0)
 		return
 
-	# Data texture: width = primitive count, height = 2, 32-bit float RGBA
-	var img := Image.create(count, 2, false, Image.FORMAT_RGBAF)
+	# Data texture: two rows of texels per primitive, wrapped at TEXTURE_WRAP,
+	# 32-bit float RGBA
+	var img := _wrapped_image(count, 2)
 	for i in range(count):
 		var texels := _texels(geometry.primitives[i])
-		img.set_pixel(i, 0, texels[0])
-		img.set_pixel(i, 1, texels[1])
+		img.set_pixelv(_at(i, 0, 2), texels[0])
+		img.set_pixelv(_at(i, 1, 2), texels[1])
 
 	# The caps the shader skips with, and the ranges they cover; see
 	# Docs/Shader.md#skipping-what-is-far. Both are in each feature's own frame,
 	# so they are uploaded with the geometry and never with a step of an
 	# animation.
 	var columns := geometry.features.size()
-	var column_img := Image.create(columns, 2, false, Image.FORMAT_RGBAF)
+	var column_img := _wrapped_image(columns, 2)
 	for i in columns:
 		var c: Vector3 = geometry.draw_centres[i]
-		column_img.set_pixel(i, 0, Color(c.x, c.y, c.z, geometry.draw_angles[i]))
-		column_img.set_pixel(i, 1, Color(float(geometry.block_starts[i]),
+		column_img.set_pixelv(_at(i, 0, 2), Color(c.x, c.y, c.z, geometry.draw_angles[i]))
+		column_img.set_pixelv(_at(i, 1, 2), Color(float(geometry.block_starts[i]),
 			float(geometry.block_ends[i]), 0.0, 0.0))
 	var blocks := geometry.block_centres.size()
-	var block_img := Image.create(blocks, 2, false, Image.FORMAT_RGBAF)
+	var block_img := _wrapped_image(blocks, 2)
 	for i in blocks:
 		var c: Vector3 = geometry.block_centres[i]
-		block_img.set_pixel(i, 0, Color(c.x, c.y, c.z, geometry.block_angles[i]))
-		block_img.set_pixel(i, 1, Color(float(geometry.block_first[i]),
+		block_img.set_pixelv(_at(i, 0, 2), Color(c.x, c.y, c.z, geometry.block_angles[i]))
+		block_img.set_pixelv(_at(i, 1, 2), Color(float(geometry.block_first[i]),
 			float(geometry.block_last[i]), 0.0, 0.0))
 
 	var tex := ImageTexture.create_from_image(img)
@@ -408,6 +430,19 @@ func set_geometry(geometry: Geometry) -> void:
 		material.set_shader_parameter("column_data", column_tex)
 		material.set_shader_parameter("block_data", block_tex)
 		material.set_shader_parameter("column_count", columns)
+
+
+# An image for `count` entries of `rows` texels each, wrapped at TEXTURE_WRAP.
+static func _wrapped_image(count: int, rows: int) -> Image:
+	return Image.create(clampi(count, 1, TEXTURE_WRAP),
+		maxi(1, ceili(float(count) / TEXTURE_WRAP)) * rows, false, Image.FORMAT_RGBAF)
+
+
+# Where row `row` of entry i of a texture of `rows` rows an entry is; the
+# counterpart of at() in planet.gdshader.
+static func _at(i: int, row: int, rows: int) -> Vector2i:
+	@warning_ignore("integer_division")
+	return Vector2i(i % TEXTURE_WRAP, i / TEXTURE_WRAP * rows + row)
 
 
 # The two texels of the geometry texture one primitive is packed into, rows 0
@@ -443,33 +478,81 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 	if count == 0:
 		return
 
-	# Data texture: width = one column per drawn feature, a crust taking one per
-	# band, height = 6, 32-bit float RGBA. The first three rows carry one column
-	# of the rotation each, with the hover, the visibility and the selection in
-	# the channels the rotation leaves over; the fourth is the color, the fifth
-	# says whether the feature is a child of the selected one and how wide its
-	# lines are, and the sixth is the color its lines come out in.
-	var img := Image.create(count, 6, false, Image.FORMAT_RGBAF)
+	# Data texture: six rows of texels per column, a crust taking one column per
+	# band, wrapped at TEXTURE_WRAP, 32-bit float RGBA. The first three rows
+	# carry one column of the rotation each, with the hover, the visibility and
+	# the selection in the channels the rotation leaves over; the fourth is the
+	# color, the fifth says whether the feature is a child of the selected one
+	# and how wide its lines are, and the sixth is the color its lines come out
+	# in.
+	#
+	# This runs on every frame of an animation, so the texels are kept in one
+	# packed array between calls and the texture is updated in place (GP-0030).
+	# When nothing but the time has changed since the last call, the colors,
+	# the hover, the selection and the relations are as they were, and only the
+	# three rows of the rotation are written again.
+	var width := clampi(count, 1, TEXTURE_WRAP)
+	var height := maxi(1, ceili(float(count) / TEXTURE_WRAP)) * 6
+	var row := width * 4
+	var key := [geometry, geometry.color_version, hovered_feature, selected_feature, related]
+	var moved_only := key == _state_key and _state_texels.size() == width * height * 4
+	if not moved_only:
+		_state_key = key.duplicate(true)
+		_state_texels = PackedFloat32Array()
+		_state_texels.resize(width * height * 4)
+	var texels := _state_texels
 	for i in range(count):
 		var m: Basis = geometry.bases[i]
-		var hovered := 1.0 if geometry.features[i] == hovered_feature else 0.0
-		var selected := 1.0 if geometry.features[i] == selected_feature else 0.0
-		img.set_pixel(i, 0, Color(m.x.x, m.x.y, m.x.z, hovered))
-		img.set_pixel(i, 1, Color(m.y.x, m.y.y, m.y.z, 1.0 if geometry.shown[i] else 0.0))
-		img.set_pixel(i, 2, Color(m.z.x, m.z.y, m.z.z, selected))
+		@warning_ignore("integer_division")
+		var first := ((i / TEXTURE_WRAP * 6) * width + i % TEXTURE_WRAP) * 4
+		texels[first] = m.x.x
+		texels[first + 1] = m.x.y
+		texels[first + 2] = m.x.z
+		texels[first + row] = m.y.x
+		texels[first + row + 1] = m.y.y
+		texels[first + row + 2] = m.y.z
+		texels[first + row + 3] = 1.0 if geometry.shown[i] else 0.0
+		texels[first + 2 * row] = m.z.x
+		texels[first + 2 * row + 1] = m.z.y
+		texels[first + 2 * row + 2] = m.z.z
+		if moved_only:
+			continue
+		var node: Feature = geometry.features[i]
+		texels[first + 3] = 1.0 if node == hovered_feature else 0.0
+		texels[first + 2 * row + 3] = 1.0 if node == selected_feature else 0.0
 		# A Color holds sRGB values, the numbers the picker shows; the shader
 		# writes ALBEDO in linear light and the renderer encodes to sRGB on the
 		# way out, so the color is linearized here or it comes out paler than
 		# it was picked. The alpha is left as it is. See
 		# Docs/Shader.md#colour-space.
-		img.set_pixel(i, 3, geometry.colors[i].srgb_to_linear())
-		img.set_pixel(i, 4, Color(float(related.get(geometry.features[i], Relation.NONE)),
-			geometry.features[i].line_scale(), 0.0))
-		img.set_pixel(i, 5, geometry.line_colors[i].srgb_to_linear())
+		_put(texels, first + 3 * row, geometry.colors[i].srgb_to_linear())
+		texels[first + 4 * row] = float(related.get(node, Relation.NONE))
+		texels[first + 4 * row + 1] = node.line_scale()
+		_put(texels, first + 5 * row, geometry.line_colors[i].srgb_to_linear())
 
-	var tex := ImageTexture.create_from_image(img)
+	var img := Image.create_from_data(width, height, false, Image.FORMAT_RGBAF,
+		texels.to_byte_array())
+	if _feature_texture != null and _feature_texture.get_size() == Vector2(width, height):
+		_feature_texture.update(img)
+		return
+	_feature_texture = ImageTexture.create_from_image(img)
 	for material in [globe.get_surface_override_material(0), map.get_surface_override_material(0)]:
-		material.set_shader_parameter("feature_data", tex)
+		material.set_shader_parameter("feature_data", _feature_texture)
+
+
+# The per feature texture and the texels behind it, kept so a frame of an
+# animation updates them rather than making new ones, and what they were last
+# written for.
+var _feature_texture: ImageTexture = null
+var _state_texels := PackedFloat32Array()
+var _state_key: Array = []
+
+
+static func _put(texels: PackedFloat32Array, at: int, color: Color) -> void:
+	texels[at] = color.r
+	texels[at + 1] = color.g
+	texels[at + 2] = color.b
+	texels[at + 3] = color.a
 
 
 # Flatten a feature tree into the primitives that draw it, in the frame of each
@@ -497,13 +580,14 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 	Crust.rebuild_all(root, time, Config.get_skip_increment())
 	var geometry := Geometry.new()
 	geometry.nodes = Coupling.index(root)
+	geometry.rebuilt_with_time = Topology.holds_any(root) or Hotspot.holds_any(root)
 	var crust_lines := styling == null or styling.shows_crust_lines()
 	for node in _drawing_order(root):
 		if styling != null and not styling.shows(node):
 			continue
 		# A feature is drawn whole or not at all, so what it needs is counted
 		# before any of it is added. A later, smaller feature may still fit.
-		if geometry.primitives.size() + _primitive_count(node, crust_lines) > MAX_PRIMITIVES:
+		if geometry.primitives.size() + _primitive_count(node, crust_lines) > primitive_limit:
 			geometry.dropped += 1
 			continue
 

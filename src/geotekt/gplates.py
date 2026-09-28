@@ -34,9 +34,11 @@ log = logging.getLogger(__name__)
 MAX_TIME = 10000
 
 # Scenes/Planet/planet.gd. How many triangles, segments and markers the planet
-# draws at once. A global data set is well past it, so the import says so
-# rather than leaving someone wondering why half a planet is missing.
-MAX_PRIMITIVES = 16384
+# draws at once: TEXTURE_WRAP entries a row, two rows each, in a texture of
+# 16,384 rows. A data set past it gets told so rather than leaving someone
+# wondering why part of a planet is missing.
+TEXTURE_WRAP = 4096
+MAX_PRIMITIVES = TEXTURE_WRAP * (16384 // 2)
 
 # Logic/feature_type.gd. A Geotekton type follows the geometry a feature
 # holds, so the GPGIM type, whatever it is, has no say in it.
