@@ -116,7 +116,9 @@ func _handle(line: String) -> void:
 func _dispatch(request: Dictionary) -> Dictionary:
 	match request.get("cmd", ""):
 		"ping":
-			return {"ok": true, "version": Application.VERSION}
+			return {"ok": true, "version": Application.VERSION,
+				"adapter": "%s %s" % [RenderingServer.get_video_adapter_vendor(),
+					RenderingServer.get_video_adapter_name()]}
 
 		"load":
 			var error := app.document.load_from_file(str(request.get("path", "")))

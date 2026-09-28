@@ -36,7 +36,14 @@ whose name contains the substring, for example
 one frame at 60 frames a second). See [Frame time](#frame-time).
 
 Set the `GODOT` environment variable to use an engine binary other than
-`C:\Tools\Godot\Godot_v4.7.2-stable_win64_console.exe`.
+`C:\Tools\Godot\Godot_v4.7.2-stable_win64_console.exe`. Set
+`GEOTEKTON_SKIP_IMPORT=1` to leave out the import step described below, for
+example when several modes run side by side after one import: imports running
+at once would write the same cache.
+
+Every mode also runs on Linux under Xvfb, on a GPU or on llvmpipe. The window
+is then on a virtual screen, so nothing appears on the desktop of the person
+running the tests.
 
 ## Fresh checkout
 
@@ -631,7 +638,18 @@ faster.
 
 ## Golden images
 
-The references are the PNGs in `Tests/Golden`, each a full 1800x900 window:
+The references are PNGs of a full 1800x900 window. GPUs draw thin lines and
+text a pixel apart, enough to fail a scene, so each kind of GPU has its own set:
+
+| Folder                 | Drawn on                                      |
+| ---------------------- | --------------------------------------------- |
+| `Tests/Golden`         | an NVIDIA GPU, and any GPU without a set      |
+| `Tests/Golden/AMD`     | an AMD GPU (RADV on Linux)                    |
+| `Tests/Golden/Software`| a software renderer such as llvmpipe          |
+
+`golden.py` asks the application which GPU it draws on (the `adapter` of
+`ping`) and uses that set for both `check` and `update`. The scenes are the same
+in every set:
 
 | Scene                | File                       | View                       |
 | -------------------- | -------------------------- | -------------------------- |
@@ -689,7 +707,7 @@ screenshots with the references. Two images are compared per pixel on the larges
 absolute channel difference: a pixel counts as different above `PIXEL_TOLERANCE`
 (8 out of 255) and a scene fails when more than `MAX_DIFFERENT_FRACTION` (0.002) of
 its pixels differ. A failing scene writes its screenshot next to the reference as
-`Tests/Golden/<scene>.actual.png`, which is git-ignored.
+`<scene>.actual.png`, which is git-ignored.
 
 `Tests/Golden` holds a `.gdignore`, so the engine leaves the whole folder
 alone. The references are read by `Tests/golden.py` in Python and never by the
@@ -708,7 +726,9 @@ uv run Tests/golden.py update
 ```
 
 Look at the PNGs once to confirm they show what the change intended, then
-commit them. They are reviewed in the pull request that changes them.
+commit them. They are reviewed in the pull request that changes them. An
+update only rewrites the set of the GPU it ran on, so a visual change needs
+one update per set.
 
 ## The automation port
 
@@ -729,7 +749,7 @@ a round trip is also a wait for the screen to catch up.
 
 | Command                              | Answers with                                                     |
 | ------------------------------------ | ---------------------------------------------------------------- |
-| `ping`                               | `version`, the application version                               |
+| `ping`                               | `version`, the application version, and `adapter`, the GPU vendor and name |
 | `load {path}`                        | loads a `.geotekt` file, absolute path                      |
 | `get_features`                       | `features`, the whole tree as `pnid`, `title`, `is_group`, `depth` and `row_icon`, the glyph id or else the file stem of the picture the row is showing, and for a feature `swatch`, the color its row's swatch shows; also `scroll`, how far the tree is scrolled down in pixels, and `tree_rect`, where the tree is in the window |
 | `select {title\|pnid}`               | selects a feature; `title: null` or `pnid: -1` selects the root  |

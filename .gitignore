@@ -235,3 +235,4 @@ mono_crash.*.json
 # engine no longer imports anything in that folder, so there are no .import
 # files to ignore beside them; see Tests/Golden/.gdignore and GP-0018.
 Tests/Golden/*.actual.png
+Tests/Golden/*/*.actual.png
