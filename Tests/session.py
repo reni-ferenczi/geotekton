@@ -5492,25 +5492,18 @@ def run_rate_unit_checks(client: AutomationClient, graphs: dict) -> None:
     check(client.call("get_preferences")["preferences"]["rate_unit"] == "cm_per_year",
           "the rate unit is cm/yr to begin with")
     km = graphs["current"]["km_per_my"]
-    check(f"{km / 10.0:.2f} cm/yr" in graphs["readout"],
-          f"the readout gives the rate in cm/yr: {graphs['readout']}")
     check(graphs["rate_label"] == f"{km / 10.0:.2f} cm/yr",
-          f"and the rate row gives the same current rate: {graphs['rate_label']}")
-    check("°/My" not in graphs["readout"] and "°/My" not in graphs["rate_label"],
-          f"with no angle per million years beside it: {graphs['readout']}")
-    check("° N" not in graphs["readout"] and "° S" not in graphs["readout"]
-          and "° E" not in graphs["readout"] and "° W" not in graphs["readout"],
-          f"and no latitude or longitude: {graphs['readout']}")
+          f"the rate row gives the current rate in cm/yr: {graphs['rate_label']}")
+    check(graphs["readout"] == "",
+          f"and nothing else says it, GP-0142: {graphs['readout']!r}")
     client.call("set_preferences", preferences={"rate_unit": "km_per_my"})
     switched = client.call("get_kinematics")["kinematics"]
-    check("/My" in switched["readout"] and "cm/yr" not in switched["readout"],
-          f"switched to the distance per million years, the readout follows: {switched['readout']}")
-    check(switched["rate_label"].endswith("/My"),
-          f"and so does the rate row: {switched['rate_label']}")
+    check(switched["rate_label"].endswith("/My") and "cm/yr" not in switched["rate_label"],
+          f"switched to the distance per million years, the rate row follows: {switched['rate_label']}")
     refused = refusal(client, "set_preferences", preferences={"rate_unit": "knots"})
     check("knots" in refused, f"a unit the dialog does not offer is refused: {refused!r}")
     client.call("set_preferences", preferences={"rate_unit": "cm_per_year"})
-    check("cm/yr" in client.call("get_kinematics")["kinematics"]["readout"], "and back again")
+    check(client.call("get_kinematics")["kinematics"]["rate_label"].endswith("cm/yr"), "and back again")
 
 
 # The follower of the drag checks: the blue quad follows the red triangle from
@@ -5542,7 +5535,7 @@ def run_kinematics_drag_session(client: AutomationClient) -> None:
 
     rates = []
     for step in (1, 2):
-        before = client.call("get_kinematics")["kinematics"]["readout"]
+        before = client.call("get_kinematics")["kinematics"]["rate_label"]
         lat, lon = world_centroid(client)
         grab = client.call("latlon_to_screen", lat=lat, lon=lon)["screen"]
         target = client.call("latlon_to_screen", lat=lat, lon=lon + KINEMATICS_DRAG)["screen"]
@@ -5550,8 +5543,8 @@ def run_kinematics_drag_session(client: AutomationClient) -> None:
             return
         client.call("press", x=grab[0], y=grab[1])
         client.call("mouse_move", x=target[0], y=target[1])
-        during = client.call("get_kinematics")["kinematics"]["readout"]
-        check(during != before, f"drag {step}: the readout changes before the release: {during!r}")
+        during = client.call("get_kinematics")["kinematics"]["rate_label"]
+        check(during != before, f"drag {step}: the rate changes before the release: {during!r}")
         client.call("release", x=target[0], y=target[1])
 
         graphs = client.call("get_kinematics")["kinematics"]
@@ -5564,7 +5557,8 @@ def run_kinematics_drag_session(client: AutomationClient) -> None:
     check(rates[1] > rates[0], f"a drag further at the same time reads higher: {rates}")
 
     graphs = client.call("get_kinematics")["kinematics"]
-    check(" toward " in graphs["readout"], f"the readout gives a bearing: {graphs['readout']}")
+    check(graphs["readout"] == "" and "toward" not in graphs["rate_label"],
+          f"no bearing anywhere, GP-0142: {graphs['readout']!r}, {graphs['rate_label']!r}")
     for speed in ("8 to 20 cm/yr", "6 cm/yr", "3 cm/yr", "under 1 cm/yr", "Worldbuilding Pasta"):
         check(speed in graphs["tooltip"], f"the rate's tooltip lists {speed!r}: {graphs['tooltip']!r}")
 
@@ -5617,8 +5611,8 @@ def run_kinematics_session(client: AutomationClient) -> None:
     fraction = (KINEMATICS_OLDEST - CURSOR_TIME) / (KINEMATICS_OLDEST - KINEMATICS_YOUNGEST)
     check(abs(graphs["cursor"] - fraction * graphs["plot_width"]) < CURSOR_TOLERANCE,
           f"and moving the time moves it to that time: {graphs['cursor']}")
-    check(f"{CURSOR_TIME:g} Ma" in graphs["readout"],
-          f"the readout says where the cursor is: {graphs['readout']}")
+    check(graphs["readout"] == "",
+          f"with a feature graphed the line above the graphs is empty: {graphs['readout']!r}")
     run_rate_unit_checks(client, graphs)
 
     # Where the feature is at that time, off the graph, is where the globe has

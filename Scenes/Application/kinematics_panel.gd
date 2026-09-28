@@ -67,8 +67,7 @@ var readout: Label
 var graphs: Control
 
 # Whether the latitude and longitude graphs are drawn above the rate. The
-# readout gives both numbers either way; the panel is two rows shorter without
-# the graphs, and that height goes to the planet.
+# panel is two rows shorter without them, and that height goes to the planet.
 var show_place: bool = false:
 	set(value):
 		show_place = value
@@ -155,13 +154,13 @@ func refresh() -> void:
 	_samples = Kinematics.path(_root(), node, oldest(), youngest(), SAMPLES)
 	_segments = Kinematics.segments(_root(), node, Config.get_planet_radius())
 	_peak = Kinematics.peak_rate(_segments)
+	readout.text = _readout_text()
 	_show_time()
 
 
-# The cursor and the readout follow the current time; the graphs themselves
-# stand still under it.
+# The cursor and the rate beside the rate row follow the current time; the
+# graphs themselves stand still under it.
 func _show_time() -> void:
-	readout.text = _readout_text()
 	graphs.queue_redraw()
 
 
@@ -178,8 +177,9 @@ func youngest() -> float:
 	return timeline.youngest() if timeline != null else 0.0
 
 
-# The line above the graphs: what is being graphed and what it comes to at the
-# current time, or why there is nothing to draw.
+# The line above the graphs: why there is nothing to draw, and empty while a
+# feature is graphed. The rate is beside the rate row; the panel gives no title,
+# time, place or bearing (GP-0142).
 func _readout_text() -> String:
 	if node == null:
 		return "Nothing is selected."
@@ -189,21 +189,11 @@ func _readout_text() -> String:
 		return "A topology is resolved from the features its sections run along, so it has no motion of its own."
 	if _samples.is_empty():
 		return "%s has no geometry yet." % node.title
-
-	var time := _current_time()
-	var rate := Kinematics.rate_at(_segments, time)
-	var text := "%s at %s Ma:   %s" % [
-		node.title,
-		format_time(time),
-		Measure.format_rate(rate["km_per_my"], Config.get_rate_unit()),
-	]
-	if rate["km_per_my"] > 0.0:
-		text += " toward %.0f°" % rate["bearing"]
-	return text
+	return ""
 
 
-# A time the way the readout and the time axis write it: a plain number of
-# millions of years, without the trailing zero a whole one would carry.
+# A time the way the time axis writes it: a plain number of millions of years,
+# without the trailing zero a whole one would carry.
 static func format_time(time: float) -> String:
 	return String.num(time, 4).trim_suffix(".0")
 
@@ -289,7 +279,7 @@ func _draw_rate_row(row: int) -> void:
 
 
 # What the rate row says beside its top: the rate at the current time, `km` in
-# km/My, in the unit the preference names, the same number as the readout. The
+# km/My, in the unit the preference names, the only place it is written. The
 # fastest span the bars are scaled against is not written anywhere; it says
 # nothing about where the feature is now (GP-0136).
 static func rate_label(km: float, unit: String) -> String:

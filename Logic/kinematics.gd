@@ -190,7 +190,7 @@ static func bearing(point: Vector3, velocity: Vector3) -> float:
 
 # How fast the node moves at a time: the span that brought it there, the way
 # GPlates reads the motion from t + dt to t. A time where two spans meet
-# belongs to the older of the two, so the readout at a keyframe gives the move
+# belongs to the older of the two, so the rate at a keyframe gives the move
 # that was just made there. Nothing at all outside every span, and nothing at
 # the oldest time, where the feature has not moved yet.
 static func rate_at(segments_: Array[Dictionary], time: float) -> Dictionary:
