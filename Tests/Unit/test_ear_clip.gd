@@ -223,8 +223,9 @@ func _covered_by(feature: Feature, point: Vector2) -> Array[int]:
 # overlap when two cover it with the edges left out, so a point on the cut
 # between two triangles is neither. Points within a small angle of the ring's
 # own edge are skipped, since the reference and the fill may round
-# differently there.
-func _check_fill(ring: PackedVector2Array, lats: Array, lons: Array, what: String) -> void:
+# differently there. A ring too wide for the gnomonic reference brings its own
+# test of what is inside.
+func _check_fill(ring: PackedVector2Array, lats: Array, lons: Array, what: String, inside := Callable()) -> void:
 	var feature := _polygon(ring)
 	var gaps := 0
 	var overlaps := 0
@@ -237,7 +238,7 @@ func _check_fill(ring: PackedVector2Array, lats: Array, lons: Array, what: Strin
 				continue
 			probed += 1
 			var covered := _covered_by(feature, point)
-			if _inside_on_sphere(ring, point):
+			if inside.call(point) if inside.is_valid() else _inside_on_sphere(ring, point):
 				if covered[0] == 0:
 					gaps += 1
 				elif covered[1] > 1:
@@ -305,3 +306,24 @@ func test_a_ring_round_the_pole_with_a_bay_is_filled_once() -> void:
 func test_the_plane_polygons_fill_once_on_the_sphere() -> void:
 	_check_fill(QUAD, _range(-5.0, 35.0, 1.0), _range(-5.0, 35.0, 1.0), "the quad")
 	_check_fill(L_SHAPE, _range(-5.0, 35.0, 1.0), _range(-5.0, 35.0, 1.0), "the L shape")
+
+
+# A polygon over a third of the planet, from 70 S to 10 N and from 120 W to
+# 120 E, with a vertex every 5 degrees along its sides, so each side follows
+# its parallel or meridian to well within the edge margin. Its corners lie
+# more than a quarter turn from the middle of the ring, too far for the
+# gnomonic projection, and a triangulation in the latitude and longitude plane
+# bulged out of the outline on the globe (GP-0131).
+func test_a_polygon_over_a_third_of_the_planet_is_filled_once() -> void:
+	var ring := PackedVector2Array()
+	for lon in _range(-120.0, 120.0, 5.0):
+		ring.append(Vector2(-70.0, lon))
+	for lat in _range(-65.0, 10.0, 5.0):
+		ring.append(Vector2(lat, 120.0))
+	for lon in _range(-115.0, 115.0, 5.0):
+		ring.append(Vector2(10.0, -lon))
+	for lat in _range(-65.0, 10.0, 5.0):
+		ring.append(Vector2(-lat, -120.0))
+	var inside := func(point: Vector2) -> bool:
+		return point.x > -70.0 and point.x < 10.0 and point.y > -120.0 and point.y < 120.0
+	_check_fill(ring, _range(-80.0, 20.0, 2.5), _range(-130.0, 130.0, 5.0), "a third of the planet", inside)
