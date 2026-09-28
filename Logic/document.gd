@@ -72,6 +72,10 @@ var applied: int = 0
 # has fallen out of the undo buffer and the document can no longer become clean.
 var _saved: int = 0
 
+# What opening the last file changed in it on the way in, for the status bar,
+# or an empty string when it is as the file holds it.
+var load_notice: String = ""
+
 
 func _init() -> void:
 	reset()
@@ -276,6 +280,8 @@ func set_style(group: Feature, style: GroupStyle) -> String:
 func set_feature_type(feature: Feature, type_id: String) -> String:
 	if not FeatureType.CATALOG.has(type_id):
 		return "There is no feature type called %s." % type_id
+	if type_id == FeatureType.TOPOLOGY and feature.feature_type != FeatureType.TOPOLOGY:
+		return "Topologies are generated: the Split tool makes ridges and crusts."
 	var to_circle := type_id == FeatureType.CIRCLE and not feature.is_circle()
 	if to_circle and feature.has_geometry():
 		return "A circle is built from its center and radius, so it is picked on an empty feature."
@@ -467,29 +473,13 @@ func remove_vertex(feature: Feature, part: int, index: int) -> String:
 # {"kind": GeometryKind, "rings": Array[PackedVector2Array]}, or an empty
 # dictionary when there is nothing to take. This is what Copy Shape holds on to.
 #
-# A topology has no vertices of its own, so what comes out of one is what its
-# sections resolve to, one run per section, which is a polyline, or for a closed
-# one the single ring, which is a polygon. That is the one way to turn a
-# topology into a shape someone can edit. A ridge and a crust are copied as the
-# rings they were last rebuilt into: the ridge's one line and the crust's bands.
+# A ridge and a crust are copied as the rings they were last rebuilt into: the
+# ridge's one line and the crust's bands.
 func shape_of(feature: Feature) -> Dictionary:
 	if feature == null or feature.is_group or not feature.has_geometry():
 		return {}
 
 	var rings: Array[PackedVector2Array] = []
-	if feature.geometry_kind == Feature.GeometryKind.TOPOLOGY \
-			and not feature.midway and not feature.is_crust():
-		for entry in Topology.resolve(root, feature, current_time):
-			var run: PackedVector2Array = entry["vertices"]
-			if not run.is_empty():
-				rings.append(run)
-		if rings.is_empty():
-			return {}
-		# A closed one is copied as the one ring it is drawn as.
-		if feature.closed:
-			rings.assign([Topology.join(rings)])
-		return {"kind": feature.drawn_as(), "rings": rings}
-
 	var to_world := Feature.world_basis(root, feature, current_time)
 	for ring in feature.rings:
 		rings.append(Feature.apply_basis(ring, to_world))
@@ -1705,95 +1695,6 @@ func _add_crust(parent: Feature, ridge: Feature, halves: Array, edge_size: int) 
 		parent.children.insert(at, crust)
 
 
-### Topologies
-
-# A topology's geometry is the list of sections it names; the vertices it draws
-# are resolved from them whenever the tree or the current time moves. These four
-# are the only things that change the list, and each records one undo version
-# like every other edit, as does closing or opening it. See Logic/topology.gd.
-
-
-# Join the sections into one filled ring, or leave them separate lines.
-func set_topology_closed(feature: Feature, closed: bool) -> String:
-	if feature == null or feature.geometry_kind != Feature.GeometryKind.TOPOLOGY:
-		return "Only a topology can be closed."
-	if feature.midway or feature.is_crust():
-		return "%s is built from what it lies between, so it cannot be closed or opened." \
-			% feature.title
-	feature.closed = closed
-	Topology.rebuild(root, feature, current_time)
-	record()
-	return ""
-
-
-# Add a section running along the whole of one part of another feature. The
-# feature becomes a topology when it holds nothing yet; one that already holds
-# vertices of its own is refused, because the two cannot both be its geometry.
-func add_section(feature: Feature, target: Feature, part: int) -> String:
-	if feature == null or feature.is_group:
-		return "Only a feature can be a topology."
-	if feature.has_geometry() and feature.geometry_kind != Feature.GeometryKind.TOPOLOGY:
-		return "%s already holds a %s." % [feature.title, feature.kind_name()]
-	var problem := Topology.section_problem(feature, target)
-	if not problem.is_empty():
-		return problem
-	if part < 0 or part >= target.rings.size():
-		return "%s has no part %d." % [target.title, part + 1]
-
-	feature.geometry_kind = Feature.GeometryKind.TOPOLOGY
-	var section := TopologySection.whole_part(target, part)
-	# A midway topology's second section is its second side.
-	section.side = int(feature.midway and not feature.sections.is_empty())
-	feature.sections.append(section)
-	record()
-	return ""
-
-
-func remove_section(feature: Feature, index: int) -> String:
-	var error := _check_section(feature, index)
-	if not error.is_empty():
-		return error
-	feature.sections.remove_at(index)
-	record()
-	return ""
-
-
-# Walk a section the other way round. A boundary is built by clicking one
-# feature after another and the vertices of the next one often run back towards
-# the last, which is what this is for.
-func reverse_section(feature: Feature, index: int) -> String:
-	var error := _check_section(feature, index)
-	if not error.is_empty():
-		return error
-	feature.sections[index].reversed = not feature.sections[index].reversed
-	record()
-	return ""
-
-
-# Which vertices of the section's feature the section runs between, counting
-# from zero. A range beyond the part is not refused here: the feature it names
-# can grow or shrink under it, so Topology.resolve() brings the range back into
-# whatever the part holds at the time it is drawn.
-func set_section_range(feature: Feature, index: int, from_index: int, to_index: int) -> String:
-	var error := _check_section(feature, index)
-	if not error.is_empty():
-		return error
-	if from_index < 0 or to_index < 0:
-		return "Vertices are numbered from 1."
-	feature.sections[index].from_index = from_index
-	feature.sections[index].to_index = to_index
-	record()
-	return ""
-
-
-func _check_section(feature: Feature, index: int) -> String:
-	if feature == null or feature.geometry_kind != Feature.GeometryKind.TOPOLOGY:
-		return "The selected feature is not a topology."
-	if index < 0 or index >= feature.sections.size():
-		return "%s has no section %d." % [feature.title, index + 1]
-	return ""
-
-
 ### Time and motion
 
 # The current time is view state and records no undo version. The keyframes are
@@ -2064,6 +1965,12 @@ func load_from_file(file_path: String) -> String:
 
 	root = loaded
 	view = ViewSettings.from_json(migrated.get("view"))
+	load_notice = ""
+	var dropped := _drop_custom_topologies()
+	if not dropped.is_empty():
+		load_notice = "Removed %d topolog%s built by hand, since topologies are generated now: %s." \
+			% [dropped.size(), "y" if dropped.size() == 1 else "ies", ", ".join(dropped)]
+		push_warning(load_notice)
 	var repaired := _repair_crust_halves()
 	if repaired > 0:
 		push_warning("%d crust%s named a plate off %s ridge and %s given the plate on its side (GP-0143)."
@@ -2073,12 +1980,31 @@ func load_from_file(file_path: String) -> String:
 	applied = 0
 	record()
 	# A repaired document is not what the file holds, so it asks to be saved.
-	_saved = applied if repaired == 0 else -1
+	_saved = applied if repaired == 0 and dropped.is_empty() else -1
 	path = file_path
 	set_time(0.0)
 	root_replaced.emit(false)
 	state_changed.emit()
 	return ""
+
+
+# Topologies are generated: the ridges and crusts the Split tool makes. One a
+# person built by hand, from sections along other features, is taken out when a
+# file is opened (GP-0147). Nothing names one: a coupling cannot follow a
+# topology and a section cannot run along one but a ridge. Returns their titles.
+func _drop_custom_topologies() -> PackedStringArray:
+	var titles := PackedStringArray()
+	var stack: Array[Feature] = [root]
+	while not stack.is_empty():
+		var group: Feature = stack.pop_back()
+		for child in group.children.duplicate():
+			if child.is_group:
+				stack.append(child)
+			elif child.geometry_kind == Feature.GeometryKind.TOPOLOGY and not child.midway \
+					and not child.is_crust():
+				titles.append(child.title)
+				group.children.erase(child)
+	return titles
 
 
 # Before GP-0143 was fixed, a cut across older sea floor could leave the crust

@@ -318,12 +318,14 @@ draws the same everywhere.
 
 A **topology** carries `sections` instead of `rings`, because its vertices
 are resolved from the features it runs along every time the tree or the current
-time moves, and writing them down would be writing down a derived value:
+time moves, and writing them down would be writing down a derived value. The
+only topologies are the ridges and crusts the Split tool generates; a ridge is
+written like this, with the `midway` key described below:
 
 ```json
 {
   "uuid": "9c4a1f77-0b2e-4d61-8a05-3c6d2e9f4b18",
-  "title": "Ridge Boundary",
+  "title": "Laurentia ridge",
   "type": "Feature",
   "is_group": false,
   "enabled": true,
@@ -346,9 +348,10 @@ is kept as it stands, so a topology loads and saves whole even while one of the
 features it names is missing; see
 [Editing](Editing.md#topologies).
 
-A closed topology adds `"closed": true`, and the sections are then joined into
-one filled ring; see [Editing](Editing.md#closed-topologies). An open topology
-writes no `closed` key, and a topology without one is open.
+A crust is written with `"closed": true`. Before GP-0147 a topology could
+also be built by hand, open or closed; a file holding one that is neither a
+ridge nor a crust loses it when it is opened, and the document opens unsaved;
+see [Editing](Editing.md#topologies-built-by-hand).
 
 A midway topology adds `"midway": true`: it is the line between its two sides,
 the way a [ridge](Editing.md#the-ridge) is. Since 0.30.0 a section on the

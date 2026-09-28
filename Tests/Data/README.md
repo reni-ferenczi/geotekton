@@ -37,7 +37,8 @@ motion over time. `poles.geotekt`, the ninth, is written in the current format
 and holds the two polygons at the poles.
 
 `topology.geotekt` is the fixture for a
-[line topology](../../Docs/Editing.md#topologies): two multipoints on the
+[topology built by hand](../../Docs/Editing.md#topologies-built-by-hand), which
+opening a file takes out since GP-0147: two multipoints on the
 equator, `West Points` in red at 40, 25 and 10 degrees west and `East Points` in
 blue at 10, 25 and 40 degrees east, with a green `Boundary` running along all of
 both. The features it names are multipoints on purpose, so the only thing drawn
@@ -152,17 +153,16 @@ Root group `Planet` > group `Plates` > `West Points`, `East Points`, and
 
 | Probe      | Expected feature | Colour |
 | ---------- | ---------------- | ------ |
-| (0, -32.5) | Boundary         | green  |
-| (0, 17.5)  | Boundary         | green  |
+| (0, -32.5) | none             | Earth  |
+| (0, 17.5)  | none             | Earth  |
 | (0, 3)     | none             | Earth  |
 | (0, -40)   | West Points      | red    |
 | (0, 40)    | East Points      | blue   |
 
-The two probes on the boundary sit between markers, where nothing but the
-resolved topology is drawn. The one at (0, 3) is in the gap between the two
-sections, off the grid, and shows the Earth: the sections are not joined
-up. The two on the markers are at vertices the boundary also runs through, and
-the marker wins there, so they say the features are still drawn under it.
+The two probes where the boundary ran sit between markers and now hit
+nothing: a topology built by hand is no longer resolved, and a Document opening
+the file takes it out. The one at (0, 3) is off the grid and shows the Earth.
+The two on the markers say the features it ran along are still there.
 
 ### poles.geotekt (0.28.0)
 

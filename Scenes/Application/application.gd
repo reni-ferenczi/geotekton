@@ -56,11 +56,10 @@ const IMPORT_SCRATCH := "user://imported.geotekt"
 # scripted run can drive Open and Save As; unset in a normal run.
 static var file_dialog_hook: Callable
 
-enum Tool { MOVE, ROTATE, POLE, DRAW, VERTEX, MEASURE, TOPOLOGY, SPLIT }
+enum Tool { MOVE, ROTATE, POLE, DRAW, VERTEX, MEASURE, SPLIT }
 
 # The key that picks each tool, single letters without a modifier. GPlates'
-# own letters where it has one for the same tool. The Topology tool has no key:
-# the Pick toggle of the section table in the Properties panel arms it.
+# own letters where it has one for the same tool.
 const TOOL_KEYS := {
 	KEY_M: Tool.MOVE,
 	KEY_R: Tool.ROTATE,
@@ -338,7 +337,6 @@ func _ready() -> void:
 		func(on: bool) -> void: start_plate_pick() if on else end_pick())
 	properties.palette_file_requested.connect(choose_palette)
 	properties.pick_axis_requested.connect(start_axis_pick)
-	properties.pick_section_requested.connect(start_section_pick)
 	document.root_replaced.connect(_on_root_replaced)
 	document.state_changed.connect(_update_document_labels)
 	document.time_changed.connect(_on_time_changed)
@@ -1146,6 +1144,7 @@ func _load_path(path: String) -> void:
 		_show_error(error)
 		return
 	remember_file(path)
+	_report_problem(document.load_notice)
 
 
 func _write_to(path: String, after: Callable) -> void:
@@ -1440,12 +1439,13 @@ func _build_drawing_preferences() -> Control:
 	default_line_width_spin.tooltip_text = ("The line width a new feature starts with, "
 		+ "as a multiple of what its type draws at; a feature keeps its own once it exists")
 
-	# The colour each feature type starts a feature in, in catalog order.
+	# The colour each feature type starts a feature in, in catalog order. Ridges
+	# and crusts take theirs from the View settings, so Topology has none here.
 	box.add_child(_view_section("Feature colors"))
 	var colors := GridContainer.new()
 	colors.columns = 2
 	box.add_child(colors)
-	for type_id in FeatureType.CATALOG:
+	for type_id in FeatureType.pickable():
 		var label := Label.new()
 		label.text = FeatureType.label(type_id)
 		colors.add_child(label)
@@ -2196,7 +2196,6 @@ func set_active_tool(tool: Tool) -> void:
 	active_tool = tool
 	for entry: Tool in tool_buttons:
 		tool_buttons[entry].button_pressed = entry == tool
-	properties.show_section_picking(tool == Tool.TOPOLOGY)
 	# Only the Split tool reads the Ridge and Crust switches, and only the
 	# Measure tool the Parallel one. The segment count follows the selection as
 	# well, so _update_tool_buttons shows it.
@@ -2253,8 +2252,6 @@ func _tool_fits(node: Feature) -> bool:
 	match active_tool:
 		Tool.DRAW:
 			return _can_draw(node)
-		Tool.TOPOLOGY:
-			return _can_build_topology(node)
 	return true
 
 
@@ -2296,10 +2293,8 @@ func _on_feature_selected(node: Feature) -> void:
 		set_active_tool(Tool.MOVE)
 	if active_tool == Tool.VERTEX and node != null and not _can_edit_vertices(node):
 		set_active_tool(Tool.MOVE)
-	# The axis or sections being picked belong to the feature that asked for
-	# them.
-	if (picking_axis or active_tool == Tool.TOPOLOGY) \
-			and node != null and node.pnid != pick_pnid:
+	# The axis being picked belongs to the feature that asked for it.
+	if picking_axis and node != null and node.pnid != pick_pnid:
 		set_active_tool(Tool.MOVE)
 	if active_tool == Tool.SPLIT and node != null and not _can_split_along(node):
 		set_active_tool(Tool.MOVE)
@@ -2318,8 +2313,8 @@ func _on_feature_selected(node: Feature) -> void:
 		if not _tool_fits(node) or _tool_for(node) != Tool.MOVE:
 			set_active_tool(_tool_for(node))
 	else:
-		# Can't draw or build a topology on groups or nothing — force Move
-		if active_tool == Tool.DRAW or active_tool == Tool.TOPOLOGY:
+		# Can't draw on groups or nothing — force Move
+		if active_tool == Tool.DRAW:
 			set_active_tool(Tool.MOVE)
 
 	_update_move_enabled()
@@ -2436,10 +2431,6 @@ func _has_type(node: Feature, types: Array) -> bool:
 	return node != null and not node.is_group and node.feature_type in types
 
 
-func _can_build_topology(node: Feature) -> bool:
-	return _has_type(node, ["topology"])
-
-
 func _can_draw(node: Feature) -> bool:
 	return _has_type(node, DRAW_TYPES)
 
@@ -2473,8 +2464,7 @@ func _can_edit_vertices(node: Feature) -> bool:
 
 
 # The tool the feature's type calls for, or Move when nothing draws it: a
-# feature that holds a shape already, a topology, whose sections are picked from
-# the Properties panel, a group, or nothing selected. A hotspot not placed yet
+# feature that holds a shape already, a group, or nothing selected. A hotspot not placed yet
 # holds nothing, so it gets the Draw tool.
 func _tool_for(node: Feature) -> Tool:
 	if node == null or node.is_group or node.has_geometry():
@@ -2805,8 +2795,6 @@ func _on_planet_input(lat: float, lon: float, event: InputEvent) -> void:
 			_on_vertex_input(lat, lon, event)
 		Tool.MEASURE:
 			_on_measure_input(lat, lon, event)
-		Tool.TOPOLOGY:
-			_on_topology_input(lat, lon, event)
 		Tool.SPLIT:
 			_on_split_input(lat, lon, event)
 
@@ -3311,11 +3299,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			elif event.keycode == KEY_ESCAPE:
 				_measure_clear()
 				_refresh_selection_outline()
-			else:
-				return
-		Tool.TOPOLOGY:
-			if event.keycode == KEY_ESCAPE:
-				set_active_tool(Tool.MOVE)
 			else:
 				return
 		Tool.SPLIT:
@@ -4017,91 +4000,6 @@ func _circle_commit() -> String:
 	return ""
 
 
-### The Topology tool
-#
-# Building a line topology by clicking the features it runs along, in order. The
-# tool has no toolbar button: the Pick toggle of the section table arms it for
-# the selected topology, and Escape, another selection or another tool ends it.
-# A click adds the whole of one part of whatever is under it as a section; a
-# right click takes the last section back. There is nothing to commit: each
-# click is one edit and one undo version, so the boundary is on the globe as it
-# grows.
-#
-# Which section runs which way, and which vertices of a feature a section
-# covers, are set afterwards in the Properties panel; see
-# Docs/Editing.md#topologies.
-
-
-func start_section_pick(on: bool) -> void:
-	var feature := features.feature_tree.get_selected_node()
-	if on and _can_build_topology(feature):
-		pick_pnid = feature.pnid
-		set_active_tool(Tool.TOPOLOGY)
-	elif active_tool == Tool.TOPOLOGY or on:
-		# Let go, or refused: either way the toggle shows what the tool is.
-		set_active_tool(Tool.MOVE)
-
-
-func _on_topology_input(lat: float, lon: float, event: InputEvent) -> void:
-	if event is not InputEventMouseButton or not event.is_pressed():
-		return
-	var selected := features.feature_tree.get_selected_node()
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_report(add_topology_section(selected, Planet.hit_test(lat, lon, geometry),
-			Vector2(lat, lon)))
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		_report(remove_last_section(selected))
-
-
-# Give the topology a section along the feature that was clicked. Returns why it
-# could not, or an empty string once it has.
-func add_topology_section(node: Feature, target: Feature, at: Vector2) -> String:
-	if target == null:
-		return "Click a feature to add it to the topology."
-	var problem := document.add_section(node, target, _nearest_part(target, at))
-	if not problem.is_empty():
-		return problem
-	_after_topology_edit()
-	return ""
-
-
-func remove_last_section(node: Feature) -> String:
-	if node == null or node.sections.is_empty():
-		return "There is no section to take back."
-	var problem := document.remove_section(node, node.sections.size() - 1)
-	if not problem.is_empty():
-		return problem
-	_after_topology_edit()
-	return ""
-
-
-# Which part of the clicked feature the click fell on: the one holding the
-# vertex nearest to it. A feature of a single part answers with that part
-# without looking at anything.
-func _nearest_part(target: Feature, at: Vector2) -> int:
-	if target.rings.size() <= 1:
-		return 0
-	var m := Feature.world_basis(features.root, target, document.current_time)
-	var best := 0
-	var best_distance := INF
-	for part in target.rings.size():
-		for vertex in Feature.apply_basis(target.rings[part], m):
-			var distance := Measure.distance(vertex, at, 1.0)
-			if distance < best_distance:
-				best_distance = distance
-				best = part
-	return best
-
-
-# The tree row, the globe and the panel all follow a section being added or
-# taken back, since a topology is a feature like any other once it is resolved.
-func _after_topology_edit() -> void:
-	features.reload()
-	_show_selection(features.feature_tree.get_selected_node())
-	refresh_geometry()
-	_update_tool_buttons()
-
-
 ### The Measure tool
 #
 # The points that have been clicked and the distance along them. A path takes
@@ -4211,14 +4109,6 @@ func _show_measurement(error: String = "") -> void:
 	if _drawing_hotspot():
 		status_measure.text = "Click to place %s; click again to move it" % \
 			features.feature_tree.get_selected_node().title
-		return
-
-	if active_tool == Tool.TOPOLOGY:
-		var building := features.feature_tree.get_selected_node()
-		var count := 0 if building == null else building.sections.size()
-		status_measure.text = "click the features the topology runs along" if count == 0 \
-			else "%d section%s   right click takes the last one back" % [
-				count, "" if count == 1 else "s"]
 		return
 
 	if _drawing_circle():

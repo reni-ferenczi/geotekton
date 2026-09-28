@@ -50,10 +50,13 @@ const EXPECTED := {
 	},
 	"topology.geotekt": {
 		"version": "0.5.0",
+		# The tree as the file holds it, with the line topology built by hand.
+		# It is no longer resolved, so nothing is drawn for it, and opening the
+		# file takes it out (GP-0147, test_document.gd).
 		"titles": ["Planet", "Plates", "West Points", "East Points", "Boundary"],
 		"hits": [
-			[Vector2(0, -32.5), "Boundary"],
-			[Vector2(0, 17.5), "Boundary"],
+			[Vector2(0, -32.5), ""],
+			[Vector2(0, 17.5), ""],
 			[Vector2(0, 3), ""],
 			[Vector2(0, -40), "West Points"],
 			[Vector2(0, 40), "East Points"],

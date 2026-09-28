@@ -337,13 +337,25 @@ func test_a_feature_holding_nothing_takes_any_type() -> void:
 	var document := Document.new()
 	# A fresh feature for each type, since a hotspot builds its rings as soon as
 	# it is picked.
-	for type_id in FeatureType.CATALOG:
+	for type_id in FeatureType.pickable():
 		var feature := Feature.create_feature("Empty")
 		document.root.children.append(feature)
 		assert_eq(feature.feature_type, "polygon", "a new feature is a Polygon")
 		assert_eq(document.set_feature_type(feature, type_id), "",
 			"nothing is drawn yet, so %s is free to pick" % type_id)
 		assert_eq(feature.feature_type, type_id, "and the feature keeps it")
+
+
+# GP-0147: topologies are generated, the ridges and crusts the Split tool makes,
+# so a feature is never given the type by hand.
+func test_topology_is_not_a_type_to_pick() -> void:
+	var document := Document.new()
+	var feature := Feature.create_feature("Empty")
+	document.root.children.append(feature)
+	assert_true(not FeatureType.TOPOLOGY in FeatureType.pickable(), "the selector does not offer it")
+	assert_true(not document.set_feature_type(feature, FeatureType.TOPOLOGY).is_empty(),
+		"and an empty feature is refused it")
+	assert_eq(feature.feature_type, FeatureType.POLYGON, "keeping the type it had")
 
 
 func test_an_unknown_type_is_refused() -> void:
@@ -613,26 +625,3 @@ func test_a_group_and_an_empty_feature_have_no_shape_to_copy() -> void:
 	assert_eq(document.paste_shape(document.root, document.shape_of(document.root.children[0])),
 		"Only a feature takes a shape.")
 
-
-func test_a_topology_copies_the_runs_its_sections_resolve_to() -> void:
-	var document := _shapes()
-	var source: Feature = document.root.children[0]
-	var topology := Feature.create_feature("Boundary")
-	topology.geometry_kind = Feature.GeometryKind.TOPOLOGY
-	topology.sections.append(TopologySection.whole_part(source, 0))
-	document.root.children.append(topology)
-
-	var shape := document.shape_of(topology)
-	assert_eq(shape["kind"], Feature.GeometryKind.POLYLINE,
-		"a topology comes out as the line it resolves to")
-	var runs: Array = shape["rings"]
-	assert_eq(runs.size(), 1, "one run per section that resolved")
-	var world := _world_ring(document, source, 0)
-	assert_eq(runs[0], world, "holding the world vertices the section runs along")
-
-	var target: Feature = document.root.children[1]
-	assert_eq(document.paste_shape(target, shape), "")
-	assert_eq(target.geometry_kind, Feature.GeometryKind.POLYLINE,
-		"which is what makes a topology editable")
-	assert_eq(document.paste_shape(topology, shape),
-		"A topology borrows its vertices, so a shape cannot be added to it.")

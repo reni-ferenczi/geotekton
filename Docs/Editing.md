@@ -41,14 +41,14 @@ clicks a shape out vertex by vertex, follows the selected feature's
 [type](Properties.md#what-the-type-restricts), which is picked in the Properties
 panel and is the one place it is picked. Picking a type on a feature holding
 nothing arms the tool that draws it, so a new feature can be drawn straight
-away. A Topology is not drawn: its sections are picked with the **Pick** toggle
-of the section table in the Properties panel, which arms the Topology tool
-without a toolbar button; see [Topologies](#topologies). Whether a click or a
+away. Topology is not a type anyone picks: ridges and crusts are the only
+topologies, and the Split tool generates them; see [Topologies](#topologies).
+Whether a click or a
 drag lands on a nearby vertex is a setting, Edit > Snap to vertices, rather
 than a tool; see [Snapping](#snapping). The light is set in the
 [View settings](#view-settings) dialog.
 
-Only one of Move, Rotate, Pole, Draw, Vertex, Measure, Topology and Split is
+Only one of Move, Rotate, Pole, Draw, Vertex, Measure and Split is
 active at a time. Everything but
 Move takes the clicks on the planet for itself, so selecting a feature, moving
 one and the right click menu wait until Move comes back. Rotating the globe with
@@ -67,7 +67,7 @@ letters are GPlates' where GPlates has one for the same tool:
 | P   | Pole Rotate       | X   | Split             |
 | D   | Draw              |     |                   |
 
-The Topology tool has no key, since it has no button. C, L and T pick nothing.
+C, L and T pick nothing.
 
 A key of a tool the toolbar greys out for what is selected does nothing. A text
 field with the keyboard takes the letter as the character it is, so typing a
@@ -262,9 +262,8 @@ The arithmetic is in [Moving](Moving.md#rotating).
 The Vertex tool edits the geometry of the selected feature on the globe itself.
 The [Properties](Properties.md) panel lists no coordinates, so this is where a
 vertex is moved, inserted or deleted. It is available once a leaf feature holding vertices of its own is
-selected; there is nothing to take hold of otherwise, and a
-[line topology](#topologies) borrows every vertex it draws from the
-features its sections run along.
+selected; there is nothing to take hold of otherwise, and a ridge or a crust
+is [generated](#topologies) from the features on either side of it.
 
 | Input | Action |
 |-------|--------|
@@ -363,10 +362,9 @@ bar, since the parts of one feature are all of one kind. Pasting into a feature
 that holds the same kind appends another part, so the same shape can be laid
 down twice and the second copy moved off the first.
 
-A [topology](#topologies) has no vertices of its own, but Copy Shape takes
-what its sections resolve to at the current time: one run per section, a
-polyline, or for a closed topology the one ring it is drawn as, a polygon.
-That is the way to turn a boundary into a shape someone can edit.
+A ridge or a crust has no vertices of its own, but Copy Shape takes the rings
+it was last rebuilt into: the ridge's one line and the crust's bands. That is
+the way to turn one into a shape someone can edit.
 
 The shape is held by the application rather than by the system clipboard, which
 Copy and Paste use for whole features. Copying a shape therefore leaves the
@@ -646,8 +644,7 @@ each step. `Logic/crust.gd` rebuilds the crust after the
 topologies whenever the tree, the time, the step or the Skip changes, and keeps
 the bands in the feature's rings and the lines beside them, so only the bands
 are filled and measured. A crust is a topology with no sections: the Properties
-panel shows a line such as `Crust of Laurentia, 4 chunks` in place of the
-section table, counting only the bands with an area, so a stretch of time in
+panel shows a line such as `Crust of Laurentia, 4 chunks`, counting only the bands with an area, so a stretch of time in
 which the plates did not move apart adds no chunk. The Area row is the sum of
 its bands. Copy Shape takes the
 bands as a polygon of several parts. The crust is part of the split's one undo
@@ -974,92 +971,42 @@ track is rebuilt; see [Persistence](Persistence.md#hotspots).
 
 A **topology** is a feature whose geometry is borrowed rather than drawn: a
 list of **sections**, each naming another feature, a range of that feature's
-vertices and which way round to walk them. A plate boundary is the usual one —
-it runs along the edges of the plates on either side of it, so it should move
-when they do rather than have to be redrawn.
+vertices and which way round to walk them. The only topologies are the
+[ridges](#the-ridge) and [crusts](#the-crust) the Split tool generates. Nobody
+builds one by hand: Topology is not offered in the Type selector, and
+`Document.set_feature_type()` and the Python bridge refuse it (GP-0147).
 
-Nothing about it is stored as vertices. Every time the tree or the current time
-changes, `Logic/topology.gd` finds the features the sections name, takes the
-runs of vertices they cover and carries them through the rotation those features
-have then. What comes out is what is drawn, hit tested and measured, so from
-there on a topology is a polyline like any other, or a polygon when it is
-[closed](#closed-topologies).
+Nothing about a ridge is stored as vertices. Every time the tree or the current
+time changes, `Logic/topology.gd` finds the features its sections name, takes
+the runs of vertices they cover and carries them through the rotation those
+features have then, and `Logic/ridge.gd` puts the ridge midway between the two
+sides. What comes out is what is drawn, hit tested and measured. That is also
+why a topology has **no motion of its own** and no keyframe row in the
+[Properties](Properties.md) panel: where it is comes from the features under
+it. The panel shows no Type row or section table for one either, only a line
+saying what it is.
 
-That is also why a topology has **no motion of its own** and no keyframe row
-in the [Properties](Properties.md) panel: where it is comes from the features
-under it.
+### Topologies built by hand
 
-### Building one
-
-Select a feature typed Topology that holds nothing yet, press the **Pick**
-toggle (the pointer under the section table in the
-[Properties](Properties.md#the-section-table) panel), and click the features the
-boundary runs along, in order. The toggle arms the Topology tool, which has no
-toolbar button and no key. It stays armed for more clicks; Escape, selecting
-another feature or picking a tool lets it go.
-
-| Input | Action |
-|-------|--------|
-| **LMB** on a feature | Add the part of it that was clicked as the next section |
-| **RMB** | Take the last section back |
-
-There is nothing to commit. Each click is one edit and one undo version, so the
-boundary is on the globe as it grows, and the status bar counts the sections.
-
-A click adds the **whole** of one part of the feature — the part holding the
-vertex nearest the click, for a feature that has several. Trimming it to the
-stretch that belongs to the boundary is done afterwards in the panel.
-
-A click is refused, with the reason in the status bar, when the feature under it
-is a group, is the topology itself, is a topology that is not
-[midway](#midway-topologies), or has no vertices. The feature being built on is
-refused as well when it already holds vertices of its own, since a feature
-cannot both draw its geometry and borrow it, when it is a midway topology that
-has both its sides, and when it is a [crust](#the-crust).
-
-### Editing the sections
-
-The [Properties](Properties.md#the-section-table) panel shows the sections where
-another feature shows its keyframe row: the feature each one runs along, the two
-vertices it runs between, and which way round. **Reverse** turns the selected
-section round, which is what a boundary usually needs when the next feature's
-vertices run back towards the last one, and **Remove** takes it out.
+Before GP-0147 a feature could be typed Topology and given sections with a
+Pick toggle under a section table in the Properties panel, open or
+**closed** into a filled ring. That is gone. A file that still holds one, a
+topology that is neither a ridge nor a crust, loses it when it is opened: the
+status bar names what was taken out, and the document opens unsaved, so the
+next save writes the file without it. Nothing else can name such a topology,
+since a coupling cannot follow a topology and a section runs along nothing but
+a ridge.
 
 ### Sections that cannot be followed
 
 A section is never dropped. One whose feature has been deleted, or is not there
-at the current time, is drawn in the panel in a warning colour with the reason
-as its tooltip, contributes no vertices, and stays in the file. So deleting a
-feature and undoing it mends the topology by itself. A ridge is the exception:
-it is deleted with either of its halves; see [The feature tree](#the-feature-tree).
+at the current time, contributes no vertices and stays in the file. A ridge is
+deleted with either of its halves; see [The feature tree](#the-feature-tree).
 
 That is what the persisted `uuid` is for. A section names its feature by an id
 that survives a save and a load, and survives the tree being replaced by a clone
 of itself — which is what undo, redo and every reload do; see
 [Persistence](Persistence.md#feature-tree-serialization).
-
-### The gap between two sections
-
-Each section of an open topology becomes a **part of its own**, so nothing is
-drawn between the end of one and the start of the next. An open topology is the
-stretches it names, and a segment across the gap is one no feature ever drew.
-
-### Closed topologies
-
-The **Closed** switch in the [Properties](Properties.md#the-section-table)
-panel joins the sections into one ring, which is drawn, filled, hit tested and
-measured as a polygon, with its area in the Area row. Turning it on or off
-is one undo version.
-
-The runs go in section order, each one walked the way its section says. Where
-the end of one run is the start of the next, that vertex is kept once, and
-where the last run ends on the first one's start, the ring closes there. Where
-two runs do not meet, the ring goes straight on to the next run, so the gap is
-closed by a chord. Nothing is intersected or trimmed at crossings: each run is
-the vertex range its section names. A broken section adds nothing to the ring
-and stays reported in the section table.
-
-A ring whose vertices all lie on one line encloses nothing and draws nothing.
 
 ### Midway topologies
 
@@ -1072,16 +1019,10 @@ features' rotations. For two features that have not moved apart, that is the
 point halfway between the pair. The ridge the Split tool leaves is one, and the
 file marks it with `midway`.
 
-A midway topology is drawn as one line. It has no Closed switch; the panel says
-`Midway between two sides` above the section table instead. When the two sides
-have different vertex counts, or a section is broken, it draws nothing and the
-section table says why. The Pick toggle adds the first side and then the
-second, and refuses a section after that.
-
-A section of any other topology may run along a midway one, reading the line it
-was last rebuilt into. Midway topologies are rebuilt before the others, wherever
-they sit in the tree. A midway topology cannot run along another topology, and
-no topology can run along one that is not midway.
+A midway topology is drawn as one line, and the panel says
+`Midway between two sides`. When the two sides have different vertex counts, or
+a section is broken, it draws nothing. A midway topology cannot run along
+another topology.
 
 ## The light
 

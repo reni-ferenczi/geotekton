@@ -410,6 +410,9 @@ func _add_feature(request_: Dictionary) -> Dictionary:
 	var kind_name := str(request_.get("geometry_kind", "polygon"))
 	if not Feature.KIND_VALUES.has(kind_name):
 		return {"ok": false, "error": "no geometry kind called %s" % kind_name}
+	# Topologies are generated: the Split tool makes ridges and crusts (GP-0147).
+	if kind_name == "topology" or str(request_.get("feature_type", "")) == FeatureType.TOPOLOGY:
+		return {"ok": false, "error": "topologies are generated; a script cannot add one"}
 
 	var type_id := str(request_.get("feature_type", FeatureType.NONE))
 	if not type_id.is_empty() and not FeatureType.CATALOG.has(type_id):
