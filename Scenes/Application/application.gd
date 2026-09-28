@@ -88,7 +88,7 @@ enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, EXPORT_VIDEO, RU
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE,
 	SNAP }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, KINEMATICS_PLACE, CONSOLE, STATUS_BAR,
-	SETTINGS, FULL_SCREEN, HIGHLIGHT_CHILDREN }
+	SETTINGS, FULL_SCREEN, HIGHLIGHT_CHILDREN, RIDGE_MARKERS }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -130,6 +130,10 @@ const KINEMATICS_PLACE_KEY := "kinematics_place"
 # first is absent and not written again.
 const HIGHLIGHT_CHILDREN_KEY := "highlight_children"
 const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
+
+# The config key remembering whether the timeline marks where the selected
+# feature's ridges appear. On when the file says nothing.
+const RIDGE_MARKERS_KEY := "ridge_markers"
 
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
@@ -504,6 +508,7 @@ func _build_menus() -> void:
 	view_menu.add_check_item("Status Bar", ViewItem.STATUS_BAR)
 	view_menu.add_separator()
 	view_menu.add_check_item("Highlight children", ViewItem.HIGHLIGHT_CHILDREN)
+	view_menu.add_check_item("Ridge markers", ViewItem.RIDGE_MARKERS)
 	view_menu.add_separator()
 	for class_id in Styling.CLASSES:
 		view_menu.add_check_item(Styling.class_label(class_id), class_menu_id(class_id))
@@ -704,6 +709,8 @@ func _on_view_menu_id_pressed(id: int) -> void:
 	elif id == ViewItem.HIGHLIGHT_CHILDREN:
 		highlight_children = not highlight_children
 		_refresh_feature_state()
+	elif id == ViewItem.RIDGE_MARKERS:
+		timeline.show_ridges = not timeline.show_ridges
 	else:
 		var panel := _panel_node(id)
 		panel.visible = not panel.visible
@@ -736,6 +743,8 @@ func _update_view_menu_checks() -> void:
 		kinematics.show_place)
 	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.HIGHLIGHT_CHILDREN),
 		highlight_children)
+	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.RIDGE_MARKERS),
+		timeline.show_ridges)
 	for class_id in Styling.CLASSES:
 		view_menu.set_item_checked(view_menu.get_item_index(class_menu_id(class_id)),
 			document.view.shows_class(class_id))
@@ -2068,6 +2077,7 @@ func _restore_session() -> void:
 	kinematics.show_place = bool(Config.get_value(KINEMATICS_PLACE_KEY, false))
 	highlight_children = bool(Config.get_value(HIGHLIGHT_CHILDREN_KEY,
 		Config.get_value(HIGHLIGHT_CHILDREN_OLD_KEY, false)))
+	timeline.show_ridges = bool(Config.get_value(RIDGE_MARKERS_KEY, true))
 	_update_view_menu_checks()
 
 	if not bool(Config.get_value("restore_session", true)):
@@ -2096,6 +2106,7 @@ func _save_panel_visibility() -> void:
 		Config.set_value(PANEL_KEYS[item], _panel_node(item).visible)
 	Config.set_value(KINEMATICS_PLACE_KEY, kinematics.show_place)
 	Config.set_value(HIGHLIGHT_CHILDREN_KEY, highlight_children)
+	Config.set_value(RIDGE_MARKERS_KEY, timeline.show_ridges)
 
 
 ### File dialogs

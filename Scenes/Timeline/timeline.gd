@@ -44,6 +44,12 @@ const COUPLING_DASH := 6.0
 const COUPLING_PICK_PIXELS := 3.0
 const COUPLING_COLOR := Color(0.35, 0.75, 1.0, 1.0)
 
+# Where a ridge of the selected feature appears, a small red dot at the top of
+# the strip at the ridge's split age, over any keyframe mark there. Shown while
+# show_ridges is on (View > Ridge markers).
+const RIDGE_COLOR := Color(0.95, 0.15, 0.15, 1.0)
+const RIDGE_DOT_RADIUS := 2.5
+
 # How close to a keyframe's time the current time counts as being on it, so
 # that a jump from a keyframe goes to the next one rather than back to itself.
 const TIME_EPSILON := 1e-9
@@ -73,6 +79,16 @@ var playing: bool = false
 
 # The node whose keyframes are marked under the slider, null for none.
 var marked: Feature = null
+
+# The ridges marked with a dot for the marked node, found when it is marked.
+var _ridges: Array[Feature] = []
+
+# Whether the ridge dots are drawn.
+var show_ridges: bool = true:
+	set(value):
+		show_ridges = value
+		if markers != null:
+			markers.queue_redraw()
 
 # True while the widgets are being filled from the document, so what they emit
 # on the way is not mistaken for someone moving them.
@@ -358,8 +374,11 @@ func jump_keyframe(towards_older: bool) -> void:
 func _on_markers_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var under := _keyframe_at_x(event.position.x)
+		var ridge := _ridge_at(event.position)
 		var coupling := _coupling_at(event.position)
-		if under != null:
+		if ridge != null:
+			markers.tooltip_text = _ridge_tooltip(ridge)
+		elif under != null:
 			markers.tooltip_text = "%s Ma" % under.time
 		elif coupling != null:
 			markers.tooltip_text = _coupling_tooltip(coupling)
@@ -370,10 +389,11 @@ func _on_markers_input(event: InputEvent) -> void:
 			or event.button_index != MOUSE_BUTTON_LEFT:
 		return
 	var keyframe := _keyframe_at_x(event.position.x)
-	if keyframe == null:
+	var ridge := _ridge_at(event.position)
+	if keyframe == null and ridge == null:
 		return
 	pause()
-	document.set_time(keyframe.time)
+	document.set_time(_split_age(ridge) if ridge != null else keyframe.time)
 	markers.accept_event()
 
 
@@ -391,6 +411,59 @@ func _keyframe_at_x(x: float) -> Keyframe:
 			nearest = distance
 			found = keyframe
 	return found
+
+
+# The ridges a dot is drawn for: the marked ridge itself, a crust's ridge, or
+# every ridge one of whose sections runs along the marked feature. A half split
+# more than once has one per split made with a ridge; a split without one left
+# no ridge and gets no dot.
+func _find_ridges(node: Feature) -> Array[Feature]:
+	var result: Array[Feature] = []
+	if node == null or node.is_group or document == null:
+		return result
+	if node.midway:
+		result.append(node)
+		return result
+	if node.is_crust():
+		var ridge := document.root.get_node_by_uuid(node.crust_ridge)
+		if ridge != null:
+			result.append(ridge)
+		return result
+	var stack: Array[Feature] = [document.root]
+	while not stack.is_empty():
+		var other: Feature = stack.pop_back()
+		stack.append_array(other.children)
+		if other.midway and Ridge.side_of(other, node) != -1:
+			result.append(other)
+	return result
+
+
+# A ridge appears at its split age, the older end of its time range.
+func _split_age(ridge: Feature) -> float:
+	return float(ridge.time_range.y)
+
+
+# The marked ridge whose dot is under this point of the strip, or null.
+func _ridge_at(point: Vector2) -> Feature:
+	var span := oldest() - youngest()
+	if not show_ridges or span <= 0.0 or point.y > RIDGE_DOT_RADIUS * 2.0 + MARKER_PICK_PIXELS:
+		return null
+	for ridge in _ridges:
+		if absf(_marker_x(_split_age(ridge), span) - point.x) <= MARKER_PICK_PIXELS:
+			return ridge
+	return null
+
+
+# What the pointer over a dot says: the two halves the ridge runs between, by
+# the first feature on each side, and when it appears.
+func _ridge_tooltip(ridge: Feature) -> String:
+	var names := ["?", "?"]
+	for section in ridge.sections:
+		if section.side in [0, 1] and names[section.side] == "?":
+			var feature := document.root.get_node_by_uuid(section.feature_uuid)
+			if feature != null:
+				names[section.side] = feature.title
+	return "Ridge between %s and %s from %s Ma" % [names[0], names[1], _split_age(ridge)]
 
 
 # The span of the marked node whose bar is under this point of the strip, or
@@ -436,6 +509,7 @@ func _nodes() -> Dictionary:
 # feature tree has selected, and again whenever its keyframes change.
 func show_keyframes(node: Feature) -> void:
 	marked = node
+	_ridges = _find_ridges(node)
 	markers.queue_redraw()
 	_update_buttons()
 
@@ -466,6 +540,10 @@ func _draw_markers() -> void:
 	for keyframe in marked.keyframes:
 		var x := _marker_x(keyframe.time, span)
 		markers.draw_line(Vector2(x, 0.0), Vector2(x, markers.size.y), MARKER_COLOR, 2.0)
+	if show_ridges:
+		for ridge in _ridges:
+			markers.draw_circle(Vector2(_marker_x(_split_age(ridge), span), RIDGE_DOT_RADIUS),
+				RIDGE_DOT_RADIUS, RIDGE_COLOR)
 
 
 # Where a time sits across the strip, under the middle of the slider's grabber
@@ -510,6 +588,7 @@ func to_json() -> Dictionary:
 		"slider_screen": [slider.get_global_rect().position.x, slider.get_global_rect().position.y,
 			slider.size.x, slider.size.y],
 		"couplings": _couplings_to_json(),
+		"ridges": _ridges_to_json(),
 		"animation": animation.to_json(),
 	}
 
@@ -536,6 +615,24 @@ func _couplings_to_json() -> Array:
 				origin.y + markers.size.y - COUPLING_HEIGHT / 2.0],
 		})
 	return bars
+
+
+# The ridge dots drawn for the marked node: the split age, what the pointer
+# over the dot says, and where the dot is in the window. Empty while the dots
+# are switched off.
+func _ridges_to_json() -> Array:
+	var dots: Array = []
+	var span := oldest() - youngest()
+	if not show_ridges or span <= 0.0:
+		return dots
+	var origin := markers.get_global_rect().position
+	for ridge in _ridges:
+		dots.append({
+			"time": _split_age(ridge),
+			"tooltip": _ridge_tooltip(ridge),
+			"screen": [origin.x + _marker_x(_split_age(ridge), span), origin.y + RIDGE_DOT_RADIUS],
+		})
+	return dots
 
 
 func _markers_to_json() -> Array:

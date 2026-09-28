@@ -135,6 +135,20 @@ one parent leaves the child halfway to where the other one stands. The
 Properties panel writes both names in the Coupled to row and in the spans list,
 `Laurentia and Laurentia 2, midway`.
 
+### Ridge markers
+
+A split made with Ridge on is a rifting event, and the timeline marks it: a
+small red dot at the top of the keyframe strip at the ridge's split age, the
+older end of its time range, where the ridge appears. It sits over a keyframe
+mark at the same age. The dots are the selected feature's, like its keyframe
+marks and coupling bars: either half of the split, the ridge itself or one of
+its crusts. A half split more than once with a ridge has one dot per ridge,
+and a split without a ridge gets none, since nothing records its age. The
+pointer over a dot says "Ridge between <half> and <half> from <age> Ma", and a
+click goes to that age, like a click on a keyframe mark. View > Ridge markers
+hides and shows them, and is remembered in the settings file
+(`ridge_markers`); see [Shell](Shell.md#menus).
+
 ### The bar on the timeline
 
 While the selected feature follows another, a bar along the bottom of the
