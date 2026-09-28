@@ -4406,10 +4406,17 @@ func refresh_geometry() -> void:
 # either the cheap path, which is why it is asked for rather than taken; the
 # geometry says so once, when it is collected, rather than the tree being
 # walked on every frame (GP-0030).
-func refresh_motion() -> void:
+#
+# Only a new time leaves every keyframe as it was, so only then may the
+# features that move alike share one rotation (Geometry.same_motion). Every
+# other caller has just changed keyframes, a drag the dragged feature's, and
+# the sharing is dropped until the geometry is collected again.
+func refresh_motion(time_only := false) -> void:
 	if geometry.rebuilt_with_time:
 		refresh_geometry()
 		return
+	if not time_only:
+		geometry.same_motion.clear()
 	geometry.resolve(features.root, document.current_time)
 	_refresh_feature_state()
 
@@ -4554,7 +4561,7 @@ func _on_program_changed() -> void:
 # tree greys out whatever is outside its time range and the Properties panel
 # follows the time in its keyframe list.
 func _on_time_changed() -> void:
-	refresh_motion()
+	refresh_motion(true)
 	features.feature_tree.refresh_time(document.current_time)
 	properties.show_time()
 

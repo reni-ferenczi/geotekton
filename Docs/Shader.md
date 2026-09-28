@@ -878,9 +878,28 @@ A document the size of a GPlates data set, `performance --world=coastlines`
 | Frame, standing still | — | 37.0 ms |
 | One hit test | 1.9 ms | 2.1 ms |
 
-Before GP-0030 it took 9.7 s to open on the AMD machine (a minute for the real
-coastlines, whose largest rings are larger) and 257 of the features were left
-out. On the AMD machine the 31 ms of its virtual screen is under every frame.
+Before GP-0030 it took 9.7 s to open on the AMD machine and 257 of the
+features were left out.
+
+The real EarthByte coastlines of GPlates 2.5.0, imported with the Zahirovic et
+al. (2022) rotations (2077 features on 310 plates, 59,467 primitives, 45
+keyframes a feature on average), measured with `--world=PATH`:
+
+| | NVIDIA GeForce RTX 5060 Ti | AMD Radeon 8060S under Xvfb |
+|---|---|---|
+| Opening it | 3.1 s | 3.2 s |
+| Frame, playing | 17.0 ms | 47.6 ms |
+| One hit test | 1.3 ms | 1.5 ms |
+
+They took about a minute to open before GP-0030. An import gives every
+feature of a plate the plate's whole history, so playing them first cost 35 ms
+a frame over standing still: `Keyframe.interpolate()` walked each feature's
+keyframes from the start, and every one of the 2077 worked its rotation out on
+its own. It now halves its way to the two keyframes around the time, and
+`Geometry.same_motion` has the features with the same keyframes and no
+coupling share one rotation, 310 instead of 2077, which leaves 10.6 ms a frame
+on the AMD machine. The sharing lasts until keyframes change: a drag drops it
+until the geometry is collected again. On the AMD machine the 31 ms of its virtual screen is under every frame.
 What playing adds over standing still, about 10 ms there, is the processor
 working out every feature's rotation at the new time and writing the three
 rows of it into `feature_data`: when nothing but the time has changed,

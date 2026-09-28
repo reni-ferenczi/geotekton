@@ -80,6 +80,22 @@ func test_the_middle_of_three_keyframes_uses_its_own_two_neighbours() -> void:
 	assert_close(Keyframe.interpolate(keyframes, 100.0), TO, 1e-6, "the middle keyframe itself")
 
 
+# A plate's history as an import gives it, a keyframe every 10 My: the two
+# keyframes around a time are found by halving (GP-0030), and must be the same
+# two a walk from the start would find, at a keyframe, between two and at the
+# edges of the list.
+func test_a_long_list_blends_the_two_keyframes_around_the_time() -> void:
+	var keyframes: Array[Keyframe] = []
+	for i in 45:
+		keyframes.append(Keyframe.create(10.0 * i, Vector3(float(i), 2.0 * i, 0.5 * i)))
+	for time in [0.0, 5.0, 10.0, 213.0, 219.99, 220.0, 435.0, 440.0]:
+		var after := ceili(time / 10.0)
+		var expected := keyframes[after].rotation if is_equal_approx(10.0 * after, time) \
+			else Keyframe.blend(keyframes[after - 1].rotation, keyframes[after].rotation,
+				(time - 10.0 * (after - 1)) / 10.0)
+		assert_close(Keyframe.interpolate(keyframes, time), expected, 1e-6, "at %s Ma" % time)
+
+
 ### The list
 
 

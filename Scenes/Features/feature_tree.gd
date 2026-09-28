@@ -167,39 +167,34 @@ func mark_related(related: Dictionary) -> void:
 
 
 # Grey out every feature that is not there at the given time. A group is always
-# there, so only the leaf rows ever change, and only where the time passes one
-# end of a feature's time range: a step of an animation that passes none leaves
-# every row as it was, and the thousands of rows of a large document are not
-# walked for it (GP-0030).
+# there, so only the leaf rows ever change, and only the rows one end of whose
+# time range the time passes: a step of an animation touches those and leaves
+# the thousands of other rows of a large document alone (GP-0030).
 func refresh_time(time_: float) -> void:
-	var passed := _range_ends.is_empty() or _ends_between(time, time_)
+	var low := minf(time, time_)
+	var high := maxf(time, time_)
 	time = time_
-	if not passed:
-		return
-	for item in items.values():
-		_apply_time(item)
+	for at in range(_range_ends.bsearch(low), _range_ends.size()):
+		if _range_ends[at] > high:
+			break
+		for item: TreeItem in _rows_ending[_range_ends[at]]:
+			_apply_time(item)
 
 
-# Whether an end of some row's time range lies between two times, both
-# included, which is where a row can change.
-func _ends_between(a: float, b: float) -> bool:
-	var at := _range_ends.bsearch(minf(a, b))
-	return at < _range_ends.size() and _range_ends[at] <= maxf(a, b)
-
-
-# Every end of every row's time range, sorted, worked out when the rows are
-# built. Empty until then, which refresh_time() takes as "walk every row".
+# Every end of every row's time range, sorted, and the rows that end at each,
+# worked out when the rows are built.
 var _range_ends := PackedFloat64Array()
+var _rows_ending := {}
 
 
 func _gather_range_ends() -> void:
-	var ends := {}
+	_rows_ending.clear()
 	for item in items.values():
 		var node := item.get_metadata(0) as Feature
 		if node != null and not node.is_group:
-			ends[float(node.time_range.x)] = true
-			ends[float(node.time_range.y)] = true
-	_range_ends = PackedFloat64Array(ends.keys())
+			for end in [float(node.time_range.x), float(node.time_range.y)]:
+				_rows_ending.get_or_add(end, []).append(item)
+	_range_ends = PackedFloat64Array(_rows_ending.keys())
 	_range_ends.sort()
 
 
