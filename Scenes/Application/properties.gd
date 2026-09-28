@@ -99,6 +99,7 @@ var placeholder: Label
 var name_edit: LineEdit
 var type_selector: OptionButton
 var icon_selector: OptionButton
+var folder_icon_selector: OptionButton
 var style_selector: OptionButton
 var palette_selector: OptionButton
 var ramp_row: RampRow
@@ -235,6 +236,21 @@ func _build() -> void:
 	icon_selector.custom_minimum_size.y = icon_selector.get_combined_minimum_size().y
 	icon_selector.select(0)
 
+	# A group's row picture: the plain folder, or one of the folder pictures, to
+	# tell groups apart in the tree (GP-0146). Its row goes last, under Enabled,
+	# so the rows of a group's style stay where they were.
+	folder_icon_selector = _selector("FolderIcon")
+	folder_icon_selector.tooltip_text = "The picture on the group's tree row"
+	folder_icon_selector.add_item("Folder", 0)
+	folder_icon_selector.set_item_icon(0, FeatureIcon.shrunk("Icons1-Group", "Icons1-Group"))
+	folder_icon_selector.set_item_metadata(0, FeatureIcon.NONE)
+	for icon_id in FeatureIcon.FOLDERS:
+		folder_icon_selector.add_item(FeatureIcon.FOLDERS[icon_id])
+		folder_icon_selector.set_item_icon(folder_icon_selector.item_count - 1,
+			FeatureIcon.folder_texture(icon_id))
+		folder_icon_selector.set_item_metadata(folder_icon_selector.item_count - 1, icon_id)
+	folder_icon_selector.item_selected.connect(_on_folder_icon_selected)
+
 	style_selector = _selector("Style")
 	style_selector.tooltip_text = STYLE_TOOLTIP
 	for mode_id in Styling.MODES:
@@ -301,6 +317,7 @@ func _build() -> void:
 	enabled_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	enabled_check.toggled.connect(_on_enabled_toggled)
 	_row(form, "Enabled", enabled_check, true)
+	_row(form, "Icon", folder_icon_selector, true, false)
 
 	from_spin = _time_spin("From", FROM_TOOLTIP)
 	_row(form, "From (Ma)", from_spin, false, true, FROM_TOOLTIP)
@@ -738,6 +755,7 @@ func show_node(node_: Feature) -> void:
 		_show_topology_note()
 		_fill_coupling()
 	else:
+		folder_icon_selector.select(_item_index(folder_icon_selector, node.icon))
 		_show_style()
 	_filling = false
 	_update_section_buttons()
@@ -1218,12 +1236,20 @@ func _on_type_selected(index: int) -> void:
 
 
 func _on_icon_selected(index: int) -> void:
+	_set_icon(icon_selector, index)
+
+
+func _on_folder_icon_selected(index: int) -> void:
+	_set_icon(folder_icon_selector, index)
+
+
+func _set_icon(selector: OptionButton, index: int) -> void:
 	if _filling or node == null:
 		return
-	var error := document.set_icon(node, str(icon_selector.get_item_metadata(index)))
+	var error := document.set_icon(node, str(selector.get_item_metadata(index)))
 	if not error.is_empty():
 		_filling = true
-		icon_selector.select(_item_index(icon_selector, node.icon))
+		selector.select(_item_index(selector, node.icon))
 		_filling = false
 		rejected.emit(error)
 		return
@@ -1524,6 +1550,10 @@ func to_json() -> Dictionary:
 				func(c: Color) -> Array: return [c.r, c.g, c.b, c.a]),
 			"ramp_span": ramp_row.span_spin.value,
 		}
+		var folder := folder_icon_selector.selected
+		data["icon"] = str(folder_icon_selector.get_item_metadata(folder)) if folder >= 0 else ""
+		data["icons"] = range(folder_icon_selector.item_count).map(
+			func(index: int) -> String: return str(folder_icon_selector.get_item_metadata(index)))
 		data["style_label"] = style_selector.get_item_text(mode) if mode >= 0 else ""
 		data["tooltips"] = {"style": style_selector.tooltip_text}
 		data["styles"] = range(style_selector.item_count).map(
@@ -1677,13 +1707,12 @@ func set_field(field: String, value: Variant) -> String:
 			type_selector.select(index)
 			_on_type_selected(index)
 		"icon":
-			if node.is_group:
-				return "a group has no icon; only a feature has one"
-			var at := _item_index(icon_selector, str(value))
+			var selector := folder_icon_selector if node.is_group else icon_selector
+			var at := _item_index(selector, str(value))
 			if at < 0:
 				return "the icon selector offers no %s" % value
-			icon_selector.select(at)
-			_on_icon_selected(at)
+			selector.select(at)
+			_set_icon(selector, at)
 		"style", "palette":
 			if not node.is_group:
 				return "a feature has no %s; its group does" % field

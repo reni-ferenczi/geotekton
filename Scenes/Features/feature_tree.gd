@@ -93,7 +93,8 @@ func load_group(parent: TreeItem, group: Feature, enabled: bool):
 	item.collapsed = group.collapsed
 	item.set_metadata(0, group)
 	item.set_text(0, group.title)
-	item.set_icon(0, group_icon)
+	var folder := FeatureIcon.folder_texture(group.icon)
+	item.set_icon(0, folder if folder != null else group_icon)
 	item.set_icon_max_width(0, ICON_WIDTH)
 	item.set_icon_modulate(0, Color.WHITE if group.enabled else ABSENT_COLOR)
 

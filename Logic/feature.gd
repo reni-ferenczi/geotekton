@@ -585,6 +585,9 @@ func to_json() -> Variant:
 	if is_group:
 		data["type"] = "Group"
 		data["style"] = (style if style != null else GroupStyle.new()).to_json()
+		# A folder picture, written only when one is picked (GP-0146).
+		if not icon.is_empty():
+			data["icon"] = icon
 		var children_data: Array[Variant] = []
 		for child in children:
 			children_data.append(child.to_json())
@@ -666,6 +669,7 @@ static func from_json(data: Variant) -> Feature:
 	if node.is_group:
 		node.collapsed = true
 		node.style = GroupStyle.from_json(data.get("style"))
+		node.icon = str(data.get("icon", FeatureIcon.NONE))
 		for child_data in data.get("children", []):
 			node.children.append(Feature.from_json(child_data))
 	else:
