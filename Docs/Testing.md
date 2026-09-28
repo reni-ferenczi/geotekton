@@ -402,10 +402,10 @@ check the panel empties, and hides the panel again. See
 
 The kinematics drag scenario couples the blue quad of `two_cratons.geotekt` to
 the red triangle up to the present and drags it twice at a later time. Each
-time the readout changes before the release, the rate at that time is the
-speed of the middle since the coupling started, and the second drag, further,
-reads higher. It also checks the bearing in the readout and the reference
-speeds in the rate's tooltip (GP-0136).
+time the rate beside the rate row changes before the release, the rate at that
+time is the speed of the middle since the coupling started, and the second
+drag, further, reads higher. It also checks that no bearing is given anywhere
+(GP-0142) and the reference speeds in the rate's tooltip (GP-0136).
 
 The vertex scenarios come last: `run_vertex_session` drags a vertex, inserts one
 on an edge and deletes one, all at a time that has moved the feature away from

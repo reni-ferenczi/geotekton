@@ -30,15 +30,14 @@ longitude can be, rather than against what this feature happens to cover. A
 craton that has hardly moved then reads as one that has hardly moved, instead of
 being blown up until its wobble fills the box.
 
-Above the rows is a line of what it comes to at the current time: the title,
-the time, the rate in the unit Preferences > General > **Plate rate in**
-names, cm/yr unless it says km/My, and the compass bearing the middle moves
-toward, in degrees clockwise from north, left out when the feature stands
-still. The rate row gives the same current rate beside its top. The bars are
-scaled against the fastest span, but that figure is not written anywhere: it
-says nothing about the motion at the current time, and a reader took it for
-the rate (GP-0136). The place is only graphed, in the latitude and longitude
-rows.
+The rate row gives the rate at the current time beside its top, in the unit
+Preferences > General > **Plate rate in** names, cm/yr unless it says km/My.
+That is the only number the panel writes. The bars are scaled against the
+fastest span, but that figure is not written anywhere: it says nothing about
+the motion at the current time, and a reader took it for the rate (GP-0136).
+The place is only graphed, in the latitude and longitude rows. The panel gives
+no title, time or bearing (GP-0142); the line above the rows only says why
+there is nothing to graph, see below.
 
 ## The quantities
 
@@ -65,7 +64,7 @@ time and the next, worked out the way GPlates' kinematic graphs do it
    the axis of the turn.
 3. The velocity of the middle, where it stands at the younger end, is that
    angular velocity times the planet radius times `cross(axis, middle)`. Its
-   length is the rate and its direction the bearing.
+   length is the rate.
 
 GPlates follows one chosen point, by default the first vertex of the feature;
 the middle stands in for it here. A spin about the middle moves the middle by
@@ -85,7 +84,7 @@ its last keyframe stands still, so it reads zero there.
 
 **Which span is read.** At a time inside a span, that span. At a time where two
 spans meet, a keyframe, the older one: the motion that brought the feature
-there, like GPlates' default of t + dt to t. So the readout at a keyframe gives
+there, like GPlates' default of t + dt to t. So the rate at a keyframe gives
 the move just made at it. Before GP-0136 it gave the younger span, and since a
 coupling that runs to the present puts a motion time at 0 Ma, a feature that
 follows another read the span from its newest keyframe to the present: the
@@ -101,11 +100,11 @@ distance per million years, which is written the way the status bar writes a
 distance, so a slow plate reads `850 m/My`. 1 cm/yr is 10 km/My.
 
 A turn back the way it came is as fast as the turn out, and the bar for that
-span is as tall; only the bearing differs.
+span is as tall.
 
 ### Reference speeds
 
-Resting the pointer on the readout or on the graphs shows the plate speeds of
+Resting the pointer on the graphs shows the plate speeds of
 the worldbuilding tutorial the users follow, Worldbuilding Pasta's "An Apple
 Pie From Scratch, Part V", section "Checking and Finalizing Plate Motion":
 
