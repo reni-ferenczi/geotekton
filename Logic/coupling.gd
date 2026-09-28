@@ -177,6 +177,43 @@ static func children_of(root: Feature, uuid: String, time: float) -> Array[Featu
 	return result
 
 
+# What the node follows at a time: the parent of the span in effect, or both
+# parents of a midway span. Empty outside every span, for a group, and for a
+# parent the document no longer holds.
+static func parents_at(root: Feature, node: Feature, time: float) -> Array[Feature]:
+	var result: Array[Feature] = []
+	if node == null or node.is_group:
+		return result
+	var span := span_at(node, time)
+	if span == null:
+		return result
+	var nodes := index(root)
+	for uuid in span.parents():
+		var parent: Feature = nodes.get(uuid)
+		if parent != null:
+			result.append(parent)
+	return result
+
+
+# The other features that follow any of the node's parents at a time, directly:
+# its brothers and sisters, not their children. Empty when the node follows
+# nothing then.
+static func siblings_of(root: Feature, node: Feature, time: float) -> Array[Feature]:
+	var result: Array[Feature] = []
+	var parents: Array[String] = []
+	for parent in parents_at(root, node, time):
+		parents.append(parent.uuid)
+	if parents.is_empty():
+		return result
+	for other: Feature in index(root).values():
+		if other == node or other.is_group:
+			continue
+		var span := span_at(other, time)
+		if span != null and span.parents().any(func(uuid: String) -> bool: return uuid in parents):
+			result.append(other)
+	return result
+
+
 ### Where a coupled feature is
 
 

@@ -30,6 +30,8 @@ const ABSENT_COLOR := Color(0.5, 0.5, 0.5, 1.0)
 # The row tint of a child: the planet's child orange, faint enough to read the
 # title through.
 const CHILD_TINT := Color(Planet.CHILD_COLOR, 0.25)
+const PARENT_TINT := Color(Planet.PARENT_COLOR, 0.25)
+const SIBLING_TINT := Color(Planet.SIBLING_COLOR, 0.25)
 
 var root: Feature = null
 var items: Dictionary[int, TreeItem] = {}
@@ -48,7 +50,7 @@ var time: float = 0.0
 
 # The pnids of the rows tinted as children of the selected feature, kept over a
 # rebuild the same way.
-var coupled: Dictionary[int, bool] = {}
+var coupled: Dictionary[int, Color] = {}
 
 
 ### Initialization
@@ -138,22 +140,25 @@ func load_feature(parent: TreeItem, feature: Feature):
 	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_ENABLE + int(feature.enabled), not feature.enabled, feature.enabled), ENABLE_BUTTON, false, "Enable this feature")
 	_apply_time(item)
 	if coupled.has(feature.pnid):
-		item.set_custom_bg_color(0, CHILD_TINT)
+		item.set_custom_bg_color(0, coupled[feature.pnid])
 
 
 ### Children of the selected feature
 
 
-# Tint the rows of the given features and clear every other tint.
-func mark_children(nodes: Array[Feature]) -> void:
+# Tint the rows of the given features, each in the tint its relation to the
+# selected feature has (Planet.Relation), and clear every other tint.
+func mark_related(related: Dictionary) -> void:
 	for pnid in coupled:
 		if items.has(pnid):
 			items[pnid].clear_custom_bg_color(0)
 	coupled.clear()
-	for node in nodes:
-		coupled[node.pnid] = true
+	for node: Feature in related:
+		var tint: Color = {Planet.Relation.PARENT: PARENT_TINT,
+			Planet.Relation.SIBLING: SIBLING_TINT}.get(related[node], CHILD_TINT)
+		coupled[node.pnid] = tint
 		if items.has(node.pnid):
-			items[node.pnid].set_custom_bg_color(0, CHILD_TINT)
+			items[node.pnid].set_custom_bg_color(0, tint)
 
 
 ### Time

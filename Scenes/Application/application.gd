@@ -88,7 +88,7 @@ enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, EXPORT_VIDEO, RU
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE,
 	SNAP }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, KINEMATICS_PLACE, CONSOLE, STATUS_BAR,
-	SETTINGS, FULL_SCREEN, HIGHLIGHT_CHILDREN, RIDGE_MARKERS }
+	SETTINGS, FULL_SCREEN, HIGHLIGHT_CHILDREN, RIDGE_MARKERS, HIGHLIGHT_FAMILY }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -134,6 +134,9 @@ const HIGHLIGHT_CHILDREN_OLD_KEY := "highlight_riders"
 # The config key remembering whether the timeline marks where the selected
 # feature's ridges appear. On when the file says nothing.
 const RIDGE_MARKERS_KEY := "ridge_markers"
+# The config key remembering whether the parent and the siblings of the
+# selected feature are highlighted. Off when the file says nothing.
+const HIGHLIGHT_FAMILY_KEY := "highlight_parent_siblings"
 
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
@@ -201,7 +204,13 @@ var hovered_feature: Feature = null
 # Whether the children of the selected feature are highlighted, and which
 # they are at the current time; see _find_children().
 var highlight_children := false
+# Whether the parent and the siblings of the selected feature are highlighted
+# at the current time, each in a color of its own; see _find_children().
+var highlight_family := false
 var coupled_children: Array[Feature] = []
+# Every feature highlighted for its relation to the selected one, children,
+# parents and siblings, to its Planet.Relation.
+var related_features: Dictionary = {}
 
 # Where the pointer last was on the globe, NAN when it is off it. Kept so the
 # hover can be worked out again when the features move under a pointer that is
@@ -509,6 +518,7 @@ func _build_menus() -> void:
 	view_menu.add_separator()
 	view_menu.add_check_item("Highlight children", ViewItem.HIGHLIGHT_CHILDREN)
 	view_menu.add_check_item("Ridge markers", ViewItem.RIDGE_MARKERS)
+	view_menu.add_check_item("Highlight parent and siblings", ViewItem.HIGHLIGHT_FAMILY)
 	view_menu.add_separator()
 	for class_id in Styling.CLASSES:
 		view_menu.add_check_item(Styling.class_label(class_id), class_menu_id(class_id))
@@ -711,6 +721,9 @@ func _on_view_menu_id_pressed(id: int) -> void:
 		_refresh_feature_state()
 	elif id == ViewItem.RIDGE_MARKERS:
 		timeline.show_ridges = not timeline.show_ridges
+	elif id == ViewItem.HIGHLIGHT_FAMILY:
+		highlight_family = not highlight_family
+		_refresh_feature_state()
 	else:
 		var panel := _panel_node(id)
 		panel.visible = not panel.visible
@@ -745,6 +758,8 @@ func _update_view_menu_checks() -> void:
 		highlight_children)
 	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.RIDGE_MARKERS),
 		timeline.show_ridges)
+	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.HIGHLIGHT_FAMILY),
+		highlight_family)
 	for class_id in Styling.CLASSES:
 		view_menu.set_item_checked(view_menu.get_item_index(class_menu_id(class_id)),
 			document.view.shows_class(class_id))
@@ -2078,6 +2093,7 @@ func _restore_session() -> void:
 	highlight_children = bool(Config.get_value(HIGHLIGHT_CHILDREN_KEY,
 		Config.get_value(HIGHLIGHT_CHILDREN_OLD_KEY, false)))
 	timeline.show_ridges = bool(Config.get_value(RIDGE_MARKERS_KEY, true))
+	highlight_family = bool(Config.get_value(HIGHLIGHT_FAMILY_KEY, false))
 	_update_view_menu_checks()
 
 	if not bool(Config.get_value("restore_session", true)):
@@ -2107,6 +2123,7 @@ func _save_panel_visibility() -> void:
 	Config.set_value(KINEMATICS_PLACE_KEY, kinematics.show_place)
 	Config.set_value(HIGHLIGHT_CHILDREN_KEY, highlight_children)
 	Config.set_value(RIDGE_MARKERS_KEY, timeline.show_ridges)
+	Config.set_value(HIGHLIGHT_FAMILY_KEY, highlight_family)
 
 
 ### File dialogs
@@ -4429,7 +4446,7 @@ func _on_craton_hovered(lat: float, lon: float) -> void:
 	hovered_lon = lon
 	if _resolve_hover():
 		planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature(),
-			coupled_children)
+			related_features)
 
 
 # Work out what the pointer is over from where it last was, and report whether
@@ -4486,20 +4503,31 @@ func _refresh_feature_state() -> void:
 	_resolve_hover()
 	_find_children()
 	planet_view.planet.set_feature_state(geometry, hovered_feature, _highlighted_feature(),
-		coupled_children)
+		related_features)
 	_refresh_selection_outline()
 
 
-# The children of the selected feature at the current time, when the View menu
-# asks for it, for the planet to draw orange and the tree to tint, in every
-# tool. A selected group stands for the leaves under it.
+# The children of the selected feature at the current time, and its parent and
+# siblings, as far as the View menu asks for them, for the planet to draw and
+# the tree to tint in their relation's color, in every tool. A selected group
+# stands for the leaves under it as a parent; it follows nothing, so it has no
+# parent or siblings. A child that is also a sibling is marked a child.
 func _find_children() -> void:
 	var selected := features.feature_tree.get_selected_node()
 	var found: Array[Feature] = []
+	var related := {}
+	if highlight_family and selected != null:
+		for sibling in Coupling.siblings_of(features.root, selected, document.current_time):
+			related[sibling] = Planet.Relation.SIBLING
+		for parent in Coupling.parents_at(features.root, selected, document.current_time):
+			related[parent] = Planet.Relation.PARENT
 	if highlight_children and selected != null:
 		found = Coupling.children_of(features.root, selected.uuid, document.current_time)
+		for child in found:
+			related[child] = Planet.Relation.CHILD
 	coupled_children = found
-	features.feature_tree.mark_children(found)
+	related_features = related
+	features.feature_tree.mark_related(related)
 
 
 # The orange outlines of the children that are polygons, where the planet draws
@@ -4507,14 +4535,17 @@ func _find_children() -> void:
 # itself.
 func _child_outline() -> Array:
 	var parts: Array = []
-	for child in coupled_children:
+	var styles := {Planet.Relation.CHILD: Planet.OutlineStyle.CHILD,
+		Planet.Relation.PARENT: Planet.OutlineStyle.PARENT,
+		Planet.Relation.SIBLING: Planet.OutlineStyle.SIBLING}
+	for child: Feature in related_features:
 		var index: int = geometry.index_of.get(child, -1)
 		if index < 0 or not geometry.shown[index] \
 				or child.drawn_as() != Feature.GeometryKind.POLYGON:
 			continue
 		for ring in child.rings:
 			parts.append({"vertices": Feature.apply_basis(ring, geometry.bases[index]),
-				"style": Planet.OutlineStyle.CHILD})
+				"style": styles[related_features[child]]})
 	return parts
 
 

@@ -41,6 +41,16 @@ const GEOMETRY_LINE_WIDTH := 0.006
 # holds the same color, linearized, as CHILD_COLOR.
 const CHILD_COLOR := Color(1.0, 0.5, 0.0)
 
+# The same for the parent and the siblings of the selected feature, with View >
+# Highlight parent and siblings on: magenta and lime, apart from the orange so
+# all three can be on at once. planet.gdshader holds them linearized.
+const PARENT_COLOR := Color(1.0, 0.25, 0.85)
+const SIBLING_COLOR := Color(0.55, 1.0, 0.2)
+
+# How a feature is related to the selected one, what row 4 of feature_data
+# carries for the shader.
+enum Relation { NONE = 0, CHILD = 1, PARENT = 2, SIBLING = 3 }
+
 # Style of one part of the outline overlay. Matches planet.gdshader.
 enum OutlineStyle {
 	OPEN = 0,           # a line from the first vertex to the last
@@ -54,6 +64,8 @@ enum OutlineStyle {
 	CIRCLE = 8,         # a center and a point of the rim, the circle drawn like CLOSED, no markers
 	OPEN_LINE = 9,      # open like OPEN, in the same white and width, with no markers
 	REFUSED = 10,       # open like OPEN, markers and all, in red: a cut the Split tool refused
+	PARENT = 11,        # closed like CHILD, in PARENT_COLOR
+	SIBLING = 12,       # closed like CHILD, in SIBLING_COLOR
 }
 
 # The map mesh with the sheet of a projection half a unit tall, which is what a
@@ -362,12 +374,13 @@ static func _texels(primitive: Dictionary) -> Array[Color]:
 
 # Upload where each feature sits, whether it is there at the current time, what
 # color it is, which one the pointer rests on, which one is highlighted as
-# selected and which ones follow that one. This is the whole of what one step of an
+# selected, and how the others are related to it: `related` maps a feature to
+# a Relation, a child, the parent or a sibling. This is the whole of what one step of an
 # animation, a change of color or a change of selection touches, so it is six
 # texels per column rather than anything per triangle. Call geometry.resolve()
 # for the wanted time first.
 func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
-		selected_feature: Feature = null, related: Array[Feature] = []) -> void:
+		selected_feature: Feature = null, related: Dictionary = {}) -> void:
 	var count := geometry.features.size()
 	if count == 0:
 		return
@@ -392,7 +405,7 @@ func set_feature_state(geometry: Geometry, hovered_feature: Feature = null,
 		# it was picked. The alpha is left as it is. See
 		# Docs/Shader.md#colour-space.
 		img.set_pixel(i, 3, geometry.colors[i].srgb_to_linear())
-		img.set_pixel(i, 4, Color(1.0 if geometry.features[i] in related else 0.0,
+		img.set_pixel(i, 4, Color(float(related.get(geometry.features[i], Relation.NONE)),
 			geometry.features[i].line_scale(), 0.0))
 		img.set_pixel(i, 5, geometry.line_colors[i].srgb_to_linear())
 
