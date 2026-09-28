@@ -83,26 +83,6 @@ func test_only_what_is_drawn_with_lines_has_a_width_to_set() -> void:
 	_done()
 
 
-func test_a_closed_topology_has_no_lines_and_an_open_one_has() -> void:
-	_own_config()
-	var document := Document.new()
-	var plate := Feature.create_feature("Plate")
-	plate.add_ring(PackedVector2Array([Vector2(-10, -10), Vector2(-10, 10), Vector2(10, 0)]),
-		Feature.GeometryKind.POLYGON)
-	var boundary := Feature.create_feature("Boundary")
-	document.root.children.append_array([plate, boundary])
-	document.record()
-	assert_eq(document.set_feature_type(boundary, "topology"), "", "typed Topology")
-	assert_true(boundary.draws_lines(), "an empty topology is drawn as a line")
-	assert_eq(document.add_section(boundary, plate, 0), "", "with a section")
-	assert_true(boundary.draws_lines(), "an open topology is drawn as a line")
-	assert_eq(document.set_line_width(boundary, 3.0), "", "and takes a width")
-	assert_eq(document.set_topology_closed(boundary, true), "", "closed")
-	assert_true(not boundary.draws_lines(), "a closed topology is a fill")
-	assert_true(document.set_line_width(boundary, 2.0).contains("closed topology"),
-		"and is refused a width, saying so")
-	assert_eq(boundary.line_width, 3.0, "keeping the one it had for when it is opened again")
-	_done()
 
 
 func test_each_edit_is_one_undo_version() -> void:

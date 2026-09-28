@@ -308,9 +308,10 @@ def worst_offset(ring: list[list[float]], points: list[tuple[float, float]]) -> 
     )
 
 
-# The six feature types in the order the selector offers them, and the one
-# each drawn kind gives, as Logic/feature_type.gd has them.
-FEATURE_TYPES = ["polygon", "line", "points", "circle", "topology", "hotspot"]
+# The five feature types in the order the selector offers them, and the one
+# each drawn kind gives, as Logic/feature_type.gd has them. Topology is not one:
+# ridges and crusts are generated (GP-0147).
+FEATURE_TYPES = ["polygon", "line", "points", "circle", "hotspot"]
 KIND_TYPES = {"polygon": "polygon", "polyline": "line", "multipoint": "points"}
 
 
@@ -566,7 +567,7 @@ def run_properties_session(client: AutomationClient) -> None:
     check(panel["showing"] == "feature", f"selecting a feature fills the panel: {panel['showing']}")
     check(panel["name"] == "Red Triangle", f"with its name: {panel['name']}")
     check(panel["feature_type"] == "polygon", f"its type: {panel['feature_type']}")
-    check(panel["types"] == FEATURE_TYPES, f"the type selector offers the six: {panel['types']}")
+    check(panel["types"] == FEATURE_TYPES, f"the type selector offers the five: {panel['types']}")
     check(panel["color"][:3] == [1.0, 0.0, 0.0], f"its colour: {panel['color']}")
     check(panel["enabled"] is True, "its enabled flag")
     check(panel["time_range"] == [0, 2000], f"its time range: {panel['time_range']}")
@@ -679,12 +680,8 @@ def run_properties_session(client: AutomationClient) -> None:
           "and the empty feature keeps it")
     check(client.call("get_tool")["draw_enabled"],
           "the Draw tool draws a Line as a polyline")
-    client.call("set_property", field="feature_type", value="topology")
-    tool = client.call("get_tool")
-    check(tool["topology_enabled"] and not tool["draw_enabled"],
-          "a Topology is built with the Topology tool instead")
-    check(client.call("get_properties")["properties"].get("picking_sections") is False,
-          "and the empty topology shows the section table's Pick toggle, let go")
+    refused = refusal(client, "set_property", field="feature_type", value="topology")
+    check("topology" in refused, f"Topology is not offered, GP-0147: {refused!r}")
     client.call("set_property", field="feature_type", value="polygon")
 
 
@@ -2696,21 +2693,10 @@ def run_hotspot_refusals(client: AutomationClient) -> None:
     client.call("set_view", lat=0.0, lon=0.0, angle=0.0)
 
 
-### The Topology scenario
+### Drawing helpers
 
-# Two polylines on the equator, well apart, and the point on each one that is
-# clicked to add it to the topology. A boundary built from them holds one
-# section per line and nothing across the gap between them.
+# A polyline on the equator the scenarios draw with add_polyline().
 WEST_LINE = [(0.0, -40.0), (0.0, -30.0), (0.0, -20.0)]
-EAST_LINE = [(0.0, 20.0), (0.0, 30.0), (0.0, 40.0)]
-WEST_CLICK = (0.0, -35.0)
-EAST_CLICK = (0.0, 35.0)
-
-# Where the western line is dragged to at TOPOLOGY_TIME, and how far a resolved
-# vertex may sit from where the line it came from is.
-TOPOLOGY_TIME = 100.0
-MOVED_LONGITUDE = -10.0
-TOPOLOGY_TOLERANCE = 0.5
 
 
 def add_polyline(client: AutomationClient, name: str,
@@ -2739,152 +2725,6 @@ def click_at(client: AutomationClient, at: tuple[float, float], ctrl: bool = Fal
         return False
     client.call("click", x=screen[0], y=screen[1], ctrl=ctrl)
     return True
-
-
-def run_topology_session(client: AutomationClient) -> None:
-    """Build a line topology by clicking two features, then edit and move it."""
-    start_new_document(client)
-    if not add_polyline(client, "West Line", WEST_LINE):
-        return
-    if not add_polyline(client, "East Line", EAST_LINE):
-        return
-
-    # A third feature, holding nothing, becomes the topology.
-    client.call("toolbar", button="AddFeature")
-    client.call("set_property", field="name", value="Boundary")
-    client.call("set_property", field="feature_type", value="topology")
-    check(client.call("get_tool")["tool"] == "move",
-          "picking the Topology type leaves the Move tool armed")
-    check("Topology" not in client.call("get_tool")["tool_strip"],
-          "the tool strip has no Topology button")
-
-    # The Pick toggle of the section table arms the Topology tool, and Escape
-    # puts it away again and lets the toggle go.
-    client.call("sections", button="Pick")
-    check(client.call("get_tool")["tool"] == "topology", "the section Pick toggle arms the tool")
-    check(client.call("get_properties")["properties"].get("picking_sections"),
-          "and shows itself pressed")
-    if not click_at(client, WEST_CLICK):
-        return
-    client.call("key", key="Escape")
-    check(client.call("get_tool")["tool"] == "move", "Escape ends the section pick")
-    check(not client.call("get_properties")["properties"].get("picking_sections"),
-          "and lets the toggle go")
-
-    # Another tool ends it the same way.
-    client.call("set_tool", tool="topology")
-    if not click_at(client, EAST_CLICK):
-        return
-    client.call("set_tool", tool="measure")
-    check(not client.call("get_properties")["properties"].get("picking_sections"),
-          "another tool lets the toggle go too")
-    client.call("set_tool", tool="move")
-
-    feature = client.call("get_selected")["feature"]
-    check(feature["geometry_kind"] == "topology",
-          f"clicking a feature makes the empty one a topology: {feature['geometry_kind']}")
-    sections = feature.get("sections", [])
-    if not check(len(sections) == 2, f"one section per feature clicked: {len(sections)}"):
-        return
-    check([s["problem"] for s in sections] == ["", ""], "both sections resolve")
-    check(len(feature["rings"]) == 2,
-          "and each becomes a part of its own, so the gap between them is not joined")
-
-    # What a section resolves to is the run of vertices of the feature it names.
-    west_vertices = [tuple(v) for v in sections[0]["vertices"]]
-    check(worst_offset(sections[0]["vertices"], WEST_LINE) < TOPOLOGY_TOLERANCE,
-          f"the first section runs along the western line: {west_vertices}")
-    check(worst_offset(sections[1]["vertices"], EAST_LINE) < TOPOLOGY_TOLERANCE,
-          "and the second along the eastern one")
-
-    # Reversing a section from the panel turns that run round and leaves the
-    # other one alone.
-    client.call("sections", button="Reverse", index=0)
-    sections = client.call("get_selected")["feature"]["sections"]
-    check(sections[0]["reversed"] and not sections[1]["reversed"],
-          "Reverse turns the section that was picked and not the other")
-    check(worst_offset(sections[0]["vertices"], list(reversed(WEST_LINE)))
-          < TOPOLOGY_TOLERANCE,
-          "so its vertices come back the other way round")
-    panel = client.call("get_properties")["properties"]
-    check([row["way"] for row in panel["sections"]] == ["back", "on"],
-          f"and the panel says which way each section runs: {panel['sections']}")
-
-    run_moved_section_checks(client)
-    run_broken_section_checks(client)
-
-
-def run_moved_section_checks(client: AutomationClient) -> None:
-    """A topology follows the feature a section runs along when it moves."""
-    boundary = client.call("get_selected")["feature"]["pnid"]
-
-    # Move the western line at a later time. The drag writes its keyframe there,
-    # so the line is where it was drawn at the present and elsewhere at 100 Ma.
-    client.call("select", title="West Line")
-    check(client.call("get_selected")["feature"]["geometry_kind"] == "polyline",
-          "the western line is selected to be moved")
-    # Selecting a feature the Topology tool cannot build on puts the Move tool
-    # back, so the drag below is a drag rather than another section.
-    check(client.call("get_tool")["tool"] == "move",
-          "the Topology tool gives way to Move on a feature holding vertices")
-
-    # Pin where the line is at the present first. Without a keyframe there, the
-    # one the drag writes would be the only one and would hold at every time.
-    # The document opened at the oldest age, so go to the present to pin it.
-    client.call("set_time", time=0.0)
-    client.call("keyframes", button="Key")
-    client.call("set_time", time=TOPOLOGY_TIME)
-    if not drag(client, 0.0, MOVED_LONGITUDE):
-        return
-    moved = client.call("get_selected")["feature"]["world_rings"][0]
-    check(abs(centroid([moved])[1] - MOVED_LONGITUDE) < TOPOLOGY_TOLERANCE,
-          f"the drag really moved it, to {centroid([moved])[1]:.3f}")
-
-    client.call("select", pnid=boundary)
-    sections = client.call("get_selected")["feature"]["sections"]
-    # The section was reversed, so it holds the moved line back to front.
-    resolved = list(reversed(sections[0]["vertices"]))
-    check(worst_offset(resolved, [tuple(v) for v in moved]) < TOPOLOGY_TOLERANCE,
-          f"at {TOPOLOGY_TIME} Ma the section follows the line it runs along: {resolved}")
-    check(worst_offset(sections[1]["vertices"], EAST_LINE) < TOPOLOGY_TOLERANCE,
-          "while the section whose feature did not move is where it was")
-
-    client.call("set_time", time=0.0)
-    sections = client.call("get_selected")["feature"]["sections"]
-    check(worst_offset(list(reversed(sections[0]["vertices"])), WEST_LINE)
-          < TOPOLOGY_TOLERANCE,
-          "and at the present it is back where the line was drawn")
-
-
-def run_broken_section_checks(client: AutomationClient) -> None:
-    """A section whose feature is deleted is shown as broken, not dropped."""
-    boundary = client.call("get_selected")["feature"]["pnid"]
-    client.call("select", title="West Line")
-    client.call("menu", item="delete")
-
-    client.call("select", pnid=boundary)
-    sections = client.call("get_selected")["feature"]["sections"]
-    if not check(len(sections) == 2, "the deleted feature does not take its section with it"):
-        return
-    check(sections[0]["problem"] != "", f"which is broken instead: {sections[0]['problem']}")
-    check(sections[1]["problem"] == "", "and the other section is untouched")
-    panel = client.call("get_properties")["properties"]
-    check([row["broken"] for row in panel["sections"]] == [True, False],
-          f"the panel marks the broken one: {panel['sections']}")
-
-    # An undo brings the feature back, and the section with it. The uuid is what
-    # makes that work: the tree that comes back is a clone, so nothing the
-    # section could have held on to is the same object.
-    client.call("toolbar", button="Undo")
-    client.call("select", pnid=boundary)
-    sections = client.call("get_selected")["feature"]["sections"]
-    check([s["problem"] for s in sections] == ["", ""],
-          "undoing the deletion mends the broken section")
-
-    # Remove is the way to take a section out on purpose.
-    client.call("sections", button="Remove", index=1)
-    check(len(client.call("get_selected")["feature"]["sections"]) == 1,
-          "Remove takes the picked section out of the topology")
 
 
 ### The Vertex, Measure and Split scenarios
@@ -4502,18 +4342,16 @@ def nearest_vertex(ring: list[list[float]], vertex: list[float]) -> tuple[int, f
 
 
 def run_third_section_check(client: AutomationClient) -> None:
-    """The section pick clicking a half again gives the ridge no third section."""
-    client.call("select", title="Old Shield")
-    half = world_centroid(client)
+    """A ridge is generated: the panel shows what it is, and no section table,
+    type or pick to change it with (GP-0147)."""
     client.call("select", title="Old Shield ridge")
-    client.call("sections", button="Pick")
-    if not click_at(client, half):
-        return
-    status = client.call("get_status")["status"]["measure"]
-    sections = client.call("get_properties")["properties"]["sections"]
-    check(len(sections) == 2 and "midway" in status,
-          f"a third section is refused: {len(sections)}, {status!r}")
-    client.call("key", key="Escape")
+    panel = client.call("get_properties")["properties"]
+    check("sections" not in panel and "picking_sections" not in panel,
+          f"the ridge has no section table: {sorted(panel)}")
+    check(panel.get("topology_note") == "Midway between two sides",
+          f"it says what it is: {panel.get('topology_note')!r}")
+    ridge = client.call("get_selected")["feature"]
+    check(len(ridge["sections"]) == 2, f"and keeps its two sides: {len(ridge['sections'])}")
 
 
 def run_ridge_session(client: AutomationClient) -> None:
@@ -4562,8 +4400,8 @@ def run_ridge_session(client: AutomationClient) -> None:
     panel = client.call("get_properties")["properties"]
     check(panel.get("topology_note") == "Midway between two sides",
           f"which the panel says: {panel.get('topology_note')!r}")
-    check("coupling" not in panel and "closed" not in panel and len(panel["sections"]) == 2,
-          f"with the section table and no Coupled to row or Closed switch: {sorted(panel)}")
+    check("coupling" not in panel and "closed" not in panel,
+          f"with no Coupled to row or Closed switch: {sorted(panel)}")
     run_third_section_check(client)
 
     # Where each of the ridge's vertices sits on the two halves at the cut.
@@ -4634,13 +4472,6 @@ BLUE_STOPS = [[0.776, 0.859, 0.937], [0.275, 0.510, 0.706], [0.063, 0.204, 0.380
 CRUST_LINES_COLOR = [0.690, 0.769, 0.871]
 CRUST_TITLES = ["Plate", "Plate 2", "Plate ridge", "Plate crust", "Plate 2 crust"]
 CRUSTS = ["Plate crust", "Plate 2 crust"]
-
-# Two lines a hand built topology runs along, end to end, and a point inside the
-# square they make once the topology is closed.
-CLOSED_SOUTH = [(20.0, 20.0), (20.0, 40.0)]
-CLOSED_NORTH = [(40.0, 40.0), (40.0, 20.0)]
-CLOSED_INSIDE = (32.0, 32.0)
-
 
 def probe_unhovered(client: AutomationClient, lat: float, lon: float) -> list[float]:
     """probe_at() with the pointer moved well away, so no hover highlight is read."""
@@ -4731,7 +4562,7 @@ def run_crust_session(client: AutomationClient) -> None:
               f"the panel says what it is: {panel.get('topology_note')!r}")
         check(panel["area_km2"] < 1.0 and panel["crust_chunks"] == 0,
               f"with no chunks at the split: {panel['area_km2']}, {panel['crust_chunks']}")
-        check("closed" not in panel and "picking_sections" not in panel and not panel["sections"],
+        check("closed" not in panel and "sections" not in panel,
               f"and no section table or Closed switch: {sorted(panel)}")
 
     # Held where they are at the split, carried apart at the present.
@@ -4760,8 +4591,6 @@ def run_crust_session(client: AutomationClient) -> None:
           f"a skip of 50 gives two chunks: {panel.get('topology_note')!r}")
     run_crust_step_checks(client)
     client.call("set_skip", skip=skip)
-
-    run_closed_topology_checks(client)
 
 
 def run_crust_step_checks(client: AutomationClient) -> None:
@@ -4918,46 +4747,6 @@ def run_split_children_session(client: AutomationClient) -> None:
         client.call("menu", item="undo")
     titles = [f["title"] for f in client.call("get_features")["features"]]
     check(titles[-2:] == ["Range", "Plate"], f"undo puts the range and the plate back: {titles}")
-
-
-def run_closed_topology_checks(client: AutomationClient) -> None:
-    """The Closed switch on a topology built by hand fills it."""
-    client.call("select", title=None)
-    if not add_polyline(client, "South", CLOSED_SOUTH):
-        return
-    if not add_polyline(client, "North", CLOSED_NORTH):
-        return
-    client.call("toolbar", button="AddFeature")
-    client.call("set_property", field="name", value="Loop")
-    client.call("set_property", field="feature_type", value="topology")
-    client.call("sections", button="Pick")
-    for line in (CLOSED_SOUTH, CLOSED_NORTH):
-        if not click_at(client, midpoint(list(line[0]), list(line[1]))):
-            return
-    panel = client.call("get_properties")["properties"]
-    check(panel["closed"] is False and len(panel["sections"]) == 2,
-          f"a new topology is open: {panel.get('closed')}, {panel['sections']}")
-    check("area" not in panel, f"with no Area row: {panel.get('area')!r}")
-    client.call("select", title=None)
-    topology = list(TYPE_COLORS[4])
-    check(not is_colour(probe_unhovered(client, *CLOSED_INSIDE), topology),
-          "an open topology fills nothing")
-
-    client.call("select", title="Loop")
-    depth = undo_depth(client)
-    client.call("set_property", field="closed", value=True)
-    check(undo_depth(client) == depth + 1, "closing it is one version")
-    panel = client.call("get_properties")["properties"]
-    check(panel["closed"] and "area" in panel and panel["area_km2"] > 1e5,
-          f"the panel says so and shows the Area row: {panel.get('area')!r}")
-    rings = client.call("get_selected")["feature"]["rings"]
-    check(len(rings) == 1 and len(rings[0]) == 4, f"one ring of four: {rings}")
-    client.call("select", title=None)
-    pixel = probe_unhovered(client, *CLOSED_INSIDE)
-    check(is_colour(pixel, topology), f"and it is filled: {pixel}")
-    client.call("select", title="South")
-    check("topology" in refusal(client, "set_property", field="closed", value=True),
-          "a line has no Closed switch")
 
 
 def world_offset(first: list[list[float]], second: list[list[float]]) -> float:
@@ -6240,7 +6029,6 @@ def main(argv: list[str]) -> int:
         run_circle_session(client)
         run_axis_circles_session(client)
         run_hotspot_session(client)
-        run_topology_session(client)
         run_kinematics_session(client)
         run_kinematics_drag_session(client)
         run_selectable_text_session(client)

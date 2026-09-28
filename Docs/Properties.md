@@ -12,7 +12,7 @@ catalog lists only what the program treats differently:
 | `line`          | Line          | polyline          | crimson        |
 | `points`        | Points        | multipoint        | gold           |
 | `circle`        | Circle        | polyline, polygon | dark turquoise |
-| `topology`      | Topology      | topology          | medium purple  |
+| `topology`      | Topology      | topology          | medium purple; generated only, not in the selector |
 | `hotspot`       | Hotspot       | polyline          | orange red     |
 
 The colors in the table are the ones the catalog comes with. The Feature colors
@@ -39,17 +39,17 @@ does.
 
 A new feature is a Polygon. The Type selector of the Properties panel is the one
 place the type is picked, and on a feature holding nothing it takes any of the
-six, because the type is what the tools then draw: Polygon a polygon, Line a
-polyline, Points a multipoint, Circle a closed polyline built from a center and
-a radius, which [Draw draws as a circle](Editing.md#drawing-a-circle) and the
-[circle rows](#the-circle-rows) set, and Topology a boundary picked
-together with the [section table](#the-section-table)'s Pick toggle. A Hotspot is
+five it offers, because the type is what the tools then draw: Polygon a
+polygon, Line a polyline, Points a multipoint, Circle a closed polyline built
+from a center and a radius, which [Draw draws as a circle](Editing.md#drawing-a-circle)
+and the [circle rows](#the-circle-rows) set. Topology is the type of the ridges
+and crusts the Split tool generates, and is not offered (GP-0147). A Hotspot is
 placed by one click of Draw, which picking the type arms; see
 [Hotspots](Editing.md#hotspots).
 
 Once a feature holds a shape, its type has to hold that shape's kind. A polygon
-is a Polygon or a Circle, a polyline a Line or a Circle, a multipoint Points and
-a topology a Topology; anything else is refused. Circle and
+is a Polygon or a Circle, a polyline a Line or a Circle and a multipoint
+Points; anything else is refused. Circle and
 Hotspot are picked on an empty feature only, since they replace whatever rings
 the feature holds, and Hotspot only on one without keyframes or couplings. A
 Circle can still become a Line or a Polygon, and keeps its rings. A type the feature carries
@@ -63,12 +63,12 @@ does through an undo that takes the geometry off again.
 
 ### What the type restricts
 
-- **Which type can be picked.** Any of the six on a feature holding nothing;
+- **Which type can be picked.** Any of the five on a feature holding nothing;
   once it holds a shape, only one that holds that kind, and never Circle or
   Hotspot.
 - **Which tool draws the feature.** Draw for a Polygon, a Line, Points and a
   Circle, which it draws from two or three clicks, and a Hotspot, which it
-  places with one, and Topology for a Topology. The
+  places with one. The
   Vertex tool is greyed out on a Circle and a Hotspot. A hotspot
   greys out the Rotate and Pole tools as well, and the Move tool does not drag
   it. The other buttons are
@@ -212,10 +212,9 @@ line never breaks there. Below 0.05 % the second line is left out. The area is
 read against the [planet radius](Editing.md#the-planet-radius) preference, so
 the row changes when the Preferences dialog is closed with another radius.
 
-A feature shows either the keyframe and coupling rows or the section table,
-never both: a [topology](Editing.md#topologies) borrows its vertices
-instead of holding them, and where it is comes from the features its sections
-run along.
+A ridge or a crust shows no keyframe or coupling rows: a
+[topology](Editing.md#topologies) borrows its vertices instead of holding them,
+and where it is comes from the features its sections run along.
 
 With nothing selected the panel says so and shows no rows at all, and so does
 the root group, which has no name of its own to change and no switch, the same
@@ -320,10 +319,9 @@ at". A new feature starts at the Default line width of the
 on, whatever the preference is later set to.
 
 The row is there only for a feature drawn with lines: a Line, a Circle, a
-Hotspot, whose mark and track both widen, an open Topology and a crust, whose
+Hotspot, whose mark and track both widen, a ridge and a crust, whose
 isochrons and flowlines widen while its bands do not. A Polygon is a fill and
-Points are dots, so neither shows the row, and closing a topology takes it
-away until the topology is opened again; `Feature.draws_lines()` says which is
+Points are dots, so neither shows the row; `Feature.draws_lines()` says which is
 which. A type's own thinness stays under the width, so a circle at 2 is drawn
 as wide as a plain line at 1; see [Shader](Shader.md#shader-uniforms). The
 halo of a selected line follows the width, as it is sized from the line. The
@@ -478,46 +476,14 @@ A refused Couple, such as a parent that already follows this feature, shows
 the reason in an error dialog and changes nothing. The rows follow the current
 time, since the parent in effect changes with it.
 
-### The section table
+### Ridges and crusts
 
-Only a [topology](Editing.md#topologies) has one, and a feature typed Topology
-that holds no section yet shows it empty. Above it, the **Closed**
-switch joins the sections into one filled ring; see
-[Closed topologies](Editing.md#closed-topologies). Switching it is one undo
-version, and a closed topology shows the Area row with the ring's area and
-share of the planet, which follow the current time. Below the switch, one row per section: the feature it runs along,
-the two vertices it runs between, counted from one, and `on` or `back` for which
-way round it is walked.
-
-`From` and `To` are editable, so a section added by clicking a whole feature can
-be trimmed to the stretch that belongs to the boundary. This table is the only
-place that can be done. `Reverse` turns the selected section round and `Remove`
-takes it out; with no row picked both work on the last section.
-
-**Pick**, the pointer beside them, is a toggle that arms the Topology tool for
-the topology shown: each click on a feature on the planet adds the part of it
-that was clicked as the next section, and a right click takes the last one back;
-see [Building one](Editing.md#building-one). The toolbar has no button for that
-tool, so the toggle is how it is reached. It stays pressed while the tool is
-armed, and Escape, selecting another feature or picking another tool lets it go.
-
-A section whose feature cannot be followed — deleted, or not there at the
-current time — is shown in a warning colour with the reason as its tooltip,
-rather than being dropped. The table is filled again whenever the current time
-moves, since a section can be followed at one time and not at another.
-
-A [midway topology](Editing.md#midway-topologies), such as a ridge, has no
-Closed switch. A line above the table says `Midway between two sides`, and
-Pick refuses a section once both sides are there. A [crust](Editing.md#the-crust) has neither the
-switch nor the table, since it is built from its half and its ridge. The line
-says which half it lies beside and how many bands with an area it has at the
-current time and step, as in `Crust of Laurentia, 4 chunks`. Above the form a crust has the
-[Step (My)](#the-step-row) row, the one thing about it that is edited.
-Neither a ridge nor a crust has a row in the feature tree, so the panel shows one
-after it is clicked on the globe; see
-[The feature tree](Editing.md#the-feature-tree).
-`get_properties` reports the line as `topology_note` and, on a crust, the count
-as `crust_chunks` and the step as `crust_step`.
+A ridge or a crust shows no Type, Colour or section rows, since it is
+generated and drawn in the colors of the [View settings](Editing.md#view-settings).
+A line in place of them says what it is: `Midway between two sides` for a
+ridge, and for a crust its half and how many chunks it has at the current time.
+Before GP-0147 a topology built by hand had a section table here, with a
+Closed switch and a Pick toggle; that is gone with the topologies built by hand.
 
 ### Every edit goes through the document
 
@@ -545,11 +511,6 @@ undo version:
 | `couple`                | a group or a topology on either side, the feature itself, a feature already following something at that time, a parent that follows the feature down any chain, and a parent not there over the whole span |
 | `decouple`              | a feature following nothing at that time, and the present on a span that runs to it |
 | `remove_coupling`       | a span that is not there                           |
-| `add_section`           | a group, a feature holding vertices of its own, a crust, a midway topology that has both its sides, and a target that is a group, a topology that is not midway (any topology for a midway one), the topology itself or has no vertices |
-| `remove_section`        | anything but a topology, and a section that is not there |
-| `reverse_section`       | the same                                           |
-| `set_section_range`     | the same, and a vertex number below one            |
-| `set_topology_closed`   | anything but a topology, a midway topology and a crust |
 
 A method that can refuse returns the message saying why and changes nothing;
 the panel puts the widget back and shows the message in an error dialog.

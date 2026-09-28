@@ -19,9 +19,8 @@ selecting one deselects the others.
 ### Enabling the Draw Tool
 
 The Draw button is **disabled** when no leaf feature is selected, that is when a
-group or nothing is selected, and when the selected feature is typed Topology,
-whose sections are picked with the section table's
-[Pick toggle](Editing.md#building-one) instead.
+group or nothing is selected, and when a ridge or a crust is selected, since
+those are [generated](Editing.md#topologies).
 
 If a newly selected feature has **no geometry** yet, the tool its type is drawn
 with is activated to streamline the workflow.

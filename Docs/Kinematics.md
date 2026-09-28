@@ -132,9 +132,9 @@ both are counted.
 
 - **A group**, which has no geometry of its own and so no middle to follow, and
   carries no motion either.
-- **A line topology**, which borrows every vertex of it from the features its
-  sections run along and is resolved afresh at each time. Its own rotation
-  carries nothing, so a path drawn from it would be a fiction.
+- **A ridge or a crust**, which borrows every vertex of it from the features
+  on either side and is resolved afresh at each time. Its own rotation carries
+  nothing, so a path drawn from it would be a fiction.
 - **A feature with no geometry yet**, one that has been added but not drawn.
 
 The panel says which of these it is looking at rather than going blank.

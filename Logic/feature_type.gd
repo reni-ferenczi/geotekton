@@ -2,9 +2,10 @@ class_name FeatureType
 
 # What a feature is. The type is picked in the Properties panel and says what
 # the tools draw into the feature: a Polygon a polygon, a Line a polyline,
-# Points a multipoint, a Topology a topology, a Circle a closed polyline built
-# from a center and a radius, or two around an axis and its antipode, and a
-# Hotspot the track it burns into a plate and a ring marking it. Once the
+# Points a multipoint, a Circle a closed polyline built from a center and a
+# radius, or two around an axis and its antipode, and a Hotspot the track it
+# burns into a plate and a ring marking it. Topology is the type of the ridges
+# and crusts the Split tool generates, and is not picked by hand. Once the
 # feature holds a shape, a type that does not hold that kind gives way to the
 # kind's own. Geotekton is a world building tool and does not carry the GPGIM
 # over. See Docs/Properties.md.
@@ -27,6 +28,9 @@ const CIRCLE := "circle"
 # A plume fixed in the world frame and the track it leaves on a plate, rebuilt
 # at every time change; see Logic/hotspot.gd.
 const HOTSPOT := "hotspot"
+# What ridges and crusts are: generated from the features they run between, and
+# never picked by hand, so the Type selector does not offer it (GP-0147).
+const TOPOLOGY := "topology"
 # The isochrons and flowlines of a crust are not a type, but a new document
 # draws them in a colour of their own; see ViewSettings.crust_lines_color.
 # color() takes the id, so a colour kept in the preferences under it is used
@@ -72,6 +76,11 @@ static func resolve(type_id: String, kind_name: String) -> String:
 	if CATALOG.has(type_id) and allows(type_id, kind_name):
 		return type_id
 	return str(OF_KIND.get(kind_name, NONE))
+
+
+# The types a person can give a feature, in catalog order: all but Topology.
+static func pickable() -> Array:
+	return CATALOG.keys().filter(func(type_id: String) -> bool: return type_id != TOPOLOGY)
 
 
 static func label(type_id: String) -> String:

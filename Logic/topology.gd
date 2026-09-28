@@ -1,7 +1,8 @@
 class_name Topology
 
 # Resolving a topology: turning its list of sections into the vertices it
-# draws at one time. See Docs/Editing.md#topologies.
+# draws at one time. The topologies are the ridges and crusts the Split tool
+# generates; none is built by hand (GP-0147). See Docs/Editing.md#the-ridge.
 #
 # A topology borrows its geometry from other features, so where it is follows
 # from where they are. Resolving it at a time therefore means finding each
@@ -113,18 +114,14 @@ static func _resolve_section(root: Feature, node: Feature, section: TopologySect
 	}
 
 
-# Give a topology the rings its sections resolve to at that time.
+# Give a ridge the one ring between its two sides at that time; see
+# Ridge.ring_at(). Ridges and crusts are the only topologies (GP-0147), and a
+# crust is built by Crust.rebuild_all().
 #
-# An open topology gets one ring per section that resolved, so the two ends of
-# neighbouring sections are not joined by a segment that no feature drew: a line
-# topology is the sections it names, not a shape closed around them. A closed
-# one gets all of them joined into one ring; see join(). A midway one gets the
-# one ring between its two sides; see Ridge.ring_at().
-#
-# The runs come back in world coordinates and are put into the topology's own
+# The ring comes back in world coordinates and is put into the ridge's own
 # frame, because that is the frame everything else reads a feature's rings in.
-# The rotation cancels out where it is drawn again, so a topology has no motion
-# of its own: it goes where the features under it go.
+# The rotation cancels out where it is drawn again, so a ridge has no motion of
+# its own: it goes where the features under it go.
 static func rebuild(root: Feature, node: Feature, time: float) -> void:
 	var into_local := Feature.world_basis(root, node, time).transposed()
 	var rings: Array[PackedVector2Array] = []
@@ -132,55 +129,22 @@ static func rebuild(root: Feature, node: Feature, time: float) -> void:
 		var ring := Ridge.ring_at(root, node, time)
 		if not ring.is_empty():
 			rings.append(Feature.apply_basis(ring, into_local))
-	else:
-		for entry in resolve(root, node, time):
-			var vertices: PackedVector2Array = entry["vertices"]
-			if not vertices.is_empty():
-				rings.append(Feature.apply_basis(vertices, into_local))
-	if node.closed and not node.midway and not rings.is_empty():
-		rings.assign([join(rings)])
 	node.rings = rings
 	node.rebuild_triangles()
 
 
-# The runs of a closed topology as one ring, in order, each one's end followed
-# by the next one's start and the last one's end by the first one's start. Where
-# two runs meet, the vertex they share is kept once; where they do not, the ring
-# simply goes on to the next run, and the edge between the two is the gap
-# closed. Nothing is intersected or trimmed: the runs are taken as the section
-# table cuts them.
-static func join(runs: Array[PackedVector2Array]) -> PackedVector2Array:
-	var ring := PackedVector2Array()
-	for run in runs:
-		var start := 1 if not ring.is_empty() and ring[-1].is_equal_approx(run[0]) else 0
-		ring.append_array(run.slice(start))
-	if ring.size() > 1 and ring[-1].is_equal_approx(ring[0]):
-		ring.remove_at(ring.size() - 1)
-	return ring
-
-
-# Resolve every topology in the tree at that time. Called before the geometry is
+# Resolve every ridge in the tree at that time. Called before the geometry is
 # collected and whenever the current time moves, since both change where the
-# features a topology runs along are. The midway ones go first, since a section
-# of another topology may run along one; wherever each sits in the tree. A
-# crust has no sections and is left to Crust.rebuild_all().
+# features a ridge runs between are.
 static func rebuild_all(root: Feature, time: float) -> void:
 	if root == null:
 		return
-	var later: Array[Feature] = []
 	var stack: Array[Feature] = [root]
 	while not stack.is_empty():
 		var node: Feature = stack.pop_back()
 		stack.append_array(node.children)
-		if node.is_group or node.geometry_kind != Feature.GeometryKind.TOPOLOGY \
-				or node.is_crust():
-			continue
-		if node.midway:
+		if not node.is_group and node.midway:
 			rebuild(root, node, time)
-		else:
-			later.append(node)
-	for node in later:
-		rebuild(root, node, time)
 
 
 # Whether anything in the tree is a topology. Moving the current time is a cheap
@@ -196,23 +160,3 @@ static func holds_any(root: Feature) -> bool:
 		stack.append_array(node.children)
 	return false
 
-
-# Why the feature cannot become a section of the topology, or an empty string
-# when it can. This is what the Topology tool refuses a click with.
-static func section_problem(node: Feature, target: Feature) -> String:
-	if target == null:
-		return "Click a feature to add it to the topology."
-	if target == node:
-		return "A topology cannot run along itself."
-	if target.is_group:
-		return "%s is a group, which has no vertices of its own." % target.title
-	if node.midway and node.sections.size() >= 2:
-		return "%s is midway between the two sides it has." % node.title
-	if node.is_crust():
-		return "%s is built from its half and its ridge." % node.title
-	if target.geometry_kind == Feature.GeometryKind.TOPOLOGY \
-			and (not target.midway or node.midway):
-		return "%s is a topology, and one cannot run along another." % target.title
-	if not target.has_geometry():
-		return "%s has no vertices to run along." % target.title
-	return ""

@@ -117,6 +117,18 @@ func test_a_file_naming_another_program_is_refused() -> void:
 	DirAccess.remove_absolute(path)
 
 
+# GP-0147: a topology built by hand, from an older file, is taken out on load;
+# the status bar is told which, and the document asks to be saved.
+func test_a_topology_built_by_hand_is_taken_out_on_load() -> void:
+	var document := Document.new()
+	assert_eq(document.load_from_file("res://Tests/Data/topology.geotekt"), "", "the file loads")
+	assert_eq(document.root.get_node_by_uuid("1a2b3c4d-0003-4a00-9000-000000000003"), null,
+		"without the Boundary")
+	assert_true(document.load_notice.contains("Boundary"), "and says so: %s" % document.load_notice)
+	assert_true(document.is_dirty(), "so saving writes the file without it")
+	assert_eq(document.root.children[0].children.size(), 2, "the features it ran along stay")
+
+
 func test_saving_makes_it_clean_and_writes_what_loads_back() -> void:
 	var document := Document.new()
 	document.root.children.append(Feature.create_feature("Craton"))
@@ -519,12 +531,6 @@ func test_the_crust_shape_is_its_bands() -> void:
 	shape = document.shape_of(document.root.children[2])
 	assert_eq(shape["kind"], Feature.GeometryKind.POLYLINE, "and a line from the ridge")
 	assert_eq(shape["rings"].size(), 1, "of one ring")
-	assert_true(not document.set_topology_closed(crust, false).is_empty(),
-		"a crust cannot be opened")
-	assert_true(not document.add_section(crust, document.root.children[0], 0).is_empty(),
-		"nor take a section")
-	assert_true(not document.add_section(document.root.children[2],
-		document.root.children[0], 0).is_empty(), "nor a ridge a third one")
 
 
 # The columns of the feature rows one feature was given, in order. Only a crust

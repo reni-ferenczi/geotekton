@@ -383,16 +383,6 @@ round at -60 degrees. Finally it stores the block as the default, checks that a 
 starts from it and that an opened file wins over it, and puts the preferences
 back, with no raster, so the scenarios after it open the documents they expect.
 
-The topology scenario types an empty feature as Topology, which leaves Move
-armed, and checks that the tool strip has no Topology button. It presses the
-section table's Pick toggle, which arms the Topology tool, clicks one drawn
-polyline and ends the pick with Escape, which lets the toggle go; it arms the
-tool again through `set_tool`, clicks the second polyline and picks another
-tool, which lets the toggle go too. It then reverses one section from the panel, moves one of the
-two at a later time and reads back a resolved geometry that has followed it, and
-then deletes that feature to check that the section is reported as broken rather
-than dropped and that an undo mends it.
-
 The kinematics scenario shows the panel from the View menu, selects the moving
 feature and checks what the graphs hold: the span they cover, that the path runs
 from the oldest end to the youngest, that there is one rate per pair of
@@ -462,9 +452,8 @@ checks that the switch is shown with the tool alone, that the cut and the ridge
 are one undo version, that the status bar names all three features, and that the
 ridge is a midway topology there from 400 Ma to the present, with no keyframes
 or couplings, whose two sections name the halves, the second walked back. The
-panel says `Midway between two sides` and has the section table but no
-Coupled to row or Closed switch, and a Pick click on a half leaves the ridge
-with two sections and a status bar saying why. Every
+panel says `Midway between two sides` and has no section table, Coupled to
+row or Closed switch, and the ridge keeps its two sections (GP-0147). Every
 vertex of the ridge is on both halves at the cut. The second half is then held
 with a keyframe at 400 Ma and dragged 24 degrees away at the present, and at
 200 Ma, where the two are about 12 degrees apart, each ridge vertex is within a
@@ -491,11 +480,7 @@ away for all of them, so no hover highlight is read. A crust has no row in the
 feature tree, so a click on its second band is what selects it. A skip of 50 My leaves two chunks. A Step (My) of
 25 on the first crust, which is one undo version, brings its four bands back
 and holds them through a skip of 10, while the other half, still at 0, follows
-that skip to ten bands; undo puts the first one back on the skip. Last, a topology clicked together from two
-lines fills nothing until the Closed switch is set through `set_property`,
-which is one undo version, gives one ring of four, shows the Area row, which
-the open topology did not have, and fills the square between the lines in the Topology
-color. A line has no Closed switch.
+that skip to ten bands; undo puts the first one back on the skip.
 
 `run_split_children_session` draws a magenta range, then a square plate below
 it in the tree, at 200 Ma, and couples the range to the plate. At 100 Ma it
@@ -591,7 +576,7 @@ the stand-in scene is reached with `--scene=res://...`.
 | `empty.geotekt`           | The root group only, no features.                          |
 | `triangle.geotekt`   | One red triangle around lat/lon (-3, 0).                   |
 | `craton.geotekt`     | One blue outline of 21 vertices with a bay, a narrow neck and a close pair, facing the camera. Written in the current format. |
-| `topology.geotekt`   | Two multipoints on the equator and a line topology running along both, with a gap between the two sections. Written in the current format. |
+| `topology.geotekt`   | Two multipoints on the equator and a line topology built by hand running along both, which opening the file takes out (GP-0147). Written in the current format. |
 | `Rasters/quarters.*`      | The same four colored quarters as a PNG, a JPEG, a WebP and an SVG, for the raster. |
 | `two_cratons.geotekt` | Three features despite the name: the red triangle plus a blue quad at (30, 45) and a green triangle rotated to (-3, -60). See `Tests/Data/README.md`. |
 | `mixed_geometry.geotekt` | One feature of each geometry kind: a polygon at (-3, 0), a polyline through (0, 40) and markers at (-30, -30) and (30, -30). |
@@ -770,7 +755,6 @@ a round trip is also a wait for the screen to catch up.
 | `set_property {field, value}`        | drives one panel field: `name`, `feature_type`, `icon` (a glyph id, on a group a folder picture id, or empty for none), `color`, `opacity` (0 to 100), `enabled`, `time_from` (the older end of the time range) and `time_to` (the younger one), on a Circle `polar` (the Axis circles box), `axis` (`[lat, lon]`), `radius` and `circle_segments`, on a hotspot `plate` (a title, or `None`), on a hotspot or a crust `time_step` (0 to 1000 My, 0 for the timeline's Skip), on a feature drawn with lines `line_width` (0.1 to 10, a multiple of what its type draws at), on a topology `closed`, and on a group `style`, `palette`, `ramp_colors` (a list of two colours or more) and `ramp_span`, where `color` and `opacity` are the style's |
 | `keyframes {button}`                 | presses `Key` or `Delete` in the panel's keyframe row, both of which work at the current time |
 | `coupling {button, parent, index, pick}` | presses `Couple` with the `parent` picked by title, `Decouple`, both at the current time, or `Remove` on the span at `index` in the panel's list. `pick: true` arms the pointer instead, so the next `click` on the planet names the parent, and `pick: false` puts it away. Refused on a feature typed Circle with "A circle follows nothing." and on one typed Hotspot with "A hotspot follows its plate." |
-| `sections {button, index}`            | selects a section row of a topology and presses `Reverse` or `Remove` in the panel, or flips the `Pick` toggle, which arms or ends the Topology tool; refused while the panel does not show the button |
 | `get_tool`                           | `tool` (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `topology` or `split`), the node names of what the tool strip holds (`tool_strip`), the Pole tool's `pole` as `[lat, lon]` or null, whether that click is picking the axis of a circle (`picking_axis`), the parent picked while the pick is on (`pick_candidate`, the title or empty), the pointer shape over the planet (`planet_cursor`, a `Control.CursorShape`), whether the Move tool drags the selection (`move_enabled`), how many vertices the shape being drawn holds (`drawing_vertices`), what the Draw tool draws (`drawing`: `"circle"` on a feature typed Circle, `"hotspot"` on a hotspot, otherwise the kind it commits, `polygon`, `polyline` or `multipoint`; null in any other tool), which of the two drawing tools the selected feature's type offers (`draw_enabled`, `topology_enabled`), the Vertex tool's `selected_vertex`, `split_from`, `snapping` (Edit > Snap to vertices), `can_split` (whether its `S` would split now), whether the Split tool is offered (`split_enabled`), its `split_points`, whether they are a cut it refused and draws in red (`split_refused`), its `ridge` switch and whether that switch is shown (`ridge_visible`), its `crust` switch, whether that one is shown (`crust_visible`) and whether it can be pressed (`crust_enabled`), its `children` switch and whether that one is shown (`children_visible`), the Measure tool's `measure_points`, the `measure_parallel` flag of each of them, saying whether the segment ending there follows a parallel, its `measure_label` (text, visibility and window position), its `parallel` switch and whether that switch is shown (`parallel_visible`), and, for a circle being drawn, its `circle_points` (empty otherwise), the `segments` count, whether that box is shown (`segments_visible`) and the `circle` the clicks describe |
 | `set_tool {tool, segments, ridge, crust, children, parallel}` | picks the tool (`move`, `rotate`, `pole`, `draw`, `vertex`, `measure`, `topology` or `split`; any other name is refused as an unknown tool), the segment count, the Split tool's Ridge, Crust and Children switches, Crust refused while Ridge is off, and the Measure tool's Parallel switch, refusing what the toolbar itself would not allow. `topology` has no button: it is refused unless a feature typed Topology is selected, and arms the tool the way the section Pick toggle does. Snapping is switched with `menu item=snap_to_vertices`. What the Draw tool produces, a circle included, comes from the feature's type, which `set_property` sets |
 | `vertex {action}`                    | what the Vertex tool does without a mouse: `split_from`, `split` or `delete`. Picking and dragging go through `press`, `mouse_move` and `release`, since picking is the thing being checked |

@@ -38,10 +38,6 @@ signal pick_axis_requested()
 # owns that pick as well, the same mode as the parent pick.
 signal pick_plate_requested(on: bool)
 
-# The Pick toggle of the section table was pressed or let go. The Application
-# arms the Topology tool for the topology shown, and ends it.
-signal pick_section_requested(on: bool)
-
 # The Load button on the Palette row was pressed. The Application owns the file
 # dialog and hands the path it gets back to load_palette().
 signal palette_file_requested()
@@ -61,25 +57,17 @@ const STEP_TOOLTIP := ("How far apart in time the track or the bands are sampled
 const STYLE_TOOLTIP := ("Same as parent colors the features the way the group above does; "
 	+ "Feature colour and the others decide for themselves")
 
-# The columns of the section table of a topology: the feature the section
-# runs along, the vertices of it the section covers, counted from one, and which
-# way round it is walked.
-const SECTION_COLUMNS = ["Feature", "From", "To", "Way"]
-
-# The pointer on the Follow row, which picks the parent off the planet, and on
-# the section table, which picks sections.
+# The pointer on the Follow row, which picks the parent off the planet.
 const PICK_PARENT_ICON := "res://Assets/Icons/Pointer.svg"
 # The Geotekton icon on the Follow row's pick button, a stem under FeatureIcon.DIR.
 const CLICK_ICON := "Icons1-Click"
 
-# A section whose feature can no longer be found, or cannot be followed at the
-# current time, is drawn in this rather than dropped, so a topology says what it
-# has lost instead of quietly shrinking.
+# A span whose parent cannot be followed is drawn in this, so a feature says
+# what it has lost instead of quietly standing still.
 const BROKEN_SECTION_COLOR = Color(0.9, 0.45, 0.4, 1.0)
 
 # The columns of the coupling list: the feature followed, and the older and the
-# younger end of the span in Ma. A span whose parent cannot be followed is drawn
-# in the same warning colour as a broken section.
+# younger end of the span in Ma.
 const SPAN_COLUMNS = ["Parent", "From", "To"]
 
 # How wide the panel is, whatever it happens to be showing.
@@ -112,11 +100,6 @@ var area_label: SelectableLines
 var keyframe_count: SelectableText
 var key_button: Button
 var delete_key_button: Button
-var sections: Tree
-var reverse_button: Button
-var remove_section_button: Button
-var pick_section_button: Button
-var closed_check: CheckBox
 var topology_note: Label
 var coupled_label: SelectableText
 var decouple_button: Button
@@ -140,13 +123,12 @@ var line_width_spin: SpinBox
 # Every row of the form, each a label and the control beside it, and whether a
 # group and a feature have it.
 var _rows: Array[Dictionary] = []
-# The Colour row, which a ridge or crust does not show.
+# The Type and Colour rows, which a ridge or crust does not show: both are
+# generated, and take their colors from the View settings.
+var _type_row: Dictionary = {}
 var _color_row: Dictionary = {}
 # The caption of the Area row, which shows only for what is drawn as a polygon.
 var _area_caption: Label
-# The Closed switch, the section table and its buttons, which only a topology
-# has.
-var _topology_boxes: Array[Control] = []
 # The keyframe row, label and all, which a feature holding vertices of its own
 # has. A topology has no motion of its own, and a group carries none.
 var _motion_boxes: Array[Control] = []
@@ -212,11 +194,12 @@ func _build() -> void:
 	_row(form, "Name", name_edit, true)
 
 	type_selector = _selector("Type")
-	for type_id in FeatureType.CATALOG:
+	for type_id in FeatureType.pickable():
 		type_selector.add_item(FeatureType.label(type_id))
 		type_selector.set_item_metadata(type_selector.item_count - 1, type_id)
 	type_selector.item_selected.connect(_on_type_selected)
 	_row(form, "Type", type_selector)
+	_type_row = _rows[-1]
 
 	# The glyph the feature's tree row carries. It is for whoever is looking;
 	# nothing else in the program reads it.
@@ -336,79 +319,12 @@ func _build() -> void:
 	_build_step(form)
 	_build_keyframes(form)
 	_build_coupling(form, box)
-	_build_sections(box)
 
-
-# The section table of a topology: which feature each section runs along,
-# which of its vertices, and which way round. The two ends are editable, so a
-# section built by clicking a whole feature can be trimmed to the stretch that
-# belongs to the boundary.
-func _build_sections(box: VBoxContainer) -> void:
-	# What a ridge or a crust is, since neither is built from the table.
+	# What a ridge or a crust is, in place of the rows neither of them has.
 	topology_note = Label.new()
 	topology_note.name = "TopologyNote"
 	topology_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(topology_note)
-
-	closed_check = CheckBox.new()
-	closed_check.name = "Closed"
-	closed_check.text = "Closed"
-	closed_check.tooltip_text = "Join the sections into one ring and fill it"
-	closed_check.toggled.connect(_on_closed_toggled)
-	box.add_child(closed_check)
-	_topology_boxes.append(closed_check)
-
-	var heading := Label.new()
-	heading.name = "SectionHeading"
-	heading.text = "Sections"
-	box.add_child(heading)
-	_topology_boxes.append(heading)
-
-	sections = Tree.new()
-	sections.name = "Sections"
-	sections.columns = SECTION_COLUMNS.size()
-	sections.column_titles_visible = true
-	sections.hide_root = true
-	for column in SECTION_COLUMNS.size():
-		sections.set_column_title(column, SECTION_COLUMNS[column])
-		if column > 0:
-			sections.set_column_expand(column, false)
-			sections.set_column_custom_minimum_width(column, 48)
-	sections.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	sections.custom_minimum_size = Vector2(0, 160)
-	sections.item_edited.connect(_on_section_edited)
-	sections.item_selected.connect(_update_section_buttons)
-	sections.nothing_selected.connect(_update_section_buttons)
-	box.add_child(sections)
-	_topology_boxes.append(sections)
-
-	var buttons := HBoxContainer.new()
-	buttons.name = "SectionButtons"
-	box.add_child(buttons)
-	_topology_boxes.append(buttons)
-
-	reverse_button = Button.new()
-	reverse_button.name = "Reverse"
-	reverse_button.text = "Reverse"
-	reverse_button.tooltip_text = "Walk the selected section the other way round"
-	reverse_button.pressed.connect(_on_reverse_pressed)
-	buttons.add_child(reverse_button)
-
-	remove_section_button = Button.new()
-	remove_section_button.name = "RemoveSection"
-	remove_section_button.text = "Remove"
-	remove_section_button.tooltip_text = "Take the selected section out of the topology"
-	remove_section_button.pressed.connect(_on_remove_section_pressed)
-	buttons.add_child(remove_section_button)
-
-	pick_section_button = Button.new()
-	pick_section_button.name = "PickSection"
-	pick_section_button.toggle_mode = true
-	pick_section_button.icon = load(PICK_PARENT_ICON)
-	pick_section_button.tooltip_text = "Click a feature on the planet to add its part as a section"
-	pick_section_button.toggled.connect(
-		func(on: bool) -> void: pick_section_requested.emit(on))
-	buttons.add_child(pick_section_button)
 
 
 # The rows a circle is built from, under the Area row, which a circle outline
@@ -695,24 +611,15 @@ func show_node(node_: Feature) -> void:
 			or (editable and node.is_group and row["on_a_group"])
 		(row["label"] as Control).visible = shown
 		(row["control"] as Control).visible = shown
-	# A topology has sections, and no motion of its own: where it is comes from
-	# the features its sections run along. A group carries no motion either. A
-	# feature typed Topology that holds no section yet shows the empty table, so
-	# its Pick toggle can add the first one.
-	var is_topology := is_feature and (node.geometry_kind == Feature.GeometryKind.TOPOLOGY
-		or node.feature_type == "topology")
-	# A ridge or crust takes its colors from the View settings, not its own.
+	# A ridge or crust is a topology: generated, with no motion of its own, and
+	# drawn in the colors of the View settings. A group carries no motion either.
+	var is_topology := is_feature and node.geometry_kind == Feature.GeometryKind.TOPOLOGY
 	if is_feature and node.is_sea_floor():
-		(_color_row["label"] as Control).visible = false
-		(_color_row["control"] as Control).visible = false
-	# A crust is built from its half and its ridge, so it has no table, and a
-	# ridge is a line between its two sides, so it cannot be closed.
+		for row in [_type_row, _color_row]:
+			(row["label"] as Control).visible = false
+			(row["control"] as Control).visible = false
 	var is_crust := is_feature and node.is_crust()
-	var is_midway := is_feature and node.midway
-	for control in _topology_boxes:
-		control.visible = is_topology and not is_crust
-	closed_check.visible = is_topology and not is_crust and not is_midway
-	topology_note.visible = is_crust or is_midway
+	topology_note.visible = is_feature and node.is_sea_floor()
 	# A hotspot is fixed in the world frame, so it has no motion either.
 	var is_hotspot := is_feature and node.is_hotspot()
 	var has_motion := is_feature and not is_topology and not is_hotspot
@@ -748,27 +655,25 @@ func show_node(node_: Feature) -> void:
 			_show_hotspot()
 		if is_hotspot or is_crust:
 			step_spin.value = node.time_step
-		closed_check.button_pressed = node.closed
-		_fill_sections()
 		_show_topology_note()
 		_fill_coupling()
 	else:
 		folder_icon_selector.select(_item_index(folder_icon_selector, node.icon))
 		_show_style()
 	_filling = false
-	_update_section_buttons()
 	_update_keyframes()
 	_update_coupling()
 
 
 # The current time moved: Delete only works on a keyframe the time sits on, and
-# a section can be followed at one time and broken at another. Nothing else in
-# the panel depends on the time.
+# a crust has as many bands as it has grown by then. Nothing else in the panel
+# depends on the time.
 func show_time() -> void:
 	if node == null or node.is_root:
 		return
-	if node.geometry_kind == Feature.GeometryKind.TOPOLOGY:
-		_refill_sections()
+	if node.is_sea_floor():
+		_show_topology_note()
+		_show_area()
 	_update_keyframes()
 	_update_coupling()
 
@@ -813,16 +718,7 @@ func _show_area() -> void:
 	area_label.text = Measure.format_area(area) + ("" if share.is_empty() else "\n" + share)
 
 
-### The section table
-
-
-# Every section of the topology at the current time, so the table can say which
-# of them are broken. An empty list while anything but a topology is selected.
-func _resolved_sections() -> Array:
-	if document == null or node == null or node.is_group \
-			or node.geometry_kind != Feature.GeometryKind.TOPOLOGY:
-		return []
-	return Topology.resolve(document.root, node, document.current_time)
+### Ridges and crusts
 
 
 func _show_topology_note() -> void:
@@ -832,140 +728,6 @@ func _show_topology_note() -> void:
 		topology_note.text = Crust.describe(document.root if document != null else null, node)
 	elif node.midway:
 		topology_note.text = "Midway between two sides"
-
-
-func _fill_sections() -> void:
-	sections.clear()
-	if node == null or node.is_group \
-			or node.geometry_kind != Feature.GeometryKind.TOPOLOGY:
-		return
-	var root := sections.create_item()
-	var resolved := _resolved_sections()
-	for index in node.sections.size():
-		var section: TopologySection = node.sections[index]
-		var problem := str(resolved[index]["problem"]) if index < resolved.size() else ""
-		var title := str(resolved[index]["title"]) if index < resolved.size() else ""
-
-		var item := sections.create_item(root)
-		item.set_metadata(0, index)
-		item.set_text(0, title if not title.is_empty() else "(missing)")
-		item.set_text(1, str(section.from_index + 1))
-		item.set_text(2, str(section.to_index + 1))
-		item.set_text(3, "back" if section.reversed else "on")
-		for column in [1, 2]:
-			item.set_editable(column, true)
-		if not problem.is_empty():
-			for column in SECTION_COLUMNS.size():
-				item.set_custom_color(column, BROKEN_SECTION_COLOR)
-				item.set_tooltip_text(column, problem)
-
-
-func _on_section_edited() -> void:
-	var item := sections.get_edited()
-	var column := sections.get_edited_column()
-	if _filling or node == null or item == null or item.get_metadata(0) == null:
-		return
-
-	var index := int(item.get_metadata(0))
-	var text := item.get_text(column).strip_edges()
-	if not text.is_valid_int():
-		_take_back_section("%s is not a vertex number." % text)
-		return
-
-	# The table counts vertices from one.
-	var section: TopologySection = node.sections[index]
-	var from_index := section.from_index
-	var to_index := section.to_index
-	if column == 1:
-		from_index = int(text) - 1
-	else:
-		to_index = int(text) - 1
-	var error := document.set_section_range(node, index, from_index, to_index)
-	if not error.is_empty():
-		_take_back_section(error)
-		return
-	_refill_sections()
-	edited.emit()
-
-
-func _on_closed_toggled(on: bool) -> void:
-	if _filling or node == null or on == node.closed:
-		return
-	var error := document.set_topology_closed(node, on)
-	if not error.is_empty():
-		closed_check.set_pressed_no_signal(node.closed)
-		rejected.emit(error)
-		return
-	_show_area()
-	_show_line_width()
-	edited.emit()
-
-
-func _on_reverse_pressed() -> void:
-	var index := selected_section()
-	if index < 0:
-		return
-	var error := document.reverse_section(node, index)
-	if not error.is_empty():
-		rejected.emit(error)
-		return
-	_refill_sections()
-	select_section(index)
-	edited.emit()
-
-
-func _on_remove_section_pressed() -> void:
-	var index := selected_section()
-	if index < 0:
-		return
-	var error := document.remove_section(node, index)
-	if not error.is_empty():
-		rejected.emit(error)
-		return
-	_refill_sections()
-	edited.emit()
-
-
-# Which section is picked, or -1 when the table is empty or none is. With no row
-# picked the last section stands in.
-func selected_section() -> int:
-	if node == null or node.is_group or node.sections.is_empty():
-		return -1
-	var item := sections.get_selected()
-	if item != null and item.get_metadata(0) != null:
-		return int(item.get_metadata(0))
-	return node.sections.size() - 1
-
-
-func select_section(index: int) -> void:
-	var root := sections.get_root()
-	if root == null or index < 0 or index >= root.get_child_count():
-		return
-	sections.deselect_all()
-	root.get_child(index).select(0)
-
-
-func _update_section_buttons() -> void:
-	var has_sections := node != null and not node.is_group and not node.sections.is_empty()
-	reverse_button.disabled = not has_sections
-	remove_section_button.disabled = not has_sections
-
-
-func _refill_sections() -> void:
-	_filling = true
-	_fill_sections()
-	_show_topology_note()
-	if not node.is_group:
-		_show_area()
-	_filling = false
-	_update_section_buttons()
-
-
-# Put the table back the way the topology is and say what went wrong, after an
-# edit the document would not take.
-func _take_back_section(message: String) -> void:
-	_refill_sections()
-	rejected.emit(message)
 
 
 ### The keyframe row
@@ -1118,12 +880,6 @@ func picking_parent() -> bool:
 func show_picking(parent: bool, plate: bool) -> void:
 	pick_parent_button.set_pressed_no_signal(parent)
 	pick_plate_button.set_pressed_no_signal(plate)
-
-
-# Whether the Topology tool is armed, which is what the section Pick toggle
-# shows. The tool is the Application's.
-func show_section_picking(on: bool) -> void:
-	pick_section_button.set_pressed_no_signal(on)
 
 
 # What the feature follows at the current time, and which buttons work there.
@@ -1596,11 +1352,6 @@ func to_json() -> Dictionary:
 	elif keyframe_count.get_parent().visible:
 		data["coupling"] = _coupling_to_json()
 		data["coupling"]["hidden"] = true
-	data["sections"] = _sections_to_json()
-	if closed_check.visible:
-		data["closed"] = closed_check.button_pressed
-	if sections.visible:
-		data["picking_sections"] = pick_section_button.button_pressed
 	if topology_note.visible:
 		data["topology_note"] = topology_note.text
 	if node.is_crust():
@@ -1671,24 +1422,6 @@ func _coupling_to_json() -> Dictionary:
 	}
 
 
-# The section table as it stands, read off the rows rather than off the feature,
-# so a run checks what the panel is showing.
-func _sections_to_json() -> Array:
-	var rows: Array = []
-	var root := sections.get_root()
-	if root == null:
-		return rows
-	for item in root.get_children():
-		rows.append({
-			"feature": item.get_text(0),
-			"from": int(item.get_text(1)),
-			"to": int(item.get_text(2)),
-			"way": item.get_text(3),
-			"broken": item.get_custom_color(0) == BROKEN_SECTION_COLOR,
-		})
-	return rows
-
-
 # Drive one field the way a person would, for the scripted session.
 func set_field(field: String, value: Variant) -> String:
 	if node == null or node.is_root:
@@ -1702,6 +1435,8 @@ func set_field(field: String, value: Variant) -> String:
 			_on_enabled_toggled(bool(value))
 		"feature_type":
 			var index := _type_index(str(value))
+			if index < 0:
+				return "the type selector offers no %s" % value
 			type_selector.select(index)
 			_on_type_selected(index)
 		"icon":
@@ -1759,10 +1494,6 @@ func set_field(field: String, value: Variant) -> String:
 				circle_segments_spin.value = float(value)
 			_filling = false
 			_commit_circle()
-		"closed":
-			if not closed_check.visible:
-				return "only a topology built from its sections can be closed"
-			closed_check.button_pressed = bool(value)
 		"plate":
 			if not plate_row.visible:
 				return "only a hotspot has a plate"

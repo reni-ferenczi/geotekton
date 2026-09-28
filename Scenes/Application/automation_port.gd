@@ -6,8 +6,7 @@ class_name AutomationPort
 # newline delimited JSON: one request object per line, one response object per line.
 # Requests are handled one at a time, in order.
 
-# The tool names a scripted run uses, matching the toolbar buttons. Topology has
-# no button; the section table's Pick toggle arms it.
+# The tool names a scripted run uses, matching the toolbar buttons.
 const TOOL_NAMES := {
 	Application.Tool.MOVE: "move",
 	Application.Tool.ROTATE: "rotate",
@@ -15,7 +14,6 @@ const TOOL_NAMES := {
 	Application.Tool.DRAW: "draw",
 	Application.Tool.VERTEX: "vertex",
 	Application.Tool.MEASURE: "measure",
-	Application.Tool.TOPOLOGY: "topology",
 	Application.Tool.SPLIT: "split",
 }
 
@@ -125,7 +123,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			if not error.is_empty():
 				return {"ok": false, "error": error}
 			await _frames(2)
-			return {"ok": true}
+			return {"ok": true, "notice": app.document.load_notice}
 
 		"get_document":
 			return {"ok": true, "document": {
@@ -365,29 +363,6 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			if not problem.is_empty():
 				return {"ok": false, "error": problem}
 			_timeline().set_animation(settings)
-			await _frames(2)
-			return {"ok": true}
-
-		"sections":
-			# The section table of a topology: pick a row, then press one of
-			# its buttons.
-			if request.has("index"):
-				app.properties.select_section(int(request["index"]))
-			var section_button: Button = {
-				"Reverse": app.properties.reverse_button,
-				"Remove": app.properties.remove_section_button,
-				"Pick": app.properties.pick_section_button,
-			}.get(str(request.get("button", "")))
-			if section_button == null or not section_button.is_visible_in_tree():
-				return {"ok": false, "error":
-					"no section button called %s" % request.get("button", "")}
-			if section_button.disabled:
-				return {"ok": false, "error":
-					"the %s button is disabled" % request.get("button", "")}
-			if section_button.toggle_mode:
-				section_button.button_pressed = not section_button.button_pressed
-			else:
-				section_button.pressed.emit()
 			await _frames(2)
 			return {"ok": true}
 
@@ -696,8 +671,6 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"tolerance": app.freehand_tolerance(),
 				"stroke_points": app.stroke.size(),
 				"draw_enabled": not app.draw_button.disabled,
-				"topology_enabled": app._can_build_topology(
-					app.features.feature_tree.get_selected_node()),
 				# The names of what the tool strip holds, buttons and switches.
 				"tool_strip": app.move_button.get_parent().get_children().map(
 					func(child: Node) -> String: return str(child.name)),
@@ -727,11 +700,6 @@ func _dispatch(request: Dictionary) -> Dictionary:
 						"turning a feature needs one holding vertices of its own"}
 				app.set_active_tool(Application.Tool.ROTATE if tool_name == "rotate"
 					else Application.Tool.POLE)
-			elif tool_name == "topology":
-				if not app._can_build_topology(app.features.feature_tree.get_selected_node()):
-					return {"ok": false, "error":
-						"the Topology tool needs a feature that can be a topology"}
-				app.start_section_pick(true)
 			elif tool_name == "split":
 				if app.split_button.disabled:
 					return {"ok": false, "error": "the Split tool needs a polygon selected"}
