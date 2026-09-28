@@ -47,22 +47,30 @@ static func interpolate(keyframes: Array[Keyframe], time: float) -> Vector3:
 
 	# The two keyframes the time falls between. Each interpolation starts from
 	# them rather than from the frame before it, so a long animation cannot
-	# drift away from what the keyframes say.
-	for i in range(1, keyframes.size()):
-		var after: Keyframe = keyframes[i]
-		if after.time < time:
-			continue
-		# Landing on a keyframe gives back exactly what it holds. Blending to it
-		# with a weight of one would come to the same rotation, but only to the
-		# precision of the quaternion it passes through on the way.
-		if is_equal_approx(after.time, time):
-			return after.rotation
-		var before: Keyframe = keyframes[i - 1]
-		var span := after.time - before.time
-		if span <= 0.0:
-			return after.rotation
-		return blend(before.rotation, after.rotation, (time - before.time) / span)
-	return last.rotation
+	# drift away from what the keyframes say. The first keyframe at or after
+	# the time is found by halving: an imported feature carries its plate's
+	# whole history, a keyframe every few million years, and every one of
+	# thousands of features is interpolated on every frame (GP-0030).
+	var low := 1
+	var high := keyframes.size() - 1
+	while low < high:
+		@warning_ignore("integer_division")
+		var middle := (low + high) / 2
+		if keyframes[middle].time < time:
+			low = middle + 1
+		else:
+			high = middle
+	var after: Keyframe = keyframes[low]
+	# Landing on a keyframe gives back exactly what it holds. Blending to it
+	# with a weight of one would come to the same rotation, but only to the
+	# precision of the quaternion it passes through on the way.
+	if is_equal_approx(after.time, time):
+		return after.rotation
+	var before: Keyframe = keyframes[low - 1]
+	var span := after.time - before.time
+	if span <= 0.0:
+		return after.rotation
+	return blend(before.rotation, after.rotation, (time - before.time) / span)
 
 
 # The rotation a fraction of the way from one to another, along the shortest

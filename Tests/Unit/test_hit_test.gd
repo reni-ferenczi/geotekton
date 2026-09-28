@@ -272,5 +272,28 @@ func _make_root(features: Array) -> Feature:
 	return root
 
 
+# GP-0030: features that carry the same keyframes, as every feature of an
+# imported plate does, share one rotation per step, which has to be the one
+# each would have got on its own. A feature moving otherwise shares nothing.
+func test_features_that_move_alike_share_their_rotation() -> void:
+	var one := _make_feature("One", Color.RED, Vector3.ZERO)
+	var two := _make_feature("Two", Color.RED, Vector3.ZERO)
+	var other := _make_feature("Other", Color.RED, Vector3.ZERO)
+	for feature in [one, two]:
+		Keyframe.upsert(feature.keyframes, 0.0, Vector3.ZERO)
+		Keyframe.upsert(feature.keyframes, 100.0, Vector3(20.0, 5.0, 0.0))
+	Keyframe.upsert(other.keyframes, 0.0, Vector3.ZERO)
+	Keyframe.upsert(other.keyframes, 100.0, Vector3(-20.0, 0.0, 0.0))
+	var geometry := Planet.collect_geometry(_make_root([one, two, other]))
+	assert_eq(geometry.same_motion[geometry.index_for(two)],
+		geometry.same_motion[geometry.index_for(one)], "two moves as one does")
+	assert_eq(geometry.same_motion[geometry.index_for(other)], geometry.index_for(other),
+		"other moves its own way")
+	geometry.resolve(null, 40.0)
+	for feature in [one, two, other]:
+		assert_true(geometry.bases[geometry.index_for(feature)].is_equal_approx(feature.basis_at(40.0)),
+			"%s is where its own keyframes put it" % feature.title)
+
+
 func _is_front_facing(a: Vector2, b: Vector2, c: Vector2) -> bool:
 	return Feature.faces_outwards(a, b, c)

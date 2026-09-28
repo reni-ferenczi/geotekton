@@ -37,7 +37,8 @@ EarthByte coastlines instead: 2077 irregular polygons and some 65,000 vertices
 from a fixed seed, with six continents of 3,000 vertices. It reports how long
 the document takes to open (it has to be under five seconds), that nothing is
 left undrawn, the frame standing still and playing, and that the hit test
-finds features in it (GP-0030). Otherwise it takes `--triangles=N` (default 5000) and `--budget=MS` (default
+finds features in it (GP-0030). `--world=PATH` measures a document of your own
+the same way, such as the real coastlines imported from GPlates. Otherwise it takes `--triangles=N` (default 5000) and `--budget=MS` (default
 one frame at 60 frames a second). See [Frame time](#frame-time).
 
 Set the `GODOT` environment variable to use an engine binary other than

@@ -219,6 +219,26 @@ class Geometry extends RefCounted:
 	# How many features were left out because MAX_PRIMITIVES was reached.
 	var dropped: int = 0
 
+	# For each column, the first column whose feature moves exactly as this
+	# one does: the same keyframes and no coupling. resolve() works a rotation
+	# out once for all of them. A GPlates import gives every feature of a plate
+	# the plate's whole history, so thousands of features share a few hundred
+	# motions (GP-0030). A column that shares with none points at itself.
+	var same_motion: Array[int] = []
+
+	# Group the columns by the keyframes they move by; see same_motion.
+	func find_same_motion() -> void:
+		same_motion.resize(features.size())
+		var first := {}
+		for index in features.size():
+			var node: Feature = features[index]
+			same_motion[index] = index
+			if not node.couplings.is_empty() or node.keyframes.size() < 2:
+				continue
+			var motion := node.keyframes.map(func(keyframe: Keyframe) -> Array:
+				return [keyframe.time, keyframe.rotation])
+			same_motion[index] = first.get_or_add(motion, index)
+
 	# Whether the tree holds a topology or a hotspot, whose vertices move with
 	# the time, so a new time needs the geometry collected again rather than
 	# only resolved. Worked out once, when the geometry is collected, since the
@@ -354,8 +374,12 @@ class Geometry extends RefCounted:
 		var cache := {}
 		for index in features.size():
 			var node: Feature = features[index]
-			bases[index] = node.basis_at(time) if node.couplings.is_empty() \
-				else Coupling.world_basis(node, time, nodes, cache)
+			var same: int = same_motion[index] if index < same_motion.size() else index
+			if same != index:
+				bases[index] = bases[same]
+			else:
+				bases[index] = node.basis_at(time) if node.couplings.is_empty() \
+					else Coupling.world_basis(node, time, nodes, cache)
 			shown[index] = node.exists_at(time)
 		if styling != null and styling.by_age:
 			recolor(styling)
@@ -630,6 +654,7 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 					Primitive.SEGMENT, [ring[j], ring[j + 1]], node, index))
 		geometry.ends[index] = geometry.primitives.size()
 	geometry.build_caps(2.0 * asin(maxf(LINE_HIT_WIDTH, POINT_HIT_RADIUS) * 0.5))
+	geometry.find_same_motion()
 	geometry.resolve(root, time)
 	geometry.recolor(styling)
 	return geometry

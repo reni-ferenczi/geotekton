@@ -14,11 +14,12 @@ else it is doing, so it is run on purpose rather than on every change.
 With --world coastlines it measures a document the size of a real GPlates data
 set instead (GP-0030): how long it takes to open, whether all of it is drawn,
 the frame standing still and playing, and that the hit test finds a feature in
-it.
+it. --world PATH measures a document of your own the same way, such as the
+real coastlines imported from GPlates.
 
 Usage:
     uv run Tests/performance.py [--port N] [--triangles N] [--budget MS]
-    uv run Tests/performance.py --world coastlines [--port N] [--budget MS]
+    uv run Tests/performance.py --world coastlines|PATH [--port N] [--budget MS]
 """
 
 import json
@@ -61,7 +62,7 @@ WARMUP_SAMPLES = 30
 HIT_TEST_SAMPLES = 2000
 HIT_TEST_SPEEDUP = 5.0
 
-USAGE = "usage: performance.py [--port N] [--triangles N | --world coastlines] [--budget MS]"
+USAGE = "usage: performance.py [--port N] [--triangles N | --world coastlines|PATH] [--budget MS]"
 
 # The stand-in for the global EarthByte coastlines GPlates 2.5.0 ships, which
 # are 2077 features and 64,496 vertices (GP-0030): a few continents of thousands
@@ -341,7 +342,7 @@ def main(argv: list[str]) -> int:
             triangles = int(value)
         elif switch == "--budget":
             budget = float(value)
-        elif switch == "--world" and value == "coastlines":
+        elif switch == "--world":
             world = value
         else:
             print(USAGE, file=sys.stderr)
@@ -350,6 +351,8 @@ def main(argv: list[str]) -> int:
     folder = Path(tempfile.mkdtemp(prefix="geotekt-performance-"))
     if world == "coastlines":
         return run_coastlines(port, folder / "coastlines.geotekt", budget)
+    if world:
+        return run_coastlines(port, Path(world), budget, build=False)
     sample = folder / "performance.geotekt"
     wanted = build_sample(sample, triangles)
     print(f"{wanted} triangles in {FEATURES} features written to {sample}")
@@ -384,9 +387,10 @@ def main(argv: list[str]) -> int:
     return 0 if passed else 1
 
 
-def run_coastlines(port: int, path: Path, budget: float) -> int:
-    features, vertices = build_coastlines(path)
-    print(f"{features} features and {vertices} vertices written to {path}")
+def run_coastlines(port: int, path: Path, budget: float, build: bool = True) -> int:
+    if build:
+        features, vertices = build_coastlines(path)
+        print(f"{features} features and {vertices} vertices written to {path}")
     process = launch_app(port)
     client = AutomationClient(port)
     passed = False
