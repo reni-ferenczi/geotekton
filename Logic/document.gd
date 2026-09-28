@@ -276,12 +276,25 @@ func set_style(group: Feature, style: GroupStyle) -> String:
 func set_feature_type(feature: Feature, type_id: String) -> String:
 	if not FeatureType.CATALOG.has(type_id):
 		return "There is no feature type called %s." % type_id
-	if type_id == FeatureType.CIRCLE and not feature.is_circle() and feature.has_geometry():
+	var to_circle := type_id == FeatureType.CIRCLE and not feature.is_circle()
+	if to_circle and feature.has_geometry():
 		return "A circle is built from its center and radius, so it is picked on an empty feature."
 	var to_hotspot := type_id == FeatureType.HOTSPOT and not feature.is_hotspot()
 	if to_hotspot and (feature.has_geometry() or not feature.keyframes.is_empty()
 			or not feature.couplings.is_empty()):
 		return "A hotspot builds its own geometry and never moves, so it is picked on an empty feature."
+	# Circles and hotspots take no part in coupling, on either side of a span
+	# (GP-0104), so a feature is not retyped into one while a span names it:
+	# the loader would drop that span, and until then it would stay live (GP-0108).
+	if to_circle and not feature.couplings.is_empty():
+		return "%s %s follows another feature; take its spans off first." % [
+			Coupling.CIRCLE_CHILD_PROBLEM, feature.title]
+	if to_circle or to_hotspot:
+		var follower := _follower_of(feature)
+		if follower != null:
+			return "%s %s follows %s; decouple it first." % [
+				Coupling.CIRCLE_PARENT_PROBLEM if to_circle else Coupling.HOTSPOT_PARENT_PROBLEM,
+				follower.title, feature.title]
 	if feature.has_geometry() and not FeatureType.allows(type_id, feature.kind_name()):
 		return "A %s cannot be a %s, which is %s." % [
 			feature.kind_name(), FeatureType.label(type_id),
@@ -294,6 +307,17 @@ func set_feature_type(feature: Feature, type_id: String) -> String:
 		Hotspot.rebuild(root, feature, current_time, Config.get_skip_increment())
 	record()
 	return ""
+
+
+# A feature with a span naming this one as a parent, at any time, or null.
+func _follower_of(feature: Feature) -> Feature:
+	for node: Feature in Coupling.index(root).values():
+		if node.is_group:
+			continue
+		for span in node.couplings:
+			if feature.uuid in span.parents():
+				return node
+	return null
 
 
 # The largest radius a circle takes, and the largest one drawn at both ends of

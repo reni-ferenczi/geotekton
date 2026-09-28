@@ -352,6 +352,33 @@ func test_an_unknown_type_is_refused() -> void:
 	assert_eq(_feature(document).feature_type, "polygon")
 
 
+# GP-0108: circles and hotspots take no part in coupling, so an empty feature
+# is not retyped into one while a span names it, as the child or as the parent.
+func test_a_feature_in_a_span_is_not_retyped_to_circle_or_hotspot() -> void:
+	var document := Document.new()
+	var parent := Feature.create_feature("Parent")
+	var child := Feature.create_feature("Child")
+	var free := Feature.create_feature("Free")
+	document.root.children.append_array([parent, child, free])
+	document.record()
+	assert_eq(document.couple(child, parent, 100.0), "", "the child follows the parent")
+
+	for type_id in [FeatureType.CIRCLE, FeatureType.HOTSPOT]:
+		var versions := document.applied
+		assert_true(not document.set_feature_type(child, type_id).is_empty(),
+			"a feature that follows another is refused as %s" % type_id)
+		assert_true(not document.set_feature_type(parent, type_id).is_empty(),
+			"a feature something follows is refused as %s" % type_id)
+		assert_eq(document.applied, versions, "with nothing recorded")
+	assert_eq(child.feature_type, "polygon", "the child keeps its type")
+	assert_eq(parent.feature_type, "polygon", "and so does the parent")
+	var refusal := document.set_feature_type(parent, FeatureType.CIRCLE)
+	assert_true(refusal.contains("Child"), "the refusal names the follower: %s" % refusal)
+
+	assert_eq(document.set_feature_type(free, FeatureType.CIRCLE), "",
+		"a feature in no span is retyped as before")
+
+
 func test_the_colour_follows_the_type_until_someone_picks_one() -> void:
 	var document := Document.new()
 	var feature := Feature.create_feature("Empty")

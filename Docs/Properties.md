@@ -531,7 +531,7 @@ undo version:
 | `set_enabled`           | nothing                                            |
 | `set_color`             | nothing                                            |
 | `set_style`             | a leaf, which has no style                         |
-| `set_feature_type`      | an unknown type, and one that does not hold the kind the feature holds |
+| `set_feature_type`      | an unknown type, one that does not hold the kind the feature holds, and Circle or Hotspot on a feature in a coupling span, as the child or the parent |
 | `set_icon`              | the root, and an icon the catalog does not have: the glyphs for a feature, the folder pictures for a group |
 | `set_time_range`        | a range that ends older than it starts             |
 | `set_line_width`        | a group, a feature with no lines to widen, and a width outside 0.1 to 20 |
