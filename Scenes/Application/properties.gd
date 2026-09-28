@@ -108,8 +108,8 @@ var opacity_spin: SpinBox
 var enabled_check: CheckBox
 var from_spin: SpinBox
 var to_spin: SpinBox
-var area_label: Label
-var keyframe_count: Label
+var area_label: SelectableLines
+var keyframe_count: SelectableText
 var key_button: Button
 var delete_key_button: Button
 var sections: Tree
@@ -118,7 +118,7 @@ var remove_section_button: Button
 var pick_section_button: Button
 var closed_check: CheckBox
 var topology_note: Label
-var coupled_label: Label
+var coupled_label: SelectableText
 var decouple_button: Button
 var parent_selector: OptionButton
 var couple_button: Button
@@ -324,10 +324,10 @@ func _build() -> void:
 	to_spin = _time_spin("To", TO_TOOLTIP)
 	_row(form, "To (Ma)", to_spin, false, true, TO_TOOLTIP)
 
-	area_label = Label.new()
+	# Selectable, like every value the panel only shows (GP-0144). It wraps,
+	# or the longer line would set the width of the panel.
+	area_label = SelectableLines.new()
 	area_label.name = "Area"
-	# Without wrapping, the longer line would set the width of the panel.
-	area_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_row(form, "Area", area_label)
 	_area_caption = _rows.back()["label"]
 
@@ -517,12 +517,11 @@ func _build_keyframes(form: GridContainer) -> void:
 	_motion_boxes.append(_rows.back()["label"])
 	_motion_boxes.append(row)
 
-	keyframe_count = Label.new()
+	# A SelectableText clips rather than setting a minimum width, which would
+	# make the row wider than CONTENT_WIDTH and push the planet view aside.
+	keyframe_count = SelectableText.new()
 	keyframe_count.name = "Count"
 	keyframe_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# Without clipping the text sets a minimum width, and the row is then wider
-	# than CONTENT_WIDTH, which pushes the planet view aside.
-	keyframe_count.clip_text = true
 	row.add_child(keyframe_count)
 
 	key_button = Button.new()
@@ -551,10 +550,9 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 	_coupling_boxes.append(_rows.back()["label"])
 	_coupling_boxes.append(coupled_row)
 
-	coupled_label = Label.new()
+	coupled_label = SelectableText.new()
 	coupled_label.name = "Parent"
 	coupled_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	coupled_label.clip_text = true
 	coupled_row.add_child(coupled_label)
 
 	decouple_button = Button.new()
@@ -1132,7 +1130,7 @@ func show_section_picking(on: bool) -> void:
 func _update_coupling() -> void:
 	var feature := document != null and node != null and not node.is_group
 	var span := Coupling.span_at(node, document.current_time) if feature else null
-	coupled_label.remove_theme_color_override("font_color")
+	coupled_label.reset_color()
 	coupled_label.tooltip_text = ""
 	if span == null:
 		coupled_label.text = "nothing"
@@ -1141,7 +1139,7 @@ func _update_coupling() -> void:
 		coupled_label.text = Coupling.parents_label(nodes, span)
 		var problem := Coupling.parent_problem(nodes, node, span)
 		if not problem.is_empty():
-			coupled_label.add_theme_color_override("font_color", BROKEN_SECTION_COLOR)
+			coupled_label.set_color(BROKEN_SECTION_COLOR)
 			coupled_label.tooltip_text = problem
 	decouple_button.disabled = span == null
 	couple_button.disabled = not feature or span != null or parent_selector.selected < 0

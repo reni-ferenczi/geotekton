@@ -66,6 +66,11 @@ var node: Feature = null
 var readout: Label
 var graphs: Control
 
+# The current rate beside the top of the rate row, the one number in the panel
+# worth copying, so it is selectable text over the graphs rather than drawn on
+# them (GP-0144).
+var rate_value: SelectableText
+
 # Whether the latitude and longitude graphs are drawn above the rate. The
 # panel is two rows shorter without them, and that height goes to the planet.
 var show_place: bool = false:
@@ -122,6 +127,13 @@ func _build() -> void:
 	graphs.draw.connect(_draw_graphs)
 	graphs.resized.connect(graphs.queue_redraw)
 	box.add_child(graphs)
+
+	rate_value = SelectableText.new()
+	rate_value.name = "RateValue"
+	rate_value.add_theme_font_size_override("font_size", FONT_SIZE)
+	rate_value.set_color(TEXT_COLOR)
+	rate_value.tooltip_text = REFERENCE_SPEEDS
+	graphs.add_child(rate_value)
 	_fit_rows()
 
 
@@ -164,6 +176,10 @@ func refresh() -> void:
 # The cursor and the rate beside the rate row follow the current time; the
 # graphs themselves stand still under it.
 func _show_time() -> void:
+	var text := rate_label(_current_rate(), Config.get_rate_unit()) if not _samples.is_empty() else ""
+	# Set only when it changes, so a selection in it survives the frames between.
+	if rate_value.text != text:
+		rate_value.text = text
 	graphs.queue_redraw()
 
 
@@ -270,7 +286,10 @@ func _draw_place_row(row: int, label: String, key: String, limit: float,
 # through the middle of each span would draw as a slope that is not there.
 func _draw_rate_row(row: int) -> void:
 	var plot := _plot(row)
-	_draw_frame(plot, "Rate", rate_label(_current_rate(), Config.get_rate_unit()), "0")
+	_draw_frame(plot, "Rate", "", "0")
+	# The rate itself stands where the frame would write the top value.
+	rate_value.position = Vector2(plot.end.x + 6.0, plot.position.y - 3.0)
+	rate_value.size = Vector2(VALUE_WIDTH - 6, FONT_SIZE + 4)
 	if _peak > 0.0:
 		for segment in _segments:
 			var left := _time_x(float(segment["to"]), plot)
@@ -355,7 +374,7 @@ func to_json() -> Dictionary:
 		"samples": _samples,
 		"segments": _segments,
 		"current": _current_values(),
-		"rate_label": rate_label(_current_rate(), Config.get_rate_unit()),
+		"rate_label": rate_value.text,
 		"tooltip": readout.tooltip_text,
 		# Where the cursor is drawn across the plotting area, and how wide that
 		# is, so a run can check that it moved with the time.

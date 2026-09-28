@@ -412,6 +412,13 @@ time is the speed of the middle since the coupling started, and the second
 drag, further, reads higher. It also checks that no bearing is given anywhere
 (GP-0142) and the reference speeds in the rate's tooltip (GP-0136).
 
+The selectable text scenario (GP-0144) clicks the kinematics rate and the Area
+row, selects each with Ctrl+A and copies it with Ctrl+C, and reads the
+clipboard back. It checks that neither can be typed into, that Space still
+plays and pauses while one holds the focus, that a click elsewhere lets the
+focus go, and that the right click menu of the status bar's file name offers
+Copy and nothing that edits.
+
 The vertex scenarios come last: `run_vertex_session` drags a vertex, inserts one
 on an edge and deletes one, all at a time that has moved the feature away from
 where its vertices are stored, so an edit that forgot to map the click back into
@@ -784,6 +791,7 @@ a round trip is also a wait for the screen to catch up.
 | `click {x, y, button, ctrl, shift}`  | presses and releases a mouse button: `left`, `right`, `middle`, `wheel_up` or `wheel_down`, with Ctrl or Shift held if asked |
 | `press {x, y, button}` / `release {x, y, button}` | half a click each, so a drag can be scripted: press, `mouse_move`, release |
 | `key {key, ctrl, shift}`             | presses and releases a key. A printable key carries its character too, so a focused text field types it |
+| `get_text_widget {widget}`           | `widget`, a text field by node name: its `rect` in the window, its `text`, the `selected` part of it, whether it is `editable`, whether its right click menu is up (`menu_visible`) and the `menu_items` that menu enables |
 | `focus {widget\|release}`             | `focus`, the node name of whatever holds the keyboard focus, after giving it to the named widget or letting it go. Single key shortcuts read the focus, so a run has to be able to set it |
 | `latlon_to_screen {lat, lon}`        | `screen: [x, y]`, or `null` where the view does not draw that place: the far side of the globe, or a latitude the projection leaves off the map |
 | `screen_to_latlon {x, y}`            | `latlon: [lat, lon]`, or `null` where there is no planet under the pixel |

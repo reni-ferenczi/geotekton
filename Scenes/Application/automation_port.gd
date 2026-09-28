@@ -555,6 +555,26 @@ func _dispatch(request: Dictionary) -> Dictionary:
 			holder = app.get_viewport().gui_get_focus_owner()
 			return {"ok": true, "focus": "" if holder == null else str(holder.name)}
 
+		"get_text_widget":
+			# A text field by name, as a person sees it: where it is, what it
+			# says, what of it is selected, whether it can be typed into, and
+			# the right click menu with its items (GP-0144).
+			var field := app.find_child(str(request.get("widget", "")), true, false)
+			if field is not LineEdit and field is not TextEdit:
+				return {"ok": false, "error": "no text field called %s" % request.get("widget", "")}
+			var rect: Rect2 = field.get_global_rect()
+			var menu: PopupMenu = field.get_menu()
+			return {"ok": true, "widget": {
+				"rect": [rect.position.x, rect.position.y, rect.size.x, rect.size.y],
+				"text": field.text,
+				"selected": field.get_selected_text(),
+				"editable": field.editable,
+				"menu_visible": menu.visible,
+				"menu_items": range(menu.item_count).filter(func(index: int) -> bool:
+					return not menu.is_item_separator(index) and not menu.is_item_disabled(index)) \
+					.map(func(index: int) -> String: return menu.get_item_text(index)),
+			}}
+
 		"latlon_to_screen":
 			var screen: Variant = app.planet_view.latlon_to_screen(
 				float(request.get("lat", 0.0)), float(request.get("lon", 0.0)))

@@ -173,9 +173,9 @@ const HIGHLIGHT_FAMILY_KEY := "highlight_parent_siblings"
 @onready var kinematics: KinematicsPanel = %Kinematics
 @onready var console: ConsolePanel = %Console
 @onready var status_bar: Control = %StatusBar
-@onready var status_coordinates: Label = %StatusCoordinates
-@onready var status_measure: Label = %StatusMeasure
-@onready var status_file: Label = %StatusFile
+@onready var status_coordinates: SelectableText = %StatusCoordinates
+@onready var status_measure: SelectableText = %StatusMeasure
+@onready var status_file: SelectableText = %StatusFile
 @onready var leave_full_screen: Button = %LeaveFullScreen
 
 # The toggle button of each tool, which is what says whether a tool is offered,
@@ -246,7 +246,7 @@ var restore_session_check: CheckBox
 var default_folder_edit: LineEdit
 var radius_spin: SpinBox
 # The planet's surface under the radius box, following the box as it changes.
-var planet_area_label: Label
+var planet_area_label: SelectableText
 # The unit the Kinematics panel gives a rate in; each item's metadata is one of
 # Measure's RATE_ units.
 var rate_unit_option: OptionButton
@@ -1387,8 +1387,9 @@ func _build_general_preferences() -> Control:
 	radius_spin = _form_spin(form, "PlanetRadius", "Planet radius (km)",
 		Measure.MIN_RADIUS_KM, Measure.MAX_RADIUS_KM, 1.0)
 	form.add_child(Control.new())
-	planet_area_label = Label.new()
+	planet_area_label = SelectableText.new()
 	planet_area_label.name = "PlanetArea"
+	planet_area_label.expand_to_text_length = true
 	form.add_child(planet_area_label)
 	radius_spin.value_changed.connect(func(radius: float) -> void:
 		planet_area_label.text = "Surface area %s" % Measure.format_area(Measure.planet_area(radius)))
@@ -3247,10 +3248,12 @@ func _hotkey(event: InputEventKey) -> bool:
 # True while the keyboard belongs to a text field, which every single key
 # shortcut yields to so that typing a name stays typing a name. A SpinBox
 # focuses the LineEdit inside it and CodeEdit is a TextEdit, so both are
-# covered, and so is the console's input line.
+# covered, and so is the console's input line. A value that can only be
+# selected and copied (SelectableText) is not typed into, so the shortcuts go
+# on working while it holds the focus.
 func _typing() -> bool:
 	var focused := get_viewport().gui_get_focus_owner()
-	return focused is LineEdit or focused is TextEdit
+	return (focused is LineEdit or focused is TextEdit) and focused.editable
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

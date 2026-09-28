@@ -5642,6 +5642,65 @@ def run_kinematics_playing_checks(client: AutomationClient) -> None:
     client.call("set_time", time=CURSOR_TIME)
 
 
+def widget_center(widget: dict) -> tuple[float, float]:
+    x, y, w, h = widget["rect"]
+    return x + w / 2.0, y + h / 2.0
+
+
+def copy_by_keyboard(client: AutomationClient, name: str) -> dict:
+    """Click the named text, select all of it with Ctrl+A and copy it with
+    Ctrl+C, the way a person would. Returns the field as it is then."""
+    x, y = widget_center(client.call("get_text_widget", widget=name)["widget"])
+    client.call("click", x=x, y=y)
+    client.call("set_clipboard", text="")
+    client.call("key", key="A", ctrl=True)
+    client.call("key", key="C", ctrl=True)
+    return client.call("get_text_widget", widget=name)["widget"]
+
+
+def run_selectable_text_session(client: AutomationClient) -> None:
+    """GP-0144: the values the window shows can be selected and copied with
+    Ctrl+C or the right click menu, and are not typed into."""
+    client.call("load", path=str(MOTION))
+    client.call("set_animation",
+                animation={"start": KINEMATICS_OLDEST, "end": KINEMATICS_YOUNGEST, "speed": 50.0})
+    client.call("set_time", time=CURSOR_TIME)
+    client.call("menu", item="kinematics")
+    client.call("select", title="Drifting Craton")
+
+    for name in ("RateValue", "Area"):
+        field = copy_by_keyboard(client, name)
+        copied = client.call("get_clipboard")["text"]
+        check(field["text"] != "" and copied == field["text"],
+              f"{name}: Ctrl+A and Ctrl+C copy it: {copied!r} of {field['text']!r}")
+        check(not field["editable"], f"{name}: and it cannot be typed into")
+    check(client.call("focus")["focus"] == "Area", "the clicked value holds the focus")
+
+    # Holding the focus, a value is not a text field being typed into, so
+    # Space still plays and pauses.
+    client.call("key", key="Space")
+    check(client.call("get_timeline")["timeline"]["playing"], "Space still plays")
+    client.call("key", key="Space")
+    check(not client.call("get_timeline")["timeline"]["playing"], "and pauses")
+
+    # A click anywhere else lets the focus go, so Ctrl+C is the Edit menu's again.
+    rate = client.call("get_text_widget", widget="RateValue")["widget"]
+    client.call("click", x=rate["rect"][0] - 80.0, y=rate["rect"][1] + 10.0)
+    check(client.call("focus")["focus"] == "", "a click on the graphs lets the focus go")
+
+    x, y = widget_center(client.call("get_text_widget", widget="StatusFile")["widget"])
+    client.call("click", x=x, y=y, button="right")
+    field = client.call("get_text_widget", widget="StatusFile")["widget"]
+    check(field["menu_visible"] and "Copy" in field["menu_items"]
+          and "Paste" not in field["menu_items"] and "Cut" not in field["menu_items"],
+          f"the right click menu offers Copy and nothing that edits: {field['menu_items']}")
+    client.call("key", key="Escape")
+    check(not client.call("get_text_widget", widget="StatusFile")["widget"]["menu_visible"],
+          "Escape closes the menu")
+
+    client.call("menu", item="kinematics")
+
+
 def run_kinematics_session(client: AutomationClient) -> None:
     """The kinematics panel: what it graphs, and how its cursor follows the time."""
     client.call("load", path=str(MOTION))
@@ -6184,6 +6243,7 @@ def main(argv: list[str]) -> int:
         run_topology_session(client)
         run_kinematics_session(client)
         run_kinematics_drag_session(client)
+        run_selectable_text_session(client)
         run_python_session(client)
         folder = Path(tempfile.mkdtemp(prefix="geotekt-import-"))
         try:

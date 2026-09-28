@@ -168,7 +168,7 @@ follows the feature tree selection, through
 | ---------- | ------------------ | ---------- |
 | Name       | Line edit          | yes        |
 | Type       | Selector           | no         |
-| Icon       | Selector           | no         |
+| Icon       | Selector           | yes, a folder picture, under Enabled |
 | Style      | Selector           | only       |
 | Colour     | Colour picker, opacity | yes; not on a ridge or crust |
 | Palette    | Selector           | only       |
@@ -177,7 +177,7 @@ follows the feature tree selection, through
 | Enabled    | Switch             | yes        |
 | From (Ma)  | Number             | no         |
 | To (Ma)    | Number             | no         |
-| Area       | Label              | no, polygons only |
+| Area       | Selectable text    | no, polygons only |
 | Axis circles | Checkbox         | no, Circle only |
 | Axis latitude, Axis longitude | Number | no, Circle only |
 | Radius (°) | Number             | no, Circle only |
