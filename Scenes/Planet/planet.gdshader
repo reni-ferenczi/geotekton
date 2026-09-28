@@ -54,6 +54,19 @@ const float MAP_EDGE_SLACK = 1e-6;
 uniform sampler2D geometry_data : filter_nearest, repeat_disable;
 uniform int geometry_count = 0;
 
+// The caps the geometry loop skips with (GP-0023), in each feature's own frame:
+// Planet.Geometry's draw caps and blocks. See Docs/Shader.md#skipping-what-is-far.
+// column_data, one column per column of feature_data, height = 2
+//   Row 0: (x, y, z, angle) -- the centre of the cap and its angular radius
+//   Row 1: (first block, end block, 0, 0)
+// block_data, one column per block, height = 2
+//   Row 0: (x, y, z, angle) -- likewise, around the block's primitives
+//   Row 1: (first primitive, end primitive, 0, 0)
+// The ranges are half open. An angle of PI holds the whole sphere.
+uniform sampler2D column_data : filter_nearest, repeat_disable;
+uniform sampler2D block_data : filter_nearest, repeat_disable;
+uniform int column_count = 0;
+
 // The width of a feature line before its feature's line_scale, and the radius of
 // a marker.
 uniform float geometry_line_width = 0.006;
@@ -312,6 +325,22 @@ float circle_distance(vec3 axis, float radius, vec3 p) {
 	return abs(angle_between(axis, p) - radius);
 }
 
+// How far past its cap a column's primitives can still touch a fragment, as an
+// angle: the widest thing any of them draws, the halo of a selected line at the
+// column's line_scale or a marker, and a little over for rounding.
+float cap_margin(float line_scale) {
+	float reach = max(geometry_line_width * line_scale * SELECTED_LINE_SCALE,
+		geometry_point_radius);
+	return 2.0 * asin(min(reach * 0.5, 1.0)) + 1e-4;
+}
+
+// Whether a point in a feature's own frame lies further from the cap's centre
+// than its angle and the margin: then nothing behind the cap reaches it.
+bool outside_cap(vec4 cap, float margin, vec3 local) {
+	float reach = cap.w + margin;
+	return reach < PI && dot(local, cap.xyz) < cos(reach);
+}
+
 void fragment() {
 	// Where on the planet this fragment is. The globe carries the
 	// equirectangular grid on its surface, so its UV is the position; the map
@@ -364,10 +393,8 @@ void fragment() {
 	// Feature geometry. Every primitive of one column follows the last, so the
 	// rotation and the color are fetched once per column rather than once per
 	// primitive.
-	int loaded_feature = -1;
 	mat3 rotation = mat3(1.0);
 	float hovered = 0.0;
-	bool feature_visible = true;
 	bool feature_selected = false;
 	int feature_related = 0;
 	float line_scale = 1.0;
@@ -384,83 +411,100 @@ void fragment() {
 	vec4 selected_paint = vec4(1.0);
 	float selected_hovered = 0.0;
 
-	for (int i = 0; i < geometry_count; i++) {
-		vec4 row0 = texelFetch(geometry_data, ivec2(i, 0), 0);
-		vec4 row1 = texelFetch(geometry_data, ivec2(i, 1), 0);
-
-		int feature = int(row1.z + 0.5);
-		if (feature != loaded_feature) {
-			loaded_feature = feature;
-			vec4 f0 = texelFetch(feature_data, ivec2(feature, 0), 0);
-			vec4 f1 = texelFetch(feature_data, ivec2(feature, 1), 0);
-			vec4 f2 = texelFetch(feature_data, ivec2(feature, 2), 0);
-			rotation = mat3(f0.xyz, f1.xyz, f2.xyz);
-			hovered = f0.w;
-			feature_visible = f1.w > 0.5;
-			feature_selected = f2.w > 0.5;
-			feature_color = texelFetch(feature_data, ivec2(feature, 3), 0);
-			vec4 f4 = texelFetch(feature_data, ivec2(feature, 4), 0);
-			feature_related = int(f4.r + 0.5);
-			line_scale = f4.g;
-			feature_line_color = texelFetch(feature_data, ivec2(feature, 5), 0);
-		}
-		if (!feature_visible) {
+	// Column by column, and within a column block by block, each behind a cap
+	// in the feature's own frame: a fragment outside the cap, widened by what a
+	// line or a marker is drawn at, cannot be touched by anything in it, so
+	// none of it is looked at (GP-0023). The primitives are still visited in
+	// the order they are laid down in.
+	for (int column = 0; column < column_count; column++) {
+		vec4 f1 = texelFetch(feature_data, ivec2(column, 1), 0);
+		if (f1.w < 0.5) {
 			continue;
 		}
-
-		vec3 a = rotation * latlon_to_unit(row0.xy);
-		int kind = int(row1.w + 0.5);
-
-		// How much of this fragment the primitive covers, and in what color.
-		// Everything but a triangle is a line or a marker and takes the
-		// feature's line color, which is its own color unless it is a crust.
-		float coverage = 0.0;
-		vec4 paint = kind == 0 ? feature_color : feature_line_color;
-
-		if (kind == 0) {
-			vec3 b = rotation * latlon_to_unit(row0.zw);
-			vec3 c = rotation * latlon_to_unit(row1.xy);
-
-			// Great-circle half-plane tests (CCW winding)
-			if (dot(cross(a, b), p) > 0.0 && dot(cross(b, c), p) > 0.0
-					&& dot(cross(c, a), p) > 0.0) {
-				coverage = 1.0;
-			}
-		} else if (kind == 1 || kind == 4) {
-			float d = kind == 1 ? arc_distance(a, rotation * latlon_to_unit(row0.zw), p)
-				: circle_distance(a, row0.z, p);
-			if (feature_selected) {
-				selected_line_dist = min(selected_line_dist, d / line_scale);
-				selected_paint = paint;
-				selected_hovered = hovered;
-				continue;
-			}
-			// A related line is drawn opaque in its relation's color.
-			if (feature_related > 0) {
-				paint = vec4(relation_color(feature_related), 1.0);
-			}
-			coverage = line_coverage(geometry_line_width * line_scale, d);
-		} else {
-			float d = chord(a, p);
-			float radius = geometry_point_radius * (kind == 3 ? SAMPLE_DOT_SCALE : 1.0);
-			coverage = 1.0 - smoothstep(radius * 0.7, radius, d);
-			if (kind == 3 && feature_selected) {
-				selected_dot = max(selected_dot, coverage);
-				continue;
-			}
-			if (feature_related > 0) {
-				paint = vec4(relation_color(feature_related), 1.0);
-			}
+		vec4 f0 = texelFetch(feature_data, ivec2(column, 0), 0);
+		vec4 f2 = texelFetch(feature_data, ivec2(column, 2), 0);
+		vec4 f4 = texelFetch(feature_data, ivec2(column, 4), 0);
+		rotation = mat3(f0.xyz, f1.xyz, f2.xyz);
+		line_scale = f4.g;
+		// The point in the feature's own frame, where the caps are.
+		vec3 local = transpose(rotation) * p;
+		float margin = cap_margin(line_scale);
+		vec4 cap = texelFetch(column_data, ivec2(column, 0), 0);
+		if (outside_cap(cap, margin, local)) {
+			continue;
 		}
+		hovered = f0.w;
+		feature_selected = f2.w > 0.5;
+		feature_color = texelFetch(feature_data, ivec2(column, 3), 0);
+		feature_related = int(f4.r + 0.5);
+		feature_line_color = texelFetch(feature_data, ivec2(column, 5), 0);
+		vec4 blocks = texelFetch(column_data, ivec2(column, 1), 0);
 
-		if (coverage > 0.0) {
-			// One flat color, laid over what is beneath by its opacity.
-			vec3 fill = mix(base, paint.rgb, paint.a);
-			// Hover highlight: brighten slightly while the pointer is on it
-			if (hovered > 0.5) {
-				fill = mix(fill, vec3(1.0), 0.15);
+		for (int block = int(blocks.x + 0.5); block < int(blocks.y + 0.5); block++) {
+			if (outside_cap(texelFetch(block_data, ivec2(block, 0), 0), margin, local)) {
+				continue;
 			}
-			base = mix(base, fill, coverage);
+			vec4 range = texelFetch(block_data, ivec2(block, 1), 0);
+
+			for (int i = int(range.x + 0.5); i < int(range.y + 0.5); i++) {
+				vec4 row0 = texelFetch(geometry_data, ivec2(i, 0), 0);
+				vec4 row1 = texelFetch(geometry_data, ivec2(i, 1), 0);
+
+				vec3 a = rotation * latlon_to_unit(row0.xy);
+				int kind = int(row1.w + 0.5);
+
+				// How much of this fragment the primitive covers, and in what color.
+				// Everything but a triangle is a line or a marker and takes the
+				// feature's line color, which is its own color unless it is a crust.
+				float coverage = 0.0;
+				vec4 paint = kind == 0 ? feature_color : feature_line_color;
+
+				if (kind == 0) {
+					vec3 b = rotation * latlon_to_unit(row0.zw);
+					vec3 c = rotation * latlon_to_unit(row1.xy);
+
+					// Great-circle half-plane tests (CCW winding)
+					if (dot(cross(a, b), p) > 0.0 && dot(cross(b, c), p) > 0.0
+							&& dot(cross(c, a), p) > 0.0) {
+						coverage = 1.0;
+					}
+				} else if (kind == 1 || kind == 4) {
+					float d = kind == 1 ? arc_distance(a, rotation * latlon_to_unit(row0.zw), p)
+						: circle_distance(a, row0.z, p);
+					if (feature_selected) {
+						selected_line_dist = min(selected_line_dist, d / line_scale);
+						selected_paint = paint;
+						selected_hovered = hovered;
+						continue;
+					}
+					// A related line is drawn opaque in its relation's color.
+					if (feature_related > 0) {
+						paint = vec4(relation_color(feature_related), 1.0);
+					}
+					coverage = line_coverage(geometry_line_width * line_scale, d);
+				} else {
+					float d = chord(a, p);
+					float radius = geometry_point_radius * (kind == 3 ? SAMPLE_DOT_SCALE : 1.0);
+					coverage = 1.0 - smoothstep(radius * 0.7, radius, d);
+					if (kind == 3 && feature_selected) {
+						selected_dot = max(selected_dot, coverage);
+						continue;
+					}
+					if (feature_related > 0) {
+						paint = vec4(relation_color(feature_related), 1.0);
+					}
+				}
+
+				if (coverage > 0.0) {
+					// One flat color, laid over what is beneath by its opacity.
+					vec3 fill = mix(base, paint.rgb, paint.a);
+					// Hover highlight: brighten slightly while the pointer is on it
+					if (hovered > 0.5) {
+						fill = mix(fill, vec3(1.0), 0.15);
+					}
+					base = mix(base, fill, coverage);
+				}
+			}
 		}
 	}
 

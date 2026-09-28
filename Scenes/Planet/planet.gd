@@ -181,6 +181,11 @@ static func scene_to_map(point: Vector3) -> Vector2:
 # than the window standing still, and the feature tree still holds all of it.
 const MAX_PRIMITIVES := 16384
 
+# How many primitives the shader takes as one block behind one cap. Small enough
+# that a block of a large polygon is a small patch of it, large enough that the
+# blocks stay few against the primitives; see Docs/Shader.md#skipping-what-is-far.
+const BLOCK_SIZE := 32
+
 
 class Geometry extends RefCounted:
 	# One entry per primitive: { "kind": Primitive, "verts": Array of
@@ -222,6 +227,23 @@ class Geometry extends RefCounted:
 	# hold it, and the hit test then walks it as it did before caps existed.
 	var cap_centres: Array[Vector3] = []
 	var cap_cosines: Array[float] = []
+
+	# What the shader skips with (GP-0023): a cap around each column's
+	# primitives and around each block of up to BLOCK_SIZE of them, in the
+	# feature's own frame, as the centre and the angular radius, with nothing
+	# added for the click tolerance. The shader widens them by what a line or a
+	# marker is drawn at, which the uniforms say. An angle of PI is a cap that
+	# holds the whole sphere. Each column's blocks run from block_starts to
+	# block_ends, and each block covers the primitives from block_first to
+	# block_last, a half open range, in column order.
+	var draw_centres: Array[Vector3] = []
+	var draw_angles: Array[float] = []
+	var block_starts: Array[int] = []
+	var block_ends: Array[int] = []
+	var block_centres: Array[Vector3] = []
+	var block_angles: Array[float] = []
+	var block_first: Array[int] = []
+	var block_last: Array[int] = []
 
 	# Where each feature is and whether it is there at all, at the time resolve()
 	# was last called for. One entry per column, in the same order.
@@ -273,28 +295,34 @@ class Geometry extends RefCounted:
 	# Called once the geometry is complete; the caps are in each feature's own
 	# frame, so moving the feature never invalidates them and a step of an
 	# animation does not touch them.
+	#
+	# The primitives of each column are first put in an order that keeps
+	# neighbours together, and then cut into blocks of BLOCK_SIZE, each with a
+	# cap of its own, which is what the shader skips with; see _order_column().
 	func build_caps(tolerance: float) -> void:
 		for index in range(features.size()):
-			var sum := Vector3.ZERO
-			var points: Array[Vector3] = []
+			Planet._order_column(primitives, starts[index], ends[index])
+			var units: Array = []
 			for i in range(starts[index], ends[index]):
-				for v in (primitives[i]["verts"] as Array):
-					var unit := Planet._latlon_to_unit(deg_to_rad(v.x), deg_to_rad(v.y))
-					points.append(unit)
-					sum += unit
-			if points.is_empty() or sum.length_squared() < 1e-12:
-				cap_cosines[index] = -1.0
-				continue
-			var centre := sum.normalized()
-			var smallest := 1.0
-			for point in points:
-				smallest = minf(smallest, centre.dot(point))
-			# Widen the cap by the click tolerance, so a click just outside a
-			# thin line is still offered to the triangle loop. A cap that has
-			# grown past a right angle is no cheaper than no cap at all.
-			var radius := acos(clampf(smallest, -1.0, 1.0)) + tolerance
-			cap_centres[index] = centre
+				units.append(Planet._units_of(primitives[i]))
+			var cap := Planet._cap_of(units, 0, units.size())
+			draw_centres.append(cap[0])
+			draw_angles.append(cap[1])
+			# Widen the hit test's cap by the click tolerance, so a click just
+			# outside a thin line is still offered to the triangle loop. A cap
+			# that has grown past a right angle is no cheaper than no cap at all.
+			var radius: float = cap[1] + tolerance
+			cap_centres[index] = cap[0]
 			cap_cosines[index] = -1.0 if radius >= PI * 0.5 else cos(radius)
+			block_starts.append(block_centres.size())
+			for first in range(0, units.size(), BLOCK_SIZE):
+				var last := mini(first + BLOCK_SIZE, units.size())
+				var block := Planet._cap_of(units, first, last)
+				block_centres.append(block[0])
+				block_angles.append(block[1])
+				block_first.append(starts[index] + first)
+				block_last.append(starts[index] + last)
+			block_ends.append(block_centres.size())
 
 	# Work out where every feature sits at a time and whether it is there then.
 	# A feature's rotation is its own, composed with its parent's while it
@@ -340,8 +368,9 @@ func set_geometry(geometry: Geometry) -> void:
 	var map_mat: ShaderMaterial = map.get_surface_override_material(0)
 
 	if count == 0:
-		globe_mat.set_shader_parameter("geometry_count", 0)
-		map_mat.set_shader_parameter("geometry_count", 0)
+		for material in [globe_mat, map_mat]:
+			material.set_shader_parameter("geometry_count", 0)
+			material.set_shader_parameter("column_count", 0)
 		return
 
 	# Data texture: width = primitive count, height = 2, 32-bit float RGBA
@@ -351,10 +380,34 @@ func set_geometry(geometry: Geometry) -> void:
 		img.set_pixel(i, 0, texels[0])
 		img.set_pixel(i, 1, texels[1])
 
+	# The caps the shader skips with, and the ranges they cover; see
+	# Docs/Shader.md#skipping-what-is-far. Both are in each feature's own frame,
+	# so they are uploaded with the geometry and never with a step of an
+	# animation.
+	var columns := geometry.features.size()
+	var column_img := Image.create(columns, 2, false, Image.FORMAT_RGBAF)
+	for i in columns:
+		var c: Vector3 = geometry.draw_centres[i]
+		column_img.set_pixel(i, 0, Color(c.x, c.y, c.z, geometry.draw_angles[i]))
+		column_img.set_pixel(i, 1, Color(float(geometry.block_starts[i]),
+			float(geometry.block_ends[i]), 0.0, 0.0))
+	var blocks := geometry.block_centres.size()
+	var block_img := Image.create(blocks, 2, false, Image.FORMAT_RGBAF)
+	for i in blocks:
+		var c: Vector3 = geometry.block_centres[i]
+		block_img.set_pixel(i, 0, Color(c.x, c.y, c.z, geometry.block_angles[i]))
+		block_img.set_pixel(i, 1, Color(float(geometry.block_first[i]),
+			float(geometry.block_last[i]), 0.0, 0.0))
+
 	var tex := ImageTexture.create_from_image(img)
+	var column_tex := ImageTexture.create_from_image(column_img)
+	var block_tex := ImageTexture.create_from_image(block_img)
 	for material in [globe_mat, map_mat]:
 		material.set_shader_parameter("geometry_data", tex)
 		material.set_shader_parameter("geometry_count", count)
+		material.set_shader_parameter("column_data", column_tex)
+		material.set_shader_parameter("block_data", block_tex)
+		material.set_shader_parameter("column_count", columns)
 
 
 # The two texels of the geometry texture one primitive is packed into, rows 0
@@ -583,6 +636,75 @@ static func _primitive_count(node: Feature, crust_lines: bool = true) -> int:
 
 static func _primitive(kind: Primitive, verts: Array, node: Feature, index: int) -> Dictionary:
 	return {"kind": kind, "verts": verts, "feature": node, "index": index}
+
+
+# Put the primitives of one column in an order that keeps neighbours together,
+# so a block of BLOCK_SIZE of them is a small patch with a small cap. Ear
+# clipping leaves the triangles of a polygon in no such order.
+#
+# Only a run of primitives of one kind is reordered, never across kinds. Within
+# such a run every primitive is laid over the planet in the same color by the
+# same amount, and those blends come out the same in any order, so what is
+# drawn does not change; a crust's lines still go over its bands. The key is
+# the Morton code of the mean latitude and longitude of the vertices.
+static func _order_column(primitives: Array, start: int, end: int) -> void:
+	var run_start := start
+	for i in range(start + 1, end + 1):
+		if i < end and primitives[i]["kind"] == primitives[run_start]["kind"]:
+			continue
+		if i - run_start > BLOCK_SIZE:
+			var run := primitives.slice(run_start, i)
+			var keyed := run.map(func(primitive: Dictionary) -> Array:
+				var mean := Vector2.ZERO
+				for v: Vector2 in primitive["verts"]:
+					mean += v
+				return [_morton(mean / (primitive["verts"] as Array).size()), primitive])
+			keyed.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+			for j in keyed.size():
+				primitives[run_start + j] = keyed[j][1]
+		run_start = i
+
+
+# Latitude and longitude in degrees, each cut to 1024 steps, their bits
+# interleaved: points close on the sphere mostly get close codes.
+static func _morton(v: Vector2) -> int:
+	var y := clampi(int((v.x + 90.0) / 180.0 * 1023.0), 0, 1023)
+	var x := clampi(int(fposmod(v.y + 180.0, 360.0) / 360.0 * 1023.0), 0, 1023)
+	var code := 0
+	for bit in 10:
+		code |= ((x >> bit) & 1) << (2 * bit)
+		code |= ((y >> bit) & 1) << (2 * bit + 1)
+	return code
+
+
+# The points on the unit sphere a primitive reaches: its vertices, and for a
+# circle its ring as well as its centre.
+static func _units_of(primitive: Dictionary) -> Array[Vector3]:
+	var units: Array[Vector3] = []
+	for v in (primitive["verts"] as Array):
+		units.append(_latlon_to_unit(deg_to_rad(v.x), deg_to_rad(v.y)))
+	return units
+
+
+# The smallest cap this method finds around the points of units[first] to
+# units[last - 1], each an Array of points: [centre, angular radius]. The centre
+# is their normalized mean. An angle of PI holds the whole sphere, which is what
+# nothing at all and points that cancel out get.
+static func _cap_of(units: Array, first: int, last: int) -> Array:
+	var sum := Vector3.ZERO
+	var count := 0
+	for i in range(first, last):
+		for unit: Vector3 in units[i]:
+			sum += unit
+			count += 1
+	if count == 0 or sum.length_squared() < 1e-12:
+		return [Vector3.UP, PI]
+	var centre := sum.normalized()
+	var smallest := 1.0
+	for i in range(first, last):
+		for unit: Vector3 in units[i]:
+			smallest = minf(smallest, centre.dot(unit))
+	return [centre, acos(clampf(smallest, -1.0, 1.0))]
 
 
 ## Hit test: find which feature covers the given lat/lon point.

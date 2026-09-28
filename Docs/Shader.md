@@ -614,6 +614,44 @@ On the 5,000 triangle sample of `Tests/run.py performance`, on an AMD Radeon
 which is 78 times faster. Most of that is features rejected outright: the cost
 of the ones that survive the cap is what is left.
 
+### Skipping what is far
+
+The fragment shader skips the same way (GP-0023). Its geometry loop goes
+column by column rather than primitive by primitive. Each column carries the cap
+around its primitives, and within a column the primitives are cut into blocks of
+`Planet.BLOCK_SIZE` (32), each with a cap of its own. Both are uploaded with the
+geometry, in `column_data` and `block_data`, and never with a step of an
+animation, since they are in the feature's own frame:
+
+| Texture | Width | Row 0 | Row 1 |
+| --- | --- | --- | --- |
+| `column_data` | one per column of `feature_data` | centre x, y, z and the angular radius | first and end block |
+| `block_data` | one per block | centre x, y, z and the angular radius | first and end primitive |
+
+The ranges are half open. For each visible column the fragment's point is
+carried into the feature's frame once, with the transpose of its rotation, and
+tested against the column's cap. Past that it is tested against each block's
+cap, and only the primitives of a block it falls inside are looked at. The caps
+hold the vertices and nothing more, so the test widens them by what the column
+can draw beyond its vertices: the halo of a selected line at the column's
+line_scale, or a marker, whichever is wider (`cap_margin()`). An angle of PI
+holds the whole sphere and is never skipped.
+
+A block is only worth its cap if its primitives lie close together, and ear
+clipping leaves a polygon's triangles in no such order. `Planet._order_column()`
+therefore sorts each run of primitives of one kind by the Morton code of their
+mean latitude and longitude before the blocks are cut. It never moves a
+primitive past one of another kind, and within a run every primitive is blended
+over the planet in the same color by the same amount. Those blends come out the
+same in any order, so what is drawn does not change and the golden references
+hold. The order is the draw order, so the hit test walks the same order.
+
+What the blocks cannot help is a sliver. Ear clipping ends a long polygon in
+triangles that run across it, and a block of those has a cap as wide as the
+polygon. Lines, markers and small features gain the most. A feature far from the
+fragment is skipped whole whatever its triangles look like, and that is most of
+the gain on a planet of many features; see [Measured](#measured).
+
 ## GDScript API
 
 ### `Planet.Geometry`
@@ -762,11 +800,14 @@ The outline is composited on top of everything else in `HIGHLIGHT_COLOR`, white,
 
 - The geometry, the outline and the grid work in latitude and longitude, so a new projection needs its own inverse and nothing else.
 - The data texture approach has no hard size limit — just add more primitives to the array.
-- Performance scales linearly with primitive count — see below.
+- Performance scales with the primitives near the fragment, not with all of them — see below.
 
 ## Performance
 
-Each fragment tests every triangle in the loop. Per triangle, the shader performs 3 `texelFetch` calls, 3 `latlon_to_unit` conversions (6 trig ops), 3 cross products, 3 normalizes, and 3 dot products — roughly 60–80 FLOPs plus the texture reads.
+Each fragment tests only the primitives whose column and block caps it falls
+inside; see [Skipping what is far](#skipping-what-is-far). Before GP-0023 it
+tested every triangle, and the rest of this paragraph and the table below are
+about that loop. Per triangle, the shader performs 3 `texelFetch` calls, 3 `latlon_to_unit` conversions (6 trig ops), 3 cross products, 3 normalizes, and 3 dot products — roughly 60–80 FLOPs plus the texture reads.
 
 At 1080p the sphere may cover ~500K–1M fragments. Combined with the per-triangle cost:
 
@@ -783,8 +824,25 @@ For this application — continental cratons on a single planet — up to 10,000
 
 ### Measured
 
-On an AMD Radeon 8060S, at 1800x900, with every feature moving
-(`uv run Tests/run.py performance`):
+With the caps (GP-0023), `uv run Tests/run.py performance`, 50 features every
+one of them moving, median frame while playing:
+
+| Triangles | NVIDIA GeForce RTX 5060 Ti, before | After | AMD Radeon 8060S under Xvfb, before | After |
+|---|---|---|---|---|
+| 50 | — | — | 31.3 ms | 31.3 ms |
+| 2,000 | — | — | 37.0 ms | 31.3 ms |
+| 5,000 | 23.3 ms | 16.7 ms | 50.0 ms | 31.3 ms |
+| 10,000 | 47.6 ms | 16.7 ms | 83.3 ms | 31.3 ms |
+| 16,000 | — | — | — | 31.3 ms |
+
+The NVIDIA runs are on the Windows machine's hidden desktop at 1800x900, where
+the frame is held to the display's 60 frames a second, so 16.7 ms is as low as
+it goes. The AMD runs are on the Linux test host `ai`, whose virtual screen is
+copied out on the processor every frame: 31.3 ms is that copy, the same with 50
+triangles as with 16,000, so there the frame no longer depends on the geometry
+at all. Standing still measures the same as playing on both.
+
+Before the caps, on the same AMD Radeon 8060S at 1800x900 on a real display:
 
 | Triangles | Frame, standing still | Frame, playing |
 |---|---|---|
@@ -794,32 +852,32 @@ On an AMD Radeon 8060S, at 1800x900, with every feature moving
 | 4,000 | — | 26.3 ms |
 | 5,000 | 29.4 ms | 31.3 ms |
 
-The 2,000 and 5,000 rows were measured again once GP-0033 had moved the color
-into `feature_data` and dropped the rim. The other rows are older.
+The sample is 50 small features spread over the globe, which is where the caps
+do best: a fragment falls inside the caps of one or two of them. A few large
+polygons of many triangles gain less, since a fragment inside one still tests
+the slivers ear clipping left across it; see
+[Skipping what is far](#skipping-what-is-far).
 
-Playing under the Feature age style with the custom ramp, which works out
-every feature's color again on every frame (GP-0036), measured 16.7 ms at 2,000
-triangles against 17.0 ms playing in flat colors, and 34.5 ms at 5,000 against
-33.3 ms. The engine reports whole frames per second, so 33.3 and 34.5 ms are
-neighboring readings of 30 and 29.
-
-Sixty frames a second is 16.7 ms, so it holds to about 2,000 triangles and not
-beyond. `Planet.MAX_PRIMITIVES` is where that stops being a slow frame and
-becomes no frame at all: the geometry texture is one texel per primitive wide,
-and 16,384 is the widest a desktop device is required to make one. A document
-holding more than that is drawn up to the limit and the rest of its features
-are left out — counted on `Geometry.dropped`, still in the feature tree, and
-still saved. A [GPlates import](Import.md) is the only thing that reaches it
-today; raising the limit is GP-0030 in the workspace ticket list.
+`Planet.MAX_PRIMITIVES` is where a document stops being drawn whole: the
+geometry texture is one texel per primitive wide, and 16,384 is the widest a
+desktop device is required to make one. A document holding more than that is
+drawn up to the limit and the rest of its features are left out — counted on
+`Geometry.dropped`, still in the feature tree, and still saved. A
+[GPlates import](Import.md) is the only thing that reaches it today; raising
+the limit is GP-0030 in the workspace ticket list.
 
 Playing costs almost nothing over standing still, which is the point of
 keeping the rotation in `feature_data`: what a frame of an animation changes is
-six texels per feature. The limit is the per-fragment loop over the triangles
-themselves, which the strategies below address.
+six texels per feature, and the caps, in each feature's own frame, do not move.
 
 ### Optimization Strategies
 
-#### 1. Pre-rasterized overlay texture (recommended)
+What was weighed before GP-0023. It took a cap per column and per block, a
+cousin of the second below that keeps the per feature rotation, which the first
+would have given up: its rasterizing would have to run on every frame of an
+animation rather than only when the geometry changes.
+
+#### 1. Pre-rasterized overlay texture
 
 Instead of testing triangles per-fragment, rasterize all triangles into an equirectangular `Image` on the CPU, then sample it as a single texture in the shader.
 
