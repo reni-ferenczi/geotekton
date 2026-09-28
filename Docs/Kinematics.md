@@ -158,5 +158,5 @@ different range through the time control lays the graphs out again.
 is covered by a headless test (`Tests/Unit/test_kinematics.gd`). The panel,
 `Scenes/Application/kinematics_panel.gd`, draws them and follows the selection
 and the current time; what it holds is read back through the port's
-`get_kinematics`, and `Tests/Golden/kinematics.png` is the reference for what it
+`get_kinematics`, and the golden scene `kinematics` is the reference for what it
 draws. See [Testing](Testing.md).
