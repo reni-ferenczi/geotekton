@@ -1854,6 +1854,7 @@ def run_timeline_checks(client: AutomationClient) -> None:
     check(not client.call("get_timeline")["timeline"]["playing"], "and Pause stops it")
     check(0.0 < moved < 50.0,
           f"having moved the time on by less than a second's worth: {moved} My")
+    run_playing_time_checks(client)
 
     # Playing to the end without looping stops there rather than wrapping.
     client.call("set_animation", animation={"speed": 100000.0})
@@ -1874,6 +1875,29 @@ def run_timeline_checks(client: AutomationClient) -> None:
           f"Play from the end starts over: {client.call('get_time')['time']}")
 
     run_space_checks(client)
+
+
+def run_playing_time_checks(client: AutomationClient) -> None:
+    """GP-0145: while playing, the number beside the slider shows whole Ma, so
+    its decimals do not flash, and it keeps its width. Pausing shows the exact
+    time again."""
+    client.call("set_animation", animation={"speed": 7.0})
+    client.call("set_time", time=399.5)
+    width = client.call("get_timeline")["timeline"]["shown_width"]
+    client.call("timeline", button="Play")
+    shown = []
+    for _ in range(5):
+        timeline = client.call("get_timeline")["timeline"]
+        shown.append(timeline["shown"])
+        check(timeline["shown_width"] == width,
+              f"the field keeps its width while playing: {timeline['shown_width']}, was {width}")
+    check(all(text.isdigit() for text in shown),
+          f"playing, the time is shown in whole Ma: {shown}")
+    client.call("timeline", button="Pause")
+    timeline = client.call("get_timeline")["timeline"]
+    check("." in timeline["shown"] and abs(float(timeline["shown"]) - timeline["time"]) < 1e-3,
+          f"paused, the exact time is back: {timeline['shown']} at {timeline['time']}")
+    client.call("set_animation", animation={"speed": 50.0})
 
 
 def run_space_checks(client: AutomationClient) -> None:
