@@ -321,7 +321,7 @@ The panel under the globe, `Scenes/Timeline/timeline.gd`:
 | Play           | Run the animation from where the time is, or from the start when it is at the end; **Space** |
 | Pause          | Stop where it is; **Space** again                         |
 | Reset          | Back to the start of the animation, stopped              |
-| The number     | Type a time                                              |
+| The number     | Type a time. While the animation plays it shows whole Ma, since the decimals would change every frame; paused, it shows the exact time |
 | Configure...   | The animation dialog                                     |
 | The slider     | Drag the time; taking hold of it takes over from playback |
 | The strip below| A mark for each keyframe of the selected node, and one for the current time. A click on a mark goes to that keyframe exactly, and the pointer over one says its time |

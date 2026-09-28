@@ -55,6 +55,11 @@ const RIDGE_DOT_RADIUS := 2.5
 const TIME_EPSILON := 1e-9
 const CURSOR_COLOR := Color(1.0, 1.0, 1.0, 0.6)
 
+# The step of the typed time: what it is written to, and while the animation
+# plays, whole Ma (GP-0145).
+const TIME_STEP := 0.0001
+const PLAYING_TIME_STEP := 1.0
+
 var document: Document
 
 # How playback walks the timeline. The defaults stand until attach() reads the
@@ -166,7 +171,7 @@ func _build() -> void:
 	time_spin.name = "Time"
 	time_spin.min_value = 0.0
 	time_spin.max_value = Document.MAX_TIME
-	time_spin.step = 0.0001
+	time_spin.step = TIME_STEP
 	time_spin.custom_minimum_size = Vector2(110, 0)
 	time_spin.tooltip_text = "The age everything is drawn at, in millions of years"
 	time_spin.value_changed.connect(_on_time_typed)
@@ -235,11 +240,15 @@ func _apply_animation() -> void:
 	animation_changed.emit()
 
 
+# While playing, the number beside the slider steps in whole Ma, which is also
+# how it is written: the decimals change every frame and only flash (GP-0145).
+# Pausing shows the exact time again.
 func _show_time() -> void:
 	if document == null:
 		return
 	_filling = true
 	slider.set_value_no_signal(-document.current_time)
+	time_spin.step = PLAYING_TIME_STEP if playing else TIME_STEP
 	time_spin.set_value_no_signal(document.current_time)
 	_filling = false
 	markers.queue_redraw()
@@ -282,6 +291,7 @@ func play() -> void:
 func pause() -> void:
 	playing = false
 	set_process(false)
+	_show_time()
 	_update_buttons()
 
 
@@ -581,6 +591,8 @@ func to_json() -> Dictionary:
 		"slider": slider.value,
 		"slider_range": [slider.min_value, slider.max_value],
 		"typed": time_spin.value,
+		"shown": time_spin.get_line_edit().text,
+		"shown_width": time_spin.size.x,
 		"playing": playing,
 		"skip": skip(),
 		"markers": _markers_to_json(),
