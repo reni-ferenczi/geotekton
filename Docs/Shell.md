@@ -12,6 +12,17 @@ Features | tools, view toolbar, planet view, kinematics, console, timeline | Pro
 status bar
 ```
 
+The values the window shows can be selected with the mouse and copied with
+Ctrl+C or the right click menu (GP-0144): the three fields of the status bar,
+the Area, the keyframe count and Coupled to in the Properties panel, the
+current rate in the kinematics panel, the surface area in Preferences, and the
+console's transcript. They look like plain text but are read-only text fields,
+`SelectableText` (a `LineEdit`) and `SelectableLines` (a `TextEdit`, for the
+Area's two lines), drawn without a box in the Label's font and color. A value
+that holds the focus is not typed into, so Space and the tool keys still work,
+and a click anywhere else lets the focus go, so Ctrl+C goes back to copying
+the selected feature.
+
 Every panel but the kinematics graphs and the console is shown by default. Those
 two are asked for from the View menu when they are wanted, since they take their
 height off the planet view; once shown, they are remembered like the rest.

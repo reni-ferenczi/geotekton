@@ -61,6 +61,7 @@ func _ready() -> void:
 	transcript.bbcode_enabled = true
 	transcript.scroll_following = true
 	transcript.selection_enabled = true
+	transcript.context_menu_enabled = true
 	transcript.focus_mode = Control.FOCUS_CLICK
 	transcript.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(transcript)
