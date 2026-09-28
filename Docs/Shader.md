@@ -725,11 +725,14 @@ the same for every vertex of a part:
 | 8 | Two vertices, a center and a point of the rim, drawn as the [circle](#circles) through that point, with no vertex markers: the circle being drawn | `OUTLINE_OPACITY` |
 | 9 | Open like 0, in the same white and at the same width, with no vertex markers: a run sampled too finely to mark, such as the [Measure tool](Editing.md#the-measure-tool)'s parallels | 1 |
 | 10 | Open like 0, vertex markers and all, in `REFUSED_COLOR`, an sRGB red: a cut the [Split tool](Editing.md#the-split-tool) refused | 1 |
+| 11 | Closed like 6, in `PARENT_COLOR`: the rings of a polygon the selected feature follows, with View > [Highlight parent and siblings](Editing.md#highlighting-the-parent-and-siblings) on | 1 |
+| 12 | Closed like 6, in `SIBLING_COLOR`: the rings of a polygon that follows the same parent as the selected feature, with the same switch on | 1 |
+| 13 | Closed like 4, at `CANDIDATE_SCALE` (1.5) times `geometry_line_width`, in `CANDIDATE_COLOR`: the feature picked as the parent while the [parent pick](Properties.md#coupling) is on | 1 |
 
 The vertex markers are opaque in every style that has them, so the dots of
 the Vertex tool stand out against the translucent ring of style 3.
 
-`Planet.OutlineStyle` names the same eleven values.
+`Planet.OutlineStyle` names the same fourteen values.
 
 A style 8 part is read at its first vertex, which takes the radius from the
 second, so the preview is the same curve the finished circle is drawn as. The
@@ -753,7 +756,7 @@ its own. When the style closes the part, that vertex joins back to the vertex
 the part started at, at reduced opacity for style 1 and at `OUTLINE_OPACITY`, like the rest of
 the ring, for styles 3 and 4.
 
-The outline is composited on top of everything else in `HIGHLIGHT_COLOR`, white, at the largest of the dot, line, closed ring and closing alphas. Styles 3, 4 and 8 keep a distance of their own, whose alpha is scaled by `OUTLINE_OPACITY`, so the fill and the grid show through the ring. Style 6 keeps one too and is laid down in `CHILD_COLOR` first, so the white of a selection drawn over the same place wins.
+The outline is composited on top of everything else in `HIGHLIGHT_COLOR`, white, at the largest of the dot, line, closed ring and closing alphas. Styles 3, 4 and 8 keep a distance of their own, whose alpha is scaled by `OUTLINE_OPACITY`, so the fill and the grid show through the ring. Styles 6, 11, 12 and 13 keep one each and are laid down in their colors first, so the white of a selection drawn over the same place wins.
 
 ## Notes
 
