@@ -36,8 +36,9 @@ That is the only number the panel writes. The bars are scaled against the
 fastest span, but that figure is not written anywhere: it says nothing about
 the motion at the current time, and a reader took it for the rate (GP-0136).
 The place is only graphed, in the latitude and longitude rows. The panel gives
-no title, time or bearing (GP-0142); the line above the rows only says why
-there is nothing to graph, see below.
+no title, time or bearing (GP-0142). The line above the rows only says why
+there is nothing to graph, see below, and is hidden otherwise, so the panel is
+no taller than its rows.
 
 ## The quantities
 

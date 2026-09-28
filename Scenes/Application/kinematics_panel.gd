@@ -131,9 +131,10 @@ func row_count() -> int:
 	return 3 if show_place else 1
 
 
+# The graphs are as tall as their rows; the panel is as tall as they are, with
+# the line above them only while it has something to say.
 func _fit_rows() -> void:
 	var rows_height := row_count() * (ROW_HEIGHT + ROW_GAP) + AXIS_HEIGHT
-	custom_minimum_size = Vector2(0, rows_height + 42)
 	graphs.custom_minimum_size = Vector2(0, rows_height)
 	graphs.queue_redraw()
 
@@ -155,6 +156,8 @@ func refresh() -> void:
 	_segments = Kinematics.segments(_root(), node, Config.get_planet_radius())
 	_peak = Kinematics.peak_rate(_segments)
 	readout.text = _readout_text()
+	# Empty while a feature is graphed, and then it takes no room either.
+	readout.visible = not readout.text.is_empty()
 	_show_time()
 
 

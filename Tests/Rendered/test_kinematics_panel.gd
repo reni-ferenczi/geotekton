@@ -15,15 +15,14 @@ func rows_height(rows: int) -> int:
 
 func check_rows(panel: KinematicsPanel, rows: int, what: String) -> void:
 	assert_eq(panel.row_count(), rows, "%s: rows drawn" % what)
-	assert_eq(panel.custom_minimum_size.y, float(rows_height(rows) + 42),
-		"%s: the minimum height the ticket names" % what)
 	assert_eq(panel.size.y, panel.get_combined_minimum_size().y,
 		"%s: the panel takes no more height than it needs" % what)
-	# The graphs get exactly their rows unless the readout wraps and leaves
-	# them less than the panel's own minimum asks for.
-	assert_true(panel.graphs.size.y >= rows_height(rows)
-		and panel.graphs.size.y < rows_height(rows) + KinematicsPanel.ROW_HEIGHT,
-		"%s: the graphs are %d rows high, %d px" % [what, rows, panel.graphs.size.y])
+	assert_eq(panel.graphs.size.y, float(rows_height(rows)),
+		"%s: the graphs are exactly %d rows high" % [what, rows])
+	# A feature is graphed, so the line above the graphs is empty and takes no
+	# room: the graphs start at the top of the panel's content (GP-0142).
+	assert_true(not panel.readout.visible, "%s: the empty line above the graphs is hidden" % what)
+	assert_eq(panel.graphs.position.y, 0.0, "%s: the graphs start at the top" % what)
 
 
 func test_the_rate_only_by_default_and_the_place_rows_on_request() -> void:
