@@ -883,6 +883,7 @@ def run_coupling_session(client: AutomationClient, folder: Path) -> None:
 
     run_coupling_refusal_checks(client)
     run_coupling_round_trip(client, folder)
+    run_coupling_bar_color_checks(client, folder)
     run_rigid_coupling_checks(client)
     run_pick_parent_checks(client)
 
@@ -1111,6 +1112,54 @@ def run_coupling_round_trip(client: AutomationClient, folder: Path) -> None:
         client.call("select", title="Blue Quad")
         got = client.call("get_selected")["feature"]["couplings"]
         check(got == wanted, f"{item} gives the spans {wanted}: {got}")
+
+
+def coupling_bar(client: AutomationClient) -> dict:
+    bars = client.call("get_timeline")["timeline"]["couplings"]
+    check(len(bars) == 1, f"one bar on the timeline: {bars}")
+    return bars[0] if bars else {"color": None, "dashed": None, "tooltip": ""}
+
+
+def run_coupling_bar_color_checks(client: AutomationClient, folder: Path) -> None:
+    """GP-0133: the bar takes its parent's color, opaque; a broken span is
+    dashed and says why; a span midway between two parents takes the first
+    one's color and names both."""
+    client.call("select", title="Red Triangle")
+    red = client.call("get_selected")["feature"]["color"]
+    client.call("set_property", field="opacity", value=40)
+    client.call("select", title="Blue Quad")
+    bar = coupling_bar(client)
+    check(bar["color"] == [red[0], red[1], red[2], 1.0] and not bar["dashed"],
+          f"the bar is Red Triangle's color, opaque though the triangle is not: {bar}")
+    check("Red Triangle" in bar["tooltip"], f"and says what it follows: {bar['tooltip']!r}")
+
+    client.call("select", title="Red Triangle")
+    client.call("menu", item="delete")
+    client.call("select", title="Blue Quad")
+    bar = coupling_bar(client)
+    check(bar["dashed"] and "no longer in the document" in bar["tooltip"],
+          f"with the parent deleted the bar is dashed and says why: {bar}")
+    client.call("menu", item="undo")
+
+    # A midway span only comes from a file: the Follow picker makes single
+    # parent spans.
+    data = json.loads((folder / "coupled.geotekt").read_text(encoding="utf-8"))
+    nodes = {}
+    def walk(node: dict) -> None:
+        nodes[node.get("title")] = node
+        for child in node.get("children", []):
+            walk(child)
+    walk(data["features"])
+    nodes["Blue Quad"]["couplings"][0]["parent_b"] = nodes["Green Moved"]["uuid"]
+    midway = folder / "midway.geotekt"
+    midway.write_text(json.dumps(data), encoding="utf-8")
+    client.call("load", path=str(midway))
+    client.call("select", title="Blue Quad")
+    bar = coupling_bar(client)
+    check(bar["color"] == [red[0], red[1], red[2], 1.0],
+          f"a midway span takes the first parent's color: {bar['color']}")
+    check("Red Triangle" in bar["tooltip"] and "Green Moved" in bar["tooltip"],
+          f"and names both parents: {bar['tooltip']!r}")
 
 
 def run_colour_session(client: AutomationClient) -> None:

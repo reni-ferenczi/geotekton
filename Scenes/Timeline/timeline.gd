@@ -33,11 +33,16 @@ const MARKERS_TOOLTIP := "The keyframes of the selected feature; click one to go
 const MARKER_COLOR := Color(1.0, 0.85, 0.2, 1.0)
 
 # The spans over which the selected feature follows another, a bar along the
-# bottom of the strip under the keyframe marks, and the colour of one whose
-# parent cannot be followed.
+# bottom of the strip under the keyframe marks in the parent's color, opaque
+# whatever the parent's opacity. A span midway between two parents takes the
+# first one's color. A span whose parent cannot be followed is dashed, and
+# drawn in COUPLING_COLOR when there is no parent left to take a color from.
+# COUPLING_PICK_PIXELS is how far above the bar the pointer still counts as on
+# it.
 const COUPLING_HEIGHT := 3.0
-const COUPLING_COLOR := Color(0.35, 0.75, 1.0, 0.9)
-const BROKEN_COUPLING_COLOR := Color(0.9, 0.45, 0.4, 1.0)
+const COUPLING_DASH := 6.0
+const COUPLING_PICK_PIXELS := 3.0
+const COUPLING_COLOR := Color(0.35, 0.75, 1.0, 1.0)
 
 # How close to a keyframe's time the current time counts as being on it, so
 # that a jump from a keyframe goes to the next one rather than back to itself.
@@ -353,7 +358,13 @@ func jump_keyframe(towards_older: bool) -> void:
 func _on_markers_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var under := _keyframe_at_x(event.position.x)
-		markers.tooltip_text = MARKERS_TOOLTIP if under == null else "%s Ma" % under.time
+		var coupling := _coupling_at(event.position)
+		if under != null:
+			markers.tooltip_text = "%s Ma" % under.time
+		elif coupling != null:
+			markers.tooltip_text = _coupling_tooltip(coupling)
+		else:
+			markers.tooltip_text = MARKERS_TOOLTIP
 		return
 	if event is not InputEventMouseButton or not event.pressed \
 			or event.button_index != MOUSE_BUTTON_LEFT:
@@ -382,6 +393,42 @@ func _keyframe_at_x(x: float) -> Keyframe:
 	return found
 
 
+# The span of the marked node whose bar is under this point of the strip, or
+# null.
+func _coupling_at(point: Vector2) -> Coupling:
+	var span := oldest() - youngest()
+	if marked == null or span <= 0.0 \
+			or point.y < markers.size.y - COUPLING_HEIGHT - COUPLING_PICK_PIXELS:
+		return null
+	for coupling in marked.couplings:
+		if point.x >= _marker_x(coupling.from, span) and point.x <= _marker_x(coupling.to, span):
+			return coupling
+	return null
+
+
+# What the pointer over a bar says: what the span follows and when, and why
+# the parent cannot be followed when it cannot.
+func _coupling_tooltip(coupling: Coupling) -> String:
+	var nodes := _nodes()
+	var text := "Follows %s from %s to %s Ma" % [
+		Coupling.parents_label(nodes, coupling), coupling.from, coupling.to]
+	var problem := Coupling.parent_problem(nodes, marked, coupling)
+	return text if problem.is_empty() else "%s. %s" % [text, problem]
+
+
+# The color a span's bar is drawn in: its first parent's, opaque.
+func _coupling_color(coupling: Coupling) -> Color:
+	var parent: Feature = _nodes().get(coupling.parent)
+	if parent == null:
+		return COUPLING_COLOR
+	return Color(parent.color, 1.0)
+
+
+func _nodes() -> Dictionary:
+	return Coupling.index(document.root) \
+		if document != null and marked != null and not marked.couplings.is_empty() else {}
+
+
 ### Keyframe markers
 
 
@@ -404,14 +451,18 @@ func _draw_markers() -> void:
 
 	if marked == null:
 		return
-	var nodes := Coupling.index(document.root) \
-		if document != null and not marked.couplings.is_empty() else {}
+	var nodes := _nodes()
 	for coupling in marked.couplings:
 		var from_x := _marker_x(coupling.from, span)
-		var broken := not Coupling.parent_problem(nodes, marked, coupling).is_empty()
-		markers.draw_rect(Rect2(from_x, markers.size.y - COUPLING_HEIGHT,
-			_marker_x(coupling.to, span) - from_x, COUPLING_HEIGHT),
-			BROKEN_COUPLING_COLOR if broken else COUPLING_COLOR)
+		var to_x := _marker_x(coupling.to, span)
+		var color := _coupling_color(coupling)
+		if Coupling.parent_problem(nodes, marked, coupling).is_empty():
+			markers.draw_rect(Rect2(from_x, markers.size.y - COUPLING_HEIGHT,
+				to_x - from_x, COUPLING_HEIGHT), color)
+		else:
+			var y := markers.size.y - COUPLING_HEIGHT / 2.0
+			markers.draw_dashed_line(Vector2(from_x, y), Vector2(to_x, y), color,
+				COUPLING_HEIGHT, COUPLING_DASH)
 	for keyframe in marked.keyframes:
 		var x := _marker_x(keyframe.time, span)
 		markers.draw_line(Vector2(x, 0.0), Vector2(x, markers.size.y), MARKER_COLOR, 2.0)
@@ -463,16 +514,22 @@ func to_json() -> Dictionary:
 	}
 
 
-# The bars of the marked feature's spans: both ends as ages, and where the bar
-# starts and ends across the window, with the height it is drawn at.
+# The bars of the marked feature's spans: both ends as ages, where the bar
+# starts and ends across the window, with the height it is drawn at, the color
+# it is drawn in, whether it is dashed, and what the pointer over it says.
 func _couplings_to_json() -> Array:
 	var bars: Array = []
 	var span := oldest() - youngest()
 	if marked == null or span <= 0.0:
 		return bars
 	var origin := markers.get_global_rect().position
+	var nodes := _nodes()
 	for coupling in marked.couplings:
+		var color := _coupling_color(coupling)
 		bars.append({
+			"color": [color.r, color.g, color.b, color.a],
+			"dashed": not Coupling.parent_problem(nodes, marked, coupling).is_empty(),
+			"tooltip": _coupling_tooltip(coupling),
 			"from": coupling.from,
 			"to": coupling.to,
 			"screen": [origin.x + _marker_x(coupling.from, span), origin.x + _marker_x(coupling.to, span),
