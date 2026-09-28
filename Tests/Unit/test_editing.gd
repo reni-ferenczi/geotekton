@@ -272,8 +272,9 @@ func test_disabling_a_group_collapses_it() -> void:
 	assert_true(group.collapsed, "a disabled group is collapsed, as in the tree")
 
 
-# The glyph the tree row shows. Only a leaf has one, and only one the catalog
-# knows; the rest of the program never reads it.
+# The glyph the tree row shows, only one the catalog knows; the rest of the
+# program never reads it. A group takes a folder picture instead (GP-0146) and
+# the root, which has no row of its own, takes none.
 func test_an_icon_is_picked_from_the_catalog_and_is_one_undo_version() -> void:
 	var document := _document()
 	var versions := document.applied
@@ -284,8 +285,17 @@ func test_an_icon_is_picked_from_the_catalog_and_is_one_undo_version() -> void:
 	assert_true(not document.set_icon(_feature(document), "sombrero").is_empty(),
 		"an icon the catalog does not know is refused")
 	assert_eq(_feature(document).icon, "mountain", "and the feature keeps the one it had")
-	assert_true(not document.set_icon(document.root, "mountain").is_empty(),
-		"a group has no icon")
+	assert_true(not document.set_icon(document.root, "red").is_empty(),
+		"the root has no icon")
+
+	var group := Feature.create_group("Group")
+	document.root.children.append(group)
+	assert_true(not document.set_icon(group, "mountain").is_empty(),
+		"a group takes no feature glyph")
+	assert_eq(document.set_icon(group, "red"), "", "but a folder picture")
+	assert_eq(group.icon, "red")
+	assert_true(not document.set_icon(_feature(document), "red").is_empty(),
+		"which a feature does not take")
 
 	assert_eq(document.set_icon(_feature(document), FeatureIcon.NONE), "",
 		"and it can be taken off again")

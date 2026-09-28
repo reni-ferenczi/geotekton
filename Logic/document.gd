@@ -236,13 +236,14 @@ func set_color(feature: Feature, color: Color) -> void:
 	record()
 
 
-# Give the feature one of the built in glyphs for its tree row, or none. Only a
-# leaf carries one; a group's row shows whether the group is open.
+# Give the feature one of the built in glyphs for its tree row, or a group one
+# of the folder pictures, or none. The root has no row of its own to change.
 func set_icon(feature: Feature, icon: String) -> String:
-	if feature == null or feature.is_group:
-		return "Only a feature has an icon."
-	if not icon.is_empty() and not FeatureIcon.CATALOG.has(icon):
-		return "There is no icon called %s." % icon
+	if feature == null or feature.is_root:
+		return "Only a feature or a group has an icon."
+	var catalog := FeatureIcon.FOLDERS if feature.is_group else FeatureIcon.CATALOG
+	if not icon.is_empty() and not catalog.has(icon):
+		return "There is no %s icon called %s." % ["folder" if feature.is_group else "feature", icon]
 	feature.icon = icon
 	record()
 	return ""

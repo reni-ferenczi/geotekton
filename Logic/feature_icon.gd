@@ -69,7 +69,21 @@ const TYPE_FILES := {
 	"hotspot": "Icons1-Hotspot",
 }
 
+# The pictures a group's row can show in place of the plain folder, id to
+# name, in the order the selector lists them. Each is the PNG under
+# FOLDER_DIR named after it. Placeholders for now: to replace one, overwrite
+# its file; to add one, drop the PNG in and list it here (GP-0146).
+const FOLDER_DIR := DIR + "/Folders"
+const FOLDERS := {
+	"red": "Red",
+	"green": "Green",
+	"blue": "Blue",
+	"purple": "Purple",
+	"gray": "Gray",
+}
+
 static var _textures: Dictionary[String, Texture2D] = {}
+static var _folder_textures: Dictionary[String, Texture2D] = {}
 static var _type_textures: Dictionary[String, Texture2D] = {}
 
 
@@ -86,6 +100,16 @@ static func texture(id: String) -> Texture2D:
 	if not _textures.has(id):
 		_textures[id] = _shrunk(id)
 	return _textures[id]
+
+
+# The folder picture an id names, or null for the plain folder and for an id
+# this version does not know.
+static func folder_texture(id: String) -> Texture2D:
+	if not FOLDERS.has(id):
+		return null
+	if not _folder_textures.has(id):
+		_folder_textures[id] = shrunk("Folders/%s" % FOLDERS[id], id)
+	return _folder_textures[id]
 
 
 # The picture a feature of the type shows when it has no glyph, or null for a

@@ -1491,6 +1491,8 @@ def refusal(client: AutomationClient, cmd: str, **params) -> str:
 
 # What a feature's row shows while it has no glyph: the stem of the rule icon.
 RULE_ICON = "Icons1-Features"
+# And a group's row while it has no folder picture: the plain folder.
+GROUP_ICON = "Icons1-Group"
 
 
 def row_icon(client: AutomationClient, title: str) -> str:
@@ -1545,10 +1547,39 @@ def run_icon_checks(client: AutomationClient, folder: Path) -> None:
         got = row_icon(client, "Red Triangle")
         check(got == wanted, f"{item} gives the row {wanted}: {got}")
 
-    # A group's row says whether the group is open, whatever is under it.
+    run_folder_icon_checks(client, folder)
+
+
+def run_folder_icon_checks(client: AutomationClient, folder: Path) -> None:
+    """GP-0146: a group's row shows the plain folder until another folder
+    picture is picked, and the pick is saved with the world."""
+    open_mixed_geometry(client)
+    check(row_icon(client, "Shapes") == GROUP_ICON,
+          f"a group from a file without folder pictures shows the plain folder: {row_icon(client, 'Shapes')}")
     client.call("select", title="Shapes")
+    panel = client.call("get_properties")["properties"]
+    check(panel["icon"] == "" and panel["icons"][0] == "" and "red" in panel["icons"],
+          f"the group's selector offers the plain folder first and the pictures after it: {panel['icons']}")
     check(refusal(client, "set_property", field="icon", value="star") != "",
-          "a group has no icon")
+          "a feature glyph is not a folder picture")
+
+    versions = undo_depth(client)
+    client.call("set_property", field="icon", value="red")
+    check(row_icon(client, "Shapes") == "red", f"the row shows the picked folder: {row_icon(client, 'Shapes')}")
+    check(undo_depth(client) == versions + 1, "in one undo step")
+
+    saved = folder / "folders.geotekt"
+    client.call("expect_file_dialog", path=str(saved))
+    client.call("menu", item="save_as")
+    client.call("load", path=str(saved))
+    check(row_icon(client, "Shapes") == "red", "save and load keep the folder picture")
+    client.call("select", title="Shapes")
+    check(client.call("get_properties")["properties"]["icon"] == "red", "and the panel shows it again")
+
+    client.call("set_property", field="icon", value="")
+    check(row_icon(client, "Shapes") == GROUP_ICON, "the plain folder puts the default back")
+    client.call("menu", item="undo")
+    check(row_icon(client, "Shapes") == "red", "and undo brings the picture back")
 
 
 def run_globe_menu_session(client: AutomationClient) -> None:

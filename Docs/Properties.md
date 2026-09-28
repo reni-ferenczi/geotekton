@@ -123,8 +123,25 @@ A Topology, and a feature with no type, shows the rule icon.
 | `hotspot`       | Hotspot       | An island chain, the Hotspot type      |
 
 `Logic/feature_icon.gd` holds the catalog. Nothing else in the program reads
-the icon: it changes what the row shows and no more. A group's row says whether
-the group is open, as before, and takes no icon of its own.
+the icon: it changes what the row shows and no more.
+
+A group's row shows the plain folder, `Icons1-Group`, unless another folder
+picture is picked in the Icon row the panel shows for a group, to tell groups
+apart at a glance (GP-0146). **Folder** at the top of the list puts the plain
+one back. The pictures are placeholders for now: the folder recolored, one PNG
+each under `Assets/Geotekton Icons/Folders`, listed in `FeatureIcon.FOLDERS`.
+
+| Id       | Name   |
+| -------- | ------ |
+| `red`    | Red    |
+| `green`  | Green  |
+| `blue`   | Blue   |
+| `purple` | Purple |
+| `gray`   | Gray   |
+
+To replace one, overwrite its PNG. To add one, drop the PNG into that folder
+and list its id and name, which is also the file's stem, in
+`FeatureIcon.FOLDERS`. The root has no row of its own and takes no picture.
 
 An icon is one of the Geotekton icons, a PNG under `Assets/Geotekton Icons`
 at whatever size it was painted. It is shrunk to 32 by 32 pixels, the size of
@@ -515,7 +532,7 @@ undo version:
 | `set_color`             | nothing                                            |
 | `set_style`             | a leaf, which has no style                         |
 | `set_feature_type`      | an unknown type, and one that does not hold the kind the feature holds |
-| `set_icon`              | a group, and an icon the catalog does not have      |
+| `set_icon`              | the root, and an icon the catalog does not have: the glyphs for a feature, the folder pictures for a group |
 | `set_time_range`        | a range that ends older than it starts             |
 | `set_line_width`        | a group, a feature with no lines to widen, and a width outside 0.1 to 20 |
 | `set_vertex`            | a part or vertex that is not there, a point off the planet |

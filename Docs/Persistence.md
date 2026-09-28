@@ -173,6 +173,7 @@ groups and leaf features.
   "type": "Group",
   "style": {"mode": "inherit", "color": [0.9, 0.9, 0.9, 1.0], "opacity": 1.0, "palette": "ramp",
             "ramp_colors": [[0.0, 0.0, 0.0, 1.0], [1.0, 1.0, 1.0, 1.0]], "ramp_span": 300.0},
+  "icon": "red",
   "children": [ ... ]
 }
 ```
@@ -186,6 +187,12 @@ built in palette's key or the path of a `.cpt` file. `ramp_colors` is the
 `[r, g, b, a]`, and `ramp_span` the My between one and the next, at least 1. A
 group without the key inherits at
 full opacity, and so does one naming a mode this version does not know.
+
+`icon` is the folder picture the group's tree row shows, an id from
+`FeatureIcon.FOLDERS`. It is written only when one is picked; a group without
+it, or with an id this version does not know, shows the plain folder, as every
+group did before. Older versions ignore the key. See
+[Properties](Properties.md#the-icon).
 
 The **root group's style is pinned** to `GroupStyle.for_root()`: `feature` mode,
 full opacity, and the default palette and ramp. `Document.load_from_file()`
