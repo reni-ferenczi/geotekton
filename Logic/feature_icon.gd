@@ -27,6 +27,11 @@ const CATALOG := {
 	"australia": "Australia",
 	"eurasia": "Eurasia",
 	"north_america": "North America",
+	"south_america": "South America",
+	"iceland": "Iceland",
+	"indonesia": "Indonesia",
+	"japan": "Japan",
+	"new_guinea": "New Guinea",
 	"mountain": "Mountain",
 	"volcano": "Volcano",
 	"heart": "Heart",
@@ -46,6 +51,11 @@ const FILES := {
 	"australia": "Icons1-Australia",
 	"eurasia": "Icons1-Eurasia",
 	"north_america": "Icons1-NorthAmerica",
+	"south_america": "Icons1-SouthAmerica",
+	"iceland": "Icons1-Iceland",
+	"indonesia": "Icons1-Indonesia",
+	"japan": "Icons1-Japan",
+	"new_guinea": "Icons1-NewGuinea",
 	"mountain": "Icons1-Mountain",
 	"volcano": "Icons1-Volcano",
 	"heart": "Icons1-Heart",
@@ -69,17 +79,40 @@ const TYPE_FILES := {
 	"hotspot": "Icons1-Hotspot",
 }
 
-# The pictures a group's row can show in place of the plain folder, id to
-# name, in the order the selector lists them. Each is the PNG under
-# FOLDER_DIR named after it. Placeholders for now: to replace one, overwrite
-# its file; to add one, drop the PNG in and list it here (GP-0146).
-const FOLDER_DIR := DIR + "/Folders"
+# The folder colours a group's row can show, id to name, in the order the
+# selector lists them: the rainbow, then the rest. Yellow is the plain folder,
+# which a group without a colour of its own shows (GP-0146).
 const FOLDERS := {
 	"red": "Red",
+	"orange": "Orange",
+	NONE: "Yellow",
 	"green": "Green",
+	"cyan": "Cyan",
 	"blue": "Blue",
 	"purple": "Purple",
-	"gray": "Gray",
+	"pink": "Pink",
+	"brown": "Brown",
+	"white": "White",
+	"light_gray": "Light Grey",
+	"gray": "Grey",
+	"black": "Black",
+}
+
+# Id to the stem of its picture under DIR.
+const FOLDER_FILES := {
+	"red": "Icons1-GroupColorRed",
+	"orange": "Icons1-GroupColorOrange",
+	NONE: "Icons1-Group",
+	"green": "Icons1-GroupColorGreen",
+	"cyan": "Icons1-GroupColorCyan",
+	"blue": "Icons1-GroupColorBlue",
+	"purple": "Icons1-GroupColorPurple",
+	"pink": "Icons1-GroupColorPink",
+	"brown": "Icons1-GroupColorBrown",
+	"white": "Icons1-GroupColorWhite",
+	"light_gray": "Icons1-GroupColorLightGrey",
+	"gray": "Icons1-GroupColorGrey",
+	"black": "Icons1-GroupColorBlack",
 }
 
 static var _textures: Dictionary[String, Texture2D] = {}
@@ -105,10 +138,10 @@ static func texture(id: String) -> Texture2D:
 # The folder picture an id names, or null for the plain folder and for an id
 # this version does not know.
 static func folder_texture(id: String) -> Texture2D:
-	if not FOLDERS.has(id):
+	if id == NONE or not FOLDERS.has(id):
 		return null
 	if not _folder_textures.has(id):
-		_folder_textures[id] = shrunk("Folders/%s" % FOLDERS[id], id)
+		_folder_textures[id] = shrunk(FOLDER_FILES[id], id)
 	return _folder_textures[id]
 
 

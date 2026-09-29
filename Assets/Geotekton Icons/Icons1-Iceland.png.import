@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c6kyaeqfqycg"
-path="res://.godot/imported/Gray.png-1e2d8ac036b5ce53d7fdbeb263b29e55.ctex"
+uid="uid://gpa8oogfv16n"
+path="res://.godot/imported/Icons1-Iceland.png-5c12dd74bc779a59f2a92bfaea4e5754.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Geotekton Icons/Folders/Gray.png"
-dest_files=["res://.godot/imported/Gray.png-1e2d8ac036b5ce53d7fdbeb263b29e55.ctex"]
+source_file="res://Assets/Geotekton Icons/Icons1-Iceland.png"
+dest_files=["res://.godot/imported/Icons1-Iceland.png-5c12dd74bc779a59f2a92bfaea4e5754.ctex"]
 
 [params]
 

@@ -47,3 +47,12 @@ func test_every_glyph_is_named() -> void:
 	for id in FeatureIcon.CATALOG:
 		assert_true(not FeatureIcon.label(id).is_empty(), "%s is named in the selector" % id)
 	assert_eq(FeatureIcon.label("sombrero"), "", "and an id nobody knows is not")
+
+
+func test_every_folder_colour_has_a_picture() -> void:
+	for id in FeatureIcon.FOLDERS:
+		assert_true(FeatureIcon.FOLDER_FILES.has(id), "%s has a picture named" % id)
+		assert_true(ResourceLoader.exists("%s/%s.png" % [FeatureIcon.DIR, FeatureIcon.FOLDER_FILES[id]]),
+			"the picture of %s is there" % id)
+	assert_eq(FeatureIcon.folder_texture(FeatureIcon.NONE), null, "yellow is the plain folder")
+	assert_eq(FeatureIcon.folder_texture("orange").resource_name, "orange", "a colour is named after its id")
