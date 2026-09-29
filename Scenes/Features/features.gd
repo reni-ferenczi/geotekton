@@ -7,6 +7,7 @@ signal commands_changed()
 
 
 @onready var feature_tree: FeatureTree = $FeatureTree
+@onready var search: LineEdit = $Search
 @onready var add_group_button: Button = $PanelContainer/Buttons/AddGroup
 @onready var add_feature_button: Button = $PanelContainer/Buttons/AddFeature
 @onready var undo_button: Button = $PanelContainer/Buttons/Undo
@@ -40,6 +41,7 @@ func _ready() -> void:
 	duplicate_button.pressed.connect(_on_duplicate_pressed)
 	collapse_button.pressed.connect(_on_collapse_pressed)
 	expand_button.pressed.connect(_on_expand_pressed)
+	search.text_changed.connect(func(text: String) -> void: feature_tree.filter = text)
 
 
 # Take the document to edit and show its tree. Called once by Application.
@@ -307,6 +309,16 @@ func paste(parent: Feature, index: int = -1) -> void:
 	reload()
 	feature_tree.select_node(node)
 	feature_tree.collapse(parent, false)
+
+
+### Search
+
+
+# Edit > Find: the search box takes the keyboard with its text selected, so
+# typing replaces it.
+func focus_search() -> void:
+	search.grab_focus()
+	search.select_all()
 
 
 ### Collapse / Expand

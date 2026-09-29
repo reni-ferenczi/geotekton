@@ -1149,6 +1149,7 @@ func _menu_item(name: String) -> Array:
 		"copy_shape": return [app.edit_menu, Application.EditItem.COPY_SHAPE]
 		"paste_shape": return [app.edit_menu, Application.EditItem.PASTE_SHAPE]
 		"snap_to_vertices": return [app.edit_menu, Application.EditItem.SNAP]
+		"find": return [app.edit_menu, Application.EditItem.FIND]
 		"new": return [app.file_menu, Application.FileItem.NEW]
 		"open": return [app.file_menu, Application.FileItem.OPEN]
 		"save": return [app.file_menu, Application.FileItem.SAVE]
@@ -1235,7 +1236,11 @@ func _on_file_dialog(mode: int, title: String, on_paths: Callable) -> void:
 func _collect_features(node: Feature, depth: int, list: Array) -> void:
 	var entry := {"pnid": node.pnid, "title": node.title, "is_group": node.is_group,
 		"depth": depth, "row_icon": _row_icon(node), "row_shown": _row_shown(node)}
-	if not node.is_group:
+	if node.is_group:
+		var item: TreeItem = app.features.feature_tree.items.get(node.pnid)
+		entry["collapsed"] = node.collapsed
+		entry["row_open"] = item != null and not item.collapsed
+	else:
 		entry["swatch"] = _swatch_color(node)
 	list.append(entry)
 	for child in node.children:

@@ -131,6 +131,20 @@ To put an item first in an open group, drop it on the band at the top of the
 group's first row. A group cannot be dropped into itself or anything under it.
 A move is one undo step.
 
+### Searching the tree
+
+The search box above the tree, which Edit > Find (Ctrl+F) puts the keyboard
+in, shows only the rows whose title holds the text typed, ignoring case, and
+the groups they sit in. A group whose title holds it shows everything in it.
+The Planet row stays and does not count as a match. The groups a match sits in
+open while the search is on, but what the groups are saved as open or closed
+does not change and the document is not marked as edited: clearing the box
+puts every group back the way it was. Opening or closing a group by hand during
+a search is not kept either. Rows cannot be dragged while the box holds text,
+since the hidden rows make it unclear where a drop would land. Features absent
+at the current time are found too, greyed out, unless View > Hide absent
+features is on (GP-0149).
+
 The feature selected in the tree is highlighted on the planet in white:
 
 - a **polygon** gets a translucent outline along its rings, with the fill and

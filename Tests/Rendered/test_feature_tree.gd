@@ -226,3 +226,38 @@ func test_hide_absent_features_hides_absent_rows_and_their_groups() -> void:
 	feature_tree.hide_absent = false
 	assert_true([young, old, mixed, gone, inner, ancient, empty].all(shown),
 		"turning the switch off shows every row again")
+
+
+# GP-0149: the search box's filter. Dragging is off while it holds text, it
+# works together with Hide absent features, and a rebuild keeps it.
+func test_search_filter_works_with_hide_absent_and_blocks_drags() -> void:
+	var groups := await _build(false)
+	var feature_tree: FeatureTree = app.features.feature_tree
+	var old: Feature = groups[0].children[2]
+	old.time_range = Vector2i(500, 1000)
+	feature_tree.select_root()
+	app.features.reload()
+	feature_tree.refresh_time(50.0)
+	var shown := func(node: Feature) -> bool: return feature_tree.items[node.pnid].visible
+
+	app.features.search.text = "leaf 0"
+	app.features.search.text_changed.emit(app.features.search.text)
+	assert_eq(feature_tree.filter, "leaf 0", "the search box sets the filter")
+	assert_true(shown.call(groups[0].children[0]) and shown.call(old),
+		"the matching rows are on show, an absent one greyed")
+	assert_true(not shown.call(groups[1]), "a group with no match is hidden")
+	assert_eq(feature_tree._get_drag_data(_row_point(groups[0].children[0], MIDDLE)), null,
+		"a row cannot be dragged while a search is on")
+
+	feature_tree.hide_absent = true
+	assert_true(not shown.call(old), "with Hide absent features the absent match is hidden")
+	feature_tree.hide_absent = false
+
+	app.features.reload()
+	assert_true(not shown.call(groups[1]) and shown.call(groups[0].children[0]),
+		"a rebuild keeps the filter")
+
+	app.features.search.text = ""
+	app.features.search.text_changed.emit("")
+	assert_true(shown.call(groups[1]) and shown.call(groups[1].children[0]),
+		"clearing the search shows every row again")
