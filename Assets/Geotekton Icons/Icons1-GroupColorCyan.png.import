@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://wwdiod6m0fns"
-path="res://.godot/imported/Purple.png-2dc9fba6fa92d00e06818106c00a0ef3.ctex"
+uid="uid://hv5kuwfkjqut"
+path="res://.godot/imported/Icons1-GroupColorCyan.png-6288e5fcc02ddb90125f5d42886465c7.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Geotekton Icons/Folders/Purple.png"
-dest_files=["res://.godot/imported/Purple.png-2dc9fba6fa92d00e06818106c00a0ef3.ctex"]
+source_file="res://Assets/Geotekton Icons/Icons1-GroupColorCyan.png"
+dest_files=["res://.godot/imported/Icons1-GroupColorCyan.png-6288e5fcc02ddb90125f5d42886465c7.ctex"]
 
 [params]
 

@@ -225,13 +225,12 @@ func _build() -> void:
 	# so the rows of a group's style stay where they were.
 	folder_icon_selector = _selector("FolderIcon")
 	folder_icon_selector.tooltip_text = "The picture on the group's tree row"
-	folder_icon_selector.add_item("Folder", 0)
-	folder_icon_selector.set_item_icon(0, FeatureIcon.shrunk("Icons1-Group", "Icons1-Group"))
-	folder_icon_selector.set_item_metadata(0, FeatureIcon.NONE)
 	for icon_id in FeatureIcon.FOLDERS:
+		var picture := FeatureIcon.folder_texture(icon_id)
+		if picture == null:
+			picture = FeatureIcon.shrunk("Icons1-Group", "Icons1-Group")
 		folder_icon_selector.add_item(FeatureIcon.FOLDERS[icon_id])
-		folder_icon_selector.set_item_icon(folder_icon_selector.item_count - 1,
-			FeatureIcon.folder_texture(icon_id))
+		folder_icon_selector.set_item_icon(folder_icon_selector.item_count - 1, picture)
 		folder_icon_selector.set_item_metadata(folder_icon_selector.item_count - 1, icon_id)
 	folder_icon_selector.item_selected.connect(_on_folder_icon_selected)
 

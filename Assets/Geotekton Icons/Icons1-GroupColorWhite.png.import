@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://clmacbonkxj8q"
-path="res://.godot/imported/Green.png-fa0d40aa3e98df7da45b6626c21f5f20.ctex"
+uid="uid://isk21nkc4d8g"
+path="res://.godot/imported/Icons1-GroupColorWhite.png-51bde26f38fbbdfc1ff90e70438a3091.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Geotekton Icons/Folders/Green.png"
-dest_files=["res://.godot/imported/Green.png-fa0d40aa3e98df7da45b6626c21f5f20.ctex"]
+source_file="res://Assets/Geotekton Icons/Icons1-GroupColorWhite.png"
+dest_files=["res://.godot/imported/Icons1-GroupColorWhite.png-51bde26f38fbbdfc1ff90e70438a3091.ctex"]
 
 [params]
 

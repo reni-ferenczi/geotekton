@@ -1557,8 +1557,8 @@ def run_folder_icon_checks(client: AutomationClient, folder: Path) -> None:
           f"a group from a file without folder pictures shows the plain folder: {row_icon(client, 'Shapes')}")
     client.call("select", title="Shapes")
     panel = client.call("get_properties")["properties"]
-    check(panel["icon"] == "" and panel["icons"][0] == "" and "red" in panel["icons"],
-          f"the group's selector offers the plain folder first and the pictures after it: {panel['icons']}")
+    check(panel["icon"] == "" and panel["icons"][:4] == ["red", "orange", "", "green"],
+          f"the group's selector offers the colours in rainbow order, the plain yellow folder third: {panel['icons']}")
     check(refusal(client, "set_property", field="icon", value="star") != "",
           "a feature glyph is not a folder picture")
 

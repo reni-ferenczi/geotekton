@@ -111,6 +111,11 @@ A Topology, and a feature with no type, shows the rule icon.
 | `australia`     | Australia     | The continent                          |
 | `eurasia`       | Eurasia       | The continent                          |
 | `north_america` | North America | The continent                          |
+| `south_america` | South America | The continent                          |
+| `iceland`       | Iceland       | The island                             |
+| `indonesia`     | Indonesia     | The islands                            |
+| `japan`         | Japan         | The islands                            |
+| `new_guinea`    | New Guinea    | The island                             |
 | `mountain`      | Mountain      | Peaks, which is also an orogeny        |
 | `volcano`       | Volcano       | A cone with a plume                    |
 | `heart`         | Heart         | A heart                                |
@@ -125,23 +130,32 @@ A Topology, and a feature with no type, shows the rule icon.
 `Logic/feature_icon.gd` holds the catalog. Nothing else in the program reads
 the icon: it changes what the row shows and no more.
 
-A group's row shows the plain folder, `Icons1-Group`, unless another folder
-picture is picked in the Icon row the panel shows for a group, to tell groups
-apart at a glance (GP-0146). **Folder** at the top of the list puts the plain
-one back. The pictures are placeholders for now: the folder recolored, one PNG
-each under `Assets/Geotekton Icons/Folders`, listed in `FeatureIcon.FOLDERS`.
+A group's row shows the plain yellow folder, `Icons1-Group`, unless another
+folder colour is picked in the Icon row the panel shows for a group, to tell
+groups apart at a glance (GP-0146). The list runs in rainbow order and then the
+rest; **Yellow** in it is the plain folder and puts the default back.
 
-| Id       | Name   |
-| -------- | ------ |
-| `red`    | Red    |
-| `green`  | Green  |
-| `blue`   | Blue   |
-| `purple` | Purple |
-| `gray`   | Gray   |
+| Id           | Name       | Picture                      |
+| ------------ | ---------- | ---------------------------- |
+| `red`        | Red        | `Icons1-GroupColorRed`       |
+| `orange`     | Orange     | `Icons1-GroupColorOrange`    |
+| (none)       | Yellow     | `Icons1-Group`               |
+| `green`      | Green      | `Icons1-GroupColorGreen`     |
+| `cyan`       | Cyan       | `Icons1-GroupColorCyan`      |
+| `blue`       | Blue       | `Icons1-GroupColorBlue`      |
+| `purple`     | Purple     | `Icons1-GroupColorPurple`    |
+| `pink`       | Pink       | `Icons1-GroupColorPink`      |
+| `brown`      | Brown      | `Icons1-GroupColorBrown`     |
+| `white`      | White      | `Icons1-GroupColorWhite`     |
+| `light_gray` | Light Grey | `Icons1-GroupColorLightGrey` |
+| `gray`       | Grey       | `Icons1-GroupColorGrey`      |
+| `black`      | Black      | `Icons1-GroupColorBlack`     |
 
-To replace one, overwrite its PNG. To add one, drop the PNG into that folder
-and list its id and name, which is also the file's stem, in
-`FeatureIcon.FOLDERS`. The root has no row of its own and takes no picture.
+`FeatureIcon.FOLDERS` lists the names and `FOLDER_FILES` the pictures, PNGs
+under `Assets/Geotekton Icons`. The ids of the placeholders GP-0146 shipped
+(`red`, `green`, `blue`, `purple`, `gray`) are kept, so a world saved with one
+shows the new picture of that colour. The root has no row of its own and takes
+no picture.
 
 An icon is one of the Geotekton icons, a PNG under `Assets/Geotekton Icons`
 at whatever size it was painted. It is shrunk to 32 by 32 pixels, the size of
