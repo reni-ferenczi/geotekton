@@ -5457,10 +5457,12 @@ def run_selectable_text_session(client: AutomationClient) -> None:
     client.call("menu", item="kinematics")
     client.call("select", title="Drifting Craton")
 
+    # Ctrl+A selects the first value in the field, the Area's without the
+    # share of the planet under it.
     for name in ("RateValue", "Area"):
         field = copy_by_keyboard(client, name)
         copied = client.call("get_clipboard")["text"]
-        check(field["text"] != "" and copied == field["text"],
+        check(field["text"] != "" and copied == field["data"][0],
               f"{name}: Ctrl+A and Ctrl+C copy it: {copied!r} of {field['text']!r}")
         check(not field["editable"], f"{name}: and it cannot be typed into")
     check(client.call("focus")["focus"] == "Area", "the clicked value holds the focus")
@@ -5487,7 +5489,71 @@ def run_selectable_text_session(client: AutomationClient) -> None:
     check(not client.call("get_text_widget", widget="StatusFile")["widget"]["menu_visible"],
           "Escape closes the menu")
 
+    run_data_only_checks(client)
     client.call("menu", item="kinematics")
+
+
+def text_point(client: AutomationClient, name: str, offset: int) -> tuple[float, float]:
+    """Where an offset into the named text is on screen, a pixel into the
+    character after it."""
+    x, y = client.call("get_text_widget", widget=name, offset=offset)["widget"]["point"]
+    return x + 1.0, y
+
+
+def drag_selected(client: AutomationClient, name: str, start: int, end: int) -> str:
+    """Drag across the named text from one offset to another, the way a person
+    selects, and say what ends up selected."""
+    x, y = text_point(client, name, start)
+    client.call("press", x=x, y=y)
+    x, y = text_point(client, name, end)
+    client.call("mouse_move", x=x, y=y)
+    client.call("release", x=x, y=y)
+    return client.call("get_text_widget", widget=name)["widget"]["selected"]
+
+
+def run_data_only_checks(client: AutomationClient) -> None:
+    """GP-0148: only the data in a field can be selected, the numbers with
+    their marks and the names, not the words around them."""
+    count = client.call("get_text_widget", widget="Count")["widget"]
+    text = count["text"]
+    number = text.split(" ")[0]
+    check(count["data"] == [number], f"of {text!r} only the number is data: {count['data']}")
+    selected = drag_selected(client, "Count", len(number) + 3, len(text))
+    check(selected == "", f"a drag over the word selects nothing: {selected!r}")
+    selected = drag_selected(client, "Count", 0, len(text))
+    check(selected == number, f"a drag from the number on over the word selects the number: {selected!r}")
+    client.call("key", key="A", ctrl=True)
+    selected = client.call("get_text_widget", widget="Count")["widget"]["selected"]
+    check(selected == number, f"and Ctrl+A selects no more: {selected!r}")
+
+    # The Area's second line: the share is data, "of planet" is not.
+    area = client.call("get_text_widget", widget="Area")["widget"]
+    text = area["text"]
+    share = area["data"][1]
+    check(len(area["data"]) == 2 and text.endswith(share + " of planet"),
+          f"of {text!r} the area and the share are data: {area['data']}")
+    # A TextEdit drags from where the real pointer is, which the port does not
+    # move, so the selection is made from the keyboard here.
+    x, y = text_point(client, "Area", text.index(share))
+    client.call("click", x=x, y=y)
+    client.call("key", key="End", shift=True)
+    selected = client.call("get_text_widget", widget="Area")["widget"]["selected"]
+    check(selected == share, f"Shift+End from the share on over the words selects the share: {selected!r}")
+
+    # The status bar says the length around the selected polygon, its title and
+    # its area, with words in between.
+    measure = client.call("get_text_widget", widget="StatusMeasure")["widget"]
+    text = measure["text"]
+    check(len(measure["data"]) == 3 and "Drifting Craton" in measure["data"]
+          and " around " in text and " around " not in "".join(measure["data"]),
+          f"of {text!r} the numbers and the title are data: {measure['data']}")
+    around = text.index(" around ")
+    selected = drag_selected(client, "StatusMeasure", 0, len(text))
+    check(selected == text[:around],
+          f"a drag across the whole field stays in the length: {selected!r}")
+    selected = drag_selected(client, "StatusMeasure", around + 2, len(text))
+    check(selected == "", f"and one from the word on selects nothing: {selected!r}")
+    client.call("focus", release=True)
 
 
 def run_kinematics_session(client: AutomationClient) -> None:

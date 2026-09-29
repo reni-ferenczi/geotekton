@@ -1391,7 +1391,7 @@ func _build_general_preferences() -> Control:
 	planet_area_label.expand_to_text_length = true
 	form.add_child(planet_area_label)
 	radius_spin.value_changed.connect(func(radius: float) -> void:
-		planet_area_label.text = "Surface area %s" % Measure.format_area(Measure.planet_area(radius)))
+		planet_area_label.show_data("Surface area %s", [Measure.format_area(Measure.planet_area(radius))]))
 	var rate_label := Label.new()
 	rate_label.text = "Plate rate in"
 	form.add_child(rate_label)
@@ -2163,11 +2163,11 @@ func _ask_for_paths(mode: int, title: String, on_paths: Callable,
 
 func _on_cursor_moved(lat: float, lon: float) -> void:
 	if is_nan(lat) or is_nan(lon):
-		status_coordinates.text = "off the planet"
+		status_coordinates.show_data("off the planet")
 	else:
-		status_coordinates.text = "%.2f° %s   %.2f° %s" % [
+		status_coordinates.show_data("%s", ["%.2f° %s   %.2f° %s" % [
 			absf(lat), "N" if lat >= 0.0 else "S",
-			absf(lon), "E" if lon >= 0.0 else "W"]
+			absf(lon), "E" if lon >= 0.0 else "W"]])
 
 
 ### Tool button group
@@ -4096,40 +4096,42 @@ func _measure_outline() -> Array:
 # selected geometry while it has none, and nothing at all otherwise.
 func _show_measurement(error: String = "") -> void:
 	if not error.is_empty():
-		status_measure.text = error
+		status_measure.show_data(error)
 		return
 
 	if picking == Pick.PARENT:
-		status_measure.text = "Click the feature to follow, then Couple"
+		status_measure.show_data("Click the feature to follow, then Couple")
 		return
 	if picking == Pick.PLATE:
-		status_measure.text = "Pick the feature the hotspot burns through"
+		status_measure.show_data("Pick the feature the hotspot burns through")
 		return
 
 	if _drawing_hotspot():
-		status_measure.text = "Click to place %s; click again to move it" % \
-			features.feature_tree.get_selected_node().title
+		status_measure.show_data("Click to place %s; click again to move it",
+			[features.feature_tree.get_selected_node().title])
 		return
 
 	if _drawing_circle():
 		var circle := circle_from_points()
-		status_measure.text = "click a centre and the rim, or three points on the rim" \
-			if circle.is_empty() else "centre %.2f° %.2f°   radius %s   %d segments" % [
-				(circle[0] as Vector2).x, (circle[0] as Vector2).y,
-				Circle.format_radius(circle[1]), circle_segments()]
+		if circle.is_empty():
+			status_measure.show_data("click a centre and the rim, or three points on the rim")
+		else:
+			status_measure.show_data("centre %s %s   radius %s   %s segments", [
+				"%.2f°" % (circle[0] as Vector2).x, "%.2f°" % (circle[0] as Vector2).y,
+				Circle.format_radius(circle[1]), circle_segments()])
 		return
 
 	if picking_axis:
-		status_measure.text = "click the planet to put the axis of the circle there"
+		status_measure.show_data("click the planet to put the axis of the circle there")
 		return
 
 	if _spins(active_tool):
 		if not is_nan(spin_angle):
-			status_measure.text = "Rotating %.1f°" % rad_to_deg(spin_angle)
+			status_measure.show_data("Rotating %s", ["%.1f°" % rad_to_deg(spin_angle)])
 		elif active_tool == Tool.POLE and pole_at == NO_POLE:
-			status_measure.text = "click to place the pole to turn about"
+			status_measure.show_data("click to place the pole to turn about")
 		else:
-			status_measure.text = "drag the feature to turn it"
+			status_measure.show_data("drag the feature to turn it")
 		return
 
 	var radius := Config.get_planet_radius()
@@ -4139,9 +4141,9 @@ func _show_measurement(error: String = "") -> void:
 			Measure.measured_length(measure_points, measure_parallel, radius))
 		# From the third point on the last segment is worth naming as well; with
 		# two points the total is that segment.
-		status_measure.text = total if last == 1 else "%s, last %s" % [total,
+		status_measure.show_data("%s" if last == 1 else "%s, last %s", [total,
 			Measure.format_km(Measure.segment_length(measure_points[last - 1],
-				measure_points[last], _measure_flag(last), radius))]
+				measure_points[last], _measure_flag(last), radius))])
 		# The total beside the line itself, at the midpoint of the last segment,
 		# so it stays near where the pointer is working.
 		var middle := Measure.along_parallel(measure_points[last - 1], measure_points[last], 0.5) \
@@ -4151,35 +4153,36 @@ func _show_measurement(error: String = "") -> void:
 		return
 	planet_view.hide_measurement()
 	if active_tool == Tool.MEASURE:
-		status_measure.text = "click the next point   Enter finishes" \
-			if measure_points.size() == 1 else "click two points to measure"
+		status_measure.show_data("click the next point   Enter finishes"
+			if measure_points.size() == 1 else "click two points to measure")
 		return
 	if active_tool == Tool.SPLIT:
 		if split_points.size() < 2:
-			status_measure.text = "click across the polygon, from one edge to another"
+			status_measure.show_data("click across the polygon, from one edge to another")
 		elif _split_divides(features.feature_tree.get_selected_node()):
-			status_measure.text = "%d points   Enter divides the parts along them" \
-				% split_points.size()
+			status_measure.show_data("%s points   Enter divides the parts along them",
+				[split_points.size()])
 		else:
-			status_measure.text = "%d points   Enter splits the polygon along them" \
-				% split_points.size()
+			status_measure.show_data("%s points   Enter splits the polygon along them",
+				[split_points.size()])
 		return
 
 	if freehand():
 		# The held count says what a stroke came to once simplified, which is
 		# what the tolerance is set by.
-		status_measure.text = "drag to draw freehand   Enter commits" if outline_vertices.is_empty() 			else "%d vertices   drag to add a stroke   Enter commits" % outline_vertices.size()
+		status_measure.show_data("drag to draw freehand   Enter commits" if outline_vertices.is_empty()
+			else "%s vertices   drag to add a stroke   Enter commits", [outline_vertices.size()])
 		return
 
 	var selected := features.feature_tree.get_selected_node()
 	var length := Measure.geometry_length(selected, radius)
 	if length <= 0.0:
-		status_measure.text = ""
+		status_measure.show_data("")
 	elif selected.drawn_as() == Feature.GeometryKind.POLYGON:
-		status_measure.text = "%s around %s, %s" % [Measure.format_km(length), selected.title,
-			Measure.format_area(Measure.geometry_area(selected, radius))]
+		status_measure.show_data("%s around %s, %s", [Measure.format_km(length), selected.title,
+			Measure.format_area(Measure.geometry_area(selected, radius))])
 	else:
-		status_measure.text = "%s along %s" % [Measure.format_km(length), selected.title]
+		status_measure.show_data("%s along %s", [Measure.format_km(length), selected.title])
 
 
 ### Vertices on screen

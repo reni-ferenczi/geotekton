@@ -715,7 +715,8 @@ func _show_area() -> void:
 	var radius := Config.get_planet_radius()
 	var area := Measure.geometry_area(node, radius)
 	var share := Measure.format_share(area, radius)
-	area_label.text = Measure.format_area(area) + ("" if share.is_empty() else "\n" + share)
+	area_label.show_data("%s" if share.is_empty() else "%s\n%s of planet",
+		[Measure.format_area(area), share])
 
 
 ### Ridges and crusts
@@ -743,7 +744,7 @@ func _keyframe_here() -> int:
 func _update_keyframes() -> void:
 	var feature := node != null and not node.is_group
 	var count := node.keyframes.size() if feature else 0
-	keyframe_count.text = "%d keyframe%s" % [count, "" if count == 1 else "s"]
+	keyframe_count.show_data("%s keyframe" if count == 1 else "%s keyframes", [count])
 	key_button.disabled = not feature
 	delete_key_button.disabled = _keyframe_here() < 0
 
@@ -889,10 +890,11 @@ func _update_coupling() -> void:
 	coupled_label.reset_color()
 	coupled_label.tooltip_text = ""
 	if span == null:
-		coupled_label.text = "nothing"
+		coupled_label.show_data("nothing")
 	else:
 		var nodes := Coupling.index(document.root)
-		coupled_label.text = Coupling.parents_label(nodes, span)
+		var parts := Coupling.parents_format(nodes, span)
+		coupled_label.show_data(parts[0], parts[1])
 		var problem := Coupling.parent_problem(nodes, node, span)
 		if not problem.is_empty():
 			coupled_label.set_color(BROKEN_SECTION_COLOR)
