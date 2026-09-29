@@ -173,3 +173,56 @@ func _check_place(node: Feature, parent: Feature, index: int) -> void:
 	assert_eq(app.document.root.find_parent(node), parent,
 		"%s is in %s" % [node.title, parent.title])
 	assert_eq(parent.find_child(node), index, "%s is at index %d" % [node.title, index])
+
+
+# GP-0150: View > Hide absent features hides the rows greyed out for the time,
+# and a group all of whose features are; a group with no features stays, and
+# so does the selected row.
+func test_hide_absent_features_hides_absent_rows_and_their_groups() -> void:
+	await load_sample("empty.geotekt")
+	var root: Feature = app.document.root
+	var mixed := Feature.create_group("Mixed")
+	var young := Feature.create_feature("Young", Color.RED, Vector2i(0, 100))
+	var old := Feature.create_feature("Old", Color.RED, Vector2i(500, 1000))
+	mixed.children.append_array([young, old])
+	var gone := Feature.create_group("Gone")
+	var inner := Feature.create_group("Inner")
+	var ancient := Feature.create_feature("Ancient", Color.RED, Vector2i(2000, 3000))
+	inner.children.append(ancient)
+	gone.children.append(inner)
+	var empty := Feature.create_group("Empty")
+	root.children.append_array([mixed, gone, empty])
+	app.features.reload()
+	var feature_tree: FeatureTree = app.features.feature_tree
+	feature_tree.select_root()
+	feature_tree.refresh_time(50.0)
+	await frames(2)
+
+	var shown := func(node: Feature) -> bool: return feature_tree.items[node.pnid].visible
+	assert_true([young, old, mixed, gone, inner, ancient, empty].all(shown),
+		"with the switch off every row is on show")
+
+	feature_tree.hide_absent = true
+	assert_true(shown.call(young) and not shown.call(old), "the absent feature is hidden")
+	assert_true(shown.call(mixed), "a group with a present feature stays")
+	assert_true(not (shown.call(inner) or shown.call(gone)),
+		"a group of absent features is hidden, and the group holding only it")
+	assert_true(shown.call(empty), "an empty group stays")
+
+	feature_tree.refresh_time(2500.0)
+	assert_true(shown.call(ancient) and shown.call(inner) and shown.call(gone),
+		"moving the time to the ancient feature brings it and its groups back")
+	assert_true(not shown.call(mixed), "and hides the group whose features are gone")
+
+	feature_tree.select_node(old)
+	assert_true(shown.call(old) and shown.call(mixed), "a selected absent row is on show, and its group")
+	feature_tree.select_root()
+	assert_true(not (shown.call(old) or shown.call(mixed)), "and is hidden once deselected")
+
+	feature_tree.select_node(young)
+	app.features.reload()
+	assert_true(shown.call(young), "the selected row stays on show across a rebuild")
+
+	feature_tree.hide_absent = false
+	assert_true([young, old, mixed, gone, inner, ancient, empty].all(shown),
+		"turning the switch off shows every row again")

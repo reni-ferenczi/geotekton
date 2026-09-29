@@ -92,7 +92,12 @@ feature was given, greyed out while the feature is disabled; a feature with no
 icon shows the plain row picture instead, and a group shows whether it is open.
 A row is greyed out while its feature is outside its time range at the current
 time, which is when the globe leaves it out as well; see
-[Time](Time.md#being-there-at-all).
+[Time](Time.md#being-there-at-all). With View > Hide absent features on, those
+rows are hidden instead, and so is a group all of whose features are absent. A
+group with no features in it at all stays, so there is still somewhere to drag
+them. The selected row stays on show, greyed, until something else is selected,
+so the selection does not disappear as the time moves. The switch is off by
+default and remembered in the settings file (`hide_absent_features`, GP-0150).
 A left click on the swatch selects the feature and opens the colour picker of
 the [Properties](Properties.md) panel, so the colour is picked where it is
 shown; a right click puts the colour back to the one the feature's type gives.

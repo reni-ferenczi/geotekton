@@ -1814,6 +1814,7 @@ def run_visibility_checks(client: AutomationClient) -> None:
     check(dominant(color) != "green",
           f"so the planet shows through where it would be: {color}")
     check(client.call("get_features")["features"] is not None, "the tree still lists it")
+    run_hide_absent_checks(client, feature["pnid"])
 
     # The same probe point, with the time range widened to take that time in.
     client.call("set_property", field="time_from", value=2000)
@@ -1821,6 +1822,26 @@ def run_visibility_checks(client: AutomationClient) -> None:
           "widening the range brings it back")
     color = client.call("get_pixel", x=screen[0], y=screen[1])["color"]
     check(dominant(color) == "green", f"and the same probe is green again: {color}")
+
+
+def run_hide_absent_checks(client: AutomationClient, pnid: int) -> None:
+    """View > Hide absent features hides the absent row once it is not selected."""
+    def shown() -> bool:
+        rows = client.call("get_features")["features"]
+        return next(row["row_shown"] for row in rows if row["pnid"] == pnid)
+
+    check(shown(), "without Hide absent features the absent row is on show, greyed")
+    client.call("menu", item="hide_absent_features")
+    check(client.call("get_panels")["panels"]["hide_absent_features"],
+          "View > Hide absent features turns the switch on")
+    check(shown(), "the absent row stays on show while it is selected")
+    client.call("select", title=None)
+    check(not shown(), "and is hidden once something else is selected")
+    client.call("select", pnid=pnid)
+    check(shown(), "selecting it again shows it")
+    client.call("menu", item="hide_absent_features")
+    check(not client.call("get_panels")["panels"]["hide_absent_features"],
+          "the menu item turns the switch off again")
 
 
 def run_timeline_checks(client: AutomationClient) -> None:

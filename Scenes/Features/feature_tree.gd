@@ -52,6 +52,17 @@ var time: float = 0.0
 # rebuild the same way.
 var coupled: Dictionary[int, Color] = {}
 
+# View > Hide absent features: the rows greyed out for the time are hidden
+# instead, and so is a group all of whose features are (GP-0150).
+var hide_absent := false:
+	set(value):
+		hide_absent = value
+		if get_root() != null:
+			_apply_visibility(get_root())
+
+# The row kept on show while it is selected, though it would be hidden.
+var _kept: TreeItem = null
+
 
 ### Initialization
 
@@ -70,6 +81,7 @@ func load_root_group(root_group: Feature) -> void:
 	items.clear()
 	sea_floor.clear()
 	selected_off_tree = null
+	_kept = null
 	self.root = root_group
 	load_group(null, root, true)
 	_gather_range_ends()
@@ -115,6 +127,7 @@ func load_group(parent: TreeItem, group: Feature, enabled: bool):
 			sea_floor[child.pnid] = child
 		else:
 			load_feature(item, child)
+	_apply_group(item)
 
 
 func load_feature(parent: TreeItem, feature: Feature):
@@ -174,11 +187,15 @@ func refresh_time(time_: float) -> void:
 	var low := minf(time, time_)
 	var high := maxf(time, time_)
 	time = time_
+	var groups := {}
 	for at in range(_range_ends.bsearch(low), _range_ends.size()):
 		if _range_ends[at] > high:
 			break
 		for item: TreeItem in _rows_ending[_range_ends[at]]:
 			_apply_time(item)
+			groups[item.get_parent()] = true
+	if hide_absent:
+		_apply_groups(groups.keys())
 
 
 # Every end of every row's time range, sorted, and the rows that end at each,
@@ -198,18 +215,76 @@ func _gather_range_ends() -> void:
 	_range_ends.sort()
 
 
-# Grey the row out while its feature is not there. A row is only touched when
-# that changes: on every frame of an animation a document of thousands of rows
-# would otherwise set every one of them again (GP-0030).
+# Grey the row out while its feature is not there, or hide it with
+# hide_absent. Only the rows refresh_time() finds are touched: on every frame of
+# an animation a document of thousands of rows would otherwise set every one of
+# them again (GP-0030). The colour is set only when it changes.
 func _apply_time(item: TreeItem) -> void:
 	var node := item.get_metadata(0) as Feature
 	var absent := node != null and not node.exists_at(time)
-	if absent == (item.get_custom_color(0) == ABSENT_COLOR):
+	if absent != (item.get_custom_color(0) == ABSENT_COLOR):
+		if absent:
+			item.set_custom_color(0, ABSENT_COLOR)
+		else:
+			item.clear_custom_color(0)
+	item.visible = not (hide_absent and absent) or item == _kept
+
+
+# A group row is shown while any row under it is, or while it has none, so a
+# new folder stays there to drag things into. The root row always is.
+func _apply_group(item: TreeItem) -> void:
+	if item.get_parent() == null:
 		return
-	if absent:
-		item.set_custom_color(0, ABSENT_COLOR)
-	else:
-		item.clear_custom_color(0)
+	var shown := item == _kept or item.get_child_count() == 0
+	for child in item.get_children():
+		if shown:
+			break
+		shown = child.visible
+	item.visible = shown
+
+
+# Work the visibility of every row under an item out again, the item included.
+func _apply_visibility(item: TreeItem) -> void:
+	var node := item.get_metadata(0) as Feature
+	if node != null and not node.is_group:
+		_apply_time(item)
+		return
+	for child in item.get_children():
+		_apply_visibility(child)
+	_apply_group(item)
+
+
+# Work the given group rows out again, and the groups above them, each after
+# every group under it.
+func _apply_groups(groups: Array) -> void:
+	var above := {}
+	for group: TreeItem in groups:
+		while group != null and not above.has(group):
+			var depth := 0
+			var up := group.get_parent()
+			while up != null:
+				depth += 1
+				up = up.get_parent()
+			above[group] = depth
+			group = group.get_parent()
+	var order := above.keys()
+	order.sort_custom(func(a: TreeItem, b: TreeItem) -> bool: return above[a] > above[b])
+	for group: TreeItem in order:
+		_apply_group(group)
+
+
+# Keep the selected row on show, and let the one selected before go, when they
+# would be hidden. A hidden row cannot be selected, so select_node() shows it
+# first.
+func _keep(item: TreeItem) -> void:
+	var before := _kept
+	_kept = item
+	if before == _kept:
+		return
+	for row: TreeItem in [before, _kept]:
+		if row != null:
+			_apply_visibility(row)
+			_apply_groups([row.get_parent()])
 
 
 ### Selection
@@ -263,12 +338,14 @@ func select_node(node: Feature, scroll := true) -> void:
 
 	# Deselect current item first to force the Tree to update visually
 	deselect_all()
+	_keep(item)
 	item.select(0)
 	if scroll:
 		scroll_to_item(item, false)
 
 
 func notify_feature_selected():
+	_keep(get_selected())
 	var node := get_selected_node()
 	feature_selected.emit(node)
 
