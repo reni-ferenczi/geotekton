@@ -42,6 +42,9 @@ var buffer: String = ""
 var busy: bool = false
 var quitting: bool = false
 var mouse_position := Vector2.ZERO
+# The buttons held down, which a move carries as a real mouse's does, so a text
+# field sees a drag (GP-0148).
+var button_mask := 0
 
 
 func _init(app_: Application, port_: int) -> void:
@@ -540,7 +543,19 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				return {"ok": false, "error": "no text field called %s" % request.get("widget", "")}
 			var rect: Rect2 = field.get_global_rect()
 			var menu: PopupMenu = field.get_menu()
+			# The parts of a value that can be selected, and where a given
+			# offset into its text is on screen (GP-0148).
+			var data: Array = []
+			var point: Variant = null
+			if "data" in field:
+				data = field.data.spans().map(func(span: Vector2i) -> String:
+					return field.text.substr(span.x, span.y - span.x))
+				if request.has("offset"):
+					var at: Vector2 = rect.position + field.point_at(int(request["offset"]))
+					point = [at.x, at.y]
 			return {"ok": true, "widget": {
+				"data": data,
+				"point": point,
 				"rect": [rect.position.x, rect.position.y, rect.size.x, rect.size.y],
 				"text": field.text,
 				"selected": field.get_selected_text(),
@@ -1387,6 +1402,7 @@ func _move_mouse(position: Vector2) -> void:
 	event.position = position
 	event.global_position = position
 	event.relative = position - mouse_position
+	event.button_mask = button_mask
 	mouse_position = position
 	Input.parse_input_event(event)
 	await _physics_frames(2)
@@ -1440,7 +1456,11 @@ func _send_button(button: int, ctrl: bool, pressed: bool, shift := false) -> voi
 	event.position = mouse_position
 	event.global_position = mouse_position
 	event.button_index = button
-	event.button_mask = (1 << (button - 1)) if pressed else 0
+	if pressed:
+		button_mask |= 1 << (button - 1)
+	else:
+		button_mask &= ~(1 << (button - 1))
+	event.button_mask = button_mask
 	event.ctrl_pressed = ctrl
 	event.shift_pressed = shift
 	event.pressed = pressed

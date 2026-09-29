@@ -9,6 +9,14 @@ class_name SelectableText
 # A read-only field does not count as typing (Application._typing()), so Space
 # and the tool keys still reach the application while it holds the focus. A
 # click anywhere else lets the focus go, so Ctrl+C goes back to the Edit menu.
+#
+# Only the data in it can be selected, not the words around it: show_data() says
+# which is which (GP-0148, DataSelection).
+
+var data := DataSelection.new(self)
+# The text shaped as the field draws it, to tell which character is where.
+var _line := TextLine.new()
+
 
 func _init() -> void:
 	editable = false
@@ -41,8 +49,45 @@ func reset_color() -> void:
 	set_color(get_theme_color("font_color", "Label"))
 
 
+# The text of `format` with `values` in its %s placeholders; only the values
+# can be selected.
+func show_data(format: String, values: Array = []) -> void:
+	text = data.compose(format, values)
+
+
+func _gui_input(event: InputEvent) -> void:
+	data.gui_input(event)
+
+
 func _input(event: InputEvent) -> void:
 	release_on_click_outside(self, event)
+
+
+# The caret offset nearest a local point. Plain left aligned text drawn from
+# x 0, shifted by the scroll, as the field draws it.
+func offset_at(point: Vector2) -> int:
+	_line.clear()
+	_line.add_string(text, get_theme_font("font"), get_theme_font_size("font_size"))
+	return _line.hit_test(point.x - get_scroll_offset())
+
+
+func point_at(offset: int) -> Vector2:
+	var width := get_theme_font("font").get_string_size(text.left(offset),
+		HORIZONTAL_ALIGNMENT_LEFT, -1, get_theme_font_size("font_size")).x
+	return Vector2(width + get_scroll_offset(), size.y / 2.0)
+
+
+func selection_range() -> Vector3i:
+	if not has_selection():
+		return Vector3i.ZERO
+	var from := get_selection_from_column()
+	var to := get_selection_to_column()
+	return Vector3i(from, to, to if caret_column == from else from)
+
+
+func select_range(anchor: int, caret: int) -> void:
+	select(mini(anchor, caret), maxi(anchor, caret))
+	caret_column = caret
 
 
 # Let the focus go when a click lands outside the control, so a value clicked

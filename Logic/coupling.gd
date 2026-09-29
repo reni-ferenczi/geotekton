@@ -103,13 +103,22 @@ static func parent_problem(nodes: Dictionary, node: Feature, span: Coupling) -> 
 # What a span follows, as the panel and a refusal name it: the parent's title,
 # or both titles when it sits midway between two.
 static func parents_label(nodes: Dictionary, span: Coupling) -> String:
-	var titles := PackedStringArray()
+	var parts := parents_format(nodes, span)
+	return (parts[0] as String) % parts[1]
+
+
+# parents_label() as a format with a %s for each title, and the titles, so a
+# selectable label can tell the titles from the words around them (GP-0148).
+static func parents_format(nodes: Dictionary, span: Coupling) -> Array:
+	var names := PackedStringArray()
+	var titles := []
 	for uuid in span.parents():
 		var parent: Feature = nodes.get(uuid)
-		titles.append(parent.title if parent != null else "(missing)")
-	if titles.size() == 1:
-		return titles[0]
-	return "%s and %s, midway" % [titles[0], titles[1]]
+		names.append("%s" if parent != null else "(missing)")
+		if parent != null:
+			titles.append(parent.title)
+	var format := names[0] if names.size() == 1 else "%s and %s, midway" % [names[0], names[1]]
+	return [format, titles]
 
 
 static func _one_parent_problem(nodes: Dictionary, node: Feature, uuid: String) -> String:

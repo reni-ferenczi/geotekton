@@ -23,6 +23,15 @@ that holds the focus is not typed into, so Space and the tool keys still work,
 and a click anywhere else lets the focus go, so Ctrl+C goes back to copying
 the selected feature.
 
+Only the data in them can be selected: numbers with the marks that belong to
+them (`°`, `%`, `km²`), and names of features and files. The words around the
+data, such as "keyframes", "Surface area" or the Measure tool's hints, stay
+plain text: a click on them selects nothing, a drag started in a value stops
+at its edge, and Ctrl+A or Select All takes the first value (GP-0148). The
+code builds such a text with `show_data()`, a format whose `%s` placeholders
+hold the data; `DataSelection` keeps the selection to them. A text set
+without it, such as the file name, is data as a whole.
+
 Every panel but the kinematics graphs and the console is shown by default. Those
 two are asked for from the View menu when they are wanted, since they take their
 height off the planet view; once shown, they are remembered like the rest.

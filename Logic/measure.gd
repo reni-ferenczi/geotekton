@@ -242,12 +242,12 @@ static func format_area(km2: float) -> String:
 	return "%.2f million km²" % (km2 / 1.0e6)
 
 
-# How much of the planet an area is, for the Properties panel: one decimal, and
-# nothing at all when it would round to nothing. The line does not break before
-# the percent sign.
+# How much of the planet an area is, as a percentage the Properties panel
+# follows with "of planet": one decimal, and nothing at all when it would round
+# to nothing. The line does not break before the percent sign.
 static func format_share(km2: float, radius: float) -> String:
 	var percent := km2 / planet_area(radius) * 100.0
-	return "" if percent < 0.05 else "%.1f\u00a0%% of planet" % percent
+	return "" if percent < 0.05 else "%.1f\u00a0%%" % percent
 
 
 static func _unit64(v: Vector2) -> PackedFloat64Array:
