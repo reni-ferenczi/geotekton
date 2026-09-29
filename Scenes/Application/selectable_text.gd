@@ -52,7 +52,12 @@ func reset_color() -> void:
 # The text of `format` with `values` in its %s placeholders; only the values
 # can be selected.
 func show_data(format: String, values: Array = []) -> void:
-	text = data.compose(format, values)
+	# Setting the text, even to what it already is, drops the caret and the
+	# selection, and the panel refills its fields whenever anything moves, so
+	# a selection only lasted until the next refresh (GP-0153).
+	var composed := data.compose(format, values)
+	if composed != text:
+		text = composed
 
 
 func _gui_input(event: InputEvent) -> void:
