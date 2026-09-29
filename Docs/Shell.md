@@ -84,6 +84,7 @@ adding an item means adding an enum value and one `add_item` line.
 | Paste     | Ctrl+V   | Put what is on the clipboard beside the selection   |
 | Duplicate | Ctrl+D   | A copy of the selected node, with its own identity  |
 | Delete    | Delete   | Remove the selected node                            |
+| Find      | Ctrl+F   | Put the keyboard in the feature tree's search box, showing the panel if it is hidden; see [Editing](Editing.md#searching-the-tree) |
 | Copy Shape | Ctrl+Shift+C | Put the selected feature's geometry on the shape clipboard; see [Editing](Editing.md#copying-a-shape) |
 | Paste Shape | Ctrl+Shift+V | Add that geometry to the selected feature |
 | Snap to vertices |   | A check item: whether a dragged vertex, a pole or a drawn point lands on a nearby vertex, in every tool; on by default. See [Editing](Editing.md#snapping) |

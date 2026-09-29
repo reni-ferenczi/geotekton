@@ -60,6 +60,21 @@ var hide_absent := false:
 		if get_root() != null:
 			_apply_visibility(get_root())
 
+# The search box's text: only the rows whose title holds it, or that sit in a
+# group whose title does, are on show, with the groups above them opened. The
+# groups' own open or closed state stays as it was, and comes back when the
+# text is cleared (GP-0149).
+var filter := "":
+	set(value):
+		filter = value.strip_edges()
+		if get_root() == null:
+			return
+		for item in items.values():
+			var node := item.get_metadata(0) as Feature
+			if node.is_group:
+				item.collapsed = node.collapsed and filter.is_empty()
+		_apply_visibility(get_root())
+
 # The row kept on show while it is selected, though it would be hidden.
 var _kept: TreeItem = null
 
@@ -103,7 +118,7 @@ func load_group(parent: TreeItem, group: Feature, enabled: bool):
 	assert(item != null, "ERROR: Internal error in Godot's Tree control")
 	items[group.pnid] = item
 
-	item.collapsed = group.collapsed
+	item.collapsed = group.collapsed and filter.is_empty()
 	item.set_metadata(0, group)
 	item.set_text(0, group.title)
 	var folder := FeatureIcon.folder_texture(group.icon)
@@ -227,7 +242,7 @@ func _apply_time(item: TreeItem) -> void:
 			item.set_custom_color(0, ABSENT_COLOR)
 		else:
 			item.clear_custom_color(0)
-	item.visible = not (hide_absent and absent) or item == _kept
+	item.visible = (_matches(item) and not (hide_absent and absent)) or item == _kept
 
 
 # A group row is shown while any row under it is, or while it has none, so a
@@ -235,12 +250,24 @@ func _apply_time(item: TreeItem) -> void:
 func _apply_group(item: TreeItem) -> void:
 	if item.get_parent() == null:
 		return
-	var shown := item == _kept or item.get_child_count() == 0
+	var shown := item == _kept or (item.get_child_count() == 0 and _matches(item))
 	for child in item.get_children():
 		if shown:
 			break
 		shown = child.visible
 	item.visible = shown
+
+
+# Whether the row's title, or the title of a group above it, holds the filter.
+# The root's does not count, or searching for the planet would find everything.
+func _matches(item: TreeItem) -> bool:
+	if filter.is_empty():
+		return true
+	while item.get_parent() != null:
+		if item.get_text(0).containsn(filter):
+			return true
+		item = item.get_parent()
+	return false
 
 
 # Work the visibility of every row under an item out again, the item included.
@@ -372,7 +399,8 @@ func collapse(group: Feature, collapsed: bool) -> void:
 
 func _on_item_collapsed(item: TreeItem) -> void:
 	var group := item.get_metadata(0) as Feature
-	if group == null:
+	# A search opens the groups without touching what they are saved as.
+	if group == null or not filter.is_empty():
 		return
 	group.collapsed = item.collapsed
 
@@ -382,7 +410,8 @@ func _get_drag_data(at_position: Vector2) -> Variant:
 	if item == null:
 		return null
 	var node := item.get_metadata(0) as Feature
-	if node == null or node.is_root:
+	# While a search hides rows it is unclear where a drop would land.
+	if node == null or node.is_root or not filter.is_empty():
 		return null
 
 	# The Tree clears the flags when a drop ends, so they are set again for

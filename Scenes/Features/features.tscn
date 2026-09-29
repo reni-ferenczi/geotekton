@@ -22,6 +22,11 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_ub1o7")
 [node name="Buttons" parent="PanelContainer" instance=ExtResource("1_8fxa8")]
 layout_mode = 2
 
+[node name="Search" type="LineEdit" parent="."]
+layout_mode = 2
+placeholder_text = "Search"
+clear_button_enabled = true
+
 [node name="FeatureTree" parent="." instance=ExtResource("1_4lkpf")]
 layout_mode = 2
 

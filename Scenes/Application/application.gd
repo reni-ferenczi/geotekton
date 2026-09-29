@@ -85,7 +85,7 @@ const DRAG_PIXELS := 4.0
 enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, EXPORT_VIDEO, RUN_SCRIPT,
 	PREFERENCES, QUIT }
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE,
-	SNAP }
+	SNAP, FIND }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, KINEMATICS_PLACE, CONSOLE, STATUS_BAR,
 	SETTINGS, FULL_SCREEN, HIGHLIGHT_CHILDREN, RIDGE_MARKERS, HIGHLIGHT_FAMILY, HIDE_ABSENT }
 enum HelpItem { DOCUMENTATION, ABOUT }
@@ -551,6 +551,8 @@ func _add_edit_items(menu: PopupMenu) -> void:
 	menu.add_item("Duplicate", EditItem.DUPLICATE, KEY_MASK_CTRL | KEY_D)
 	menu.add_item("Delete", EditItem.DELETE, KEY_DELETE)
 	menu.add_separator()
+	menu.add_item("Find", EditItem.FIND, KEY_MASK_CTRL | KEY_F)
+	menu.add_separator()
 	menu.add_item("Copy Shape", EditItem.COPY_SHAPE, KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_C)
 	menu.add_item("Paste Shape", EditItem.PASTE_SHAPE, KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_V)
 	menu.add_separator()
@@ -606,6 +608,18 @@ func _on_edit_menu_id_pressed(id: int) -> void:
 		EditItem.COPY_SHAPE: copy_shape()
 		EditItem.PASTE_SHAPE: paste_shape()
 		EditItem.SNAP: toggle_snapping()
+		EditItem.FIND: _find()
+
+
+# Put the keyboard in the feature tree's search box, showing the panel first
+# if it is hidden.
+func _find() -> void:
+	if not features.visible:
+		features.visible = true
+		_update_view_menu_checks()
+		if not isolated:
+			_save_panel_visibility()
+	features.focus_search()
 
 
 # What the Edit menus offer for the selection, the undo stack and the

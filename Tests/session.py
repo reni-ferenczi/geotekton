@@ -1545,6 +1545,7 @@ def run_icon_checks(client: AutomationClient, folder: Path) -> None:
         check(got == wanted, f"{item} gives the row {wanted}: {got}")
 
     run_folder_icon_checks(client, folder)
+    run_search_checks(client)
 
 
 def run_folder_icon_checks(client: AutomationClient, folder: Path) -> None:
@@ -1577,6 +1578,47 @@ def run_folder_icon_checks(client: AutomationClient, folder: Path) -> None:
     check(row_icon(client, "Shapes") == GROUP_ICON, "the plain folder puts the default back")
     client.call("menu", item="undo")
     check(row_icon(client, "Shapes") == "red", "and undo brings the picture back")
+
+
+def run_search_checks(client: AutomationClient) -> None:
+    """GP-0149: the search box above the tree shows the matching rows, opening
+    their groups without changing what the groups are saved as."""
+    open_mixed_geometry(client)
+    client.call("toolbar", button="Collapse")
+    dirty = client.call("get_document")["document"]["dirty"]
+
+    def rows() -> dict:
+        return {row["title"]: row for row in client.call("get_features")["features"]}
+
+    def type_text(text: str) -> None:
+        for letter in text:
+            client.call("key", key=letter.upper())
+
+    client.call("menu", item="find")
+    check(client.call("focus")["focus"] == "Search", "Edit > Find puts the keyboard in the search box")
+    type_text("blue")
+    found = rows()
+    check(found["Blue Ridge"]["row_shown"], "typing blue shows Blue Ridge")
+    check(not found["Red Triangle"]["row_shown"] and not found["Green Stations"]["row_shown"],
+          "and hides the rows that do not match")
+    check(found["Shapes"]["row_open"] and found["Shapes"]["collapsed"],
+          "the group holding the match opens, and is still saved as closed")
+
+    for _ in "blue":
+        client.call("key", key="BackSpace")
+    found = rows()
+    check(all(row["row_shown"] for row in found.values()), "clearing the search shows every row again")
+    check(not found["Shapes"]["row_open"], "and closes the group again")
+    check(client.call("get_document")["document"]["dirty"] == dirty,
+          "searching does not mark the document as edited")
+
+    type_text("shapes")
+    found = rows()
+    check(found["Red Triangle"]["row_shown"] and found["Green Stations"]["row_shown"],
+          "a group's title matching shows everything in the group")
+    client.call("key", key="A", ctrl=True)
+    client.call("key", key="BackSpace")
+    client.call("focus", release=True)
 
 
 def run_globe_menu_session(client: AutomationClient) -> None:
