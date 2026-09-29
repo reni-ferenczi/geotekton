@@ -87,7 +87,7 @@ enum FileItem { NEW, OPEN, IMPORT, SAVE, SAVE_AS, EXPORT_IMAGE, EXPORT_VIDEO, RU
 enum EditItem { UNDO, REDO, CUT, COPY, PASTE, DUPLICATE, DELETE, COPY_SHAPE, PASTE_SHAPE,
 	SNAP }
 enum ViewItem { FEATURES, PROPERTIES, TIMELINE, KINEMATICS, KINEMATICS_PLACE, CONSOLE, STATUS_BAR,
-	SETTINGS, FULL_SCREEN, HIGHLIGHT_CHILDREN, RIDGE_MARKERS, HIGHLIGHT_FAMILY }
+	SETTINGS, FULL_SCREEN, HIGHLIGHT_CHILDREN, RIDGE_MARKERS, HIGHLIGHT_FAMILY, HIDE_ABSENT }
 enum HelpItem { DOCUMENTATION, ABOUT }
 
 # Item id of the entry that empties the recent file list; above any file index.
@@ -136,6 +136,9 @@ const RIDGE_MARKERS_KEY := "ridge_markers"
 # The config key remembering whether the parent and the siblings of the
 # selected feature are highlighted. Off when the file says nothing.
 const HIGHLIGHT_FAMILY_KEY := "highlight_parent_siblings"
+# The config key remembering whether the feature tree hides the rows of the
+# features absent at the current time. Off when the file says nothing.
+const HIDE_ABSENT_KEY := "hide_absent_features"
 
 @onready var features: Features = %Features
 @onready var planet_view: PlanetView = %PlanetView
@@ -517,6 +520,7 @@ func _build_menus() -> void:
 	view_menu.add_check_item("Highlight children", ViewItem.HIGHLIGHT_CHILDREN)
 	view_menu.add_check_item("Ridge markers", ViewItem.RIDGE_MARKERS)
 	view_menu.add_check_item("Highlight parent and siblings", ViewItem.HIGHLIGHT_FAMILY)
+	view_menu.add_check_item("Hide absent features", ViewItem.HIDE_ABSENT)
 	view_menu.add_separator()
 	for class_id in Styling.CLASSES:
 		view_menu.add_check_item(Styling.class_label(class_id), class_menu_id(class_id))
@@ -722,6 +726,8 @@ func _on_view_menu_id_pressed(id: int) -> void:
 	elif id == ViewItem.HIGHLIGHT_FAMILY:
 		highlight_family = not highlight_family
 		_refresh_feature_state()
+	elif id == ViewItem.HIDE_ABSENT:
+		features.feature_tree.hide_absent = not features.feature_tree.hide_absent
 	else:
 		var panel := _panel_node(id)
 		panel.visible = not panel.visible
@@ -758,6 +764,8 @@ func _update_view_menu_checks() -> void:
 		timeline.show_ridges)
 	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.HIGHLIGHT_FAMILY),
 		highlight_family)
+	view_menu.set_item_checked(view_menu.get_item_index(ViewItem.HIDE_ABSENT),
+		features.feature_tree.hide_absent)
 	for class_id in Styling.CLASSES:
 		view_menu.set_item_checked(view_menu.get_item_index(class_menu_id(class_id)),
 			document.view.shows_class(class_id))
@@ -2095,6 +2103,7 @@ func _restore_session() -> void:
 		Config.get_value(HIGHLIGHT_CHILDREN_OLD_KEY, false)))
 	timeline.show_ridges = bool(Config.get_value(RIDGE_MARKERS_KEY, true))
 	highlight_family = bool(Config.get_value(HIGHLIGHT_FAMILY_KEY, false))
+	features.feature_tree.hide_absent = bool(Config.get_value(HIDE_ABSENT_KEY, false))
 	_update_view_menu_checks()
 
 	if not bool(Config.get_value("restore_session", true)):
@@ -2125,6 +2134,7 @@ func _save_panel_visibility() -> void:
 	Config.set_value(HIGHLIGHT_CHILDREN_KEY, highlight_children)
 	Config.set_value(RIDGE_MARKERS_KEY, timeline.show_ridges)
 	Config.set_value(HIGHLIGHT_FAMILY_KEY, highlight_family)
+	Config.set_value(HIDE_ABSENT_KEY, features.feature_tree.hide_absent)
 
 
 ### File dialogs

@@ -246,6 +246,7 @@ func _dispatch(request: Dictionary) -> Dictionary:
 				"highlight_children": app.highlight_children,
 				"ridge_markers": app.timeline.show_ridges,
 				"highlight_parent_siblings": app.highlight_family,
+				"hide_absent_features": app.features.feature_tree.hide_absent,
 				"console": app.console.visible,
 				"status_bar": app.status_bar.visible,
 			}}
@@ -1165,6 +1166,7 @@ func _menu_item(name: String) -> Array:
 		"highlight_children": return [app.view_menu, Application.ViewItem.HIGHLIGHT_CHILDREN]
 		"ridge_markers": return [app.view_menu, Application.ViewItem.RIDGE_MARKERS]
 		"highlight_parent_siblings": return [app.view_menu, Application.ViewItem.HIGHLIGHT_FAMILY]
+		"hide_absent_features": return [app.view_menu, Application.ViewItem.HIDE_ABSENT]
 		"console": return [app.view_menu, Application.ViewItem.CONSOLE]
 		"status_bar": return [app.view_menu, Application.ViewItem.STATUS_BAR]
 		"run_script": return [app.file_menu, Application.FileItem.RUN_SCRIPT]
@@ -1232,7 +1234,7 @@ func _on_file_dialog(mode: int, title: String, on_paths: Callable) -> void:
 
 func _collect_features(node: Feature, depth: int, list: Array) -> void:
 	var entry := {"pnid": node.pnid, "title": node.title, "is_group": node.is_group,
-		"depth": depth, "row_icon": _row_icon(node)}
+		"depth": depth, "row_icon": _row_icon(node), "row_shown": _row_shown(node)}
 	if not node.is_group:
 		entry["swatch"] = _swatch_color(node)
 	list.append(entry)
@@ -1250,6 +1252,17 @@ func _feature_colors() -> Dictionary:
 		var color := FeatureType.color(type_id)
 		colors[type_id] = [color.r, color.g, color.b, color.a]
 	return colors
+
+
+# Whether the node's row is on show: it and every row above it are visible. A
+# node without a row, a ridge or a crust, is not.
+func _row_shown(node: Feature) -> bool:
+	var item: TreeItem = app.features.feature_tree.items.get(node.pnid)
+	while item != null:
+		if not item.visible:
+			return false
+		item = item.get_parent()
+	return app.features.feature_tree.items.has(node.pnid)
 
 
 # A glyph is named after its id; anything else is a file, named after its stem.
