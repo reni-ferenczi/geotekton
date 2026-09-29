@@ -667,7 +667,8 @@ static func collect_geometry(root: Feature, time: float = 0.0,
 #
 # A ridge or crust has no row, so the group it sits in does not hide it: a crust
 # shows while its half does and a ridge while either of its halves does, a half
-# showing when it and every group above it are enabled.
+# showing when it and every group above it are enabled, and the feature it is
+# shown under in the tree when it is.
 static func _drawing_order(root: Feature) -> Array[Feature]:
 	var rest: Array[Feature] = []
 	var shown := {}
@@ -681,6 +682,20 @@ static func _drawing_order(root: Feature) -> Array[Feature]:
 			continue
 		shown[node.uuid] = true
 		rest.append(node)
+	# A feature shown under its parent in the tree goes off with the parent, and
+	# with whatever that one is shown under (GP-0151).
+	var folded := Coupling.folds(root)
+	if not folded.is_empty():
+		rest.assign(rest.filter(func(node: Feature) -> bool:
+			var above: Feature = folded.get(node)
+			while above != null:
+				if not shown.has(above.uuid):
+					return false
+				above = folded.get(above)
+			return true))
+		shown.clear()
+		for node in rest:
+			shown[node.uuid] = true
 	var crusts: Array[Feature] = []
 	var ridges: Array[Feature] = []
 	stack.assign([root])

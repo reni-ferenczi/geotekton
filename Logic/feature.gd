@@ -180,6 +180,11 @@ var keyframes: Array[Keyframe] = []
 # Logic/coupling.gd. Only a leaf has any, and the tree has nothing to do with it.
 var couplings: Array[Coupling] = []
 
+# The feature tree shows the row under the parent the youngest span follows
+# rather than in the feature's own group: an add-on of crust folded under its
+# plate (GP-0151). See Coupling.folds().
+var under_parent := false
+
 # The ages between which a feature exists, in millions of years before present.
 # A feature outside it at the current time is neither drawn nor hit tested. Only
 # a leaf feature has one; a group is there whenever its children are. The order
@@ -481,6 +486,7 @@ func clone() -> Feature:
 	node.ring_triangles = ring_triangles.duplicate()
 	node.keyframes = Keyframe.clone_list(keyframes)
 	node.couplings = Coupling.clone_list(couplings)
+	node.under_parent = under_parent
 	node.time_range = time_range
 	node.axis = axis
 	node.radius = radius
@@ -596,6 +602,9 @@ func to_json() -> Variant:
 		data["type"] = "Feature"
 		data["keyframes"] = Keyframe.list_to_json(keyframes)
 		data["couplings"] = Coupling.list_to_json(couplings)
+		# Written only when set, so older versions read the file as before.
+		if under_parent:
+			data["under_parent"] = true
 		data["feature_type"] = feature_type
 		data["color"] = [color.r, color.g, color.b, color.a]
 		# Written only when there is one, so a file of features nobody gave an
@@ -666,6 +675,7 @@ static func from_json(data: Variant) -> Feature:
 	if not node.is_group:
 		node.keyframes = Keyframe.list_from_json(data.get("keyframes", []))
 		node.couplings = Coupling.list_from_json(data.get("couplings", []))
+		node.under_parent = bool(data.get("under_parent", false))
 	if node.is_group:
 		node.collapsed = true
 		node.style = GroupStyle.from_json(data.get("style"))

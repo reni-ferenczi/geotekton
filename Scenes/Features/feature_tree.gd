@@ -8,9 +8,11 @@ signal feature_selected(node: Feature)
 # Properties panel is asked to open its picker.
 signal color_requested()
 
-# The two buttons a row carries, by the id they answer clicks with.
+# The buttons a row carries, by the id they answer clicks with. A plate with
+# add-ons shown under it carries the third, which opens and closes them.
 const COLOR_BUTTON := 1
 const ENABLE_BUTTON := 2
+const ADD_ONS_BUTTON := 3
 
 @onready var empty_icon := preload("res://Assets/Icons/Generated/Empty.png")
 # The group and rule pictures, shrunk to the glyph size the way the glyphs are,
@@ -19,6 +21,7 @@ const ENABLE_BUTTON := 2
 # painted. Each is named after its file, which is what the port reports.
 @onready var group_icon := FeatureIcon.shrunk("Icons1-Group", "Icons1-Group")
 @onready var rule_icon := FeatureIcon.shrunk("Icons1-Features", "Icons1-Features")
+@onready var add_ons_icon := FeatureIcon.shrunk("Icons1-AddOns", "Icons1-AddOns")
 
 # What a row's icon is drawn at: the size every picture above comes in.
 const ICON_WIDTH := FeatureIcon.SIZE
@@ -73,10 +76,22 @@ var filter := "":
 			var node := item.get_metadata(0) as Feature
 			if node.is_group:
 				item.collapsed = node.collapsed and filter.is_empty()
+			elif item.get_child_count() > 0:
+				item.collapsed = not _open.get(node.pnid, false) and filter.is_empty()
 		_apply_visibility(get_root())
 
 # The row kept on show while it is selected, though it would be hidden.
 var _kept: TreeItem = null
+
+# The features shown under their parent's row rather than in their group, to
+# that parent, and how many each parent holds (GP-0151); see Coupling.folds().
+var _folds := {}
+var _add_on_counts := {}
+# Those met while the groups are built, in tree order, to be given rows after.
+var _waiting: Array[Feature] = []
+# The pnids of the plates whose add-ons are open. A plate's add-ons start
+# closed, and this is not saved with the world.
+var _open: Dictionary[int, bool] = {}
 
 
 ### Initialization
@@ -98,7 +113,15 @@ func load_root_group(root_group: Feature) -> void:
 	selected_off_tree = null
 	_kept = null
 	self.root = root_group
+	_folds = Coupling.folds(root)
+	_add_on_counts.clear()
+	for parent: Feature in _folds.values():
+		_add_on_counts[parent] = _add_on_counts.get(parent, 0) + 1
+	_waiting.clear()
 	load_group(null, root, true)
+	for node in _waiting:
+		_load_add_on(node)
+	_apply_visibility(get_root())
 	_gather_range_ends()
 	get_root().set_editable(0, false)
 	if bar != null:
@@ -140,9 +163,21 @@ func load_group(parent: TreeItem, group: Feature, enabled: bool):
 			load_group(item, child, enabled and group.enabled)
 		elif child.is_sea_floor():
 			sea_floor[child.pnid] = child
+		elif _folds.has(child):
+			_waiting.append(child)
 		else:
 			load_feature(item, child)
-	_apply_group(item)
+
+
+# The row of a feature shown under its parent's row, the parent's made first
+# when it is shown under another in turn.
+func _load_add_on(node: Feature) -> void:
+	if items.has(node.pnid):
+		return
+	var parent: Feature = _folds[node]
+	if _folds.has(parent):
+		_load_add_on(parent)
+	load_feature(items[parent.pnid], node)
 
 
 func load_feature(parent: TreeItem, feature: Feature):
@@ -165,6 +200,13 @@ func load_feature(parent: TreeItem, feature: Feature):
 	if Application.DEBUG:
 		item.set_tooltip_text(0, "[%d]" % feature.pnid)
 
+	# In front of the swatch, so the swatch and the switch line up with those of
+	# the other rows.
+	var add_ons: int = _add_on_counts.get(feature, 0)
+	if add_ons > 0:
+		item.collapsed = not _open.get(feature.pnid, false) and filter.is_empty()
+		item.add_button(0, add_ons_icon, ADD_ONS_BUTTON, false,
+			"%d add-on%s" % [add_ons, "" if add_ons == 1 else "s"])
 	item.add_button(0, Helpers.render_cell(feature.color).texture, COLOR_BUTTON,
 		not feature.enabled, Helpers.SWATCH_TOOLTIP)
 	item.add_button(0, Helpers.get_rule_option_icon(Helpers.ICON_ENABLE + int(feature.enabled), not feature.enabled, feature.enabled), ENABLE_BUTTON, false, "Enable this feature")
@@ -242,13 +284,24 @@ func _apply_time(item: TreeItem) -> void:
 			item.set_custom_color(0, ABSENT_COLOR)
 		else:
 			item.clear_custom_color(0)
-	item.visible = (_matches(item) and not (hide_absent and absent)) or item == _kept
+	var shown := (_matches(item) and not (hide_absent and absent)) or item == _kept
+	# A plate stays, greyed, while an add-on under it is on show.
+	for child in item.get_children():
+		if shown:
+			break
+		shown = child.visible
+	item.visible = shown
 
 
 # A group row is shown while any row under it is, or while it has none, so a
-# new folder stays there to drag things into. The root row always is.
+# new folder stays there to drag things into. The root row always is. A plate
+# holding add-ons is worked out as a feature row.
 func _apply_group(item: TreeItem) -> void:
 	if item.get_parent() == null:
+		return
+	var node := item.get_metadata(0) as Feature
+	if not node.is_group:
+		_apply_time(item)
 		return
 	var shown := item == _kept or (item.get_child_count() == 0 and _matches(item))
 	for child in item.get_children():
@@ -272,10 +325,6 @@ func _matches(item: TreeItem) -> bool:
 
 # Work the visibility of every row under an item out again, the item included.
 func _apply_visibility(item: TreeItem) -> void:
-	var node := item.get_metadata(0) as Feature
-	if node != null and not node.is_group:
-		_apply_time(item)
-		return
 	for child in item.get_children():
 		_apply_visibility(child)
 	_apply_group(item)
@@ -386,6 +435,9 @@ func collapse_all(collapsed: bool):
 		if node.is_group and not is_same(node, root):
 			node.collapsed = collapsed
 			item.collapsed = collapsed
+		elif not node.is_group and item.get_child_count() > 0:
+			_open[node.pnid] = not collapsed
+			item.collapsed = collapsed
 
 
 func collapse(group: Feature, collapsed: bool) -> void:
@@ -401,6 +453,9 @@ func _on_item_collapsed(item: TreeItem) -> void:
 	var group := item.get_metadata(0) as Feature
 	# A search opens the groups without touching what they are saved as.
 	if group == null or not filter.is_empty():
+		return
+	if not group.is_group:
+		_open[group.pnid] = not item.collapsed
 		return
 	group.collapsed = item.collapsed
 
@@ -467,6 +522,8 @@ func _drop_data(at_position: Vector2, data: Variant) -> void:
 	if to_parent == null:
 		return
 
+	# Dragged out from under its parent, an add-on is an ordinary row again.
+	dragged_node.under_parent = false
 	# The index is taken after the removal, so "after" is after the row even
 	# when the dragged node sat above it in the same group.
 	from_parent.children.erase(dragged_node)
@@ -474,6 +531,8 @@ func _drop_data(at_position: Vector2, data: Variant) -> void:
 	if not into:
 		to_index = to_parent.find_child(over_node) + (0 if section == -1 else 1)
 	to_parent.children.insert(to_index, dragged_node)
+	if not dragged_node.is_group:
+		Coupling.gather(root, dragged_node)
 	collapse(to_parent, false)
 	program_changed.emit()
 
@@ -516,6 +575,8 @@ func _on_button_clicked(item: TreeItem, _column: int, id: int, mouse_button_inde
 			on_output_clicked(node, mouse_button_index)
 		ENABLE_BUTTON:
 			on_enabled_clicked(node)
+		ADD_ONS_BUTTON:
+			item.collapsed = not item.collapsed
 
 
 func on_output_clicked(node: Feature, mouse_button_index):

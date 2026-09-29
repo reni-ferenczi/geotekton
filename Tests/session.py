@@ -1546,6 +1546,7 @@ def run_icon_checks(client: AutomationClient, folder: Path) -> None:
 
     run_folder_icon_checks(client, folder)
     run_search_checks(client)
+    run_add_on_checks(client, folder)
 
 
 def run_folder_icon_checks(client: AutomationClient, folder: Path) -> None:
@@ -1619,6 +1620,78 @@ def run_search_checks(client: AutomationClient) -> None:
     client.call("key", key="A", ctrl=True)
     client.call("key", key="BackSpace")
     client.call("focus", release=True)
+
+
+def add_on_world(path: Path) -> None:
+    """Write a world with a plate in one group and an add-on of crust following
+    it from 500 Ma to the present in another."""
+    ring = [[[-10.0, -10.0], [10.0, 0.0], [-10.0, 10.0]]]
+
+    def leaf(title: str, uuid: str, **more) -> dict:
+        return {"uuid": uuid, "title": title, "enabled": True, "is_group": False,
+                "type": "Feature", "geometry_kind": "polygon", "rings": ring,
+                "color": [1.0, 0.0, 0.0, 1.0], "keyframes": [], "couplings": [],
+                "time_range": [0, 2000], **more}
+
+    def group(title: str, *children: dict) -> dict:
+        return {"title": title, "enabled": True, "is_group": True, "type": "Group",
+                "children": list(children)}
+
+    plate = leaf("Plate", "plate-uuid")
+    add_on = leaf("Add-on", "add-on-uuid", time_range=[0, 500],
+                  couplings=[{"from": 500.0, "to": 0.0, "parent": "plate-uuid"}])
+    world = {"application": "geotekt", "version": project_version(),
+             "features": group("Planet", group("Plates", plate), group("Extras", add_on))}
+    path.write_text(json.dumps(world), encoding="utf-8")
+
+
+def run_add_on_checks(client: AutomationClient, folder: Path) -> None:
+    """GP-0151: Show under parent folds an add-on's row under its plate's, and
+    deleting the plate asks whether the add-on goes too."""
+    path = folder / "add_on.geotekt"
+    add_on_world(path)
+    client.call("load", path=str(path))
+
+    def rows() -> dict:
+        return {row["title"]: row for row in client.call("get_features")["features"]}
+
+    client.call("select", title="Add-on")
+    coupling = client.call("get_properties")["properties"]["coupling"]
+    check(coupling["under_parent_offered"] and not coupling["under_parent"],
+          f"a coupled feature is offered Show under parent: {coupling}")
+    versions = undo_depth(client)
+    client.call("set_property", field="under_parent", value=True)
+    check(undo_depth(client) == versions + 1, "turning it on is one undo step")
+    found = rows()
+    check(found["Add-on"]["row_parent"] == found["Plate"]["pnid"],
+          f"the add-on's row sits under the plate's: {found['Add-on']}")
+    check(found["Plate"]["add_ons"] == "1 add-on",
+          f"the plate's button says how many add-ons it holds: {found['Plate']['add_ons']!r}")
+    check(found["Plate"]["row_open"], "the plate opens to show the selected add-on")
+
+    client.call("select", title="Plate")
+    client.call("menu", item="delete")
+    dialog = client.call("get_dialog")["dialog"]
+    check(dialog is not None and dialog["text"] == "Delete its 1 add-on as well?",
+          f"deleting the plate asks about its add-on: {dialog}")
+    client.call("dialog", button="Yes")
+    titles = titles_of(client)
+    check("Plate" not in titles and "Add-on" not in titles, f"Yes deletes both: {titles}")
+    client.call("menu", item="undo")
+    client.call("select", title="Plate")
+    client.call("menu", item="delete")
+    client.call("dialog", button="No")
+    found = rows()
+    check("Plate" not in found and "Add-on" in found, "No deletes only the plate")
+    check(found["Add-on"]["row_parent"] == found["Plates"]["pnid"],
+          "and the add-on is back in the group it sits in")
+    client.call("menu", item="undo")
+
+    client.call("select", title="Add-on")
+    client.call("set_property", field="under_parent", value=False)
+    found = rows()
+    check(found["Add-on"]["row_parent"] == found["Plates"]["pnid"] and found["Plate"]["add_ons"] == "",
+          "turning it off leaves the add-on as an ordinary row in the plate's group")
 
 
 def run_globe_menu_session(client: AutomationClient) -> None:

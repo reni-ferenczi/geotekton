@@ -1197,8 +1197,8 @@ func _menu_index(menu: PopupMenu, label: String) -> int:
 
 
 func _visible_dialog() -> AcceptDialog:
-	for child in app.get_children():
-		if child is AcceptDialog and child.visible:
+	for child in app.find_children("*", "AcceptDialog", true, false):
+		if child.visible:
 			return child
 	return null
 
@@ -1242,6 +1242,15 @@ func _collect_features(node: Feature, depth: int, list: Array) -> void:
 		entry["row_open"] = item != null and not item.collapsed
 	else:
 		entry["swatch"] = _swatch_color(node)
+		entry["under_parent"] = node.under_parent
+		# The row it sits under, a group's or a plate's, and what the button of a
+		# plate's add-ons says (GP-0151).
+		var item: TreeItem = app.features.feature_tree.items.get(node.pnid)
+		var above: TreeItem = item.get_parent() if item != null else null
+		entry["row_parent"] = (above.get_metadata(0) as Feature).pnid if above != null else -1
+		var at := item.get_button_by_id(0, FeatureTree.ADD_ONS_BUTTON) if item != null else -1
+		entry["add_ons"] = item.get_button_tooltip_text(0, at) if at >= 0 else ""
+		entry["row_open"] = item != null and not item.collapsed
 	list.append(entry)
 	for child in node.children:
 		_collect_features(child, depth + 1, list)

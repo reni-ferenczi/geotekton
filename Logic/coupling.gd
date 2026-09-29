@@ -80,6 +80,75 @@ static func index(root: Feature) -> Dictionary:
 	return nodes
 
 
+### Add-ons shown under their parent (GP-0151)
+
+
+# The feature a node's row can be shown under: the one parent of its youngest
+# span, when that is a feature with a row of its own. Null otherwise, and then
+# the row stays in its group. Whether the node asks for it is under_parent.
+static func fold_parent(nodes: Dictionary, node: Feature) -> Feature:
+	if node.is_group or node.couplings.is_empty():
+		return null
+	var youngest: Coupling = node.couplings[0]
+	if not youngest.parent_b.is_empty():
+		return null
+	var parent: Feature = nodes.get(youngest.parent)
+	if parent == null or parent.is_group or parent.is_sea_floor() or parent == node:
+		return null
+	return parent
+
+
+# Every feature shown under its parent, to that parent. Couplings that go round
+# in a circle leave the features on the circle in their groups.
+static func folds(root: Feature) -> Dictionary:
+	var nodes := index(root)
+	var result := {}
+	for node: Feature in nodes.values():
+		if node.under_parent:
+			var parent := fold_parent(nodes, node)
+			if parent != null:
+				result[node] = parent
+	for node: Feature in result.keys():
+		var seen := {}
+		var at: Feature = node
+		while result.has(at) and not seen.has(at):
+			seen[at] = true
+			at = result[at]
+		if at == node:
+			for looped: Feature in seen:
+				result.erase(looped)
+	return result
+
+
+# The features shown under a parent, and under those, in tree order.
+static func add_ons(root: Feature, parent: Feature) -> Array[Feature]:
+	var folded := folds(root)
+	var result: Array[Feature] = []
+	var stack: Array[Feature] = [root]
+	while not stack.is_empty():
+		var node: Feature = stack.pop_back()
+		for at in range(node.children.size() - 1, -1, -1):
+			stack.append(node.children[at])
+		var above: Feature = folded.get(node)
+		while above != null and above != parent:
+			above = folded.get(above)
+		if above != null:
+			result.append(node)
+	return result
+
+
+# Put a parent's add-ons right after it, in its group, so they go where it goes.
+static func gather(root: Feature, parent: Feature) -> void:
+	var moving := add_ons(root, parent)
+	for node in moving:
+		root.find_parent(node).children.erase(node)
+	var group := root.find_parent(parent)
+	var at := group.find_child(parent) + 1
+	for node in moving:
+		group.children.insert(at, node)
+		at += 1
+
+
 # Circles and hotspots take no part in coupling: a circle is built from its
 # center and radius, and a hotspot sits still in the mantle while its plate
 # drifts over it. Spans an older file gave either are dropped when it is opened,

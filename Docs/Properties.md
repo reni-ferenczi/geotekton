@@ -188,6 +188,7 @@ follows the feature tree selection, through
 | Keyframes  | Count, Key, Delete | no         |
 | Coupled to | Parent, Decouple   | no         |
 | Follow     | Picker, Couple, pointer | no    |
+| Tree row   | Checkbox           | no         |
 | Couplings  | List, Remove       | no         |
 | Sections   | Table, Reverse, Remove, Pick | no |
 
@@ -445,6 +446,12 @@ all.
   are where they were. Selecting another feature ends the pick (GP-0138). The
   Plate row of a hotspot shares the cross pointer and the status line, and its
   pick ends with the click that picks.
+- **Tree row** has one switch, **Show under parent**. With it on, the
+  feature's row in the tree sits under the row of the feature its youngest
+  span follows, the way an add-on of crust sits under its plate. See
+  [Add-ons under their plate](Editing.md#add-ons-under-their-plate). It is
+  greyed out while that span follows nothing that has a row, or two features
+  at once, unless it is on, so it can always be turned off.
 - **Couplings** lists every span: the parent, `From` and `To` in Ma. `Remove`
   takes the selected span away, or the last one when none is selected, and
   leaves every keyframe where it was on the globe.
