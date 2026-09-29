@@ -108,6 +108,7 @@ var couple_button: Button
 var pick_parent_button: Button
 var spans: Tree
 var remove_span_button: Button
+var under_parent_check: CheckBox
 var axis_circles_check: CheckBox
 var axis_lat_spin: SpinBox
 var axis_lon_spin: SpinBox
@@ -507,6 +508,16 @@ func _build_coupling(form: GridContainer, box: VBoxContainer) -> void:
 		func(on: bool) -> void: pick_parent_requested.emit(on))
 	couple_row.add_child(pick_parent_button)
 
+	under_parent_check = CheckBox.new()
+	under_parent_check.name = "UnderParent"
+	under_parent_check.text = "Show under parent"
+	under_parent_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	under_parent_check.tooltip_text = "Show the row under the feature the last coupling follows, on and off with it"
+	under_parent_check.toggled.connect(_on_under_parent_toggled)
+	_row(form, "Tree row", under_parent_check)
+	_coupling_boxes.append(_rows.back()["label"])
+	_coupling_boxes.append(under_parent_check)
+
 	var heading := Label.new()
 	heading.name = "SpanHeading"
 	heading.text = "Couplings"
@@ -903,6 +914,10 @@ func _update_coupling() -> void:
 	couple_button.disabled = not feature or span != null or parent_selector.selected < 0
 	pick_parent_button.disabled = not feature or parent_selector.item_count == 0
 	remove_span_button.disabled = not feature or node.couplings.is_empty()
+	# Turning it off always works; on, only with one feature to go under.
+	under_parent_check.set_pressed_no_signal(feature and node.under_parent)
+	under_parent_check.disabled = not feature or (not node.under_parent
+		and Coupling.fold_parent(Coupling.index(document.root), node) == null)
 
 
 # Which span is picked in the list, the last one standing in when none is.
@@ -972,6 +987,17 @@ func _on_enabled_toggled(pressed: bool) -> void:
 	if _filling or node == null or node.is_root or pressed == node.enabled:
 		return
 	document.set_enabled(node, pressed)
+	edited.emit()
+
+
+func _on_under_parent_toggled(pressed: bool) -> void:
+	if _filling or node == null or node.is_group or pressed == node.under_parent:
+		return
+	var error := document.set_under_parent(node, pressed)
+	if not error.is_empty():
+		under_parent_check.set_pressed_no_signal(node.under_parent)
+		rejected.emit(error)
+		return
 	edited.emit()
 
 
@@ -1420,6 +1446,8 @@ func _coupling_to_json() -> Dictionary:
 		"pick": not pick_parent_button.disabled,
 		"picking": pick_parent_button.button_pressed,
 		"remove": not remove_span_button.disabled,
+		"under_parent": under_parent_check.button_pressed,
+		"under_parent_offered": not under_parent_check.disabled,
 		"spans": rows,
 	}
 
@@ -1435,6 +1463,12 @@ func set_field(field: String, value: Variant) -> String:
 		"enabled":
 			enabled_check.button_pressed = bool(value)
 			_on_enabled_toggled(bool(value))
+		"under_parent":
+			if node.is_group:
+				return "a group has no Tree row"
+			if under_parent_check.disabled:
+				return "Show under parent is greyed out"
+			under_parent_check.button_pressed = bool(value)
 		"feature_type":
 			var index := _type_index(str(value))
 			if index < 0:

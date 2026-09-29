@@ -21,6 +21,10 @@ signal commands_changed()
 # The open document, owned by Application and set through attach().
 var document: Document
 
+# Asks whether a plate's add-ons go with it (GP-0151), and the plate it asks for.
+var delete_prompt: ConfirmationDialog
+var _deleting: Feature = null
+
 # The feature tree of the open document.
 var root: Feature:
 	get:
@@ -42,6 +46,17 @@ func _ready() -> void:
 	collapse_button.pressed.connect(_on_collapse_pressed)
 	expand_button.pressed.connect(_on_expand_pressed)
 	search.text_changed.connect(func(text: String) -> void: feature_tree.filter = text)
+
+	delete_prompt = ConfirmationDialog.new()
+	delete_prompt.name = "DeletePrompt"
+	delete_prompt.ok_button_text = "Yes"
+	delete_prompt.add_button("No", true, "no")
+	delete_prompt.confirmed.connect(func() -> void:
+		_delete(_deleting, Coupling.add_ons(root, _deleting)))
+	delete_prompt.custom_action.connect(func(_action: StringName) -> void:
+		delete_prompt.hide()
+		_delete(_deleting))
+	add_child(delete_prompt)
 
 
 # Take the document to edit and show its tree. Called once by Application.
@@ -177,13 +192,27 @@ func add_new_feature_at(parent: Feature, index: int) -> void:
 
 
 # Delete the node, with the ridges and crusts built from it; see
-# Document.delete_node(). A feature with a row hands the selection to its next
-# row, its previous one or its group. A ridge or crust has no row beside it, so
-# a crust hands it to its half and a ridge to nothing.
+# Document.delete_node(). A plate with add-ons shown under it asks first whether
+# they go too. A feature with a row hands the selection to its next row, its
+# previous one or its group. A ridge or crust has no row beside it, so a crust
+# hands it to its half and a ridge to nothing.
 func delete_node(node: Feature) -> void:
 	if node == null or node.is_root:
 		return
+	var add_ons: Array[Feature] = []
+	if not node.is_group:
+		add_ons = Coupling.add_ons(root, node)
+	if not add_ons.is_empty():
+		_deleting = node
+		delete_prompt.title = "Delete %s" % node.title
+		delete_prompt.dialog_text = "Delete its %d add-on%s as well?" % [
+			add_ons.size(), "" if add_ons.size() == 1 else "s"]
+		delete_prompt.popup_centered()
+		return
+	_delete(node)
 
+
+func _delete(node: Feature, also: Array[Feature] = []) -> void:
 	var parent := root.find_parent(node)
 	if parent == null:
 		return
@@ -199,7 +228,7 @@ func delete_node(node: Feature) -> void:
 			next = rows[at + 1]
 		elif at > 0:
 			next = rows[at - 1]
-	if not document.delete_node(node).is_empty():
+	if not document.delete_node(node, also).is_empty():
 		return
 	reload()
 	if next == null or (next != root and root.find_parent(next) == null):

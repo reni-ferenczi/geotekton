@@ -185,20 +185,21 @@ func rename(node: Feature, title: String) -> void:
 # Take a node out of the tree, and with it every ridge and crust built from a
 # feature under it: a ridge running along one, and a crust whose half or ridge
 # goes. They have no row in the feature tree to be found by and deleted from
-# afterwards. One version.
-func delete_node(node: Feature) -> String:
+# afterwards. `also` goes with it, a plate's add-ons say (GP-0151). One version.
+func delete_node(node: Feature, also: Array[Feature] = []) -> String:
 	if node == null or node.is_root:
 		return "Select a feature or a group to delete."
 	var parent := root.find_parent(node)
 	if parent == null:
 		return "%s is not in the tree." % node.title
 	var gone := {}
-	var stack: Array[Feature] = [node]
+	var doomed: Array[Feature] = [node]
+	doomed.append_array(also)
+	var stack: Array[Feature] = doomed.duplicate()
 	while not stack.is_empty():
 		var inside: Feature = stack.pop_back()
 		gone[inside.uuid] = true
 		stack.append_array(inside.children)
-	var doomed: Array[Feature] = [node]
 	# Ridges before crusts, so a crust whose ridge was just marked goes too.
 	for crusts_now in [false, true]:
 		for leaf in _sea_floor():
@@ -211,7 +212,10 @@ func delete_node(node: Feature) -> String:
 				gone[leaf.uuid] = true
 				doomed.append(leaf)
 	for leaf in doomed:
-		root.find_parent(leaf).children.erase(leaf)
+		# One inside another that went already is gone with it.
+		var holder := root.find_parent(leaf)
+		if holder != null:
+			holder.children.erase(leaf)
 	record()
 	return ""
 
@@ -233,6 +237,25 @@ func set_enabled(node: Feature, enabled: bool) -> void:
 	if node.is_group and not enabled:
 		node.collapsed = true
 	record()
+
+
+# Show the feature's row under the parent its youngest span follows, or back in
+# its group. Turning it on moves the feature into the parent's group, right
+# after the parent, so it goes on and off with the parent's groups; turning it
+# off leaves it there (GP-0151).
+func set_under_parent(feature: Feature, on: bool) -> String:
+	if feature == null or feature.is_group:
+		return "Only a feature can be shown under its parent."
+	if on:
+		var parent := Coupling.fold_parent(Coupling.index(root), feature)
+		if parent == null:
+			return "%s does not follow one feature at the end of its couplings." % feature.title
+		root.find_parent(feature).children.erase(feature)
+		var group := root.find_parent(parent)
+		group.children.insert(group.find_child(parent) + 1, feature)
+	feature.under_parent = on
+	record()
+	return ""
 
 
 func set_color(feature: Feature, color: Color) -> void:

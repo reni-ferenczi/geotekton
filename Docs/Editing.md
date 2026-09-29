@@ -131,6 +131,38 @@ To put an item first in an open group, drop it on the band at the top of the
 group's first row. A group cannot be dropped into itself or anything under it.
 A move is one undo step.
 
+### Add-ons under their plate
+
+A small piece of crust added onto a plate after the plate's start has to be a
+feature of its own, coupled to the plate, since editing the plate would change
+it before the crust was there. **Show under parent** in the
+[Tree row](Properties.md#coupling) of such a feature tidies it away: its row
+moves under the plate's row, and the plate's row gets a stacked layers button
+in front of its swatch. Pointing at the button says how many add-ons the plate
+holds, those that are not there at the current time included, and clicking it
+opens or closes them. A plate's add-ons start closed; whether they are open is
+not saved with the world.
+
+The plate is the feature the add-on's youngest span follows, which is the one
+it follows to the end of its life. Turning the switch on moves the add-on into
+the plate's group, right after the plate, and from then on:
+
+- dragging the plate takes its add-ons along;
+- turning the plate off, or any group it is in, turns its add-ons off as well,
+  on the globe and in hit testing, while the add-on's own switch still turns
+  only the add-on off;
+- dragging an add-on's row out from under the plate turns the switch off and
+  puts the add-on where it is dropped;
+- deleting the plate asks `Delete its N add-ons as well?`. Yes deletes them
+  with it, No deletes only the plate, which leaves the add-ons in the plate's
+  group as ordinary rows, and Cancel deletes nothing. Either way it is one
+  undo step.
+
+Turning the switch off leaves the add-on as an ordinary row next to the plate.
+An add-on of an add-on sits one level further down. Should the couplings go
+round in a circle, the features on it stay in their groups. `Coupling.folds()`
+works out which feature sits under which (GP-0151).
+
 ### Searching the tree
 
 The search box above the tree, which Edit > Find (Ctrl+F) puts the keyboard

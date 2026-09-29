@@ -261,3 +261,35 @@ func test_search_filter_works_with_hide_absent_and_blocks_drags() -> void:
 	app.features.search.text_changed.emit("")
 	assert_true(shown.call(groups[1]) and shown.call(groups[1].children[0]),
 		"clearing the search shows every row again")
+
+
+# GP-0151: an add-on shown under its plate has its row under the plate's, which
+# starts closed and opens with the button; dragging it out makes it an ordinary
+# row again, and dragging the plate takes it along.
+func test_an_add_on_row_sits_under_its_plate_and_leaves_it_when_dragged_out() -> void:
+	var groups := await _build(false)
+	var plate: Feature = groups[0].children[0]
+	var add_on: Feature = groups[1].children[0]
+	add_on.couplings.append(Coupling.create(2000.0, 0.0, plate.uuid))
+	assert_eq(app.document.set_under_parent(add_on, true), "", "the add-on goes under the plate")
+	app.features.reload()
+	await frames(2)
+	var feature_tree: FeatureTree = app.features.feature_tree
+	var plate_row: TreeItem = feature_tree.items[plate.pnid]
+	assert_eq(feature_tree.items[add_on.pnid].get_parent(), plate_row, "its row is under the plate's")
+	assert_true(plate_row.collapsed, "which starts closed")
+	assert_eq(plate_row.get_button_by_id(0, FeatureTree.ADD_ONS_BUTTON), 0,
+		"the add-ons button comes first, before the swatch")
+	feature_tree._on_button_clicked(plate_row, 0, FeatureTree.ADD_ONS_BUTTON, MOUSE_BUTTON_LEFT)
+	assert_true(not plate_row.collapsed, "the button opens it")
+	app.features.reload()
+	await frames(2)
+	assert_true(not feature_tree.items[plate.pnid].collapsed, "and it stays open across a rebuild")
+
+	await _drag_row(plate, groups[1], MIDDLE, 0)
+	assert_eq(groups[1].children.slice(-2), [plate, add_on] as Array[Feature],
+		"dragging the plate into the other group takes the add-on along")
+
+	await _drag_row(add_on, groups[0], MIDDLE, 0)
+	assert_true(not add_on.under_parent, "dragged out from under its plate, the add-on is ordinary")
+	assert_eq(app.document.root.find_parent(add_on), groups[0], "and lands where it was dropped")

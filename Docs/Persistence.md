@@ -243,6 +243,10 @@ valid for the type; see [Circles](#circles) for the keys it adds.
 `Logic/feature_icon.gd`. It is written only when there is one, and a feature
 without it shows the same row icon it showed before there were any. Nothing but
 the row reads it; see [Properties](Properties.md#the-icon).
+`under_parent`, written only when true, is the Show under parent switch: the
+feature's tree row sits under the row of the feature its youngest span follows
+(GP-0151). A leaf without it, and every older version, shows the row in its
+group. See [Editing](Editing.md#add-ons-under-their-plate).
 `line_width`, since 0.29.0, is how wide the feature's lines are drawn, as a
 multiple of what its type draws at, from 0.1 to 20. It is written only when it
 is not 1, and a leaf without it reads as 1, which is what every feature was
